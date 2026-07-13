@@ -15,9 +15,18 @@ const { app } = require('electron');
 let dataPath;
 let _data = null;
 
+// Referencia lazy a sync para evitar dependencia circular
+function _sync() {
+  try { return require('./sync'); } catch { return null; }
+}
+
 function getDataPath() {
   if (!dataPath) dataPath = path.join(app.getPath('userData'), 'data.json');
   return dataPath;
+}
+
+function _clearCache() {
+  _data = null;
 }
 
 function load() {
@@ -139,13 +148,14 @@ function addVehiculo(nombre, matricula, km_actual) {
   const id = nextId('v');
   d.vehiculos.push({ id, nombre, matricula: matricula || '', km_actual: parseFloat(km_actual) || 0 });
   save();
+  const s = _sync(); if (s) s.markDirty('vehiculos', id);
   return id;
 }
 
 function updateVehiculoKm(id, km) {
   const d = load();
   const v = d.vehiculos.find(x => x.id === id);
-  if (v) { v.km_actual = parseFloat(km); save(); }
+  if (v) { v.km_actual = parseFloat(km); save(); const s = _sync(); if (s) s.markDirty('vehiculos', id); }
 }
 
 function deleteVehiculo(id) {
@@ -153,6 +163,7 @@ function deleteVehiculo(id) {
   d.vehiculos = d.vehiculos.filter(x => x.id !== id);
   d.alumnos.forEach(a => { if (a.vehiculo_id === id) a.vehiculo_id = null; });
   save();
+  const s = _sync(); if (s) s.markDeleted('vehiculos', id);
 }
 
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
@@ -172,6 +183,7 @@ function addAlumno(nombre, permiso, vehiculo_id) {
   const id = nextId('a');
   d.alumnos.push({ id, nombre, permiso: permiso || 'B', vehiculo_id: vehiculo_id ? parseInt(vehiculo_id) : null });
   save();
+  const s = _sync(); if (s) s.markDirty('alumnos', id);
   return id;
 }
 
@@ -180,6 +192,7 @@ function deleteAlumno(id) {
   d.alumnos   = d.alumnos.filter(x => x.id !== id);
   d.practicas = d.practicas.filter(x => x.alumno_id !== id);
   save();
+  const s = _sync(); if (s) s.markDeleted('alumnos', id);
 }
 
 function updateAlumno(id, nombre, permiso, vehiculo_id) {
@@ -190,6 +203,7 @@ function updateAlumno(id, nombre, permiso, vehiculo_id) {
     a.permiso = permiso;
     a.vehiculo_id = vehiculo_id ? parseInt(vehiculo_id) : null;
     save();
+    const s = _sync(); if (s) s.markDirty('alumnos', id);
   }
 }
 
@@ -220,6 +234,7 @@ function addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final) {
   const v = d.vehiculos.find(x => x.id === parseInt(vehiculo_id));
   if (v && kf > v.km_actual) v.km_actual = kf;
   save();
+  const s = _sync(); if (s) s.markDirty('practicas', id);
   return id;
 }
 
@@ -227,6 +242,7 @@ function deletePractica(id) {
   const d = load();
   d.practicas = d.practicas.filter(x => x.id !== id);
   save();
+  const s = _sync(); if (s) s.markDeleted('practicas', id);
 }
 
 function updatePractica(id, fecha, km_inicial, km_final) {
@@ -237,6 +253,7 @@ function updatePractica(id, fecha, km_inicial, km_final) {
     p.km_inicial = parseFloat(km_inicial);
     p.km_final = parseFloat(km_final);
     save();
+    const s = _sync(); if (s) s.markDirty('practicas', id);
   }
 }
 
@@ -597,5 +614,6 @@ module.exports = {
   getLogs, clearLogs,
   crearBackup, restaurarBackup,
   validarSolapamiento,
-  getTimelineVehiculo
+  getTimelineVehiculo,
+  _clearCache
 };

@@ -786,6 +786,67 @@ function renderTimelineChart(practicas) {
   }
 }
 
+// ─── SYNC UI ──────────────────────────────────────────────────────────────────
+const SYNC_LABELS = {
+  ok:      '✓ Sincronizado',
+  syncing: '↻ Sincronizando...',
+  pending: '● Cambios pendientes',
+  offline: 'Sin conexión',
+  error:   '✕ Error de sync'
+};
+
+function updateSyncBar(status) {
+  const bar   = document.getElementById('sync-bar');
+  const label = document.getElementById('sync-label');
+  if (!bar || !label) return;
+  bar.dataset.status = status;
+  label.textContent  = SYNC_LABELS[status] || status;
+}
+
+async function pushAllToCloud() {
+  const bar = document.getElementById('push-all-bar');
+  if (!confirm('¿Subir TODOS los datos (vehículos, alumnos y prácticas) a Supabase ahora?\n\nHaz esto la primera vez para que la web del móvil tenga acceso a los datos.')) return;
+  if (bar) bar.style.color = 'rgba(99,102,241,.7)';
+  updateSyncBar('syncing');
+  const res = await window.api.syncPushAll();
+  if (res && res.ok) {
+    updateSyncBar('ok');
+    if (bar) { bar.style.color = 'rgba(16,185,129,.6)'; bar.innerHTML = bar.innerHTML.replace('Subir todo a la nube', '✓ Datos subidos'); }
+  } else {
+    updateSyncBar('error');
+    alert('Error al subir: ' + (res?.reason || 'Sin conexión'));
+    if (bar) bar.style.color = 'rgba(239,68,68,.6)';
+  }
+}
+
+async function syncNow() {
+  updateSyncBar('syncing');
+  const res = await window.api.syncNow();
+  if (res && res.ok) {
+    updateSyncBar('ok');
+    // Si se bajaron prácticas nuevas, recargar vista actual
+    if (res.pulled > 0) {
+      loadDashboard();
+      if (currentAlumnoId) loadPracticas();
+    }
+  } else {
+    updateSyncBar(res && res.reason === 'Sin conexión a internet' ? 'offline' : 'error');
+  }
+}
+
+// Escuchar cambios de estado desde main.js
+window.api.onSyncStatus((status) => {
+  updateSyncBar(status);
+  // Si llegaron datos nuevos (ok tras sync), refrescar
+  if (status === 'ok') {
+    loadDashboard();
+    if (currentAlumnoId) loadPracticas();
+  }
+});
+
+// Obtener estado inicial
+window.api.getSyncStatus().then(s => updateSyncBar(s || 'offline'));
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('relleno-vehiculo')?.addEventListener('change', actualizarContadorSinKm);
 loadDashboard();

@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const db = require('./db');
+const sync = require('./sync');
 const { autoUpdater } = require('electron-updater');
 
 // Silenciar logs del updater en producción
@@ -32,6 +33,16 @@ app.whenReady().then(() => {
   createWindow();
   // Comprueba actualizaciones 3s después de arrancar (no bloquea el inicio)
   setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 3000);
+
+  // Arrancar sync automático (cada 2 min)
+  sync.startAutoSync(2 * 60 * 1000);
+
+  // Notificar a la UI cuando cambia el estado de sync
+  sync.onStatusChange((status) => {
+    if (mainWin && !mainWin.isDestroyed()) {
+      mainWin.webContents.send('sync-status', status);
+    }
+  });
 });
 
 autoUpdater.on('update-available', () => {
@@ -51,7 +62,10 @@ autoUpdater.on('update-downloaded', () => {
   }
 });
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => {
+  sync.stopAutoSync();
+  if (process.platform !== 'darwin') app.quit();
+});
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 
 // ─── IPC HANDLERS ────────────────────────────────────────────────────────────
@@ -148,3 +162,8 @@ ipcMain.handle('generar-km', (_, kmInicial, min = 40, max = 45) => {
   const kmFinal = Math.round((kmInicial + diff) * 10) / 10;
   return { km_inicial: kmInicial, km_final: kmFinal, diff: Math.round(diff * 10) / 10 };
 });
+
+// ─── SYNC IPC HANDLERS ────────────────────────────────────────────────────────
+ipcMain.handle('sync-now', async () => sync.sync());
+ipcMain.handle('sync-push-all', async () => sync.pushAll());
+ipcMain.handle('sync-status', () => sync.getStatus());
