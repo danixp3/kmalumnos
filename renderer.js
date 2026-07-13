@@ -683,6 +683,107 @@ async function loadTimeline() {
 
   html += '</tbody></table></div>';
   result.innerHTML = html;
+
+  // ── GRÁFICO HORIZONTAL DE KM ──────────────────────────────────────────────
+  renderTimelineChart(practicas);
+}
+
+// Paleta de colores para alumnos
+const CHART_PALETTE = [
+  '#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6',
+  '#06b6d4','#f97316','#84cc16','#ec4899','#14b8a6','#a855f7'
+];
+
+function renderTimelineChart(practicas) {
+  const wrap = document.getElementById('timeline-chart-wrap');
+  const barsEl = document.getElementById('timeline-chart-bars');
+  const axisEl = document.getElementById('timeline-chart-axis');
+  const legendEl = document.getElementById('timeline-chart-legend');
+
+  // Solo prácticas con km
+  const conKm = practicas.filter(p => !p.sin_km);
+  if (!conKm.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+
+  const kmMin = Math.min(...conKm.map(p => p.km_inicial));
+  const kmMax = Math.max(...conKm.map(p => p.km_final));
+  const rango = kmMax - kmMin || 1;
+
+  // Mapa alumno → color
+  const alumnos = [...new Set(conKm.map(p => p.alumno_nombre))];
+  const colorMap = {};
+  alumnos.forEach((a, i) => { colorMap[a] = CHART_PALETTE[i % CHART_PALETTE.length]; });
+
+  // Leyenda
+  legendEl.innerHTML = alumnos.map(a =>
+    `<span style="display:inline-flex;align-items:center;gap:5px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:3px 9px">
+      <span style="width:10px;height:10px;border-radius:3px;background:${colorMap[a]};flex-shrink:0"></span>
+      ${esc(a)}
+    </span>`
+  ).join('');
+
+  // Barras — reusar tooltip si ya existe
+  let tooltip = document.getElementById('km-chart-tooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'km-chart-tooltip';
+    tooltip.style.cssText = 'position:fixed;background:#0f172a;color:#fff;font-size:11px;padding:7px 11px;border-radius:8px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:999;max-width:220px;line-height:1.6;white-space:pre-wrap;box-shadow:0 4px 16px rgba(0,0,0,.3)';
+    document.body.appendChild(tooltip);
+  }
+
+  barsEl.innerHTML = '';
+  conKm.forEach(p => {
+    const left  = ((p.km_inicial - kmMin) / rango) * 100;
+    const width = Math.max(((p.km_final - p.km_inicial) / rango) * 100, 0.3);
+    const color = colorMap[p.alumno_nombre];
+    const isSolap = p.gap !== null && p.gap < 0;
+    const isHueco = p.gap !== null && p.gap > 0;
+
+    const bar = document.createElement('div');
+    bar.style.cssText = `
+      position:absolute;
+      left:${left}%;
+      width:${width}%;
+      top:0; bottom:0;
+      background:${color};
+      border-radius:4px;
+      opacity:${isSolap ? 1 : 0.82};
+      cursor:pointer;
+      transition:opacity .12s, transform .12s;
+      border:${isSolap ? '2px solid #dc2626' : '1.5px solid rgba(255,255,255,.3)'};
+      box-sizing:border-box;
+    `;
+
+    const diff = Math.round((p.km_final - p.km_inicial) * 10) / 10;
+    const tooltipText = `${p.alumno_nombre}\n📅 ${fmtFecha(p.fecha)}\n📍 ${fmt(p.km_inicial)} → ${fmt(p.km_final)}\n🛣 +${diff} km${isSolap ? '\n⚡ SOLAPA ' + fmt(p.gap) + ' km' : ''}${isHueco ? '\n🔶 Hueco +' + fmt(p.gap) + ' km' : ''}`;
+
+    bar.addEventListener('mouseenter', e => {
+      bar.style.opacity = '1';
+      bar.style.transform = 'scaleY(1.1)';
+      tooltip.textContent = tooltipText;
+      tooltip.style.opacity = '1';
+    });
+    bar.addEventListener('mousemove', e => {
+      tooltip.style.left = (e.clientX + 12) + 'px';
+      tooltip.style.top  = (e.clientY - 10) + 'px';
+    });
+    bar.addEventListener('mouseleave', () => {
+      bar.style.opacity = isSolap ? '1' : '0.82';
+      bar.style.transform = '';
+      tooltip.style.opacity = '0';
+    });
+
+    barsEl.appendChild(bar);
+  });
+
+  // Eje de km (5 marcas)
+  axisEl.innerHTML = '';
+  for (let i = 0; i <= 4; i++) {
+    const val = kmMin + (rango * i / 4);
+    const span = document.createElement('span');
+    span.textContent = fmt(Math.round(val)) + ' km';
+    axisEl.appendChild(span);
+  }
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
