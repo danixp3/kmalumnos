@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('api', {
   crearBackup:           ()                      => ipcRenderer.invoke('crear-backup'),
   restaurarBackup:       ()                      => ipcRenderer.invoke('restaurar-backup'),
   validarSolapamiento:   (vid, f, ki, kf, exId)  => ipcRenderer.invoke('validar-solapamiento', vid, f, ki, kf, exId),
+  getTimelineVehiculo:   (vid)                   => ipcRenderer.invoke('get-timeline-vehiculo', vid),
 
   // Importación
   openCsvDialog: ()                          => ipcRenderer.invoke('open-csv-dialog'),

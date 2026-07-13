@@ -473,6 +473,7 @@
   .alert-ok   { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
   .alert-err  { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
   .alert-info { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
+  .alert-warn { background: #fffbeb; color: #92400e; border: 1px solid #fcd34d; }
   .hidden { display: none !important; }
 
   /* ── MISC ───────────────────────────────────── */
@@ -614,6 +615,12 @@
         </span>
         Importar CSV
       </a>
+      <a data-page="timeline">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="8 8 3 12 8 16"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </span>
+        Timeline coche
+      </a>
       <a data-page="solapamientos">
         <span class="nav-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -670,6 +677,9 @@
           </div>
         </div>
       </div>
+
+      <!-- Alertas de estado -->
+      <div id="dash-alertas" style="margin-bottom:16px"></div>
 
       <div class="card">
         <div class="card-title">
@@ -975,6 +985,31 @@
         </button>
         <div id="restaurar-err" class="hidden alert alert-err" style="margin-top:14px"></div>
       </div>
+    </div>
+
+    <!-- ── TIMELINE VEHÍCULO ─────────────────── -->
+    <div id="page-timeline" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Timeline del coche</div>
+          <div class="page-subtitle">Todas las prácticas del vehículo ordenadas por km — visión global</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="form-row" style="align-items:flex-end;gap:12px">
+          <div class="form-group">
+            <label>Vehículo</label>
+            <select id="timeline-vehiculo" style="width:200px" onchange="loadTimeline()"></select>
+          </div>
+          <button class="btn btn-primary" onclick="loadTimeline()" style="align-self:flex-end">
+            🔄 Actualizar
+          </button>
+          <span id="timeline-resumen" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
+        </div>
+      </div>
+
+      <div id="timeline-result"></div>
     </div>
 
     <!-- ── IMPORTAR CSV ────────────────────────── -->
