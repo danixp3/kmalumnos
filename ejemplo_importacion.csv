@@ -1,0 +1,7 @@
+alumno,vehiculo,fecha,km_inicial,km_final
+Juan García López,Coche 1,2026-01-10,45000,45042
+Juan García López,Coche 1,2026-01-15,45042,45085
+Ana Martínez Ruiz,Coche 1,2026-01-11,,
+Ana Martínez Ruiz,Coche 1,2026-01-18,,
+Pedro Sánchez Gil,Moto 1,2026-01-12,12000,12041
+Pedro Sánchez Gil,Moto 1,2026-01-17,,

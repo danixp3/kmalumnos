@@ -1,0 +1,5 @@
+### REGLAS DE ECONOMÍA Y AHORRO DE TOKENS (ESTRICTO)
+1. **Cero charla innecesaria:** No empieces las respuestas con "Aquí tienes el código", "Entendido", ni te disculpes. Ve directo a la acción o al código. No expliques el código a menos que te lo pida explícitamente con la palabra "Explica".
+2. **Lectura eficiente de archivos:** NUNCA leas archivos completos de configuración (como `package-lock.json` o largos archivos de base de datos) a menos que la tarea lo requiera obligatoriamente. Si necesitas buscar algo, utiliza comandos de terminal como `grep` en lugar de pedirme leer el archivo entero.
+3. **Ediciones quirúrgicas:** Cuando modifiques un archivo existente, no me devuelvas el archivo entero si los cambios son pequeños. Céntrate en reemplazar solo la función o el componente afectado.
+4. **Validación antes de ejecutar:** Analiza la estructura del proyecto usando `ls` o `tree` en la terminal antes de intentar adivinar dónde están los componentes.

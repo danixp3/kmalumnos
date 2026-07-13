@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registrador de Kilómetros - Autoescuela</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  :root {
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --primary-light: #e0e7ff;
+    --success: #10b981;
+    --success-light: #d1fae5;
+    --danger: #ef4444;
+    --danger-light: #fee2e2;
+    --warn: #f59e0b;
+    --warn-light: #fef3c7;
+    --gray: #64748b;
+    --gray-light: #f1f5f9;
+    --sidebar-bg: #0f172a;
+    --sidebar-hover: rgba(99,102,241,.15);
+    --sidebar-active: rgba(99,102,241,.25);
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+    --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 10px 30px rgba(0,0,0,.1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13.5px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── SCROLLBAR ──────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+  /* ── LAYOUT ─────────────────────────────────── */
+  #app { display: flex; height: 100vh; overflow: hidden; }
+
+  /* ── SIDEBAR ────────────────────────────────── */
+  #sidebar {
+    width: 220px;
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #sidebar::before {
+    content: '';
+    position: absolute;
+    top: -80px; left: -80px;
+    width: 260px; height: 260px;
+    background: radial-gradient(circle, rgba(99,102,241,.3) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .sidebar-header {
+    padding: 22px 18px 18px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .sidebar-logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(99,102,241,.4);
+  }
+
+  .sidebar-logo-text {
+    display: flex; flex-direction: column;
+  }
+
+  .sidebar-logo-text strong {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -.3px;
+    line-height: 1.2;
+  }
+
+  .sidebar-logo-text span {
+    color: rgba(255,255,255,.4);
+    font-size: 11px;
+    font-weight: 400;
+  }
+
+  #sidebar nav {
+    flex: 1;
+    padding: 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .nav-section {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255,255,255,.25);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 12px 8px 6px;
+  }
+
+  #sidebar nav a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: rgba(255,255,255,.5);
+    text-decoration: none;
+    padding: 9px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all .18s ease;
+    cursor: pointer;
+    position: relative;
+  }
+
+  #sidebar nav a:hover {
+    background: var(--sidebar-hover);
+    color: rgba(255,255,255,.85);
+  }
+
+  #sidebar nav a.active {
+    background: var(--sidebar-active);
+    color: #a5b4fc;
+  }
+
+  #sidebar nav a.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 3px; height: 18px;
+    background: #6366f1;
+    border-radius: 0 3px 3px 0;
+  }
+
+  .nav-icon {
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    opacity: .75;
+  }
+
+  #sidebar nav a.active .nav-icon,
+  #sidebar nav a:hover .nav-icon { opacity: 1; }
+
+  /* ── CONTENT ────────────────────────────────── */
+  #content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px 36px;
+  }
+
+  /* ── PAGES ──────────────────────────────────── */
+  .page { display: none; animation: fadeIn .2s ease; }
+  .page.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── PAGE HEADER ────────────────────────────── */
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .page-title { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -.5px; }
+  .page-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── CARDS ──────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title .card-title-icon {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+
+  /* ── STATS ──────────────────────────────────── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .stat {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: box-shadow .2s, transform .2s;
+  }
+
+  .stat:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+
+  .stat-icon {
+    width: 46px; height: 46px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .stat-icon-blue  { background: #e0e7ff; }
+  .stat-icon-green { background: #d1fae5; }
+  .stat-icon-orange{ background: #fef3c7; }
+
+  .stat-info { flex: 1; min-width: 0; }
+  .stat .num { font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: -1px; line-height: 1; }
+  .stat .lbl { font-size: 12px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+
+  /* ── FORMS ──────────────────────────────────── */
+  .form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 0; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+
+  label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+    letter-spacing: .2px;
+  }
+
+  input, select {
+    padding: 8px 11px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    background: #fff;
+    color: var(--text);
+    transition: border-color .15s, box-shadow .15s;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+  }
+
+  input::placeholder { color: #cbd5e1; }
+  input[type=number] { width: 130px; }
+
+  /* ── BUTTONS ────────────────────────────────── */
+  .btn {
+    padding: 8.5px 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all .15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .btn:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+  .btn:active { transform: translateY(0); filter: brightness(.96); box-shadow: none; }
+
+  .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(99,102,241,.3); }
+  .btn-success { background: var(--success); color: #fff; box-shadow: 0 2px 8px rgba(16,185,129,.3); }
+  .btn-danger  { background: var(--danger);  color: #fff; box-shadow: 0 2px 8px rgba(239,68,68,.3); }
+  .btn-warn    { background: var(--warn);    color: #fff; box-shadow: 0 2px 8px rgba(245,158,11,.3); }
+  .btn-gray    { background: #e2e8f0; color: var(--gray); box-shadow: none; }
+  .btn-gray:hover { background: #cbd5e1; }
+  .btn-outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); box-shadow: none; }
+  .btn-outline:hover { background: var(--primary-light); }
+
+  .btn-sm { padding: 6px 11px; font-size: 12px; border-radius: 6px; }
+  .btn-icon { padding: 7px; border-radius: 7px; }
+
+  /* ── TABLES ─────────────────────────────────── */
+  .table-wrap { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+  thead { background: var(--gray-light); }
+  th {
+    padding: 11px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 11px 14px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { transition: background .1s; }
+  tbody tr:hover td { background: #fafbff; }
+
+  /* ── BADGES ─────────────────────────────────── */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .3px;
+  }
+
+  .tag-b { background: #e0e7ff; color: #4338ca; }
+  .tag-a { background: var(--warn-light); color: #92400e; }
+  .tag-c { background: #f3e8ff; color: #6b21a8; }
+
+  .km-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    color: #15803d;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .badge-warn {
+    background: var(--warn-light);
+    color: #92400e;
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+
+  /* ── MODAL ──────────────────────────────────── */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,23,42,.5);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .overlay.open { display: flex; pointer-events: all; animation: overlayIn .2s ease; }
+
+  @keyframes overlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .modal {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 28px 30px;
+    width: 440px;
+    max-width: 95vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    border: 1px solid var(--border);
+    animation: modalIn .22s ease;
+  }
+
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(.96) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+
+  .modal-header-icon {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    background: var(--primary-light);
+    color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .modal h3 { font-size: 16px; font-weight: 700; color: var(--text); }
+  .modal .form-group { width: 100%; margin-bottom: 14px; }
+  .modal input, .modal select { width: 100%; }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── ALERTS ─────────────────────────────────── */
+  .alert {
+    padding: 11px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.5;
+  }
+
+  .alert-ok   { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
+  .alert-err  { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+  .alert-info { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
+  .hidden { display: none !important; }
+
+  /* ── MISC ───────────────────────────────────── */
+  .empty {
+    color: #94a3b8;
+    font-size: 13px;
+    padding: 30px;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  pre {
+    background: var(--gray-light);
+    padding: 14px 16px;
+    border-radius: 8px;
+    font-size: 12px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    font-family: 'Consolas', 'Fira Code', monospace;
+    line-height: 1.7;
+  }
+
+  code {
+    background: var(--gray-light);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'Consolas', monospace;
+    color: var(--primary);
+  }
+
+  #back-btn { margin-bottom: 18px; }
+
+  /* ── BANNER CARD ────────────────────────────── */
+  .card-banner {
+    border-left: 4px solid var(--primary);
+    background: linear-gradient(to right, #f5f3ff, #fff);
+  }
+
+  .card-banner-success {
+    border-left: 4px solid var(--success);
+    background: linear-gradient(to right, #f0fdf4, #fff);
+  }
+
+  .card-banner-warn {
+    border-left: 4px solid var(--warn);
+    background: linear-gradient(to right, #fffbeb, #fff);
+  }
+
+  /* ── DIVIDER ────────────────────────────────── */
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  /* ── DASH QUICK GUIDE ───────────────────────── */
+  .guide-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .guide-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--gray-light);
+    border-radius: 10px;
+    padding: 13px 15px;
+  }
+
+  .guide-item-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .guide-item-text strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+
+  .guide-item-text span {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* ── RANGE INPUT ────────────────────────────── */
+  .range-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .range-group input[type=number] { width: 68px; }
+  .range-sep { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══ SIDEBAR ═══════════════════════════════════════════ -->
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="sidebar-logo-text">
+          <strong>Reg. Kilómetros</strong>
+          <span>Autoescuela</span>
+        </div>
+      </div>
+    </div>
+
+    <nav>
+      <div class="nav-section">Principal</div>
+      <a class="active" data-page="dashboard">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        </span>
+        Inicio
+      </a>
+      <a data-page="vehiculos">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><circle cx="12" cy="21" r="1"/><circle cx="20" cy="21" r="1"/></svg>
+        </span>
+        Vehículos
+      </a>
+      <a data-page="alumnos">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </span>
+        Alumnos
+      </a>
+
+      <div class="nav-section" style="margin-top:6px">Herramientas</div>
+      <a data-page="importar">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </span>
+        Importar CSV
+      </a>
+      <a data-page="solapamientos">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </span>
+        Solapamientos
+      </a>
+      <a data-page="logs">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </span>
+        Historial
+      </a>
+      <a data-page="backup">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </span>
+        Backup
+      </a>
+    </nav>
+  </div>
+
+  <!-- ═══ CONTENT ════════════════════════════════════════════ -->
+  <div id="content">
+
+    <!-- ── DASHBOARD ─────────────────────────── -->
+    <div id="page-dashboard" class="page active">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Panel Principal</div>
+          <div class="page-subtitle">Resumen general de la autoescuela</div>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-icon stat-icon-blue">🚙</div>
+          <div class="stat-info">
+            <div class="num" id="stat-vehiculos">0</div>
+            <div class="lbl">Vehículos</div>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="stat-icon stat-icon-green">👤</div>
+          <div class="stat-info">
+            <div class="num" id="stat-alumnos">0</div>
+            <div class="lbl">Alumnos</div>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="stat-icon stat-icon-orange">📋</div>
+          <div class="stat-info">
+            <div class="num" id="stat-practicas">0</div>
+            <div class="lbl">Prácticas registradas</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#e0e7ff">🗺️</div>
+          Guía rápida
+        </div>
+        <div class="guide-grid">
+          <div class="guide-item">
+            <div class="guide-item-icon">🚙</div>
+            <div class="guide-item-text">
+              <strong>Vehículos</strong>
+              <span>Gestiona vehículos y sus kilómetros del odómetro</span>
+            </div>
+          </div>
+          <div class="guide-item">
+            <div class="guide-item-icon">👤</div>
+            <div class="guide-item-text">
+              <strong>Alumnos</strong>
+              <span>Añade alumnos y registra sus prácticas</span>
+            </div>
+          </div>
+          <div class="guide-item">
+            <div class="guide-item-icon">📥</div>
+            <div class="guide-item-text">
+              <strong>Importar CSV</strong>
+              <span>Carga masiva de prácticas desde un archivo CSV</span>
+            </div>
+          </div>
+          <div class="guide-item">
+            <div class="guide-item-icon">⚠️</div>
+            <div class="guide-item-text">
+              <strong>Solapamientos</strong>
+              <span>Detecta y corrige conflictos de kilómetros</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── VEHÍCULOS ──────────────────────────── -->
+    <div id="page-vehiculos" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Vehículos</div>
+          <div class="page-subtitle">Gestión de la flota de vehículos</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#e0e7ff">➕</div>
+          Añadir vehículo
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombre / Identificador</label>
+            <input type="text" id="v-nombre" placeholder="Ej: Coche 1" style="width:160px">
+          </div>
+          <div class="form-group">
+            <label>Matrícula</label>
+            <input type="text" id="v-matricula" placeholder="1234 ABC" style="width:130px">
+          </div>
+          <div class="form-group">
+            <label>Km actual del odómetro</label>
+            <input type="number" id="v-km" placeholder="45000" min="0">
+          </div>
+          <button class="btn btn-primary" onclick="addVehiculo()" style="align-self:flex-end">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Añadir vehículo
+          </button>
+        </div>
+      </div>
+
+      <div class="card card-banner">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#e0e7ff">⚡</div>
+          Relleno masivo de kilómetros
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Genera kilómetros coherentes con el odómetro del vehículo para todas las prácticas con los km en blanco. Los km se calculan respetando la cronología real.</p>
+        <div class="form-row" style="align-items:flex-end;gap:12px">
+          <div class="form-group">
+            <label>Vehículo</label>
+            <select id="relleno-vehiculo" style="width:180px"></select>
+          </div>
+          <div class="form-group">
+            <label>Rango km por práctica</label>
+            <div class="range-group">
+              <input type="number" id="relleno-min" value="40" min="1" max="999">
+              <span class="range-sep">—</span>
+              <input type="number" id="relleno-max" value="45" min="1" max="999">
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="rellenarMasivo()" style="align-self:flex-end">
+            ⚡ Rellenar km en blanco
+          </button>
+          <span id="relleno-sinKm" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
+        </div>
+        <div id="relleno-alert" class="hidden" style="margin-top:12px"></div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="tabla-vehiculos">
+          <thead><tr><th>Nombre</th><th>Matrícula</th><th>Km actual</th><th>Sin km</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── ALUMNOS ────────────────────────────── -->
+    <div id="page-alumnos" class="page">
+      <!-- LISTA ALUMNOS -->
+      <div id="view-alumnos">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Alumnos</div>
+            <div class="page-subtitle">Gestión de alumnos y sus prácticas</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#d1fae5">➕</div>
+            Añadir alumno
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nombre completo</label>
+              <input type="text" id="a-nombre" placeholder="Nombre del alumno" style="width:200px">
+            </div>
+            <div class="form-group">
+              <label>Permiso</label>
+              <select id="a-permiso" style="width:100px">
+                <option value="B">B (Coche)</option>
+                <option value="A">A (Moto)</option>
+                <option value="A2">A2</option>
+                <option value="AM">AM</option>
+                <option value="C">C (Camión)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Vehículo asignado</label>
+              <select id="a-vehiculo" style="width:165px"><option value="">— Sin asignar —</option></select>
+            </div>
+            <button class="btn btn-primary" onclick="addAlumno()" style="align-self:flex-end">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Añadir alumno
+            </button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="tabla-alumnos">
+            <thead><tr><th>Nombre</th><th>Permiso</th><th>Vehículo</th><th>Prácticas</th><th>Acciones</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- DETALLE ALUMNO / PRÁCTICAS -->
+      <div id="view-practicas" style="display:none">
+        <button class="btn btn-gray btn-sm" id="back-btn" onclick="volverAlumnos()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Volver a alumnos
+        </button>
+        <div class="page-header" style="margin-top:4px">
+          <div>
+            <div class="page-title" id="practicas-titulo">Prácticas de ...</div>
+            <div class="page-subtitle">Historial de prácticas de conducción</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#fef3c7">📅</div>
+            Nueva práctica
+          </div>
+          <div class="form-row" style="align-items:flex-end;gap:10px">
+            <div class="form-group">
+              <label>Fecha</label>
+              <input type="date" id="p-fecha" style="width:150px">
+            </div>
+            <div class="form-group">
+              <label>Km inicial</label>
+              <input type="number" id="p-ki" placeholder="Auto" min="0" step="0.1">
+            </div>
+            <div class="form-group">
+              <label>Km final</label>
+              <input type="number" id="p-kf" placeholder="Auto" min="0" step="0.1">
+            </div>
+            <div class="form-group">
+              <label>Rango de generación (km)</label>
+              <div class="range-group">
+                <input type="number" id="p-min" value="40" min="1" max="200" title="Mínimo">
+                <span class="range-sep">—</span>
+                <input type="number" id="p-max" value="45" min="1" max="200" title="Máximo">
+              </div>
+            </div>
+            <button class="btn btn-warn" onclick="generarKmPractica()" style="align-self:flex-end">⚡ Generar km</button>
+            <button class="btn btn-success" onclick="addPractica()" style="align-self:flex-end">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Añadir práctica
+            </button>
+          </div>
+          <div id="km-preview" class="hidden alert alert-info" style="margin-top:12px;margin-bottom:0"></div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="tabla-practicas">
+            <thead><tr><th>#</th><th>Fecha</th><th>Km inicial</th><th>Km final</th><th>Recorrido</th><th>Acciones</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SOLAPAMIENTOS ──────────────────────── -->
+    <div id="page-solapamientos" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Solapamientos</div>
+          <div class="page-subtitle">Detecta y corrige conflictos de kilómetros</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#fee2e2">🔍</div>
+          Análisis de solapamientos
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Detecta prácticas que comparten el mismo tramo de kilómetros en el mismo vehículo. El programa reordena los km respetando la duración de cada práctica.</p>
+        <div class="form-row" style="align-items:flex-end;gap:12px">
+          <div class="form-group">
+            <label>Rango km para prácticas sin datos</label>
+            <div class="range-group">
+              <input type="number" id="solap-min" value="40" min="1" max="999">
+              <span class="range-sep">—</span>
+              <input type="number" id="solap-max" value="45" min="1" max="999">
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="loadSolapamientos()" style="align-self:flex-end">
+            🔍 Analizar
+          </button>
+          <button class="btn btn-success" id="btn-corregir-todo" onclick="corregirTodosSolapamientos()" style="display:none;align-self:flex-end">
+            🔧 Corregir todo automáticamente
+          </button>
+        </div>
+      </div>
+      <div id="solap-result"></div>
+    </div>
+
+    <!-- ── HISTORIAL ──────────────────────────── -->
+    <div id="page-logs" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Historial</div>
+          <div class="page-subtitle">Registro de operaciones automáticas</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="loadLogs()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Actualizar
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="borrarLogs()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            Borrar historial
+          </button>
+        </div>
+      </div>
+
+      <div id="logs-result"></div>
+    </div>
+
+    <!-- ── BACKUP ─────────────────────────────── -->
+    <div id="page-backup" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Copia de seguridad</div>
+          <div class="page-subtitle">Exporta e importa tus datos</div>
+        </div>
+      </div>
+
+      <div class="card card-banner-success">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#d1fae5">💾</div>
+          Guardar copia de seguridad
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">Exporta todos tus datos (alumnos, vehículos, prácticas e historial) a un archivo JSON. Elige la carpeta donde quieres guardarlo.</p>
+        <button class="btn btn-success" onclick="hacerBackup()">
+          💾 Guardar copia ahora...
+        </button>
+        <div id="backup-ok" class="hidden alert alert-ok" style="margin-top:14px"></div>
+      </div>
+
+      <div class="card card-banner-warn">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#fef3c7">📂</div>
+          Restaurar copia de seguridad
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:4px">Carga un backup anterior. <strong style="color:var(--danger)">⚠ Esto reemplazará todos los datos actuales.</strong></p>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:16px">La aplicación se recargará automáticamente tras restaurar.</p>
+        <button class="btn btn-warn" onclick="restaurarBackup()">
+          📂 Seleccionar backup y restaurar...
+        </button>
+        <div id="restaurar-err" class="hidden alert alert-err" style="margin-top:14px"></div>
+      </div>
+    </div>
+
+    <!-- ── IMPORTAR CSV ────────────────────────── -->
+    <div id="page-importar" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Importar CSV</div>
+          <div class="page-subtitle">Carga masiva de prácticas desde archivo</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#e0e7ff">📄</div>
+          Formato requerido del CSV
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px">La primera fila debe ser la cabecera con exactamente estas columnas:</p>
+        <pre>alumno,vehiculo,fecha,km_inicial,km_final
+Juan García,Coche 1,2026-01-15,45230,45274
+Ana López,Coche 1,2026-01-16,45274,45312
+Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
+        <p style="font-size:12px;color:#94a3b8;margin-top:10px">• <code>fecha</code> en formato AAAA-MM-DD &nbsp;|&nbsp; <code>km_inicial</code> y <code>km_final</code> pueden dejarse <strong>vacíos</strong> para generarlos automáticamente</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#d1fae5">⬆️</div>
+          Importar archivo
+        </div>
+        <div id="import-alert" class="hidden" style="margin-bottom:14px"></div>
+        <div class="form-row" style="margin-bottom:14px;align-items:flex-end">
+          <div class="form-group">
+            <label>Rango km a generar (para filas sin km)</label>
+            <div class="range-group">
+              <input type="number" id="imp-min" value="40" min="1" max="999" title="Mínimo km">
+              <span class="range-sep">—</span>
+              <input type="number" id="imp-max" value="45" min="1" max="999" title="Máximo km">
+              <span style="font-size:12px;color:var(--text-muted);margin-left:4px">km / práctica</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-row" style="align-items:center;gap:12px">
+          <button class="btn btn-outline" onclick="seleccionarCSV()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+            Seleccionar archivo CSV...
+          </button>
+          <span id="csv-path" style="font-size:12px;color:var(--text-muted)"></span>
+        </div>
+        <div style="margin-top:14px">
+          <button class="btn btn-success" id="btn-importar" onclick="importarCSV()" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            Importar datos
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ MODAL EDITAR VEHÍCULO ══════════════════════════════ -->
+<div class="overlay" id="modal-vehiculo">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon">🚙</div>
+      <h3>Editar vehículo</h3>
+    </div>
+    <input type="hidden" id="edit-v-id">
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Nombre</label>
+      <input type="text" id="edit-v-nombre" readonly style="background:var(--gray-light);color:var(--text-muted)">
+    </div>
+    <div class="form-group">
+      <label>Km actual del odómetro</label>
+      <input type="number" id="edit-v-km" min="0" style="width:100%">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-vehiculo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveVehiculoKm()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL EDITAR ALUMNO ════════════════════════════════ -->
+<div class="overlay" id="modal-alumno">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon">👤</div>
+      <h3>Editar alumno</h3>
+    </div>
+    <input type="hidden" id="edit-a-id">
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Nombre</label>
+      <input type="text" id="edit-a-nombre" style="width:100%">
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Permiso</label>
+      <select id="edit-a-permiso" style="width:100%">
+        <option value="B">B (Coche)</option>
+        <option value="A">A (Moto)</option>
+        <option value="A2">A2</option>
+        <option value="AM">AM</option>
+        <option value="C">C (Camión)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Vehículo</label>
+      <select id="edit-a-vehiculo" style="width:100%"><option value="">— Sin asignar —</option></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-alumno')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAlumno()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL EDITAR PRÁCTICA ══════════════════════════════ -->
+<div class="overlay" id="modal-practica">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon">📋</div>
+      <h3>Editar práctica</h3>
+    </div>
+    <input type="hidden" id="edit-p-id">
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Fecha</label>
+      <input type="date" id="edit-p-fecha" style="width:100%">
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Km inicial</label>
+      <input type="number" id="edit-p-ki" min="0" step="0.1" style="width:100%">
+    </div>
+    <div class="form-group">
+      <label>Km final</label>
+      <input type="number" id="edit-p-kf" min="0" step="0.1" style="width:100%">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-practica')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePractica()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<script src="renderer.js"></script>
+</body>
+</html>
