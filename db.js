@@ -596,5 +596,6 @@ module.exports = {
   corregirSolapamientos,
   getLogs, clearLogs,
   crearBackup, restaurarBackup,
-  validarSolapamiento
+  validarSolapamiento,
+  getTimelineVehiculo
 };
