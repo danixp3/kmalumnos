@@ -571,6 +571,47 @@
 
   .range-group input[type=number] { width: 68px; }
   .range-sep { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+
+  /* ── SYNC STATUS ────────────────────────────── */
+  #sync-bar {
+    padding: 10px 14px;
+    border-top: 1px solid rgba(255,255,255,.06);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  #sync-bar:hover { background: rgba(255,255,255,.04); }
+
+  #sync-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background .3s;
+  }
+  #sync-bar[data-status="ok"]      #sync-dot { background: #10b981; box-shadow: 0 0 6px #10b981; }
+  #sync-bar[data-status="syncing"] #sync-dot { background: #6366f1; animation: pulse-dot .8s infinite; }
+  #sync-bar[data-status="pending"] #sync-dot { background: #f59e0b; }
+  #sync-bar[data-status="offline"] #sync-dot { background: #64748b; }
+  #sync-bar[data-status="error"]   #sync-dot { background: #ef4444; }
+
+  @keyframes pulse-dot {
+    0%,100% { opacity:1; } 50% { opacity:.3; }
+  }
+
+  #sync-label {
+    font-size: 11px;
+    color: rgba(255,255,255,.45);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #sync-bar[data-status="ok"]      #sync-label { color: rgba(16,185,129,.7); }
+  #sync-bar[data-status="syncing"] #sync-label { color: rgba(99,102,241,.8); }
+  #sync-bar[data-status="pending"] #sync-label { color: rgba(245,158,11,.7); }
+  #sync-bar[data-status="error"]   #sync-label { color: rgba(239,68,68,.7); }
 </style>
 </head>
 <body>
@@ -640,6 +681,18 @@
         Backup
       </a>
     </nav>
+
+    <!-- Indicador de sync -->
+    <div id="sync-bar" data-status="offline" title="Haz clic para sincronizar ahora" onclick="syncNow()">
+      <div id="sync-dot"></div>
+      <span id="sync-label">Sin conexión</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </div>
+    <!-- Subida inicial de todos los datos -->
+    <div id="push-all-bar" title="Subir todos los datos a la nube por primera vez" onclick="pushAllToCloud()" style="padding:8px 14px;border-top:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;font-size:11px;color:rgba(255,255,255,.3)">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+      Subir todo a la nube
+    </div>
   </div>
 
   <!-- ═══ CONTENT ════════════════════════════════════════════ -->

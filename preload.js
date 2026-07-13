@@ -37,4 +37,10 @@ contextBridge.exposeInMainWorld('api', {
   // Importación
   openCsvDialog: ()                          => ipcRenderer.invoke('open-csv-dialog'),
   importarCsv:   (path, kmMin, kmMax)        => ipcRenderer.invoke('importar-csv', path, kmMin, kmMax),
+
+  // Sync con Supabase
+  syncNow:       ()                          => ipcRenderer.invoke('sync-now'),
+  syncPushAll:   ()                          => ipcRenderer.invoke('sync-push-all'),
+  getSyncStatus: ()                          => ipcRenderer.invoke('sync-status'),
+  onSyncStatus:  (cb)                        => ipcRenderer.on('sync-status', (_, status) => cb(status)),
 });

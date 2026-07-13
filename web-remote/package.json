@@ -1,0 +1,8 @@
+{
+  "name": "kmalumnos-web-remote",
+  "version": "1.0.0",
+  "description": "Página web para registrar prácticas desde el móvil",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.0"
+  }
+}
