@@ -531,7 +531,60 @@ function getSolapamientos() {
 
 function getResumen() {
   const d = load();
-  return { vehiculos: d.vehiculos.length, alumnos: d.alumnos.length, practicas: d.practicas.length };
+  const sinKm = d.practicas.filter(p => p.km_inicial === 0 && p.km_final === 0).length;
+  // Contar solapamientos
+  const conflictos = getSolapamientos();
+  return {
+    vehiculos: d.vehiculos.length,
+    alumnos: d.alumnos.length,
+    practicas: d.practicas.length,
+    sinKm,
+    solapamientos: conflictos.length
+  };
+}
+
+// ─── TIMELINE DE VEHÍCULO ────────────────────────────────────────────────────
+/**
+ * Devuelve todas las prácticas de un vehículo ordenadas por km_inicial,
+ * con datos de alumno y flag de solapamiento con la anterior.
+ */
+function getTimelineVehiculo(vehiculo_id) {
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  const v = d.vehiculos.find(x => x.id === vid);
+  if (!v) return [];
+
+  const practicas = d.practicas
+    .filter(p => p.vehiculo_id === vid)
+    .sort((a, b) => {
+      // Las sin km van al final
+      const aSinKm = a.km_inicial === 0 && a.km_final === 0;
+      const bSinKm = b.km_inicial === 0 && b.km_final === 0;
+      if (aSinKm && !bSinKm) return 1;
+      if (!aSinKm && bSinKm) return -1;
+      if (aSinKm && bSinKm) return a.fecha.localeCompare(b.fecha);
+      return a.km_inicial - b.km_inicial || a.fecha.localeCompare(b.fecha);
+    });
+
+  return practicas.map((p, i) => {
+    const alumno = d.alumnos.find(a => a.id === p.alumno_id);
+    const sinKm = p.km_inicial === 0 && p.km_final === 0;
+    // Detectar hueco o solapamiento con la práctica anterior con km
+    let gap = null; // null=ok, >0=hueco, <0=solapa
+    if (!sinKm && i > 0) {
+      const prevConKm = practicas.slice(0, i).reverse().find(x => !(x.km_inicial === 0 && x.km_final === 0));
+      if (prevConKm) {
+        const diff = Math.round((p.km_inicial - prevConKm.km_final) * 10) / 10;
+        if (diff !== 0) gap = diff;
+      }
+    }
+    return {
+      ...p,
+      alumno_nombre: alumno ? alumno.nombre : '?',
+      sin_km: sinKm,
+      gap
+    };
+  });
 }
 
 module.exports = {

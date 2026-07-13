@@ -65,7 +65,8 @@ index.html   → SPA con CSS inline, sin bundler
 | `corregirSolapamientos` | `(vehiculo_id, kmMin=40, kmMax=45)` → `{corregidas}` | Algoritmo quirúrgico: ordena por km_inicial, detecta solapamientos [a.kmI, a.kmF] ∩ [b.kmI, b.kmF] ≠ ∅, mantiene "ancla" (primera), desplaza "móvil" preservando duración. Máx 10 pasadas |
 | `getSolapamientos` | `()` | Devuelve lista de conflictos `{vehiculo, vehiculo_id, practica_a, practica_b}` |
 | `validarSolapamiento` | `(vehiculo_id, fecha, kmI, kmF, excluirPracticaId=null)` → conflictos[] | Comprueba si rango [kmI,kmF] solapa con otras prácticas del mismo vehículo |
-| `getResumen` | `()` → `{vehiculos, alumnos, practicas}` | Contadores globales |
+| `getResumen` | `()` → `{vehiculos, alumnos, practicas, sinKm, solapamientos}` | Contadores globales + alertas |
+| `getTimelineVehiculo` | `(vehiculo_id)` → `[{...practica, alumno_nombre, sin_km, gap}]` | Prácticas del vehículo ordenadas por km_inicial. `gap`: diferencia respecto a la anterior (null=ok, >0=hueco, <0=solapa) |
 
 ### CSV Import
 | Función | Firma | Descripción |

@@ -16,6 +16,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     if (page === 'vehiculos') loadVehiculos();
     if (page === 'alumnos') { loadVehiculosSelect(); loadAlumnos(); }
     if (page === 'solapamientos') loadSolapamientos();
+    if (page === 'timeline') loadTimelineSelect();
     if (page === 'logs') loadLogs();
   });
 });
@@ -26,6 +27,33 @@ async function loadDashboard() {
   document.getElementById('stat-vehiculos').textContent = r.vehiculos;
   document.getElementById('stat-alumnos').textContent = r.alumnos;
   document.getElementById('stat-practicas').textContent = r.practicas;
+
+  const alertas = document.getElementById('dash-alertas');
+  const partes = [];
+
+  if (r.sinKm > 0) {
+    partes.push(
+      `<div class="alert alert-warn" style="margin-bottom:8px;cursor:pointer" onclick="navegarA('vehiculos')" title="Ir a Vehículos para rellenar">` +
+      `⚡ <strong>${r.sinKm} práctica(s) sin kilómetros.</strong> Ve a <u>Vehículos → Relleno masivo</u> para generarlos automáticamente.</div>`
+    );
+  }
+  if (r.solapamientos > 0) {
+    partes.push(
+      `<div class="alert alert-err" style="margin-bottom:8px;cursor:pointer" onclick="navegarA('solapamientos')" title="Ir a Solapamientos">` +
+      `⚠️ <strong>${r.solapamientos} solapamiento(s) detectado(s).</strong> Ve a <u>Solapamientos</u> para corregirlos.</div>`
+    );
+  }
+  if (partes.length === 0 && r.practicas > 0) {
+    partes.push(
+      `<div class="alert alert-ok" style="margin-bottom:8px">✅ Todo en orden. No hay prácticas sin km ni solapamientos.</div>`
+    );
+  }
+  alertas.innerHTML = partes.join('');
+}
+
+function navegarA(page) {
+  const link = document.querySelector(`#sidebar nav a[data-page="${page}"]`);
+  if (link) link.click();
 }
 
 // ─── VEHÍCULOS ───────────────────────────────────────────────────────────────
@@ -95,7 +123,10 @@ async function rellenarMasivo() {
   const result = await window.api.rellenarKmMasivo(vid, min, max);
   const el = document.getElementById('relleno-alert');
   el.className = 'alert alert-ok';
-  el.textContent = `✅ ${result.rellenadas} práctica(s) rellenadas correctamente.`;
+  el.innerHTML = `✅ ${result.rellenadas} práctica(s) rellenadas correctamente. &nbsp;
+    <button class="btn btn-warn btn-sm" style="margin-left:8px" onclick="navegarA('solapamientos')">
+      🔍 Verificar solapamientos ahora
+    </button>`;
   el.classList.remove('hidden');
   loadVehiculos();
 }
@@ -581,6 +612,77 @@ async function restaurarBackup() {
   }
   alert('✅ Backup restaurado correctamente. La aplicación se recargará ahora.');
   location.reload();
+}
+
+// ─── TIMELINE DEL VEHÍCULO ───────────────────────────────────────────────────
+async function loadTimelineSelect() {
+  const vehiculos = await window.api.getVehiculos();
+  const sel = document.getElementById('timeline-vehiculo');
+  if (!sel) return;
+  sel.innerHTML = vehiculos.length
+    ? vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + v.matricula + ')' : ''}</option>`).join('')
+    : '<option value="">Sin vehículos</option>';
+  loadTimeline();
+}
+
+async function loadTimeline() {
+  const sel = document.getElementById('timeline-vehiculo');
+  const result = document.getElementById('timeline-result');
+  const resumen = document.getElementById('timeline-resumen');
+  if (!sel || !result) return;
+  const vid = parseInt(sel.value);
+  if (!vid) { result.innerHTML = ''; resumen.textContent = ''; return; }
+
+  const practicas = await window.api.getTimelineVehiculo(vid);
+  if (!practicas.length) {
+    result.innerHTML = '<div class="card"><p class="empty">Este vehículo no tiene prácticas registradas.</p></div>';
+    resumen.textContent = '';
+    return;
+  }
+
+  const conKm = practicas.filter(p => !p.sin_km);
+  const sinKm = practicas.filter(p => p.sin_km);
+  resumen.textContent = `${practicas.length} prácticas · ${conKm.length} con km · ${sinKm.length} sin km`;
+
+  let html = '<div class="table-wrap"><table><thead><tr>'
+    + '<th>#</th><th>Alumno</th><th>Fecha</th><th>Km inicial</th><th>Km final</th><th>Recorrido</th><th>Estado</th>'
+    + '</tr></thead><tbody>';
+
+  practicas.forEach((p, i) => {
+    const diff = p.sin_km ? null : Math.round((p.km_final - p.km_inicial) * 10) / 10;
+
+    // Color de fila según estado
+    let rowStyle = '';
+    let estadoCell = '<span style="color:#15803d;font-size:12px">✅ OK</span>';
+
+    if (p.sin_km) {
+      rowStyle = ' style="background:#fffbeb"';
+      estadoCell = '<span style="color:#d97706;font-size:12px;font-weight:600">⏳ Sin km</span>';
+    } else if (p.gap !== null && p.gap < 0) {
+      rowStyle = ' style="background:#fef2f2"';
+      estadoCell = `<span style="color:#dc2626;font-size:12px;font-weight:600">⚡ Solapa ${fmt(p.gap)} km</span>`;
+    } else if (p.gap !== null && p.gap > 0) {
+      rowStyle = ' style="background:#fffbeb"';
+      estadoCell = `<span style="color:#d97706;font-size:12px;font-weight:600">🔶 Hueco +${fmt(p.gap)} km</span>`;
+    }
+
+    const kmI = p.sin_km ? '<span style="color:#d97706;font-style:italic">—</span>' : `<strong>${fmt(p.km_inicial)}</strong>`;
+    const kmF = p.sin_km ? '<span style="color:#d97706;font-style:italic">—</span>' : fmt(p.km_final);
+    const rec = p.sin_km ? '—' : `<span class="km-badge">+${diff} km</span>`;
+
+    html += `<tr${rowStyle}>
+      <td style="color:#94a3b8;font-size:12px">${i + 1}</td>
+      <td><strong>${esc(p.alumno_nombre)}</strong></td>
+      <td>${fmtFecha(p.fecha)}</td>
+      <td>${kmI}</td>
+      <td>${kmF}</td>
+      <td>${rec}</td>
+      <td>${estadoCell}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  result.innerHTML = html;
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
