@@ -45,8 +45,20 @@ app.whenReady().then(() => {
   });
 });
 
-autoUpdater.on('update-available', () => {
-  if (mainWin) mainWin.webContents.send('update-available');
+autoUpdater.on('update-not-available', () => {
+  if (mainWin) mainWin.webContents.send('update-not-available');
+});
+
+autoUpdater.on('update-available', (info) => {
+  if (mainWin) mainWin.webContents.send('update-available', info.version);
+});
+
+autoUpdater.on('download-progress', (p) => {
+  if (mainWin) mainWin.webContents.send('update-download-progress', Math.round(p.percent));
+});
+
+autoUpdater.on('error', (err) => {
+  if (mainWin) mainWin.webContents.send('update-error', err.message);
 });
 
 autoUpdater.on('update-downloaded', () => {
@@ -162,6 +174,12 @@ ipcMain.handle('generar-km', (_, kmInicial, min = 40, max = 45) => {
   const kmFinal = Math.round((kmInicial + diff) * 10) / 10;
   return { km_inicial: kmInicial, km_final: kmFinal, diff: Math.round(diff * 10) / 10 };
 });
+
+// ─── UPDATER IPC ──────────────────────────────────────────────────────────────
+ipcMain.handle('check-for-updates', () => {
+  try { autoUpdater.checkForUpdates(); } catch(e) {}
+});
+ipcMain.handle('install-update', () => autoUpdater.quitAndInstall());
 
 // ─── SYNC IPC HANDLERS ────────────────────────────────────────────────────────
 ipcMain.handle('sync-now', async () => sync.sync());

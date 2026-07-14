@@ -847,6 +847,51 @@ window.api.onSyncStatus((status) => {
 // Obtener estado inicial
 window.api.getSyncStatus().then(s => updateSyncBar(s || 'offline'));
 
+// ─── AUTO-UPDATE ──────────────────────────────────────────────────────────────
+function checkUpdates() {
+  const label = document.getElementById('update-label');
+  const bar   = document.getElementById('update-bar');
+  label.textContent = 'Buscando...';
+  bar.style.pointerEvents = 'none';
+  window.api.checkForUpdates();
+}
+
+window.api.onUpdateNotAvailable(() => {
+  const label = document.getElementById('update-label');
+  const bar   = document.getElementById('update-bar');
+  label.textContent = '✅ Ya tienes la última versión';
+  bar.style.color = 'rgba(16,185,129,.7)';
+  setTimeout(() => {
+    label.textContent = 'Buscar actualizaciones';
+    bar.style.color = '';
+    bar.style.pointerEvents = '';
+  }, 3000);
+});
+
+window.api.onUpdateAvailable((version) => {
+  const label = document.getElementById('update-label');
+  const bar   = document.getElementById('update-bar');
+  label.textContent = `⬇ Descargando v${version}...`;
+  bar.style.color = 'rgba(99,102,241,.8)';
+});
+
+window.api.onUpdateDownloadProgress((pct) => {
+  const label = document.getElementById('update-label');
+  label.textContent = `⬇ Descargando... ${pct}%`;
+});
+
+window.api.onUpdateError((msg) => {
+  const label = document.getElementById('update-label');
+  const bar   = document.getElementById('update-bar');
+  label.textContent = '❌ Error al actualizar';
+  bar.style.color = 'rgba(239,68,68,.7)';
+  bar.style.pointerEvents = '';
+  setTimeout(() => {
+    label.textContent = 'Buscar actualizaciones';
+    bar.style.color = '';
+  }, 4000);
+});
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('relleno-vehiculo')?.addEventListener('change', actualizarContadorSinKm);
 loadDashboard();
