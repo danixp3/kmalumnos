@@ -34,6 +34,14 @@ contextBridge.exposeInMainWorld('api', {
   validarSolapamiento:   (vid, f, ki, kf, exId)  => ipcRenderer.invoke('validar-solapamiento', vid, f, ki, kf, exId),
   getTimelineVehiculo:   (vid)                   => ipcRenderer.invoke('get-timeline-vehiculo', vid),
 
+  // Registro rápido
+  getAlumnosPorVehiculo:     (vid, fecha)         => ipcRenderer.invoke('get-alumnos-por-vehiculo', vid, fecha),
+  registrarPracticasMasivas: (vid, fecha, aids)   => ipcRenderer.invoke('registrar-practicas-masivas', vid, fecha, aids),
+  eliminarPracticaPorFecha:  (vid, fecha, aid)    => ipcRenderer.invoke('eliminar-practica-por-fecha', vid, fecha, aid),
+  ajustarPracticasAlumno:    (vid, fecha, aid, d) => ipcRenderer.invoke('ajustar-practicas-alumno', vid, fecha, aid, d),
+  guardarNotaAlumno:         (vid, fecha, aid, n) => ipcRenderer.invoke('guardar-nota-alumno', vid, fecha, aid, n),
+  getAnotacionesAlumno:      (aid) => ipcRenderer.invoke('get-anotaciones-alumno', aid),
+
   // Importación
   openCsvDialog: ()                          => ipcRenderer.invoke('open-csv-dialog'),
   importarCsv:   (path, kmMin, kmMax)        => ipcRenderer.invoke('importar-csv', path, kmMin, kmMax),
@@ -48,6 +56,7 @@ contextBridge.exposeInMainWorld('api', {
   checkForUpdates:  ()     => ipcRenderer.invoke('check-for-updates'),
   installUpdate:    ()     => ipcRenderer.invoke('install-update'),
   onUpdateAvailable:     (cb) => ipcRenderer.on('update-available',        (_, v) => cb(v)),
+  onUpdateDownloadStart: (cb) => ipcRenderer.on('update-download-start',   (_, v) => cb(v)),
   onUpdateNotAvailable:  (cb) => ipcRenderer.on('update-not-available',    ()     => cb()),
   onUpdateDownloadProgress: (cb) => ipcRenderer.on('update-download-progress', (_, pct) => cb(pct)),
   onUpdateDownloaded:    (cb) => ipcRenderer.on('update-downloaded',       ()     => cb()),

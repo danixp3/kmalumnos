@@ -18,6 +18,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     if (page === 'solapamientos') loadSolapamientos();
     if (page === 'timeline') loadTimelineSelect();
     if (page === 'logs') loadLogs();
+    if (page === 'registro-rapido') loadRegistroRapidoInit();
   });
 });
 
@@ -198,6 +199,7 @@ async function loadAlumnos() {
       <td><span style="font-weight:700">${practicas.length}</span></td>
       <td>
         <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${esc(a.nombre)}')">📋 Prácticas</button>
+        <button class="btn btn-sm" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')">📝 Anotaciones</button>
         <button class="btn btn-warn btn-sm" onclick="openEditAlumno(${a.id},'${esc(a.nombre)}','${a.permiso}',${a.vehiculo_id || 'null'})">✏ Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteAlumno(${a.id},'${esc(a.nombre)}')">🗑 Borrar</button>
       </td>
@@ -210,7 +212,12 @@ async function addAlumno() {
   const nombre = document.getElementById('a-nombre').value.trim();
   const permiso = document.getElementById('a-permiso').value;
   const vid = document.getElementById('a-vehiculo').value || null;
-  if (!nombre) { alert('Introduce el nombre del alumno.'); return; }
+  if (!nombre) {
+    showToast('alumno-alert', 'Introduce el nombre del alumno.', 'err');
+    document.getElementById('a-nombre').focus();
+    return;
+  }
+  hideToast('alumno-alert');
   await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null);
   document.getElementById('a-nombre').value = '';
   loadAlumnos();
@@ -220,6 +227,27 @@ async function deleteAlumno(id, nombre) {
   if (!confirm(`¿Borrar al alumno "${nombre}" y todas sus prácticas?`)) return;
   await window.api.deleteAlumno(id);
   loadAlumnos();
+}
+
+async function verAnotaciones(alumnoId, nombre) {
+  const anotaciones = await window.api.getAnotacionesAlumno(alumnoId);
+  const modal = document.getElementById('modal-anotaciones');
+  document.getElementById('modal-anotaciones-titulo').textContent = `Anotaciones de ${nombre}`;
+  const body = document.getElementById('modal-anotaciones-body');
+  if (!anotaciones.length) {
+    body.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px">No hay anotaciones para este alumno.</p>';
+  } else {
+    body.innerHTML = anotaciones.map(a => `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <strong style="color:var(--primary)">${esc(a.fecha)}</strong>
+          <span style="font-size:12px;color:var(--text-muted)">${esc(a.vehiculo_nombre)}</span>
+        </div>
+        <div style="font-size:14px">${esc(a.nota)}</div>
+      </div>
+    `).join('');
+  }
+  modal.classList.add('open');
 }
 
 function openEditAlumno(id, nombre, permiso, vehiculo_id) {
@@ -861,23 +889,58 @@ window.api.onUpdateNotAvailable(() => {
   const bar   = document.getElementById('update-bar');
   label.textContent = '✅ Ya tienes la última versión';
   bar.style.color = 'rgba(16,185,129,.7)';
+  bar.style.pointerEvents = '';
   setTimeout(() => {
     label.textContent = 'Buscar actualizaciones';
     bar.style.color = '';
-    bar.style.pointerEvents = '';
   }, 3000);
 });
 
-window.api.onUpdateAvailable((version) => {
+// Cuando el usuario acepta descargar
+window.api.onUpdateDownloadStart((version) => {
   const label = document.getElementById('update-label');
   const bar   = document.getElementById('update-bar');
-  label.textContent = `⬇ Descargando v${version}...`;
+  label.innerHTML = `<span style="display:flex;align-items:center;gap:6px">⬇ v${version} <span id="update-pct">0%</span></span>`;
   bar.style.color = 'rgba(99,102,241,.8)';
+  bar.style.pointerEvents = 'none';
+  
+  // Mostrar barra de progreso
+  showUpdateProgress(0);
 });
 
 window.api.onUpdateDownloadProgress((pct) => {
+  const pctEl = document.getElementById('update-pct');
+  if (pctEl) pctEl.textContent = `${pct}%`;
+  showUpdateProgress(pct);
+});
+
+function showUpdateProgress(pct) {
+  let progressBar = document.getElementById('update-progress-bar');
+  if (!progressBar) {
+    const bar = document.getElementById('update-bar');
+    progressBar = document.createElement('div');
+    progressBar.id = 'update-progress-bar';
+    progressBar.style.cssText = 'position:absolute;bottom:0;left:0;height:3px;background:#6366f1;border-radius:0 2px 2px 0;transition:width .2s';
+    bar.style.position = 'relative';
+    bar.appendChild(progressBar);
+  }
+  progressBar.style.width = `${pct}%`;
+  if (pct >= 100) {
+    setTimeout(() => { if (progressBar) progressBar.remove(); }, 500);
+  }
+}
+
+window.api.onUpdateDownloaded(() => {
   const label = document.getElementById('update-label');
-  label.textContent = `⬇ Descargando... ${pct}%`;
+  const bar   = document.getElementById('update-bar');
+  label.textContent = '✅ Descargada - clic para instalar';
+  bar.style.color = 'rgba(16,185,129,.8)';
+  bar.style.pointerEvents = '';
+  bar.onclick = () => {
+    if (confirm('¿Instalar la actualización ahora?\n\nLa aplicación se cerrará y reiniciará.')) {
+      window.api.installUpdate();
+    }
+  };
 });
 
 window.api.onUpdateError((msg) => {
@@ -891,6 +954,202 @@ window.api.onUpdateError((msg) => {
     bar.style.color = '';
   }, 4000);
 });
+
+// ─── TOASTS (mensajes no bloqueantes) ─────────────────────────────────────────
+let toastTimers = {};
+
+function showToast(elementId, msg, type = 'err') {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  clearTimeout(toastTimers[elementId]);
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  toastTimers[elementId] = setTimeout(() => hideToast(elementId), 4000);
+}
+
+function hideToast(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  clearTimeout(toastTimers[elementId]);
+  el.classList.add('hidden');
+}
+
+// ─── REGISTRO RÁPIDO ──────────────────────────────────────────────────────────
+let rrVehiculoActual = null;
+let rrFechaActual = null;
+
+async function loadRegistroRapidoInit() {
+  // Cargar vehículos en el selector
+  const vehiculos = await window.api.getVehiculos();
+  const sel = document.getElementById('rr-vehiculo');
+  sel.innerHTML = vehiculos.length 
+    ? vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('')
+    : '<option value="">— No hay vehículos —</option>';
+  
+  // Fecha de hoy por defecto
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('rr-fecha').value = hoy;
+  
+  // Limpiar estado previo
+  document.getElementById('rr-alumnos-wrap').style.display = 'none';
+  document.getElementById('rr-empty').style.display = 'none';
+  document.getElementById('rr-alert').classList.add('hidden');
+  
+  // Cargar automáticamente si hay vehículo seleccionado
+  if (vehiculos.length) {
+    loadRegistroRapido();
+  }
+}
+
+async function loadRegistroRapido() {
+  const vid = document.getElementById('rr-vehiculo').value;
+  const fecha = document.getElementById('rr-fecha').value;
+  
+  if (!vid) {
+    showRRAlert('Selecciona un vehículo.', 'warn');
+    return;
+  }
+  if (!fecha) {
+    showRRAlert('Selecciona una fecha.', 'warn');
+    return;
+  }
+  
+  hideRRAlert();
+  rrVehiculoActual = parseInt(vid);
+  rrFechaActual = fecha;
+  
+  const alumnos = await window.api.getAlumnosPorVehiculo(vid, fecha);
+  
+  if (!alumnos.length) {
+    document.getElementById('rr-alumnos-wrap').style.display = 'none';
+    document.getElementById('rr-empty').style.display = 'block';
+    return;
+  }
+  
+  document.getElementById('rr-empty').style.display = 'none';
+  document.getElementById('rr-alumnos-wrap').style.display = 'block';
+  
+  renderRRAlumnos(alumnos);
+  updateRRContador(alumnos);
+}
+
+function renderRRAlumnos(alumnos) {
+  const lista = document.getElementById('rr-lista');
+  lista.innerHTML = alumnos.map(a => `
+    <div class="rr-item${a.num_practicas > 0 ? ' has-practicas' : ''}" data-id="${a.id}" onclick="ajustarRR(${a.id}, 1)">
+      <div class="rr-item-info">
+        <div class="rr-item-name">${esc(a.nombre)}</div>
+        <div class="rr-item-permiso">Permiso ${a.permiso}</div>
+      </div>
+      <div class="rr-counter" onclick="event.stopPropagation()">
+        <button class="rr-nota-btn${a.nota ? ' has-nota' : ''}" onclick="abrirNotaRR(${a.id})" data-nota="${esc(a.nota || '')}" title="${a.nota ? esc(a.nota) : 'Añadir nota'}">❗</button>
+        <button class="rr-counter-btn minus" onclick="ajustarRR(${a.id}, -1)">−</button>
+        <span class="rr-counter-num" data-count="${a.id}">${a.num_practicas}</span>
+        <button class="rr-counter-btn plus" onclick="ajustarRR(${a.id}, 1)">+</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+let _notaAlumnoId = null;
+
+async function abrirNotaRR(alumnoId) {
+  _notaAlumnoId = alumnoId;
+  const btn = document.querySelector(`.rr-item[data-id="${alumnoId}"] .rr-nota-btn`);
+  const notaActual = btn ? (btn.dataset.nota || '') : '';
+  const nombre = document.querySelector(`.rr-item[data-id="${alumnoId}"] .rr-item-name`);
+  
+  document.getElementById('modal-nota-titulo').textContent = nombre ? nombre.textContent : 'Nota';
+  document.getElementById('modal-nota-texto').value = notaActual;
+  document.getElementById('modal-nota-rr').classList.add('open');
+  document.getElementById('modal-nota-texto').focus();
+}
+
+function cerrarNotaRR() {
+  document.getElementById('modal-nota-rr').classList.remove('open');
+  _notaAlumnoId = null;
+}
+
+async function guardarNotaRR() {
+  if (_notaAlumnoId === null) return;
+  const nota = document.getElementById('modal-nota-texto').value.trim();
+  
+  const res = await window.api.guardarNotaAlumno(rrVehiculoActual, rrFechaActual, _notaAlumnoId, nota);
+  
+  // Si se creó una práctica nueva, refrescar la lista completa
+  if (res && res.created) {
+    cerrarNotaRR();
+    loadRegistroRapido();
+    return;
+  }
+  
+  // Actualizar botón
+  const btn = document.querySelector(`.rr-item[data-id="${_notaAlumnoId}"] .rr-nota-btn`);
+  if (btn) {
+    btn.dataset.nota = nota;
+    if (nota) {
+      btn.classList.add('has-nota');
+      btn.title = nota;
+    } else {
+      btn.classList.remove('has-nota');
+      btn.title = 'Añadir nota';
+    }
+  }
+  cerrarNotaRR();
+}
+
+async function ajustarRR(alumnoId, delta) {
+  if (!rrVehiculoActual || !rrFechaActual) return;
+  
+  const res = await window.api.ajustarPracticasAlumno(rrVehiculoActual, rrFechaActual, alumnoId, delta);
+  
+  // Actualizar UI
+  const numEl = document.querySelector(`.rr-counter-num[data-count="${alumnoId}"]`);
+  const item = document.querySelector(`.rr-item[data-id="${alumnoId}"]`);
+  if (numEl) numEl.textContent = res.num_practicas;
+  if (item) {
+    if (res.num_practicas > 0) {
+      item.classList.add('has-practicas');
+    } else {
+      item.classList.remove('has-practicas');
+    }
+  }
+  
+  // Actualizar contador global
+  const alumnos = await window.api.getAlumnosPorVehiculo(rrVehiculoActual, rrFechaActual);
+  updateRRContador(alumnos);
+}
+
+function updateRRContador(alumnos) {
+  const total = alumnos.length;
+  const conPracticas = alumnos.filter(a => a.num_practicas > 0).length;
+  const totalPracticas = alumnos.reduce((sum, a) => sum + a.num_practicas, 0);
+  const cont = document.getElementById('rr-contador');
+  if (cont) {
+    cont.innerHTML = `<strong>${totalPracticas}</strong> práctica(s) · ${conPracticas} de ${total} alumnos`;
+    cont.style.color = totalPracticas > 0 ? '#15803d' : 'var(--text-muted)';
+  }
+}
+
+function showRRAlert(msg, type = 'err') {
+  const el = document.getElementById('rr-alert');
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function hideRRAlert() {
+  document.getElementById('rr-alert').classList.add('hidden');
+}
+
+function cambiarFechaRR(delta) {
+  const input = document.getElementById('rr-fecha');
+  const fecha = new Date(input.value);
+  fecha.setDate(fecha.getDate() + delta);
+  input.value = fecha.toISOString().split('T')[0];
+  loadRegistroRapido();
+}
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('relleno-vehiculo')?.addEventListener('change', actualizarContadorSinKm);

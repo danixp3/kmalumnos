@@ -5,11 +5,13 @@ const db = require('./db');
 const sync = require('./sync');
 const { autoUpdater } = require('electron-updater');
 
-// Silenciar logs del updater en producción
-autoUpdater.autoDownload = true;
+// NO descargar automáticamente - preguntar primero
+autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.logger = require('electron').app ? null : console;
 
 let mainWin = null;
+let isDownloading = false;
 
 function createWindow() {
   mainWin = new BrowserWindow({
@@ -50,7 +52,24 @@ autoUpdater.on('update-not-available', () => {
 });
 
 autoUpdater.on('update-available', (info) => {
-  if (mainWin) mainWin.webContents.send('update-available', info.version);
+  if (mainWin && !isDownloading) {
+    dialog.showMessageBox(mainWin, {
+      type: 'info',
+      title: 'Actualización disponible',
+      message: `Hay una nueva versión disponible: v${info.version}\n\n¿Deseas descargarla ahora?`,
+      buttons: ['Descargar', 'Más tarde']
+    }).then(({ response }) => {
+      if (response === 0) {
+        isDownloading = true;
+        mainWin.webContents.send('update-download-start', info.version);
+        autoUpdater.downloadUpdate().catch(err => {
+          console.error('Download error:', err);
+          isDownloading = false;
+          mainWin.webContents.send('update-error', err.message);
+        });
+      }
+    });
+  }
 });
 
 autoUpdater.on('download-progress', (p) => {
@@ -59,6 +78,8 @@ autoUpdater.on('download-progress', (p) => {
 
 autoUpdater.on('error', (err) => {
   if (!mainWin) return;
+  console.error('AutoUpdater error:', err);
+  isDownloading = false;
   const msg = (err.message || '').toLowerCase();
   // Si no hay releases en GitHub o da 404/ENOTFOUND, tratar como "no hay actualización"
   if (msg.includes('404') || msg.includes('no published') || msg.includes('enotfound') ||
@@ -70,16 +91,8 @@ autoUpdater.on('error', (err) => {
 });
 
 autoUpdater.on('update-downloaded', () => {
-  if (mainWin) {
-    dialog.showMessageBox(mainWin, {
-      type: 'info',
-      title: 'Actualización lista',
-      message: 'Hay una nueva versión de KMAlumnos descargada. Se instalará al cerrar la aplicación.',
-      buttons: ['Instalar ahora', 'Más tarde']
-    }).then(({ response }) => {
-      if (response === 0) autoUpdater.quitAndInstall();
-    });
-  }
+  isDownloading = false;
+  if (mainWin) mainWin.webContents.send('update-downloaded');
 });
 
 app.on('window-all-closed', () => {
@@ -117,6 +130,15 @@ ipcMain.handle('rellenar-km-masivo', (_, vehiculo_id, kmMin, kmMax) => db.rellen
 ipcMain.handle('get-practicas-sin-km', (_, vehiculo_id) => db.getPracticasSinKm(vehiculo_id));
 ipcMain.handle('corregir-solapamientos', (_, vehiculo_id, kmMin, kmMax) => db.corregirSolapamientos(vehiculo_id, kmMin, kmMax));
 ipcMain.handle('get-timeline-vehiculo', (_, vehiculo_id) => db.getTimelineVehiculo(vehiculo_id));
+
+// Registro rápido
+ipcMain.handle('get-alumnos-por-vehiculo', (_, vehiculo_id, fecha) => db.getAlumnosPorVehiculo(vehiculo_id, fecha));
+ipcMain.handle('registrar-practicas-masivas', (_, vehiculo_id, fecha, alumno_ids) => db.registrarPracticasMasivas(vehiculo_id, fecha, alumno_ids));
+ipcMain.handle('eliminar-practica-por-fecha', (_, vehiculo_id, fecha, alumno_id) => db.eliminarPracticaPorFecha(vehiculo_id, fecha, alumno_id));
+ipcMain.handle('ajustar-practicas-alumno', (_, vehiculo_id, fecha, alumno_id, delta) => db.ajustarPracticasAlumno(vehiculo_id, fecha, alumno_id, delta));
+ipcMain.handle('guardar-nota-alumno', (_, vehiculo_id, fecha, alumno_id, nota) => db.guardarNotaAlumno(vehiculo_id, fecha, alumno_id, nota));
+ipcMain.handle('get-anotaciones-alumno', (_, alumno_id) => db.getAnotacionesAlumno(alumno_id));
+
 ipcMain.handle('get-logs', () => db.getLogs());
 ipcMain.handle('clear-logs', () => db.clearLogs());
 ipcMain.handle('validar-solapamiento', (_, vehiculo_id, fecha, kmI, kmF, excluirId) => db.validarSolapamiento(vehiculo_id, fecha, kmI, kmF, excluirId));
@@ -187,7 +209,7 @@ ipcMain.handle('generar-km', (_, kmInicial, min = 40, max = 45) => {
 ipcMain.handle('check-for-updates', () => {
   try { autoUpdater.checkForUpdates(); } catch(e) {}
 });
-ipcMain.handle('install-update', () => autoUpdater.quitAndInstall());
+ipcMain.handle('install-update', () => autoUpdater.quitAndInstall(true, true));
 
 // ─── SYNC IPC HANDLERS ────────────────────────────────────────────────────────
 ipcMain.handle('sync-now', async () => sync.sync());
