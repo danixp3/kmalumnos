@@ -186,33 +186,43 @@ async function sync() {
       .order('updated_at', { ascending: true });
 
     if (!errP && remotePracticas) {
-      for (const rp of remotePracticas) {
-        // Verificar que alumno y vehículo existan localmente
-        const alumnoExiste  = data.alumnos.find(a => a.id === rp.alumno_id);
-        const vehiculoExiste = data.vehiculos.find(v => v.id === rp.vehiculo_id);
-        if (!alumnoExiste || !vehiculoExiste) continue;
+          for (const rp of remotePracticas) {
+            // Verificar que alumno y vehículo existan localmente
+            const alumnoExiste  = data.alumnos.find(a => a.id === rp.alumno_id);
+            const vehiculoExiste = data.vehiculos.find(v => v.id === rp.vehiculo_id);
+            if (!alumnoExiste || !vehiculoExiste) continue;
 
-        const idx = data.practicas.findIndex(x => x.id === rp.id);
-        if (rp.deleted) {
-          if (idx !== -1) { data.practicas.splice(idx, 1); dataChanged = true; }
-        } else {
-          const practica = {
-            id: rp.id, alumno_id: rp.alumno_id, vehiculo_id: rp.vehiculo_id,
-            fecha: rp.fecha, km_inicial: parseFloat(rp.km_inicial), km_final: parseFloat(rp.km_final),
-            nota: rp.nota || ''
-          };
-          if (idx !== -1) {
-            data.practicas[idx] = practica;
-          } else {
-            data.practicas.push(practica);
-            // Actualizar seq si hace falta
-            if (rp.id >= data._seq.p) data._seq.p = rp.id + 1;
+            const idx = data.practicas.findIndex(x => x.id === rp.id);
+            if (rp.deleted) {
+              if (idx !== -1) { data.practicas.splice(idx, 1); dataChanged = true; }
+            } else {
+              const practica = {
+                id: rp.id, alumno_id: rp.alumno_id, vehiculo_id: rp.vehiculo_id,
+                fecha: rp.fecha, km_inicial: parseFloat(rp.km_inicial), km_final: parseFloat(rp.km_final),
+                nota: rp.nota || '', updated_at: rp.updated_at
+              };
+              if (idx !== -1) {
+                // Comparar timestamps: solo sobrescribir si el remoto es más reciente
+                const local = data.practicas[idx];
+                const localUpdated = local.updated_at || '1970-01-01T00:00:00.000Z';
+                const remoteUpdated = rp.updated_at || '1970-01-01T00:00:00.000Z';
+            
+                if (remoteUpdated > localUpdated) {
+                  data.practicas[idx] = practica;
+                  dataChanged = true;
+                  pulled++;
+                }
+                // Si local es más reciente, no sobrescribir (el usuario editó localmente)
+              } else {
+                data.practicas.push(practica);
+                // Actualizar seq si hace falta
+                if (rp.id >= data._seq.p) data._seq.p = rp.id + 1;
+                dataChanged = true;
+                pulled++;
+              }
+            }
           }
-          dataChanged = true;
-          pulled++;
         }
-      }
-    }
 
     // Nuevos alumnos desde el móvil (por si se añaden desde la web)
     const { data: remoteAlumnos, error: errA } = await sb

@@ -1,51 +1,79 @@
 import { createClient } from '@supabase/supabase-js';
+import { setCorsHeaders, requireAuth, validators } from './_utils.js';
 
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_ANON_KEY || ''
 );
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
-  const { nombre, permiso, vehiculo_id } = req.body;
+  // Verificar autenticación
+  if (!requireAuth(req, res)) return;
 
-  if (!nombre || !nombre.trim()) {
-    return res.status(400).json({ error: 'El nombre es obligatorio' });
+  const { nombre, permiso, vehiculo_id } = req.body || {};
+
+  // Validar nombre
+  const nombreVal = validators.nonEmptyString(nombre, 'Nombre', 100);
+  if (!nombreVal.valid) {
+    return res.status(400).json({ error: nombreVal.error });
   }
 
-  // Obtener el ID máximo actual para generar uno nuevo
-  const { data: maxRow } = await supabase
-    .from('alumnos')
-    .select('id')
-    .order('id', { ascending: false })
-    .limit(1)
-    .single();
+  // Validar permiso (opcional, default B)
+  let permisoFinal = 'B';
+  if (permiso) {
+    const permisoVal = validators.permiso(permiso);
+    if (!permisoVal.valid) {
+      return res.status(400).json({ error: permisoVal.error });
+    }
+    permisoFinal = permisoVal.value;
+  }
 
-  const newId = (maxRow?.id ?? 0) + 1;
+  // Validar vehiculo_id (opcional)
+  let vehiculoIdFinal = null;
+  if (vehiculo_id !== null && vehiculo_id !== undefined && vehiculo_id !== '') {
+    const vidVal = validators.positiveInt(vehiculo_id, 'vehiculo_id');
+    if (!vidVal.valid) {
+      return res.status(400).json({ error: vidVal.error });
+    }
+    vehiculoIdFinal = vidVal.value;
 
-  const { error: errInsert } = await supabase
+    // Verificar que el vehículo existe
+    const { data: vehiculo, error: errV } = await supabase
+      .from('vehiculos')
+      .select('id')
+      .eq('id', vehiculoIdFinal)
+      .single();
+    
+    if (errV || !vehiculo) {
+      return res.status(400).json({ error: 'El vehículo especificado no existe' });
+    }
+  }
+
+  // Insertar alumno (Supabase genera el ID automáticamente si la tabla tiene SERIAL)
+  const { data: newAlumno, error: errInsert } = await supabase
     .from('alumnos')
     .insert({
-      id: newId,
-      nombre: nombre.trim(),
-      permiso: permiso || 'B',
-      vehiculo_id: vehiculo_id || null,
+      nombre: nombreVal.value,
+      permiso: permisoFinal,
+      vehiculo_id: vehiculoIdFinal,
       updated_at: new Date().toISOString()
-    });
+    })
+    .select('id')
+    .single();
 
   if (errInsert) {
-    return res.status(500).json({ error: errInsert.message });
+    console.error('Error insertando alumno:', errInsert);
+    return res.status(500).json({ error: 'Error al crear el alumno: ' + errInsert.message });
   }
 
   return res.status(200).json({
     ok: true,
-    mensaje: `Alumno "${nombre.trim()}" creado correctamente`,
-    alumno_id: newId
+    mensaje: `Alumno "${nombreVal.value}" creado correctamente`,
+    alumno_id: newAlumno.id
   });
 }

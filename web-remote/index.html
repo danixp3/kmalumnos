@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Registrar Práctica</title>
+<meta property="og:title" content="KMAlumnos Web">
+<meta property="og:description" content="Registrar prácticas de autoescuela">
+<meta name="theme-color" content="#6366f1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
+<title>KMAlumnos Web</title>
 <style>
   :root {
     --primary: #6366f1;
@@ -73,6 +77,7 @@
   }
 
   .subtitle { font-size: 14px; color: var(--text-muted); margin-top: 6px; font-weight: 500; }
+  .version { font-size: 11px; color: var(--text-muted); opacity: 0.6; margin-top: 4px; }
 
   .card {
     background: var(--card); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
@@ -91,13 +96,13 @@
 
   label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.8px; margin-bottom: 10px; text-transform: uppercase; }
 
-  select, input[type="date"], input[type="text"] {
+  select, input[type="date"], input[type="text"], input[type="password"] {
     width: 100%; padding: 14px 16px; border: 1.5px solid var(--border); border-radius: 14px;
     font-size: 16px; font-family: inherit; color: var(--text); background: rgba(255,255,255,0.05);
     outline: none; -webkit-appearance: none; appearance: none; transition: all .2s ease;
   }
 
-  select:focus, input[type="date"]:focus, input[type="text"]:focus {
+  select:focus, input[type="date"]:focus, input[type="text"]:focus, input[type="password"]:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(99,102,241,.2), 0 0 20px rgba(99,102,241,.15);
     background: rgba(255,255,255,0.08);
@@ -113,7 +118,7 @@
     width: 100%; padding: 18px; border: none; border-radius: 16px; font-size: 17px; font-weight: 700;
     font-family: inherit; cursor: pointer; transition: all .2s ease;
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    letter-spacing: -0.2px; animation: slideUp 0.5s ease-out 0.2s both; position: relative; overflow: hidden;
+    letter-spacing: -0.2px; position: relative; overflow: hidden;
   }
 
   .btn-primary {
@@ -135,6 +140,12 @@
     box-shadow: none; margin-top: 12px;
   }
   .btn-secondary:hover { background: rgba(99,102,241,0.1); border-color: var(--primary); }
+
+  .btn-danger {
+    background: rgba(239,68,68,0.15); color: #f87171; border: 1.5px solid rgba(239,68,68,0.3);
+    font-size: 14px; padding: 10px 16px; width: auto;
+  }
+  .btn-danger:hover { background: rgba(239,68,68,0.25); }
 
   .result {
     display: none; border-radius: var(--radius); padding: 28px 24px; text-align: center;
@@ -205,10 +216,10 @@
   @keyframes gradientSlide { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
 
   /* Tabs */
-  .tabs { display: flex; gap: 8px; margin-bottom: 20px; animation: slideUp 0.5s ease-out 0.05s both; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; animation: slideUp 0.5s ease-out 0.05s both; flex-wrap: wrap; }
   .tab {
-    flex: 1; padding: 12px; border: 1.5px solid var(--border); border-radius: 14px;
-    font-size: 14px; font-weight: 600; font-family: inherit; color: var(--text-muted);
+    flex: 1; min-width: 80px; padding: 12px 8px; border: 1.5px solid var(--border); border-radius: 14px;
+    font-size: 13px; font-weight: 600; font-family: inherit; color: var(--text-muted);
     background: rgba(255,255,255,0.03); cursor: pointer; transition: all .2s; text-align: center;
   }
   .tab.active { background: rgba(99,102,241,0.15); border-color: var(--primary); color: var(--primary); }
@@ -217,152 +228,313 @@
   .section { display: none; }
   .section.active { display: block; }
 
-  /* Modal / formulario nuevo alumno */
-  .nuevo-alumno-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
-  .nuevo-alumno-form .field-gap { margin-bottom: 16px; }
-
   .badge-vehiculo {
     display: inline-block; padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 700;
     background: rgba(139,92,246,0.2); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.3);
     margin-top: 4px;
   }
+
+  /* Login screen */
+  #login-screen {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--bg); z-index: 1000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #login-screen.hidden { display: none; }
+  .pin-input {
+    font-size: 32px; letter-spacing: 12px; text-align: center; width: 200px;
+    background: rgba(255,255,255,0.08); border: 2px solid var(--border);
+  }
+  .pin-input:focus { border-color: var(--primary); }
+  .login-error { color: var(--danger); font-size: 14px; margin-top: 12px; min-height: 20px; }
+
+  /* Historial */
+  .historial-item {
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .historial-info { flex: 1; }
+  .historial-nombre { font-weight: 700; font-size: 15px; }
+  .historial-fecha { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+  .historial-empty { text-align: center; color: var(--text-muted); padding: 40px 20px; }
+
+  /* Logout button */
+  .logout-btn {
+    position: fixed; top: 12px; right: 12px; z-index: 101;
+    background: rgba(255,255,255,0.1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 12px; font-size: 12px; color: var(--text-muted); cursor: pointer;
+  }
+  .logout-btn:hover { background: rgba(239,68,68,0.2); color: #f87171; }
 </style>
 </head>
 <body>
 
-<div class="status-line"></div>
-<div class="grid-bg"></div>
-<div class="orb orb-1"></div>
-<div class="orb orb-2"></div>
-<div class="orb orb-3"></div>
-
-<div class="header">
-  <h1>KMAlumnos Web</h1>
-  <p class="subtitle">Autoescuela · Control de kilómetros</p>
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="header" style="margin-bottom:40px">
+    <h1>🔐 KMAlumnos</h1>
+    <p class="subtitle">Introduce el PIN de acceso</p>
+  </div>
+  <div class="card" style="width:100%;max-width:300px;text-align:center">
+    <input type="password" id="pin-input" class="pin-input" maxlength="4" placeholder="····" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+    <div class="login-error" id="login-error"></div>
+    <button class="btn btn-primary" style="margin-top:20px" onclick="verificarPin()">Entrar</button>
+  </div>
 </div>
 
-<div class="tabs">
-  <button class="tab active" onclick="switchTab('practica')">Registrar Práctica</button>
-  <button class="tab" onclick="switchTab('alumno')">Nuevo Alumno</button>
-</div>
+<!-- MAIN APP -->
+<div id="main-app" style="display:none">
+  <div class="status-line"></div>
+  <div class="grid-bg"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  
+  <button class="logout-btn" onclick="cerrarSesion()">Salir</button>
 
-<!-- SECCIÓN: REGISTRAR PRÁCTICA -->
-<div id="section-practica" class="section active">
-  <div id="form-section">
+  <div class="header">
+    <h1>KMAlumnos Web</h1>
+    <p class="subtitle">Autoescuela · Control de kilómetros</p>
+    <p class="version">v1.1.0</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('practica')">Registrar</button>
+    <button class="tab" onclick="switchTab('alumno')">Nuevo Alumno</button>
+    <button class="tab" onclick="switchTab('historial')">Historial</button>
+  </div>
+
+  <!-- SECCIÓN: REGISTRAR PRÁCTICA -->
+  <div id="section-practica" class="section active">
+    <div id="form-section">
+      <div class="card">
+        <div class="field-gap">
+          <label>Vehículo</label>
+          <div class="select-wrap">
+            <select id="vehiculo-select" onchange="onVehiculoChange()">
+              <option value="">Cargando vehículos...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field-gap">
+          <label>Alumno</label>
+          <div class="select-wrap">
+            <select id="alumno-select" onchange="onAlumnoChange()" disabled>
+              <option value="">— Primero selecciona un vehículo —</option>
+            </select>
+          </div>
+          <div class="alumno-info" id="alumno-info"></div>
+        </div>
+
+        <div class="field-gap">
+          <label>Fecha</label>
+          <input type="date" id="fecha-input">
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-registrar" onclick="registrar()" disabled>
+        <span id="btn-text">✓ Registrar práctica</span>
+      </button>
+    </div>
+
+    <div class="result" id="result-ok" style="position: relative;">
+      <div class="sparkles" id="sparkles"></div>
+      <div class="result-icon">✅</div>
+      <div class="result-title">¡Práctica registrada!</div>
+      <div class="result-msg" id="result-ok-msg"></div>
+      <button class="btn-again" onclick="resetForm()">Registrar otra práctica</button>
+    </div>
+
+    <div class="result" id="result-err" onclick="hideError()">
+      <div class="result-icon">❌</div>
+      <div class="result-title">Error</div>
+      <div class="result-msg" id="result-err-msg"></div>
+      <button class="btn-again" onclick="hideError()">Volver a intentarlo</button>
+    </div>
+  </div>
+
+  <!-- SECCIÓN: NUEVO ALUMNO -->
+  <div id="section-alumno" class="section">
     <div class="card">
       <div class="field-gap">
-        <label>Vehículo</label>
+        <label>Nombre del alumno</label>
+        <input type="text" id="nuevo-nombre" placeholder="Nombre completo">
+      </div>
+
+      <div class="field-gap">
+        <label>Tipo de permiso</label>
         <div class="select-wrap">
-          <select id="vehiculo-select" onchange="onVehiculoChange()">
-            <option value="">Cargando vehículos...</option>
+          <select id="nuevo-permiso">
+            <option value="B">B - Coche</option>
+            <option value="A">A - Moto</option>
+            <option value="A2">A2 - Moto (limitada)</option>
+            <option value="AM">AM - Ciclomotor</option>
+            <option value="C">C - Camión</option>
           </select>
         </div>
       </div>
 
       <div class="field-gap">
-        <label>Alumno</label>
+        <label>Vehículo asignado</label>
         <div class="select-wrap">
-          <select id="alumno-select" onchange="onAlumnoChange()" disabled>
-            <option value="">— Primero selecciona un vehículo —</option>
+          <select id="nuevo-vehiculo">
+            <option value="">— Sin asignar —</option>
           </select>
         </div>
-        <div class="alumno-info" id="alumno-info"></div>
-      </div>
-
-      <div class="field-gap">
-        <label>Fecha</label>
-        <input type="date" id="fecha-input">
       </div>
     </div>
 
-    <button class="btn btn-primary" id="btn-registrar" onclick="registrar()" disabled>
-      <span id="btn-text">✓ Registrar práctica</span>
+    <button class="btn btn-primary" id="btn-crear-alumno" onclick="crearAlumno()">
+      <span id="btn-crear-text">+ Crear alumno</span>
     </button>
-  </div>
 
-  <div class="result" id="result-ok" style="position: relative;">
-    <div class="sparkles" id="sparkles"></div>
-    <div class="result-icon">✅</div>
-    <div class="result-title">¡Práctica registrada!</div>
-    <div class="result-msg" id="result-ok-msg"></div>
-    <button class="btn-again" onclick="resetForm()">Registrar otra práctica</button>
-  </div>
-
-  <div class="result" id="result-err" onclick="hideError()">
-    <div class="result-icon">❌</div>
-    <div class="result-title">Error</div>
-    <div class="result-msg" id="result-err-msg"></div>
-    <button class="btn-again" onclick="hideError()">Volver a intentarlo</button>
-  </div>
-</div>
-
-<!-- SECCIÓN: NUEVO ALUMNO -->
-<div id="section-alumno" class="section">
-  <div class="card">
-    <div class="field-gap">
-      <label>Nombre del alumno</label>
-      <input type="text" id="nuevo-nombre" placeholder="Nombre completo">
+    <div class="result" id="result-alumno-ok">
+      <div class="result-icon">✅</div>
+      <div class="result-title">Alumno creado</div>
+      <div class="result-msg" id="result-alumno-ok-msg"></div>
+      <button class="btn-again" onclick="resetAlumnoForm()">Crear otro alumno</button>
     </div>
 
-    <div class="field-gap">
-      <label>Tipo de permiso</label>
-      <div class="select-wrap">
-        <select id="nuevo-permiso">
-          <option value="B">B - Coche</option>
-          <option value="A">A - Moto</option>
-          <option value="A2">A2 - Moto (limitada)</option>
-          <option value="AM">AM - Ciclomotor</option>
-          <option value="C">C - Camión</option>
-        </select>
+    <div class="result" id="result-alumno-err" onclick="hideAlumnoError()">
+      <div class="result-icon">❌</div>
+      <div class="result-title">Error</div>
+      <div class="result-msg" id="result-alumno-err-msg"></div>
+      <button class="btn-again" onclick="hideAlumnoError()">Volver a intentarlo</button>
+    </div>
+  </div>
+
+  <!-- SECCIÓN: HISTORIAL -->
+  <div id="section-historial" class="section">
+    <div class="card">
+      <label style="margin-bottom:16px">Últimas prácticas registradas (hoy)</label>
+      <div id="historial-list">
+        <div class="historial-empty">Cargando...</div>
       </div>
     </div>
-
-    <div class="field-gap">
-      <label>Vehículo asignado</label>
-      <div class="select-wrap">
-        <select id="nuevo-vehiculo">
-          <option value="">— Sin asignar —</option>
-        </select>
-      </div>
-    </div>
-  </div>
-
-  <button class="btn btn-primary" id="btn-crear-alumno" onclick="crearAlumno()">
-    <span id="btn-crear-text">+ Crear alumno</span>
-  </button>
-
-  <div class="result" id="result-alumno-ok">
-    <div class="result-icon">✅</div>
-    <div class="result-title">Alumno creado</div>
-    <div class="result-msg" id="result-alumno-ok-msg"></div>
-    <button class="btn-again" onclick="resetAlumnoForm()">Crear otro alumno</button>
-  </div>
-
-  <div class="result" id="result-alumno-err" onclick="hideAlumnoError()">
-    <div class="result-icon">❌</div>
-    <div class="result-title">Error</div>
-    <div class="result-msg" id="result-alumno-err-msg"></div>
-    <button class="btn-again" onclick="hideAlumnoError()">Volver a intentarlo</button>
+    <button class="btn btn-secondary" onclick="cargarHistorial()">🔄 Actualizar</button>
   </div>
 </div>
 
 <script>
+  const API_TOKEN_KEY = 'kmalumnos_token';
+  const SESSION_KEY = 'kmalumnos_session';
   let alumnos = [];
   let vehiculos = [];
+  let apiToken = null;
 
-  // Fecha de hoy por defecto
-  document.getElementById('fecha-input').value = new Date().toLocaleDateString('sv-SE');
+  // ─── AUTENTICACIÓN ─────────────────────────────────────────────────────────
+  function checkSession() {
+    const session = localStorage.getItem(SESSION_KEY);
+    const token = localStorage.getItem(API_TOKEN_KEY);
+    if (session && token) {
+      // Verificar que la sesión no ha expirado (24h)
+      const sessionTime = parseInt(session);
+      if (Date.now() - sessionTime < 24 * 60 * 60 * 1000) {
+        apiToken = token;
+        showApp();
+        return;
+      }
+    }
+    showLogin();
+  }
 
-  // Tabs
+  function showLogin() {
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('main-app').style.display = 'none';
+    document.getElementById('pin-input').focus();
+  }
+
+  function showApp() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('main-app').style.display = 'block';
+    document.getElementById('fecha-input').value = new Date().toLocaleDateString('sv-SE');
+    cargarDatos();
+  }
+
+  async function verificarPin() {
+    const pin = document.getElementById('pin-input').value;
+    const errorEl = document.getElementById('login-error');
+    
+    if (pin.length !== 4) {
+      errorEl.textContent = 'El PIN debe tener 4 dígitos';
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin })
+      });
+
+      const data = await res.json();
+      
+      if (res.ok && data.ok) {
+        apiToken = data.token;
+        localStorage.setItem(API_TOKEN_KEY, apiToken);
+        localStorage.setItem(SESSION_KEY, Date.now().toString());
+        errorEl.textContent = '';
+        showApp();
+      } else {
+        errorEl.textContent = data.error || 'PIN incorrecto';
+        document.getElementById('pin-input').value = '';
+        document.getElementById('pin-input').focus();
+      }
+    } catch (e) {
+      errorEl.textContent = 'Error de conexión';
+    }
+  }
+
+  function cerrarSesion() {
+    localStorage.removeItem(API_TOKEN_KEY);
+    localStorage.removeItem(SESSION_KEY);
+    apiToken = null;
+    document.getElementById('pin-input').value = '';
+    showLogin();
+  }
+
+  // Enter para enviar PIN
+  document.getElementById('pin-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') verificarPin();
+  });
+
+  // ─── API FETCH CON TOKEN ───────────────────────────────────────────────────
+  async function apiFetch(url, options = {}) {
+    const headers = { ...(options.headers || {}) };
+    if (apiToken) headers['X-API-Token'] = apiToken;
+    
+    const res = await fetch(url, { ...options, headers });
+    
+    // Si el token es inválido, volver al login
+    if (res.status === 401) {
+      cerrarSesion();
+      throw new Error('Sesión expirada');
+    }
+    
+    return res;
+  }
+
+  // ─── TABS ──────────────────────────────────────────────────────────────────
   function switchTab(tab) {
     document.querySelectorAll('.tab').forEach((t, i) => {
-      t.classList.toggle('active', (tab === 'practica' && i === 0) || (tab === 'alumno' && i === 1));
+      t.classList.toggle('active', 
+        (tab === 'practica' && i === 0) || 
+        (tab === 'alumno' && i === 1) ||
+        (tab === 'historial' && i === 2)
+      );
     });
     document.getElementById('section-practica').classList.toggle('active', tab === 'practica');
     document.getElementById('section-alumno').classList.toggle('active', tab === 'alumno');
+    document.getElementById('section-historial').classList.toggle('active', tab === 'historial');
+    
+    if (tab === 'historial') cargarHistorial();
   }
 
-  // Sparkles
+  // ─── SPARKLES ──────────────────────────────────────────────────────────────
   function createSparkles() {
     const container = document.getElementById('sparkles');
     container.innerHTML = '';
@@ -377,12 +549,12 @@
     }
   }
 
-  // Cargar vehículos y alumnos al arrancar
+  // ─── CARGAR DATOS ──────────────────────────────────────────────────────────
   async function cargarDatos() {
     try {
       const [resV, resA] = await Promise.all([
-        fetch('/api/vehiculos'),
-        fetch('/api/alumnos')
+        apiFetch('/api/vehiculos'),
+        apiFetch('/api/alumnos')
       ]);
 
       if (!resV.ok) throw new Error('Error cargando vehículos');
@@ -397,19 +569,27 @@
         selV.innerHTML = '<option value="">No hay vehículos registrados</option>';
       } else {
         selV.innerHTML = '<option value="">— Selecciona un vehículo —</option>' +
-          vehiculos.map(v => `<option value="${v.id}">${v.nombre}${v.matricula ? ' (' + v.matricula + ')' : ''}</option>`).join('');
+          vehiculos.map(v => `<option value="${v.id}">${escapeHtml(v.nombre)}${v.matricula ? ' (' + escapeHtml(v.matricula) + ')' : ''}</option>`).join('');
       }
 
       // Popular selector de vehículos (nuevo alumno)
       const selNV = document.getElementById('nuevo-vehiculo');
       selNV.innerHTML = '<option value="">— Sin asignar —</option>' +
-        vehiculos.map(v => `<option value="${v.id}">${v.nombre}${v.matricula ? ' (' + v.matricula + ')' : ''}</option>`).join('');
+        vehiculos.map(v => `<option value="${v.id}">${escapeHtml(v.nombre)}${v.matricula ? ' (' + escapeHtml(v.matricula) + ')' : ''}</option>`).join('');
 
     } catch (e) {
       document.getElementById('vehiculo-select').innerHTML = '<option value="">Error cargando datos</option>';
     }
   }
 
+  // ─── ESCAPE HTML (prevenir XSS) ────────────────────────────────────────────
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // ─── VEHÍCULO/ALUMNO CHANGE ────────────────────────────────────────────────
   function onVehiculoChange() {
     const vehiculoId = document.getElementById('vehiculo-select').value;
     const selA = document.getElementById('alumno-select');
@@ -425,7 +605,6 @@
       return;
     }
 
-    // Filtrar alumnos asignados a este vehículo
     const alumnosFiltrados = alumnos.filter(a => a.vehiculo_id == vehiculoId);
 
     if (!alumnosFiltrados.length) {
@@ -436,7 +615,7 @@
 
     selA.disabled = false;
     selA.innerHTML = '<option value="">— Selecciona un alumno —</option>' +
-      alumnosFiltrados.map(a => `<option value="${a.id}">${a.nombre} (${a.permiso})</option>`).join('');
+      alumnosFiltrados.map(a => `<option value="${a.id}">${escapeHtml(a.nombre)} (${a.permiso})</option>`).join('');
   }
 
   function onAlumnoChange() {
@@ -447,7 +626,7 @@
 
     if (alumno) {
       info.style.display = 'block';
-      info.innerHTML = `<span class="tag">${alumno.permiso}</span> Permiso ${alumno.permiso}`;
+      info.innerHTML = `<span class="tag">${escapeHtml(alumno.permiso)}</span> Permiso ${escapeHtml(alumno.permiso)}`;
       btn.disabled = false;
     } else {
       info.style.display = 'none';
@@ -455,6 +634,7 @@
     }
   }
 
+  // ─── REGISTRAR PRÁCTICA ────────────────────────────────────────────────────
   async function registrar() {
     const alumnoId = document.getElementById('alumno-select').value;
     const fecha = document.getElementById('fecha-input').value;
@@ -468,7 +648,7 @@
     text.innerHTML = '<span class="loading-dots"><span>·</span><span>·</span><span>·</span></span>';
 
     try {
-      const res = await fetch('/api/practica', {
+      const res = await apiFetch('/api/practica', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ alumno_id: parseInt(alumnoId), fecha })
@@ -499,6 +679,7 @@
     }
   }
 
+  // ─── ERRORES ───────────────────────────────────────────────────────────────
   let errTimer = null;
   function showError(msg) {
     clearTimeout(errTimer);
@@ -527,7 +708,7 @@
     document.getElementById('btn-text').innerHTML = '✓ Registrar práctica';
   }
 
-  // --- Nuevo alumno ---
+  // ─── CREAR ALUMNO ──────────────────────────────────────────────────────────
   async function crearAlumno() {
     const nombre = document.getElementById('nuevo-nombre').value.trim();
     const permiso = document.getElementById('nuevo-permiso').value;
@@ -541,7 +722,7 @@
     text.innerHTML = '<span class="loading-dots"><span>·</span><span>·</span><span>·</span></span>';
 
     try {
-      const res = await fetch('/api/crear-alumno', {
+      const res = await apiFetch('/api/crear-alumno', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -566,7 +747,6 @@
       document.getElementById('result-alumno-ok').classList.add('ok');
       document.getElementById('result-alumno-ok').style.display = 'block';
 
-      // Recargar datos para que aparezca en la lista de prácticas
       await cargarDatos();
 
     } catch (e) {
@@ -602,7 +782,60 @@
     document.getElementById('nuevo-vehiculo').value = '';
   }
 
-  cargarDatos();
+  // ─── HISTORIAL ─────────────────────────────────────────────────────────────
+  async function cargarHistorial() {
+    const list = document.getElementById('historial-list');
+    list.innerHTML = '<div class="historial-empty">Cargando...</div>';
+
+    try {
+      const res = await apiFetch('/api/historial');
+      if (!res.ok) throw new Error('Error cargando historial');
+      
+      const practicas = await res.json();
+      
+      if (!practicas.length) {
+        list.innerHTML = '<div class="historial-empty">No hay prácticas registradas hoy desde esta web.</div>';
+        return;
+      }
+
+      list.innerHTML = practicas.map(p => `
+        <div class="historial-item">
+          <div class="historial-info">
+            <div class="historial-nombre">${escapeHtml(p.alumno_nombre)}</div>
+            <div class="historial-fecha">${p.fecha} · ${escapeHtml(p.vehiculo_nombre)}</div>
+          </div>
+          <button class="btn-danger" onclick="cancelarPractica(${p.id}, '${escapeHtml(p.alumno_nombre)}')">✕ Cancelar</button>
+        </div>
+      `).join('');
+
+    } catch (e) {
+      list.innerHTML = '<div class="historial-empty">Error cargando historial.</div>';
+    }
+  }
+
+  async function cancelarPractica(id, nombre) {
+    if (!confirm(`¿Cancelar la práctica de ${nombre}?`)) return;
+
+    try {
+      const res = await apiFetch('/api/cancelar-practica', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ practica_id: id })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        cargarHistorial();
+      } else {
+        alert(data.error || 'Error al cancelar');
+      }
+    } catch (e) {
+      alert('Error de conexión');
+    }
+  }
+
+  // ─── INIT ──────────────────────────────────────────────────────────────────
+  checkSession();
 </script>
 </body>
 </html>
