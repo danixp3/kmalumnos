@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld('api', {
   generarKm:    (kmInicial, min, max)        => ipcRenderer.invoke('generar-km', kmInicial, min, max),
   getResumen:        ()                      => ipcRenderer.invoke('get-resumen'),
   getSolapamientos:    ()                        => ipcRenderer.invoke('get-solapamientos'),
-  rellenarKmMasivo:    (vid, min, max)           => ipcRenderer.invoke('rellenar-km-masivo', vid, min, max),
+  rellenarKmMasivo:    (vid, min, max, inicio, final) => ipcRenderer.invoke('rellenar-km-masivo', vid, min, max, inicio, final),
   getPracticasSinKm:   (vid)                     => ipcRenderer.invoke('get-practicas-sin-km', vid),
   corregirSolapamientos: (vid, min, max)         => ipcRenderer.invoke('corregir-solapamientos', vid, min, max),
   getLogs:               ()                      => ipcRenderer.invoke('get-logs'),

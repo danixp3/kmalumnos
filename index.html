@@ -964,17 +964,25 @@
           Relleno masivo de kilómetros
         </div>
         <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Genera kilómetros coherentes con el odómetro del vehículo para todas las prácticas con los km en blanco. Los km se calculan respetando la cronología real.</p>
-        <div class="form-row" style="align-items:flex-end;gap:12px">
+        <div class="form-row" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
           <div class="form-group">
             <label>Vehículo</label>
             <select id="relleno-vehiculo" style="width:180px"></select>
           </div>
           <div class="form-group">
-            <label>Rango km por práctica</label>
+            <label>Km por práctica</label>
             <div class="range-group">
-              <input type="number" id="relleno-min" value="40" min="1" max="999">
+              <input type="number" id="relleno-min" value="40" min="1" max="999" title="Mínimo km por práctica">
               <span class="range-sep">—</span>
-              <input type="number" id="relleno-max" value="45" min="1" max="999">
+              <input type="number" id="relleno-max" value="45" min="1" max="999" title="Máximo km por práctica">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Tope odómetro (opcional)</label>
+            <div class="range-group">
+              <input type="number" id="relleno-inicio" placeholder="Inicio" min="0" style="width:90px" title="Km inicial del odómetro (dejar vacío para usar el del vehículo)">
+              <span class="range-sep">→</span>
+              <input type="number" id="relleno-final" placeholder="Final" min="0" style="width:90px" title="Km máximo del odómetro (dejar vacío para sin límite)">
             </div>
           </div>
           <button class="btn btn-primary" onclick="rellenarMasivo()" style="align-self:flex-end">
