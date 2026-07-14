@@ -378,92 +378,120 @@ function exportarCSV(opciones = {}) {
  * csvA: origen (ej: generado por IA), csvB: destino (ej: anotaciones manuales)
  */
 function compararCSVs(rowsA, rowsB, opciones = {}) {
-  const toleranciaKm = opciones.toleranciaKm || 5;
   const normalizarNombre = n => (n || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   
-  // Parsear y normalizar
-  const parsear = (rows, origen) => rows.map((r, i) => ({
+  // Parsear filas
+  const parsear = (rows) => rows.map((r, i) => ({
     alumno: (r.alumno || '').trim(),
     alumnoNorm: normalizarNombre(r.alumno),
-    vehiculo: (r.vehiculo || '').trim(),
     fecha: (r.fecha || '').trim(),
-    km_inicial: parseFloat(r.km_inicial) || 0,
-    km_final: parseFloat(r.km_final) || 0,
-    fila: i + 2,
-    origen
-  }));
+    fila: i + 2
+  })).filter(p => p.alumno && p.fecha);
 
-  const practicasA = parsear(rowsA, 'A');
-  const practicasB = parsear(rowsB, 'B');
+  const practicasA = parsear(rowsA);
+  const practicasB = parsear(rowsB);
 
-  const resultado = {
-    resumen: { totalA: practicasA.length, totalB: practicasB.length, coincidencias: 0, soloEnA: 0, soloEnB: 0, conflictos: 0 },
-    coincidencias: [],
-    soloEnA: [],
-    soloEnB: [],
-    conflictos: [],
-    alumnosA: [...new Set(practicasA.map(p => p.alumno))],
-    alumnosB: [...new Set(practicasB.map(p => p.alumno))],
-    fechasA: [...new Set(practicasA.map(p => p.fecha))].sort(),
-    fechasB: [...new Set(practicasB.map(p => p.fecha))].sort()
+  // Agrupar por alumno -> fecha -> cantidad
+  const agrupar = (practicas) => {
+    const mapa = new Map(); // alumnoNorm -> { nombre, fechas: Map<fecha, count> }
+    for (const p of practicas) {
+      if (!mapa.has(p.alumnoNorm)) {
+        mapa.set(p.alumnoNorm, { nombre: p.alumno, fechas: new Map() });
+      }
+      const alumno = mapa.get(p.alumnoNorm);
+      alumno.fechas.set(p.fecha, (alumno.fechas.get(p.fecha) || 0) + 1);
+    }
+    return mapa;
   };
 
-  // Índice para B
-  const indiceB = new Map();
-  practicasB.forEach(p => {
-    const clave = `${p.alumnoNorm}|${p.fecha}`;
-    if (!indiceB.has(clave)) indiceB.set(clave, []);
-    indiceB.get(clave).push(p);
-  });
+  const grupoA = agrupar(practicasA);
+  const grupoB = agrupar(practicasB);
 
-  const usadosB = new Set();
+  // Obtener todos los alumnos (unión de A y B)
+  const todosAlumnos = new Map();
+  for (const [norm, data] of grupoA) todosAlumnos.set(norm, data.nombre);
+  for (const [norm, data] of grupoB) if (!todosAlumnos.has(norm)) todosAlumnos.set(norm, data.nombre);
 
-  // Buscar coincidencias y conflictos
-  for (const pA of practicasA) {
-    const clave = `${pA.alumnoNorm}|${pA.fecha}`;
-    const candidatos = indiceB.get(clave) || [];
-    let encontrado = false;
+  const resultado = {
+    resumen: { 
+      totalA: practicasA.length, 
+      totalB: practicasB.length, 
+      diasCoinciden: 0, 
+      diasConflicto: 0, 
+      diasSoloEnA: 0, 
+      diasSoloEnB: 0,
+      alumnosTotal: todosAlumnos.size
+    },
+    porAlumno: [], // { nombre, coincidencias: [{fecha, cant}], conflictos: [{fecha, cantA, cantB}], soloEnA: [{fecha, cant}], soloEnB: [{fecha, cant}] }
+    alumnosSoloEnA: [],
+    alumnosSoloEnB: []
+  };
 
-    for (const pB of candidatos) {
-      if (usadosB.has(pB)) continue;
-      
-      const diffKmI = Math.abs(pA.km_inicial - pB.km_inicial);
-      const diffKmF = Math.abs(pA.km_final - pB.km_final);
-      
-      if (diffKmI <= toleranciaKm && diffKmF <= toleranciaKm) {
-        // Coincidencia exacta o dentro de tolerancia
-        resultado.coincidencias.push({ a: pA, b: pB, diffKmI, diffKmF });
-        resultado.resumen.coincidencias++;
-        usadosB.add(pB);
-        encontrado = true;
-        break;
+  // Comparar por alumno
+  for (const [alumnoNorm, nombre] of todosAlumnos) {
+    const fechasA = grupoA.get(alumnoNorm)?.fechas || new Map();
+    const fechasB = grupoB.get(alumnoNorm)?.fechas || new Map();
+    
+    // Si el alumno solo está en uno de los CSV
+    if (!grupoA.has(alumnoNorm)) {
+      resultado.alumnosSoloEnB.push(nombre);
+      const soloEnB = [];
+      for (const [fecha, cant] of fechasB) {
+        soloEnB.push({ fecha, cant });
+        resultado.resumen.diasSoloEnB++;
+      }
+      resultado.porAlumno.push({ nombre, coincidencias: [], conflictos: [], soloEnA: [], soloEnB });
+      continue;
+    }
+    if (!grupoB.has(alumnoNorm)) {
+      resultado.alumnosSoloEnA.push(nombre);
+      const soloEnA = [];
+      for (const [fecha, cant] of fechasA) {
+        soloEnA.push({ fecha, cant });
+        resultado.resumen.diasSoloEnA++;
+      }
+      resultado.porAlumno.push({ nombre, coincidencias: [], conflictos: [], soloEnA, soloEnB: [] });
+      continue;
+    }
+
+    // Alumno está en ambos - comparar fechas
+    const todasFechas = new Set([...fechasA.keys(), ...fechasB.keys()]);
+    const coincidencias = [], conflictos = [], soloEnA = [], soloEnB = [];
+
+    for (const fecha of todasFechas) {
+      const cantA = fechasA.get(fecha) || 0;
+      const cantB = fechasB.get(fecha) || 0;
+
+      if (cantA > 0 && cantB > 0) {
+        if (cantA === cantB) {
+          coincidencias.push({ fecha, cant: cantA });
+          resultado.resumen.diasCoinciden++;
+        } else {
+          conflictos.push({ fecha, cantA, cantB });
+          resultado.resumen.diasConflicto++;
+        }
+      } else if (cantA > 0) {
+        soloEnA.push({ fecha, cant: cantA });
+        resultado.resumen.diasSoloEnA++;
       } else {
-        // Mismo alumno/fecha pero km muy diferentes = conflicto
-        resultado.conflictos.push({ a: pA, b: pB, diffKmI, diffKmF });
-        resultado.resumen.conflictos++;
-        usadosB.add(pB);
-        encontrado = true;
-        break;
+        soloEnB.push({ fecha, cant: cantB });
+        resultado.resumen.diasSoloEnB++;
       }
     }
 
-    if (!encontrado) {
-      resultado.soloEnA.push(pA);
-      resultado.resumen.soloEnA++;
-    }
+    // Ordenar por fecha
+    const ordenar = arr => arr.sort((a, b) => a.fecha.localeCompare(b.fecha));
+    resultado.porAlumno.push({
+      nombre,
+      coincidencias: ordenar(coincidencias),
+      conflictos: ordenar(conflictos),
+      soloEnA: ordenar(soloEnA),
+      soloEnB: ordenar(soloEnB)
+    });
   }
 
-  // Lo que queda en B sin usar
-  for (const pB of practicasB) {
-    if (!usadosB.has(pB)) {
-      resultado.soloEnB.push(pB);
-      resultado.resumen.soloEnB++;
-    }
-  }
-
-  // Análisis de alumnos
-  resultado.alumnosSoloEnA = resultado.alumnosA.filter(a => !resultado.alumnosB.some(b => normalizarNombre(b) === normalizarNombre(a)));
-  resultado.alumnosSoloEnB = resultado.alumnosB.filter(b => !resultado.alumnosA.some(a => normalizarNombre(a) === normalizarNombre(b)));
+  // Ordenar alumnos por nombre
+  resultado.porAlumno.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
   return resultado;
 }

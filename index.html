@@ -1337,13 +1337,9 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
         </div>
         
         <div class="form-row" style="gap:12px;align-items:flex-end;margin-bottom:14px">
-          <div class="form-group">
-            <label>Tolerancia km</label>
-            <input type="number" id="cmp-tolerancia" value="5" min="0" max="100" style="width:80px" title="Diferencia máxima en km para considerar coincidencia">
-          </div>
           <button class="btn btn-primary" onclick="compararCSVs()" id="btn-comparar" disabled>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
-            Comparar
+            Comparar días de asistencia
           </button>
         </div>
       </div>
@@ -1355,7 +1351,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
             <div class="card-title-icon" style="background:#fef3c7">📊</div>
             Resumen de comparación
           </div>
-          <div id="cmp-resumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px"></div>
+          <div id="cmp-resumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px"></div>
         </div>
 
         <div class="card" id="cmp-alumnos-card" style="display:none">
@@ -1364,6 +1360,14 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
             Alumnos diferentes
           </div>
           <div id="cmp-alumnos" style="font-size:13px"></div>
+        </div>
+
+        <div class="card" id="cmp-detalle-card" style="display:none">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#e0e7ff">📋</div>
+            Detalle por alumno (diferencias)
+          </div>
+          <div id="cmp-detalle-body" style="max-height:500px;overflow-y:auto"></div>
         </div>
 
         <div class="card" id="cmp-conflictos-card" style="display:none">
