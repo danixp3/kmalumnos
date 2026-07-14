@@ -126,7 +126,7 @@ ipcMain.handle('update-practica', (_, id, fecha, km_inicial, km_final) => { db.u
 
 ipcMain.handle('get-resumen', () => db.getResumen());
 ipcMain.handle('get-solapamientos', () => db.getSolapamientos());
-ipcMain.handle('rellenar-km-masivo', (_, vehiculo_id, kmMin, kmMax) => db.rellenarKmMasivo(vehiculo_id, kmMin, kmMax));
+ipcMain.handle('rellenar-km-masivo', (_, vehiculo_id, kmMin, kmMax, kmInicio, kmFinal) => db.rellenarKmMasivo(vehiculo_id, kmMin, kmMax, kmInicio, kmFinal));
 ipcMain.handle('get-practicas-sin-km', (_, vehiculo_id) => db.getPracticasSinKm(vehiculo_id));
 ipcMain.handle('corregir-solapamientos', (_, vehiculo_id, kmMin, kmMax) => db.corregirSolapamientos(vehiculo_id, kmMin, kmMax));
 ipcMain.handle('get-timeline-vehiculo', (_, vehiculo_id) => db.getTimelineVehiculo(vehiculo_id));

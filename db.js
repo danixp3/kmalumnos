@@ -507,7 +507,7 @@ function compararCSVs(rowsA, rowsB, opciones = {}) {
  * 3. Para cada práctica con km reales: avanza el cursor si km_final > cursor.
  * 4. Para cada práctica sin km (0,0): asigna km_inicial=cursor, km_final=cursor+rand(min,max).
  */
-function rellenarKmMasivo(vehiculo_id, kmMin = 40, kmMax = 45) {
+function rellenarKmMasivo(vehiculo_id, kmMin = 40, kmMax = 45, kmInicio = null, kmFinal = null) {
   const d = load();
   const vid = parseInt(vehiculo_id);
   const v = d.vehiculos.find(x => x.id === vid);
@@ -526,40 +526,43 @@ function rellenarKmMasivo(vehiculo_id, kmMin = 40, kmMax = 45) {
 
   if (!sinKm.length) return { rellenadas: 0, errores: [] };
 
-  // Construir timeline de anchors: fecha -> km_final máximo de ese día
-  const anchorPorFecha = {};
-  conKm.forEach(p => {
-    if (!anchorPorFecha[p.fecha] || p.km_final > anchorPorFecha[p.fecha]) {
-      anchorPorFecha[p.fecha] = p.km_final;
-    }
-  });
+  // Cursor inicial: usar kmInicio si se proporciona, sino km_actual del vehículo
+  const cursorInicial = (kmInicio !== null && kmInicio > 0) ? kmInicio : v.km_actual;
+  
+  // Tope final: si se proporciona, no superar este km
+  const topeFinal = (kmFinal !== null && kmFinal > 0) ? kmFinal : null;
 
-  // Cursor global: km inicial del vehículo
-  // Mezclar todas las prácticas con km reales para encontrar el cursor correcto en cada punto
   // Ordenar todas las fechas únicas
   const todasFechas = [...new Set([...conKm.map(p => p.fecha), ...sinKm.map(p => p.fecha)])].sort();
 
   let rellenadas = 0;
+  let saltadas = 0;
 
   for (const fecha of todasFechas) {
     const sinKmHoy = sinKm.filter(p => p.fecha === fecha);
     if (!sinKmHoy.length) continue;
 
-    // Calcular cursor para este día:
-    // = mayor km_final entre todas las prácticas con km de fecha <= hoy
-    let cursor = v.km_actual;
+    // Calcular cursor para este día
+    let cursor = cursorInicial;
     conKm.forEach(p => {
       if (p.fecha <= fecha && p.km_final > cursor) cursor = p.km_final;
     });
-    // También considerar las prácticas sin km ya rellenadas antes de este día
     sinKm.forEach(p => {
       if (p.fecha < fecha && p.km_final > 0 && p.km_final > cursor) cursor = p.km_final;
     });
 
-    // Rellenar las prácticas sin km de este día en orden
+    // Rellenar las prácticas sin km de este día
     for (const p of sinKmHoy) {
       const kmI = cursor;
-      const kmF = Math.round((kmI + _randomKm(kmMin, kmMax)) * 10) / 10;
+      const incremento = _randomKm(kmMin, kmMax);
+      let kmF = Math.round((kmI + incremento) * 10) / 10;
+      
+      // Si hay tope final y lo superaríamos, saltar esta práctica
+      if (topeFinal !== null && kmF > topeFinal) {
+        saltadas++;
+        continue;
+      }
+      
       p.km_inicial = kmI;
       p.km_final   = kmF;
       cursor = kmF;
@@ -576,9 +579,12 @@ function rellenarKmMasivo(vehiculo_id, kmMin = 40, kmMax = 45) {
     const alumno = load().alumnos.find(a => a.id === p.alumno_id);
     return `${alumno ? alumno.nombre : '?'} / ${fmtFechaLog(p.fecha)}: ${p.km_inicial} → ${p.km_final} km`;
   });
-  addLog('relleno', `Relleno masivo ${v.nombre}: ${rellenadas} práctica(s) rellenadas (rango ${kmMin}-${kmMax} km)`, detallesLog);
+  const rangoInfo = kmInicio || kmFinal 
+    ? `(rango ${kmMin}-${kmMax} km, tope ${kmInicio || '?'}-${kmFinal || '?'} km)` 
+    : `(rango ${kmMin}-${kmMax} km)`;
+  addLog('relleno', `Relleno masivo ${v.nombre}: ${rellenadas} rellenada(s)${saltadas ? `, ${saltadas} saltada(s) por tope` : ''} ${rangoInfo}`, detallesLog);
   save();
-  return { rellenadas };
+  return { rellenadas, saltadas };
 }
 
 function getPracticasSinKm(vehiculo_id) {

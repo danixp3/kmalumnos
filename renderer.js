@@ -111,6 +111,16 @@ async function rellenarMasivo() {
   const min = parseFloat(document.getElementById('relleno-min').value) || 40;
   const max = parseFloat(document.getElementById('relleno-max').value) || 45;
   if (max <= min) { alert('El máximo debe ser mayor que el mínimo.'); return; }
+  
+  // Topes opcionales del odómetro
+  const inicioVal = document.getElementById('relleno-inicio').value;
+  const finalVal = document.getElementById('relleno-final').value;
+  const inicio = inicioVal ? parseFloat(inicioVal) : null;
+  const final = finalVal ? parseFloat(finalVal) : null;
+  
+  if (inicio !== null && final !== null && final <= inicio) {
+    alert('El tope final debe ser mayor que el tope inicial.'); return;
+  }
 
   const n = await window.api.getPracticasSinKm(vid);
   if (n === 0) {
@@ -119,12 +129,14 @@ async function rellenarMasivo() {
     return;
   }
 
-  if (!confirm(`Se van a generar km para ${n} práctica(s) con km en blanco del vehículo seleccionado.\n\nLos km se calcularán de forma coherente con el odómetro del coche.\n\n¿Continuar?`)) return;
+  const topeInfo = (inicio || final) ? `\n\nTope odómetro: ${inicio || '(auto)'} → ${final || '(sin límite)'}` : '';
+  if (!confirm(`Se van a generar km para ${n} práctica(s) con km en blanco del vehículo seleccionado.\n\nRango por práctica: ${min}-${max} km${topeInfo}\n\n¿Continuar?`)) return;
 
-  const result = await window.api.rellenarKmMasivo(vid, min, max);
+  const result = await window.api.rellenarKmMasivo(vid, min, max, inicio, final);
   const el = document.getElementById('relleno-alert');
   el.className = 'alert alert-ok';
-  el.innerHTML = `✅ ${result.rellenadas} práctica(s) rellenadas correctamente. &nbsp;
+  const saltadasMsg = result.saltadas ? ` (${result.saltadas} saltadas por tope)` : '';
+  el.innerHTML = `✅ ${result.rellenadas} práctica(s) rellenadas${saltadasMsg}. &nbsp;
     <button class="btn btn-warn btn-sm" style="margin-left:8px" onclick="navegarA('solapamientos')">
       🔍 Verificar solapamientos ahora
     </button>`;
