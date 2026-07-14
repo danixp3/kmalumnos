@@ -139,8 +139,10 @@
   .result {
     display: none; border-radius: var(--radius); padding: 28px 24px; text-align: center;
     margin-top: 16px; animation: popIn 0.4s cubic-bezier(.17,.67,.35,1.5);
-    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    position: relative; z-index: 10;
   }
+  
+  .result.err { cursor: pointer; }
 
   @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
 
@@ -286,7 +288,7 @@
     <button class="btn-again" onclick="resetForm()">Registrar otra práctica</button>
   </div>
 
-  <div class="result" id="result-err">
+  <div class="result" id="result-err" onclick="hideError()">
     <div class="result-icon">❌</div>
     <div class="result-title">Error</div>
     <div class="result-msg" id="result-err-msg"></div>
@@ -336,7 +338,7 @@
     <button class="btn-again" onclick="resetAlumnoForm()">Crear otro alumno</button>
   </div>
 
-  <div class="result" id="result-alumno-err">
+  <div class="result" id="result-alumno-err" onclick="hideAlumnoError()">
     <div class="result-icon">❌</div>
     <div class="result-title">Error</div>
     <div class="result-msg" id="result-alumno-err-msg"></div>
@@ -497,13 +499,17 @@
     }
   }
 
+  let errTimer = null;
   function showError(msg) {
+    clearTimeout(errTimer);
     document.getElementById('result-err-msg').textContent = msg;
     document.getElementById('result-err').classList.add('err');
     document.getElementById('result-err').style.display = 'block';
+    errTimer = setTimeout(hideError, 3500);
   }
 
   function hideError() {
+    clearTimeout(errTimer);
     document.getElementById('result-err').classList.remove('err');
     document.getElementById('result-err').style.display = 'none';
   }
@@ -570,13 +576,17 @@
     }
   }
 
+  let alumnoErrTimer = null;
   function showAlumnoError(msg) {
+    clearTimeout(alumnoErrTimer);
     document.getElementById('result-alumno-err-msg').textContent = msg;
     document.getElementById('result-alumno-err').classList.add('err');
     document.getElementById('result-alumno-err').style.display = 'block';
+    alumnoErrTimer = setTimeout(hideAlumnoError, 3500);
   }
 
   function hideAlumnoError() {
+    clearTimeout(alumnoErrTimer);
     document.getElementById('result-alumno-err').classList.remove('err');
     document.getElementById('result-alumno-err').style.display = 'none';
   }

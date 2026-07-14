@@ -462,6 +462,151 @@ function showImportAlert(msg, type) {
   el.classList.remove('hidden');
 }
 
+// ─── EXPORTAR / COMPARAR CSV ─────────────────────────────────────────────────
+let csvAPath = null, csvBPath = null;
+
+async function exportarCSV() {
+  const res = await window.api.exportarCsv({});
+  const el = document.getElementById('export-result');
+  if (res.canceled) { el.classList.add('hidden'); return; }
+  if (!res.ok) {
+    el.className = 'alert alert-err';
+    el.textContent = '❌ Error: ' + res.msg;
+  } else {
+    el.className = 'alert alert-ok';
+    el.textContent = `✅ Exportadas ${res.total} prácticas a: ${res.path}`;
+  }
+  el.classList.remove('hidden');
+}
+
+async function seleccionarCsvA() {
+  const path = await window.api.openCsvDialog();
+  if (!path) return;
+  csvAPath = path;
+  document.getElementById('csv-a-path').value = path.split(/[/\\]/).pop();
+  actualizarBtnComparar();
+}
+
+async function seleccionarCsvB() {
+  const path = await window.api.openCsvDialog();
+  if (!path) return;
+  csvBPath = path;
+  document.getElementById('csv-b-path').value = path.split(/[/\\]/).pop();
+  actualizarBtnComparar();
+}
+
+function actualizarBtnComparar() {
+  document.getElementById('btn-comparar').disabled = !(csvAPath && csvBPath);
+}
+
+async function compararCSVs() {
+  if (!csvAPath || !csvBPath) return;
+  const tolerancia = parseFloat(document.getElementById('cmp-tolerancia').value) || 5;
+  const res = await window.api.compararCsvs(csvAPath, csvBPath, { toleranciaKm: tolerancia });
+  
+  if (!res.ok) {
+    alert('Error al comparar: ' + res.msg);
+    return;
+  }
+  
+  const r = res.resumen;
+  document.getElementById('cmp-resumen').innerHTML = `
+    <div style="background:var(--gray-light);padding:12px;border-radius:8px;text-align:center">
+      <div style="font-size:24px;font-weight:700">${r.totalA}</div>
+      <div style="font-size:11px;color:var(--text-muted)">Prácticas CSV A</div>
+    </div>
+    <div style="background:var(--gray-light);padding:12px;border-radius:8px;text-align:center">
+      <div style="font-size:24px;font-weight:700">${r.totalB}</div>
+      <div style="font-size:11px;color:var(--text-muted)">Prácticas CSV B</div>
+    </div>
+    <div style="background:#d1fae5;padding:12px;border-radius:8px;text-align:center">
+      <div style="font-size:24px;font-weight:700;color:#059669">${r.coincidencias}</div>
+      <div style="font-size:11px;color:#065f46">Coincidencias</div>
+    </div>
+    <div style="background:#fee2e2;padding:12px;border-radius:8px;text-align:center">
+      <div style="font-size:24px;font-weight:700;color:#dc2626">${r.conflictos}</div>
+      <div style="font-size:11px;color:#991b1b">Conflictos</div>
+    </div>
+    <div style="background:#fef3c7;padding:12px;border-radius:8px;text-align:center">
+      <div style="font-size:24px;font-weight:700;color:#d97706">${r.soloEnA}</div>
+      <div style="font-size:11px;color:#92400e">Solo en A</div>
+    </div>
+    <div style="background:#dbeafe;padding:12px;border-radius:8px;text-align:center">
+      <div style="font-size:24px;font-weight:700;color:#2563eb">${r.soloEnB}</div>
+      <div style="font-size:11px;color:#1e40af">Solo en B</div>
+    </div>
+  `;
+  
+  // Alumnos diferentes
+  const alumnosCard = document.getElementById('cmp-alumnos-card');
+  if (res.alumnosSoloEnA.length || res.alumnosSoloEnB.length) {
+    alumnosCard.style.display = '';
+    document.getElementById('cmp-alumnos').innerHTML = `
+      ${res.alumnosSoloEnA.length ? `<div style="margin-bottom:8px"><strong style="color:#d97706">Solo en A:</strong> ${res.alumnosSoloEnA.map(a => esc(a)).join(', ')}</div>` : ''}
+      ${res.alumnosSoloEnB.length ? `<div><strong style="color:#2563eb">Solo en B:</strong> ${res.alumnosSoloEnB.map(a => esc(a)).join(', ')}</div>` : ''}
+    `;
+  } else {
+    alumnosCard.style.display = 'none';
+  }
+  
+  // Conflictos
+  const conflictosCard = document.getElementById('cmp-conflictos-card');
+  if (res.conflictos.length) {
+    conflictosCard.style.display = '';
+    document.querySelector('#cmp-conflictos-table tbody').innerHTML = res.conflictos.map(c => `
+      <tr>
+        <td><strong>${esc(c.a.alumno)}</strong></td>
+        <td>${c.a.fecha}</td>
+        <td>${c.a.km_inicial} → ${c.a.km_final}</td>
+        <td>${c.b.km_inicial} → ${c.b.km_final}</td>
+        <td style="color:#dc2626;font-weight:600">Δ${Math.round(c.diffKmF)}</td>
+      </tr>
+    `).join('');
+  } else {
+    conflictosCard.style.display = 'none';
+  }
+  
+  // Solo en A
+  const soloACard = document.getElementById('cmp-solo-a-card');
+  if (res.soloEnA.length) {
+    soloACard.style.display = '';
+    document.querySelector('#cmp-solo-a-table tbody').innerHTML = res.soloEnA.map(p => `
+      <tr><td>${esc(p.alumno)}</td><td>${esc(p.vehiculo)}</td><td>${p.fecha}</td><td>${p.km_inicial}</td><td>${p.km_final}</td></tr>
+    `).join('');
+  } else {
+    soloACard.style.display = 'none';
+  }
+  
+  // Solo en B
+  const soloBCard = document.getElementById('cmp-solo-b-card');
+  if (res.soloEnB.length) {
+    soloBCard.style.display = '';
+    document.querySelector('#cmp-solo-b-table tbody').innerHTML = res.soloEnB.map(p => `
+      <tr><td>${esc(p.alumno)}</td><td>${esc(p.vehiculo)}</td><td>${p.fecha}</td><td>${p.km_inicial}</td><td>${p.km_final}</td></tr>
+    `).join('');
+  } else {
+    soloBCard.style.display = 'none';
+  }
+  
+  // Coincidencias
+  const coincidenciasCard = document.getElementById('cmp-coincidencias-card');
+  if (res.coincidencias.length) {
+    coincidenciasCard.style.display = '';
+    document.querySelector('#cmp-coincidencias-table tbody').innerHTML = res.coincidencias.map(c => `
+      <tr>
+        <td>${esc(c.a.alumno)}</td>
+        <td>${c.a.fecha}</td>
+        <td>${c.a.km_inicial} → ${c.a.km_final}</td>
+        <td>${c.b.km_inicial} → ${c.b.km_final}</td>
+      </tr>
+    `).join('');
+  } else {
+    coincidenciasCard.style.display = 'none';
+  }
+  
+  document.getElementById('cmp-results').classList.remove('hidden');
+}
+
 // ─── MODALES ─────────────────────────────────────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }

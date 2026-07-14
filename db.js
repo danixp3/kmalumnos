@@ -340,6 +340,134 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
   return { insertados, errores: erroresDetalle.length, erroresDetalle };
 }
 
+// ─── EXPORTACIÓN CSV ─────────────────────────────────────────────────────────
+/**
+ * Exporta todas las prácticas en formato CSV compatible con importarCSV.
+ * Opciones: filtrar por alumno_id, vehiculo_id, rango de fechas.
+ */
+function exportarCSV(opciones = {}) {
+  const d = load();
+  let practicas = d.practicas.filter(p => !p.deleted);
+
+  if (opciones.alumno_id) practicas = practicas.filter(p => p.alumno_id === parseInt(opciones.alumno_id));
+  if (opciones.vehiculo_id) practicas = practicas.filter(p => p.vehiculo_id === parseInt(opciones.vehiculo_id));
+  if (opciones.fecha_desde) practicas = practicas.filter(p => p.fecha >= opciones.fecha_desde);
+  if (opciones.fecha_hasta) practicas = practicas.filter(p => p.fecha <= opciones.fecha_hasta);
+
+  practicas.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+
+  const lineas = ['alumno,vehiculo,fecha,km_inicial,km_final'];
+  for (const p of practicas) {
+    const alumno = d.alumnos.find(a => a.id === p.alumno_id);
+    const vehiculo = d.vehiculos.find(v => v.id === p.vehiculo_id);
+    const escapar = s => s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+    lineas.push([
+      escapar(alumno ? alumno.nombre : '?'),
+      escapar(vehiculo ? vehiculo.nombre : '?'),
+      p.fecha,
+      p.km_inicial,
+      p.km_final
+    ].join(','));
+  }
+  return { csv: lineas.join('\n'), total: practicas.length };
+}
+
+// ─── COMPARADOR DE CSV ───────────────────────────────────────────────────────
+/**
+ * Compara dos arrays de prácticas (ya parseados) y devuelve análisis detallado.
+ * csvA: origen (ej: generado por IA), csvB: destino (ej: anotaciones manuales)
+ */
+function compararCSVs(rowsA, rowsB, opciones = {}) {
+  const toleranciaKm = opciones.toleranciaKm || 5;
+  const normalizarNombre = n => (n || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  
+  // Parsear y normalizar
+  const parsear = (rows, origen) => rows.map((r, i) => ({
+    alumno: (r.alumno || '').trim(),
+    alumnoNorm: normalizarNombre(r.alumno),
+    vehiculo: (r.vehiculo || '').trim(),
+    fecha: (r.fecha || '').trim(),
+    km_inicial: parseFloat(r.km_inicial) || 0,
+    km_final: parseFloat(r.km_final) || 0,
+    fila: i + 2,
+    origen
+  }));
+
+  const practicasA = parsear(rowsA, 'A');
+  const practicasB = parsear(rowsB, 'B');
+
+  const resultado = {
+    resumen: { totalA: practicasA.length, totalB: practicasB.length, coincidencias: 0, soloEnA: 0, soloEnB: 0, conflictos: 0 },
+    coincidencias: [],
+    soloEnA: [],
+    soloEnB: [],
+    conflictos: [],
+    alumnosA: [...new Set(practicasA.map(p => p.alumno))],
+    alumnosB: [...new Set(practicasB.map(p => p.alumno))],
+    fechasA: [...new Set(practicasA.map(p => p.fecha))].sort(),
+    fechasB: [...new Set(practicasB.map(p => p.fecha))].sort()
+  };
+
+  // Índice para B
+  const indiceB = new Map();
+  practicasB.forEach(p => {
+    const clave = `${p.alumnoNorm}|${p.fecha}`;
+    if (!indiceB.has(clave)) indiceB.set(clave, []);
+    indiceB.get(clave).push(p);
+  });
+
+  const usadosB = new Set();
+
+  // Buscar coincidencias y conflictos
+  for (const pA of practicasA) {
+    const clave = `${pA.alumnoNorm}|${pA.fecha}`;
+    const candidatos = indiceB.get(clave) || [];
+    let encontrado = false;
+
+    for (const pB of candidatos) {
+      if (usadosB.has(pB)) continue;
+      
+      const diffKmI = Math.abs(pA.km_inicial - pB.km_inicial);
+      const diffKmF = Math.abs(pA.km_final - pB.km_final);
+      
+      if (diffKmI <= toleranciaKm && diffKmF <= toleranciaKm) {
+        // Coincidencia exacta o dentro de tolerancia
+        resultado.coincidencias.push({ a: pA, b: pB, diffKmI, diffKmF });
+        resultado.resumen.coincidencias++;
+        usadosB.add(pB);
+        encontrado = true;
+        break;
+      } else {
+        // Mismo alumno/fecha pero km muy diferentes = conflicto
+        resultado.conflictos.push({ a: pA, b: pB, diffKmI, diffKmF });
+        resultado.resumen.conflictos++;
+        usadosB.add(pB);
+        encontrado = true;
+        break;
+      }
+    }
+
+    if (!encontrado) {
+      resultado.soloEnA.push(pA);
+      resultado.resumen.soloEnA++;
+    }
+  }
+
+  // Lo que queda en B sin usar
+  for (const pB of practicasB) {
+    if (!usadosB.has(pB)) {
+      resultado.soloEnB.push(pB);
+      resultado.resumen.soloEnB++;
+    }
+  }
+
+  // Análisis de alumnos
+  resultado.alumnosSoloEnA = resultado.alumnosA.filter(a => !resultado.alumnosB.some(b => normalizarNombre(b) === normalizarNombre(a)));
+  resultado.alumnosSoloEnB = resultado.alumnosB.filter(b => !resultado.alumnosA.some(a => normalizarNombre(a) === normalizarNombre(b)));
+
+  return resultado;
+}
+
 // ─── RELLENO MASIVO DE KM ────────────────────────────────────────────────────
 /**
  * Rellena los km en blanco (km_inicial=0 y km_final=0) de todas las prácticas
@@ -819,7 +947,7 @@ module.exports = {
   getVehiculos, addVehiculo, updateVehiculoKm, deleteVehiculo,
   getAlumnos, addAlumno, deleteAlumno, updateAlumno,
   getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica,
-  importarCSV, getResumen, getSolapamientos,
+  importarCSV, exportarCSV, compararCSVs, getResumen, getSolapamientos,
   rellenarKmMasivo, getPracticasSinKm,
   corregirSolapamientos,
   getLogs, clearLogs,

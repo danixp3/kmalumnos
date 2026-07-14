@@ -198,6 +198,49 @@ ipcMain.handle('importar-csv', (_, filePath, kmMin, kmMax) => {
   }
 });
 
+// Handlers para exportar y comparar CSV - para añadir a main.js
+
+ipcMain.handle('exportar-csv', async (_, opciones) => {
+  try {
+    const res = db.exportarCSV(opciones || {});
+    const result = await dialog.showSaveDialog({
+      title: 'Guardar CSV',
+      defaultPath: 'practicas_' + new Date().toISOString().slice(0, 10) + '.csv',
+      filters: [{ name: 'CSV', extensions: ['csv'] }]
+    });
+    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+    fs.writeFileSync(result.filePath, res.csv, 'utf-8');
+    return { ok: true, total: res.total, path: result.filePath };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+});
+
+ipcMain.handle('comparar-csvs', async (_, pathA, pathB, opciones) => {
+  try {
+    const parsearCSV = (filePath) => {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const lines = content.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) return [];
+      const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',').map(c => c.trim());
+        const row = {};
+        header.forEach((h, idx) => { row[h] = cols[idx] || ''; });
+        rows.push(row);
+      }
+      return rows;
+    };
+    const rowsA = parsearCSV(pathA);
+    const rowsB = parsearCSV(pathB);
+    const res = db.compararCSVs(rowsA, rowsB, opciones || {});
+    return { ok: true, ...res };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+});
+
 // Generar km aleatorio entre min y max con decimales reducidos
 ipcMain.handle('generar-km', (_, kmInicial, min = 40, max = 45) => {
   const diff = Math.random() * (max - min) + min;

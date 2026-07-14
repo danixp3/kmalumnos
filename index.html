@@ -797,6 +797,12 @@
         </span>
         Importar CSV
       </a>
+      <a data-page="csv-tools">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
+        </span>
+        Exportar / Comparar
+      </a>
       <a data-page="timeline">
         <span class="nav-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="8 8 3 12 8 16"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -1278,6 +1284,138 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
             Importar datos
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CSV TOOLS (EXPORTAR/COMPARAR) ─────────── -->
+    <div id="page-csv-tools" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Exportar / Comparar CSV</div>
+          <div class="page-subtitle">Exporta datos o compara dos archivos CSV</div>
+        </div>
+      </div>
+
+      <!-- EXPORTAR -->
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#d1fae5">⬇️</div>
+          Exportar prácticas a CSV
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Exporta todas las prácticas en formato compatible para re-importar o analizar.</p>
+        <button class="btn btn-success" onclick="exportarCSV()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar CSV
+        </button>
+        <div id="export-result" class="hidden" style="margin-top:12px"></div>
+      </div>
+
+      <!-- COMPARAR -->
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#e0e7ff">🔍</div>
+          Comparar dos CSV
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Compara prácticas de dos fuentes distintas (ej: IA vs manual) y encuentra diferencias.</p>
+        
+        <div class="form-row" style="gap:12px;align-items:flex-end;margin-bottom:14px">
+          <div class="form-group" style="flex:1">
+            <label>CSV A (origen/referencia)</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="csv-a-path" readonly placeholder="Seleccionar archivo..." style="flex:1">
+              <button class="btn btn-outline btn-sm" onclick="seleccionarCsvA()">📁</button>
+            </div>
+          </div>
+          <div class="form-group" style="flex:1">
+            <label>CSV B (a comparar)</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="csv-b-path" readonly placeholder="Seleccionar archivo..." style="flex:1">
+              <button class="btn btn-outline btn-sm" onclick="seleccionarCsvB()">📁</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-row" style="gap:12px;align-items:flex-end;margin-bottom:14px">
+          <div class="form-group">
+            <label>Tolerancia km</label>
+            <input type="number" id="cmp-tolerancia" value="5" min="0" max="100" style="width:80px" title="Diferencia máxima en km para considerar coincidencia">
+          </div>
+          <button class="btn btn-primary" onclick="compararCSVs()" id="btn-comparar" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+            Comparar
+          </button>
+        </div>
+      </div>
+
+      <!-- RESULTADOS COMPARACIÓN -->
+      <div id="cmp-results" class="hidden">
+        <div class="card">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#fef3c7">📊</div>
+            Resumen de comparación
+          </div>
+          <div id="cmp-resumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px"></div>
+        </div>
+
+        <div class="card" id="cmp-alumnos-card" style="display:none">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#fee2e2">👥</div>
+            Alumnos diferentes
+          </div>
+          <div id="cmp-alumnos" style="font-size:13px"></div>
+        </div>
+
+        <div class="card" id="cmp-conflictos-card" style="display:none">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#fee2e2">⚠️</div>
+            Conflictos (mismo alumno/fecha, km muy diferentes)
+          </div>
+          <div class="table-wrap">
+            <table id="cmp-conflictos-table">
+              <thead><tr><th>Alumno</th><th>Fecha</th><th>CSV A (km)</th><th>CSV B (km)</th><th>Diff</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" id="cmp-solo-a-card" style="display:none">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#fef3c7">📄</div>
+            Solo en CSV A (no están en B)
+          </div>
+          <div class="table-wrap">
+            <table id="cmp-solo-a-table">
+              <thead><tr><th>Alumno</th><th>Vehículo</th><th>Fecha</th><th>Km inicial</th><th>Km final</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" id="cmp-solo-b-card" style="display:none">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#d1fae5">📄</div>
+            Solo en CSV B (no están en A)
+          </div>
+          <div class="table-wrap">
+            <table id="cmp-solo-b-table">
+              <thead><tr><th>Alumno</th><th>Vehículo</th><th>Fecha</th><th>Km inicial</th><th>Km final</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" id="cmp-coincidencias-card" style="display:none">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#d1fae5">✅</div>
+            Coincidencias
+          </div>
+          <div class="table-wrap">
+            <table id="cmp-coincidencias-table">
+              <thead><tr><th>Alumno</th><th>Fecha</th><th>CSV A (km)</th><th>CSV B (km)</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
