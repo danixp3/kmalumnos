@@ -15,6 +15,7 @@
       "preload.js",
       "renderer.js",
       "db.js",
+      "sync.js",
       "index.html",
       "package.json"
     ],
