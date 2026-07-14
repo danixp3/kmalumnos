@@ -560,6 +560,196 @@ function getResumen() {
   };
 }
 
+// ─── ALUMNOS POR VEHÍCULO (para registro rápido) ─────────────────────────────
+/**
+ * Devuelve todos los alumnos asignados a un vehículo específico,
+ * junto con si ya tienen práctica registrada en la fecha indicada.
+ */
+function getAlumnosPorVehiculo(vehiculo_id, fecha) {
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  
+  const alumnos = d.alumnos
+    .filter(a => a.vehiculo_id === vid)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  
+  return alumnos.map(a => {
+    // Contar cuántas prácticas tiene ese día y obtener nota si existe
+    const practicasHoy = d.practicas.filter(p => 
+      p.alumno_id === a.id && 
+      p.vehiculo_id === vid && 
+      p.fecha === fecha
+    );
+    const nota = practicasHoy.length > 0 ? (practicasHoy[0].nota || '') : '';
+    return {
+      id: a.id,
+      nombre: a.nombre,
+      permiso: a.permiso,
+      num_practicas: practicasHoy.length,
+      nota: nota
+    };
+  });
+}
+
+/**
+ * Registra prácticas masivas para varios alumnos en una fecha.
+ * Añade práctica con km 0,0 (para rellenar después con relleno masivo).
+ */
+function registrarPracticasMasivas(vehiculo_id, fecha, alumno_ids) {
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  let registradas = 0;
+  const detalles = [];
+
+  for (const aid of alumno_ids) {
+    const alumno_id = parseInt(aid);
+    // Verificar que no exista ya práctica ese día para ese alumno/vehículo
+    const existe = d.practicas.some(p => 
+      p.alumno_id === alumno_id && 
+      p.vehiculo_id === vid && 
+      p.fecha === fecha
+    );
+    if (existe) continue;
+
+    const alumno = d.alumnos.find(a => a.id === alumno_id);
+    if (!alumno) continue;
+
+    const pid = nextId('p');
+    d.practicas.push({
+      id: pid,
+      alumno_id,
+      vehiculo_id: vid,
+      fecha,
+      km_inicial: 0,
+      km_final: 0
+    });
+    registradas++;
+    detalles.push(`${alumno.nombre} (${fecha})`);
+    const s = _sync(); if (s) s.markDirty('practicas', pid);
+  }
+
+  if (registradas > 0) {
+    addLog('registro_rapido', `Registro rápido: ${registradas} práctica(s) añadidas`, detalles);
+    save();
+  }
+
+  return { registradas };
+}
+
+/**
+ * Ajusta el número de prácticas de un alumno en una fecha.
+ * Si delta > 0, añade prácticas. Si delta < 0, elimina.
+ */
+function ajustarPracticasAlumno(vehiculo_id, fecha, alumno_id, delta) {
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  const aid = parseInt(alumno_id);
+  
+  const practicasExistentes = d.practicas.filter(p => 
+    p.alumno_id === aid && 
+    p.vehiculo_id === vid && 
+    p.fecha === fecha
+  );
+  
+  const actual = practicasExistentes.length;
+  const nuevo = Math.max(0, actual + delta);
+  const diff = nuevo - actual;
+  
+  if (diff > 0) {
+    // Añadir prácticas
+    for (let i = 0; i < diff; i++) {
+      const pid = nextId('p');
+      d.practicas.push({
+        id: pid,
+        alumno_id: aid,
+        vehiculo_id: vid,
+        fecha,
+        km_inicial: 0,
+        km_final: 0
+      });
+      const s = _sync(); if (s) s.markDirty('practicas', pid);
+    }
+  } else if (diff < 0) {
+    // Eliminar prácticas (las más recientes primero)
+    const aEliminar = practicasExistentes.slice(diff); // últimas |diff|
+    for (const p of aEliminar) {
+      const idx = d.practicas.findIndex(x => x.id === p.id);
+      if (idx !== -1) {
+        d.practicas.splice(idx, 1);
+        const s = _sync(); if (s) s.markDeleted('practicas', p.id);
+      }
+    }
+  }
+  
+  if (diff !== 0) save();
+  return { num_practicas: nuevo };
+}
+
+/**
+ * Guarda una nota en las prácticas de un alumno para una fecha.
+ * Si no tiene prácticas ese día, crea una con km=0 para poder guardar la nota.
+ */
+function guardarNotaAlumno(vehiculo_id, fecha, alumno_id, nota) {
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  const aid = parseInt(alumno_id);
+  
+  let practicas = d.practicas.filter(p => 
+    p.alumno_id === aid && 
+    p.vehiculo_id === vid && 
+    p.fecha === fecha
+  );
+  
+  // Si no tiene prácticas ese día, crear una para poder guardar la nota
+  if (practicas.length === 0 && nota) {
+    const nuevaPractica = {
+      id: d._seq.p++,
+      alumno_id: aid,
+      vehiculo_id: vid,
+      fecha: fecha,
+      km_inicial: 0,
+      km_final: 0,
+      nota: nota
+    };
+    d.practicas.push(nuevaPractica);
+    save();
+    const s = _sync(); if (s) s.markDirty('practicas', nuevaPractica.id);
+    return { ok: true, created: true };
+  }
+  
+  if (practicas.length > 0) {
+    practicas[0].nota = nota;
+    save();
+    const s = _sync(); if (s) s.markDirty('practicas', practicas[0].id);
+  }
+  
+  return { ok: true };
+}
+
+/**
+ * Elimina práctica de un alumno en una fecha específica para un vehículo.
+ */
+function eliminarPracticaPorFecha(vehiculo_id, fecha, alumno_id) {
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  const aid = parseInt(alumno_id);
+  
+  const idx = d.practicas.findIndex(p => 
+    p.alumno_id === aid && 
+    p.vehiculo_id === vid && 
+    p.fecha === fecha
+  );
+  
+  if (idx !== -1) {
+    const practica = d.practicas[idx];
+    d.practicas.splice(idx, 1);
+    save();
+    const s = _sync(); if (s) s.markDeleted('practicas', practica.id);
+    return { eliminada: true };
+  }
+  return { eliminada: false };
+}
+
 // ─── TIMELINE DE VEHÍCULO ────────────────────────────────────────────────────
 /**
  * Devuelve todas las prácticas de un vehículo ordenadas por km_inicial,
@@ -604,6 +794,27 @@ function getTimelineVehiculo(vehiculo_id) {
   });
 }
 
+/**
+ * Devuelve todas las anotaciones de un alumno (prácticas que tienen nota).
+ * Cada entrada incluye fecha, vehículo y texto de la nota.
+ */
+function getAnotacionesAlumno(alumno_id) {
+  const d = load();
+  const aid = parseInt(alumno_id);
+  return d.practicas
+    .filter(p => p.alumno_id === aid && p.nota && p.nota.trim() !== '')
+    .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id)
+    .map(p => {
+      const v = d.vehiculos.find(x => x.id === p.vehiculo_id);
+      return {
+        id: p.id,
+        fecha: p.fecha,
+        vehiculo_nombre: v ? v.nombre : '?',
+        nota: p.nota
+      };
+    });
+}
+
 module.exports = {
   getVehiculos, addVehiculo, updateVehiculoKm, deleteVehiculo,
   getAlumnos, addAlumno, deleteAlumno, updateAlumno,
@@ -615,5 +826,7 @@ module.exports = {
   crearBackup, restaurarBackup,
   validarSolapamiento,
   getTimelineVehiculo,
+  getAlumnosPorVehiculo, registrarPracticasMasivas, eliminarPracticaPorFecha, ajustarPracticasAlumno, guardarNotaAlumno,
+  getAnotacionesAlumno,
   _clearCache
 };

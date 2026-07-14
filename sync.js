@@ -156,7 +156,7 @@ async function sync() {
         await sb.from('practicas').upsert({
           id: p.id, alumno_id: p.alumno_id, vehiculo_id: p.vehiculo_id,
           fecha: p.fecha, km_inicial: p.km_inicial, km_final: p.km_final,
-          deleted: false, updated_at: new Date().toISOString()
+          nota: p.nota || '', deleted: false, updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
       }
     }
@@ -198,7 +198,8 @@ async function sync() {
         } else {
           const practica = {
             id: rp.id, alumno_id: rp.alumno_id, vehiculo_id: rp.vehiculo_id,
-            fecha: rp.fecha, km_inicial: parseFloat(rp.km_inicial), km_final: parseFloat(rp.km_final)
+            fecha: rp.fecha, km_inicial: parseFloat(rp.km_inicial), km_final: parseFloat(rp.km_final),
+            nota: rp.nota || ''
           };
           if (idx !== -1) {
             data.practicas[idx] = practica;
