@@ -13,12 +13,14 @@
     --success: #10b981;
     --danger: #ef4444;
     --warn: #f59e0b;
-    --bg: #f1f5f9;
-    --card: #ffffff;
-    --text: #0f172a;
-    --text-muted: #64748b;
-    --border: #e2e8f0;
-    --radius: 16px;
+    --bg: #0f0f1a;
+    --card: rgba(255,255,255,0.06);
+    --card-border: rgba(255,255,255,0.1);
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --border: rgba(255,255,255,0.12);
+    --radius: 20px;
+    --glow: rgba(99,102,241,0.4);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -30,52 +32,143 @@
     min-height: 100dvh;
     padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 16px);
     padding-top: max(env(safe-area-inset-top), 24px);
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Animated gradient background */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: 
+      radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.12) 0%, transparent 40%),
+      radial-gradient(ellipse at 50% 80%, rgba(59,130,246,0.1) 0%, transparent 40%);
+    animation: bgShift 12s ease-in-out infinite alternate;
+    z-index: -1;
+  }
+
+  @keyframes bgShift {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    100% { transform: translate(-5%, -5%) rotate(3deg); }
+  }
+
+  /* Floating orbs */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .orb-1 {
+    width: 200px; height: 200px;
+    background: rgba(99,102,241,0.3);
+    top: 10%; left: -10%;
+    animation: float1 8s ease-in-out infinite;
+  }
+
+  .orb-2 {
+    width: 150px; height: 150px;
+    background: rgba(139,92,246,0.25);
+    bottom: 20%; right: -5%;
+    animation: float2 10s ease-in-out infinite;
+  }
+
+  .orb-3 {
+    width: 100px; height: 100px;
+    background: rgba(59,130,246,0.2);
+    top: 50%; left: 50%;
+    animation: float3 7s ease-in-out infinite;
+  }
+
+  @keyframes float1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(30px, 20px) scale(1.1); }
+  }
+
+  @keyframes float2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-20px, -30px) scale(1.15); }
+  }
+
+  @keyframes float3 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(15px, -15px) scale(0.9); }
   }
 
   .header {
     text-align: center;
-    margin-bottom: 28px;
-    padding-top: 8px;
+    margin-bottom: 32px;
+    padding-top: 12px;
+    animation: slideDown 0.6s ease-out;
   }
 
-  .header-icon {
-    width: 64px; height: 64px;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    border-radius: 18px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 30px;
-    margin: 0 auto 14px;
-    box-shadow: 0 8px 24px rgba(99,102,241,.35);
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
   }
+
+
 
   h1 {
-    font-size: 22px;
-    font-weight: 700;
+    font-size: 24px;
+    font-weight: 800;
     letter-spacing: -0.5px;
-    color: var(--text);
+    color: #fff;
+    background: linear-gradient(135deg, #fff, #c7d2fe);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
   .subtitle {
     font-size: 14px;
     color: var(--text-muted);
-    margin-top: 4px;
+    margin-top: 6px;
+    font-weight: 500;
   }
 
   .card {
     background: var(--card);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border-radius: var(--radius);
-    padding: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
-    margin-bottom: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,0.06);
+    margin-bottom: 20px;
+    border: 1px solid var(--card-border);
+    animation: slideUp 0.5s ease-out 0.1s both;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   label {
     display: block;
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     color: var(--text-muted);
-    letter-spacing: 0.3px;
-    margin-bottom: 8px;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
     text-transform: uppercase;
   }
 
@@ -83,20 +176,30 @@
     width: 100%;
     padding: 14px 16px;
     border: 1.5px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     font-size: 16px;
     font-family: inherit;
     color: var(--text);
-    background: #fff;
+    background: rgba(255,255,255,0.05);
     outline: none;
     -webkit-appearance: none;
     appearance: none;
-    transition: border-color .15s, box-shadow .15s;
+    transition: all .2s ease;
   }
 
   select:focus, input[type="date"]:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.2), 0 0 20px rgba(99,102,241,.15);
+    background: rgba(255,255,255,0.08);
+  }
+
+  select option {
+    background: #1e1e2e;
+    color: #fff;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.7);
   }
 
   .select-wrap {
@@ -116,124 +219,230 @@
 
   .btn {
     width: 100%;
-    padding: 16px;
+    padding: 18px;
     border: none;
-    border-radius: 14px;
+    border-radius: 16px;
     font-size: 17px;
     font-weight: 700;
     font-family: inherit;
     cursor: pointer;
-    transition: all .15s;
+    transition: all .2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     letter-spacing: -0.2px;
+    animation: slideUp 0.5s ease-out 0.2s both;
+    position: relative;
+    overflow: hidden;
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    background: linear-gradient(135deg, var(--primary), #8b5cf6);
     color: #fff;
-    box-shadow: 0 4px 16px rgba(99,102,241,.4);
+    box-shadow: 0 8px 32px rgba(99,102,241,.4), 0 0 60px rgba(99,102,241,.15);
   }
 
-  .btn-primary:active { transform: scale(0.97); filter: brightness(.95); }
-  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-primary::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    transition: left .5s ease;
+  }
+
+  .btn-primary:not(:disabled):hover::before {
+    left: 100%;
+  }
+
+  .btn-primary:active { transform: scale(0.97); filter: brightness(.9); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
   .result {
     display: none;
     border-radius: var(--radius);
-    padding: 20px;
+    padding: 28px 24px;
     text-align: center;
     margin-top: 16px;
+    animation: popIn 0.4s cubic-bezier(.17,.67,.35,1.5);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
   }
 
   .result.ok {
     display: block;
-    background: #f0fdf4;
-    border: 1.5px solid #86efac;
+    background: rgba(16,185,129,0.1);
+    border: 1.5px solid rgba(16,185,129,0.3);
+    box-shadow: 0 8px 32px rgba(16,185,129,.15);
   }
 
   .result.err {
     display: block;
-    background: #fef2f2;
-    border: 1.5px solid #fca5a5;
+    background: rgba(239,68,68,0.1);
+    border: 1.5px solid rgba(239,68,68,0.3);
+    box-shadow: 0 8px 32px rgba(239,68,68,.15);
   }
 
-  .result-icon { font-size: 40px; margin-bottom: 8px; }
+  .result-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    animation: bounceIn 0.5s ease 0.2s both;
+  }
+
+  @keyframes bounceIn {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
 
   .result-title {
-    font-size: 17px;
+    font-size: 18px;
     font-weight: 700;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   }
 
-  .result.ok .result-title { color: #15803d; }
-  .result.err .result-title { color: #dc2626; }
+  .result.ok .result-title { color: #34d399; }
+  .result.err .result-title { color: #f87171; }
 
   .result-msg {
     font-size: 14px;
     color: var(--text-muted);
-    line-height: 1.5;
+    line-height: 1.6;
   }
 
   .btn-again {
-    margin-top: 16px;
+    margin-top: 20px;
     width: 100%;
-    padding: 12px;
+    padding: 14px;
     border: 1.5px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     font-size: 15px;
     font-weight: 600;
     font-family: inherit;
-    background: #fff;
+    background: rgba(255,255,255,0.05);
     color: var(--primary);
     cursor: pointer;
+    transition: all .2s;
+    backdrop-filter: blur(10px);
+  }
+
+  .btn-again:hover {
+    background: rgba(99,102,241,0.1);
+    border-color: var(--primary);
   }
 
   .loading-dots span {
     display: inline-block;
     animation: bounce .6s infinite;
+    font-size: 24px;
   }
   .loading-dots span:nth-child(2) { animation-delay: .1s; }
   .loading-dots span:nth-child(3) { animation-delay: .2s; }
 
   @keyframes bounce {
     0%,80%,100% { transform: translateY(0); }
-    40% { transform: translateY(-4px); }
+    40% { transform: translateY(-6px); }
   }
 
-  .field-gap { margin-bottom: 16px; }
+  .field-gap { margin-bottom: 20px; }
   .field-gap:last-child { margin-bottom: 0; }
 
   .alumno-info {
     display: none;
-    margin-top: 10px;
-    padding: 10px 14px;
-    background: #f8fafc;
-    border-radius: 10px;
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
     font-size: 13px;
     color: var(--text-muted);
+    border: 1px solid rgba(255,255,255,0.06);
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .tag {
     display: inline-block;
-    padding: 2px 8px;
-    border-radius: 6px;
+    padding: 3px 10px;
+    border-radius: 8px;
     font-size: 12px;
     font-weight: 700;
-    background: #e0e7ff;
-    color: #4338ca;
+    background: rgba(99,102,241,0.2);
+    color: #a5b4fc;
     margin-left: 6px;
+    border: 1px solid rgba(99,102,241,0.3);
+  }
+
+  /* Sparkle animation for success */
+  .sparkles {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .sparkle {
+    position: absolute;
+    width: 4px; height: 4px;
+    background: #fff;
+    border-radius: 50%;
+    animation: sparkle 1.5s ease-out forwards;
+  }
+
+  @keyframes sparkle {
+    0% { transform: scale(0) translateY(0); opacity: 1; }
+    100% { transform: scale(1) translateY(-60px); opacity: 0; }
+  }
+
+  /* Subtle grid pattern */
+  .grid-bg {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: 
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  /* Status bar line */
+  .status-line {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), #8b5cf6, #a855f7, var(--primary));
+    background-size: 300% 100%;
+    animation: gradientSlide 4s linear infinite;
+    z-index: 100;
+  }
+
+  @keyframes gradientSlide {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
   }
 </style>
 </head>
 <body>
 
+<div class="status-line"></div>
+<div class="grid-bg"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
 <div class="header">
-  <div class="header-icon">🚗</div>
   <h1>Registrar Práctica</h1>
-  <p class="subtitle">Autoescuela</p>
+  <p class="subtitle">Autoescuela · Control de kilómetros</p>
 </div>
 
 <div id="form-section">
@@ -259,7 +468,8 @@
   </button>
 </div>
 
-<div class="result" id="result-ok">
+<div class="result" id="result-ok" style="position: relative;">
+  <div class="sparkles" id="sparkles"></div>
   <div class="result-icon">✅</div>
   <div class="result-title">¡Práctica registrada!</div>
   <div class="result-msg" id="result-ok-msg"></div>
@@ -279,6 +489,21 @@
   // Poner fecha de hoy por defecto
   const hoy = new Date().toLocaleDateString('sv-SE'); // formato YYYY-MM-DD
   document.getElementById('fecha-input').value = hoy;
+
+  // Sparkle effect on success
+  function createSparkles() {
+    const container = document.getElementById('sparkles');
+    container.innerHTML = '';
+    for (let i = 0; i < 12; i++) {
+      const sparkle = document.createElement('div');
+      sparkle.className = 'sparkle';
+      sparkle.style.left = Math.random() * 100 + '%';
+      sparkle.style.top = Math.random() * 100 + '%';
+      sparkle.style.animationDelay = Math.random() * 0.5 + 's';
+      sparkle.style.background = ['#6366f1','#8b5cf6','#a855f7','#34d399','#fff'][Math.floor(Math.random()*5)];
+      container.appendChild(sparkle);
+    }
+  }
 
   // Cargar alumnos al arrancar
   async function cargarAlumnos() {
@@ -314,7 +539,7 @@
       info.style.display = 'block';
       info.innerHTML = tieneVehiculo
         ? `<span class="tag">${alumno.permiso}</span> Permiso ${alumno.permiso}`
-        : `<span style="color:#dc2626">⚠ Sin vehículo asignado</span>`;
+        : `<span style="color:#f87171">⚠ Sin vehículo asignado</span>`;
       btn.disabled = !tieneVehiculo;
     } else {
       info.style.display = 'none';
@@ -357,6 +582,7 @@
         `${alumnoNombre} — ${fechaFmt}\nKm pendientes de asignar desde la app.`;
       document.getElementById('form-section').style.display = 'none';
       document.getElementById('result-ok').style.display = 'block';
+      createSparkles();
 
     } catch (e) {
       showError('No se pudo conectar con el servidor.');

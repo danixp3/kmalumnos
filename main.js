@@ -58,7 +58,15 @@ autoUpdater.on('download-progress', (p) => {
 });
 
 autoUpdater.on('error', (err) => {
-  if (mainWin) mainWin.webContents.send('update-error', err.message);
+  if (!mainWin) return;
+  const msg = (err.message || '').toLowerCase();
+  // Si no hay releases en GitHub o da 404/ENOTFOUND, tratar como "no hay actualización"
+  if (msg.includes('404') || msg.includes('no published') || msg.includes('enotfound') ||
+      msg.includes('cannot find') || msg.includes('net::') || msg.includes('httperror')) {
+    mainWin.webContents.send('update-not-available');
+  } else {
+    mainWin.webContents.send('update-error', err.message);
+  }
 });
 
 autoUpdater.on('update-downloaded', () => {

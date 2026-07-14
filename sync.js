@@ -13,8 +13,13 @@ const path = require('path');
 const { app } = require('electron');
 const { createClient } = require('@supabase/supabase-js');
 
-const SUPABASE_URL  = 'https://mmospryepaqqhcmrohwl.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1tb3NwcnllcGFxcWhjbXJvaHdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMjc4NDEsImV4cCI6MjA5MDgwMzg0MX0.xZOonNB22LV-XI6cXJrnn8LgyxBPsO5-whVWE7QJnDI';
+// Polyfill WebSocket for Node.js (required by supabase-js realtime)
+if (typeof globalThis.WebSocket === 'undefined') {
+  globalThis.WebSocket = require('ws');
+}
+
+const SUPABASE_URL  = 'https://dmwoqugdnwgkcqtixhyw.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtd29xdWdkbndna2NxdGl4aHl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjA5NjYsImV4cCI6MjA5OTU5Njk2Nn0.8XhWdS0ohrCbZcKpHWKsJz22rY8ASA4IkgpbtE_pHkc';
 
 let supabase = null;
 let _pendingPath = null;
