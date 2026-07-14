@@ -2,30 +2,182 @@
 
 ## Stack
 - **Electron** app de escritorio (Node.js + Chromium)
-- Sin base de datos: almacenamiento en `data.json` en `app.getPath('userData')`
-- Sin módulos nativos externos, solo `fs`, `path`, `electron`
+- **Supabase** como backend remoto (PostgreSQL)
+- **Vercel** para web-remote (registro móvil)
+- Almacenamiento local en `data.json` en `app.getPath('userData')`
+- Sincronización bidireccional offline-first
 
 ## Arquitectura
 ```
-main.js      → proceso principal Electron, IPC handlers
-preload.js   → puente contextBridge, expone window.api al renderer
-renderer.js  → lógica UI (vanilla JS, sin framework)
-db.js        → toda la lógica de datos (CRUD + algoritmos)
-index.html   → SPA con CSS inline, sin bundler
+┌─────────────────────────────────────────────────────────────────┐
+│                    APP ELECTRON (ESCRITORIO)                     │
+├─────────────────────────────────────────────────────────────────┤
+│ main.js      → proceso principal, IPC handlers, auto-updater    │
+│ preload.js   → puente contextBridge, expone window.api          │
+│ renderer.js  → lógica UI (vanilla JS)                           │
+│ db.js        → CRUD + algoritmos, guarda en data.json           │
+│ sync.js      → sincronización bidireccional con Supabase        │
+│ index.html   → SPA con CSS inline                               │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ sync cada 2 min
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         SUPABASE                                 │
+│  Proyecto: kmalumnos-bd (dmwoqugdnwgkcqtixhyw)                  │
+│  Tablas: vehiculos, alumnos, practicas                          │
+│  Columnas especiales:                                           │
+│    - updated_at: timestamp para sync                            │
+│    - deleted: soft delete                                       │
+│    - source: 'desktop' | 'web-remote' (origen de la práctica)   │
+└─────────────────────────────────────────────────────────────────┘
+                              ▲
+                              │ API REST
+                              │
+┌─────────────────────────────────────────────────────────────────┐
+│                    WEB-REMOTE (VERCEL)                          │
+│  URL: https://kmalumnos-remote.vercel.app                       │
+│  Función: registrar prácticas desde móvil                       │
+│  Autenticación: PIN de 4 dígitos                                │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Estructura de datos (data.json)
+---
+
+## Estructura de datos
+
+### data.json (local)
 ```js
 {
   vehiculos: [{ id, nombre, matricula, km_actual }],
   alumnos:   [{ id, nombre, permiso, vehiculo_id }],
-  practicas: [{ id, alumno_id, vehiculo_id, fecha, km_inicial, km_final }],
+  practicas: [{ id, alumno_id, vehiculo_id, fecha, km_inicial, km_final, nota?, updated_at? }],
   logs:      [{ id, fecha, tipo, descripcion, detalles[] }],
-  _seq:      { v, a, p }  // auto-increment IDs
+  _seq:      { v, a, p }  // auto-increment IDs locales
 }
-// km_inicial=0 && km_final=0 → práctica "sin km" (pendiente de rellenar)
-// permiso: 'B' | 'A' | 'A2' | 'AM' | 'C'
-// fecha: string 'AAAA-MM-DD'
+```
+
+### Supabase (remoto)
+```sql
+-- Tablas con IDs auto-incrementales (SERIAL)
+-- Columnas adicionales: updated_at, deleted, source
+-- source = 'desktop' | 'web-remote'
+```
+
+---
+
+## sync.js — Sincronización
+
+### Estrategia offline-first
+1. La app siempre trabaja contra `data.json` (fuente de verdad local)
+2. `pending_sync.json` guarda IDs de cambios pendientes de subir
+3. Al sincronizar: sube cambios locales → baja cambios remotos
+4. Sin internet: funciona 100% local, cambios se encolan
+
+### Funciones
+| Función | Descripción |
+|---------|-------------|
+| `sync()` | Sincronización completa: sube pending, baja nuevos del remoto |
+| `pushAll()` | Sube TODOS los datos locales (útil para primera sincronización) |
+| `markDirty(table, id)` | Marca un registro como pendiente de sincronizar |
+| `markDeleted(table, id)` | Marca un registro como eliminado (soft delete remoto) |
+| `getStatus()` | Estado actual: 'offline', 'syncing', 'ok', 'error', 'pending' |
+| `startAutoSync(ms)` | Inicia sync automático cada N ms (default 2 min) |
+| `stopAutoSync()` | Detiene el sync automático |
+| `onStatusChange(cb)` | Callback cuando cambia el estado de sync |
+
+### Resolución de conflictos
+- Compara `updated_at` antes de sobrescribir
+- Si local es más reciente que remoto, NO sobrescribe (preserva edición local)
+- Si remoto es más reciente, actualiza local
+
+### Estados de sync
+```js
+STATUS = {
+  OFFLINE:  'offline',   // Sin conexión a internet
+  SYNCING:  'syncing',   // Sincronizando...
+  OK:       'ok',        // Todo sincronizado
+  ERROR:    'error',     // Error de sync
+  PENDING:  'pending'    // Hay cambios locales sin subir
+}
+```
+
+---
+
+## db.js — Mejoras de robustez
+
+### save() — Guardado atómico
+```js
+// Antes: escribía directo (riesgo de corrupción si falla a mitad)
+// Ahora: escribe a .tmp y renombra (atómico)
+function save() {
+  try {
+    fs.writeFileSync(path + '.tmp', data);
+    fs.renameSync(path + '.tmp', path);  // Atómico
+    return true;
+  } catch (e) {
+    _lastSaveError = { timestamp, message, code };
+    return false;
+  }
+}
+```
+
+### getLastSaveError()
+Devuelve el último error de guardado (si lo hubo) para mostrar al usuario.
+
+---
+
+## web-remote/ — Registro desde móvil
+
+### URL
+https://kmalumnos-remote.vercel.app
+
+### Autenticación
+- PIN de 4 dígitos configurado en Vercel (`API_PIN`)
+- Token válido 24 horas
+- Se guarda en localStorage
+
+### Endpoints API (Vercel Functions)
+
+| Endpoint | Método | Auth | Descripción |
+|----------|--------|------|-------------|
+| `/api/auth` | POST | ❌ | Login con PIN → devuelve token |
+| `/api/vehiculos` | GET | ✅ | Lista vehículos |
+| `/api/alumnos` | GET | ✅ | Lista alumnos |
+| `/api/practica` | POST | ✅ | Registrar práctica (km=0,0) |
+| `/api/crear-alumno` | POST | ✅ | Crear alumno nuevo |
+| `/api/historial` | GET | ✅ | Prácticas de últimas 24h desde web |
+| `/api/cancelar-practica` | POST | ✅ | Cancelar práctica (soft delete) |
+
+### Archivos
+```
+web-remote/
+├── index.html          → SPA con login, registro, historial
+├── api/
+│   ├── _utils.js       → CORS, validadores, auth helpers
+│   ├── auth.js         → Endpoint de login
+│   ├── vehiculos.js    → GET vehículos
+│   ├── alumnos.js      → GET alumnos
+│   ├── practica.js     → POST nueva práctica
+│   ├── crear-alumno.js → POST nuevo alumno
+│   ├── historial.js    → GET últimas 24h
+│   └── cancelar-practica.js → POST cancelar
+└── package.json
+```
+
+### Seguridad implementada
+1. **Autenticación PIN**: Token base64 con timestamp, válido 24h
+2. **CORS restringido**: Solo permite `kmalumnos-remote.vercel.app` y `localhost`
+3. **Validación de entrada**: Todos los campos se validan (tipo, formato, rango)
+4. **Escape XSS**: `escapeHtml()` en el frontend
+5. **Soft delete**: Las prácticas se marcan `deleted=true`, no se borran
+6. **Campo source**: Identifica origen ('web-remote' vs 'desktop')
+
+### Variables de entorno (Vercel)
+```
+SUPABASE_URL=https://dmwoqugdnwgkcqtixhyw.supabase.co
+SUPABASE_ANON_KEY=eyJ...
+API_PIN=2004
 ```
 
 ---
@@ -51,182 +203,95 @@ index.html   → SPA con CSS inline, sin bundler
 ### Prácticas
 | Función | Firma | Descripción |
 |---|---|---|
-| `getPracticasByAlumno` | `(alumno_id)` | Lista ordenada por fecha+id, con `vehiculo_nombre` |
+| `getPracticasByAlumno` | `(alumno_id)` | Lista ordenada por fecha+id |
 | `getUltimaPractica` | `(alumno_id)` | Última práctica del alumno |
-| `addPractica` | `(alumno_id, vehiculo_id, fecha, km_inicial, km_final)` → id | Crea práctica, actualiza `km_actual` del vehículo si kf > km_actual |
+| `addPractica` | `(alumno_id, vehiculo_id, fecha, km_inicial, km_final)` → id | Crea práctica |
 | `updatePractica` | `(id, fecha, km_inicial, km_final)` | Edita práctica |
 | `deletePractica` | `(id)` | Borra práctica |
 
 ### Algoritmos de KM
-| Función | Firma | Descripción |
-|---|---|---|
-| `rellenarKmMasivo` | `(vehiculo_id, kmMin=40, kmMax=45)` → `{rellenadas}` | Rellena prácticas con km=0,0. Algoritmo: ordena por fecha, usa cursor = max km_final de prácticas con km reales anteriores o iguales, asigna ki=cursor, kf=cursor+rand(min,max) |
-| `getPracticasSinKm` | `(vehiculo_id)` → número | Cuenta prácticas con km_inicial=0 y km_final=0 |
-| `corregirSolapamientos` | `(vehiculo_id, kmMin=40, kmMax=45)` → `{corregidas}` | Algoritmo quirúrgico: ordena por km_inicial, detecta solapamientos [a.kmI, a.kmF] ∩ [b.kmI, b.kmF] ≠ ∅, mantiene "ancla" (primera), desplaza "móvil" preservando duración. Máx 10 pasadas |
-| `getSolapamientos` | `()` | Devuelve lista de conflictos `{vehiculo, vehiculo_id, practica_a, practica_b}` |
-| `validarSolapamiento` | `(vehiculo_id, fecha, kmI, kmF, excluirPracticaId=null)` → conflictos[] | Comprueba si rango [kmI,kmF] solapa con otras prácticas del mismo vehículo |
-| `getResumen` | `()` → `{vehiculos, alumnos, practicas, sinKm, solapamientos}` | Contadores globales + alertas |
-| `getTimelineVehiculo` | `(vehiculo_id)` → `[{...practica, alumno_nombre, sin_km, gap}]` | Prácticas del vehículo ordenadas por km_inicial. `gap`: diferencia respecto a la anterior (null=ok, >0=hueco, <0=solapa) |
-
-### CSV Import
-| Función | Firma | Descripción |
-|---|---|---|
-| `importarCSV` | `(rows[], kmMin=40, kmMax=45)` → `{insertados, errores, erroresDetalle}` | `rows` = objetos `{alumno, vehiculo, fecha, km_inicial, km_final}`. Crea vehículos/alumnos si no existen. Si km vacíos, genera automáticamente encadenando desde el último km_final del alumno |
-
-### Logs
-| Función | Firma | Descripción |
-|---|---|---|
-| `getLogs` | `()` | Devuelve logs (máx 500, más recientes primero) |
-| `clearLogs` | `()` | Borra todos los logs |
-| Tipos de log | — | `'importacion'`, `'relleno'`, `'correccion'` |
-
-### Backup
-| Función | Firma | Descripción |
-|---|---|---|
-| `crearBackup` | `(destDir)` → `{ok, file}` | Copia `data.json` a `kmalumnos_backup_TIMESTAMP.json` |
-| `restaurarBackup` | `(srcFile)` → `{ok, msg?}` | Valida estructura y sobreescribe `data.json`, limpia caché |
-
----
-
-## main.js — IPC Handlers (channel → db función)
-```
-get-vehiculos       → db.getVehiculos()
-add-vehiculo        → db.addVehiculo(nombre, matricula, km_actual)
-delete-vehiculo     → db.deleteVehiculo(id)
-update-vehiculo-km  → db.updateVehiculoKm(id, km)
-
-get-alumnos         → db.getAlumnos()
-add-alumno          → db.addAlumno(nombre, permiso, vehiculo_id)
-delete-alumno       → db.deleteAlumno(id)
-update-alumno       → db.updateAlumno(id, nombre, permiso, vehiculo_id)
-
-get-practicas       → db.getPracticasByAlumno(alumno_id)
-get-ultima-practica → db.getUltimaPractica(alumno_id)
-add-practica        → db.addPractica(aid, vid, fecha, ki, kf)
-delete-practica     → db.deletePractica(id)
-update-practica     → db.updatePractica(id, fecha, ki, kf)
-
-get-resumen         → db.getResumen()
-get-solapamientos   → db.getSolapamientos()
-rellenar-km-masivo  → db.rellenarKmMasivo(vid, min, max)
-get-practicas-sin-km→ db.getPracticasSinKm(vid)
-corregir-solapamientos → db.corregirSolapamientos(vid, min, max)
-validar-solapamiento→ db.validarSolapamiento(vid, f, ki, kf, exId)
-get-logs            → db.getLogs()
-clear-logs          → db.clearLogs()
-generar-km          → calcula: ki=kmInicial, kf=ki+rand(min,max) → {km_inicial, km_final, diff}
-
-crear-backup        → dialog.showOpenDialog (carpeta) → db.crearBackup(dir)
-restaurar-backup    → dialog.showOpenDialog (archivo .json) → db.restaurarBackup(file)
-open-csv-dialog     → dialog.showOpenDialog → filePath|null
-importar-csv        → lee CSV con fs, parsea, llama db.importarCSV(rows, min, max)
-```
-
----
-
-## preload.js — window.api (renderer → IPC)
-```js
-// Vehículos
-window.api.getVehiculos()
-window.api.addVehiculo(nombre, matricula, km)
-window.api.deleteVehiculo(id)
-window.api.updateVehiculoKm(id, km)
-
-// Alumnos
-window.api.getAlumnos()
-window.api.addAlumno(nombre, permiso, vehiculo_id)
-window.api.deleteAlumno(id)
-window.api.updateAlumno(id, nombre, permiso, vehiculo_id)
-
-// Prácticas
-window.api.getPracticas(alumno_id)
-window.api.getUltimaPractica(alumno_id)
-window.api.addPractica(aid, vid, fecha, ki, kf)
-window.api.deletePractica(id)
-window.api.updatePractica(id, fecha, ki, kf)
-
-// Utilidades
-window.api.generarKm(kmInicial, min, max)    // → {km_inicial, km_final, diff}
-window.api.getResumen()
-window.api.getSolapamientos()
-window.api.rellenarKmMasivo(vid, min, max)
-window.api.getPracticasSinKm(vid)
-window.api.corregirSolapamientos(vid, min, max)
-window.api.validarSolapamiento(vid, fecha, ki, kf, excluirId)
-window.api.getLogs()
-window.api.clearLogs()
-window.api.crearBackup()
-window.api.restaurarBackup()
-window.api.openCsvDialog()
-window.api.importarCsv(filePath, kmMin, kmMax)
-```
-
----
-
-## renderer.js — Funciones UI
-
-### Estado global
-```js
-currentAlumnoId         // alumno seleccionado en vista prácticas
-currentAlumnoVehiculoId // vehículo del alumno seleccionado
-selectedCsvPath         // ruta del CSV seleccionado
-vehiculosCache          // array de vehículos cacheado
-```
-
-### Funciones por sección
 | Función | Descripción |
 |---|---|
-| `loadDashboard()` | Carga stats (resumen) |
-| `loadVehiculos()` | Renderiza tabla vehículos + actualiza select relleno masivo |
-| `actualizarContadorSinKm()` | Muestra nº prácticas sin km del vehículo seleccionado |
-| `rellenarMasivo()` | Llama `rellenarKmMasivo`, muestra alerta resultado |
-| `addVehiculo()` | Lee form y crea vehículo |
-| `deleteVehiculo(id, nombre)` | Confirm + borrar |
-| `openEditVehiculo(id, nombre, km)` | Abre modal editar vehículo |
-| `saveVehiculoKm()` | Guarda km del modal vehículo |
-| `loadVehiculosSelect()` | Rellena selects `a-vehiculo` y `edit-a-vehiculo` |
-| `loadAlumnos()` | Renderiza tabla alumnos con nº prácticas |
-| `addAlumno()` | Lee form y crea alumno |
-| `deleteAlumno(id, nombre)` | Confirm + borrar |
-| `openEditAlumno(id, nombre, permiso, vehiculo_id)` | Abre modal editar alumno |
-| `saveAlumno()` | Guarda alumno del modal |
-| `verPracticas(alumnoId, vehiculoId, nombre)` | Cambia a vista prácticas del alumno |
-| `volverAlumnos()` | Vuelve a lista alumnos |
-| `loadPracticas()` | Renderiza tabla prácticas del alumno actual |
-| `generarKmPractica()` | Genera km aleatorios desde última práctica o km vehículo |
-| `addPractica()` | Añade práctica (ki/kf vacíos → guarda 0,0) |
-| `deletePractica(id)` | Confirm + borrar |
-| `openEditPractica(id, fecha, ki, kf)` | Abre modal editar práctica |
-| `savePractica()` | Guarda práctica con validación de solapamiento (confirm si hay conflicto) |
-| `seleccionarCSV()` | Abre dialog CSV, guarda path |
-| `importarCSV()` | Importa CSV con rango km, muestra resultado |
-| `showImportAlert(msg, type)` | Muestra alerta importación ('ok'/'err'/'info') |
-| `loadSolapamientos()` | Analiza y renderiza solapamientos por vehículo |
-| `corregirTodosSolapamientos()` | Corrige todos los vehículos afectados en bucle |
-| `loadLogs()` | Renderiza historial de operaciones |
-| `borrarLogs()` | Confirm + borrar logs |
-| `hacerBackup()` | Crea backup, muestra ruta resultado |
-| `restaurarBackup()` | Restaura backup y recarga app |
-| `openModal(id)` / `closeModal(id)` | Gestión de modales overlay |
-| `fmt(num)` | Formatea número con `es-ES`, 1 decimal |
-| `fmtFecha(str)` | `AAAA-MM-DD` → `DD/MM/AAAA` |
-| `esc(str)` | Escapa comillas y `<>` para HTML |
-| `tagPermiso(p)` | Devuelve `<span class="tag tag-b/a/c">` |
+| `rellenarKmMasivo(vid, min, max, inicio?, final?)` | Rellena prácticas con km=0,0. Parámetros `inicio` y `final` opcionales para topes de odómetro |
+| `getPracticasSinKm(vid)` | Cuenta prácticas pendientes de km |
+| `corregirSolapamientos(vid, min, max)` | Corrige solapamientos automáticamente |
+| `getSolapamientos()` | Lista conflictos de km |
+| `validarSolapamiento(vid, fecha, ki, kf, excluirId)` | Valida antes de guardar |
+| `getResumen()` | Contadores globales + alertas |
+| `getTimelineVehiculo(vid)` | Timeline visual del vehículo |
+
+### CSV
+| Función | Descripción |
+|---|---|
+| `importarCSV(rows, min, max)` | Importa prácticas desde CSV |
+| `exportarCSV(opciones)` | Exporta a CSV |
+| `compararCSVs(rowsA, rowsB)` | Compara dos CSVs |
+
+### Backup
+| Función | Descripción |
+|---|---|
+| `crearBackup(destDir)` | Crea backup JSON |
+| `restaurarBackup(srcFile)` | Restaura desde backup |
+| `getLastSaveError()` | Último error de guardado |
 
 ---
 
-## Páginas del SPA (index.html)
-| ID | Sección |
-|---|---|
-| `page-dashboard` | Panel principal con stats |
-| `page-vehiculos` | CRUD vehículos + relleno masivo |
-| `page-alumnos` | CRUD alumnos + vista prácticas inline |
-| `page-importar` | Importación CSV |
-| `page-solapamientos` | Detección y corrección de solapamientos |
-| `page-logs` | Historial de operaciones automáticas |
-| `page-backup` | Crear/restaurar backup JSON |
+## main.js — IPC Handlers adicionales
 
-## Modales
-- `modal-vehiculo` → editar km del vehículo
-- `modal-alumno` → editar nombre/permiso/vehículo del alumno
-- `modal-practica` → editar fecha/km de práctica (con validación solapamiento)
+### Sync
+```
+sync-now        → sync.sync()
+sync-push-all   → sync.pushAll()
+sync-status     → sync.getStatus()
+```
+
+### Auto-updater
+```
+check-for-updates → autoUpdater.checkForUpdates()
+install-update    → autoUpdater.quitAndInstall()
+
+// Eventos que se envían al renderer:
+'update-available'       → hay nueva versión
+'update-not-available'   → estás al día
+'update-download-start'  → empezó descarga
+'update-download-progress' → progreso %
+'update-downloaded'      → listo para instalar
+'update-error'           → error
+```
+
+---
+
+## Despliegue
+
+### App Electron
+Ver `RELEASE.md` para instrucciones de publicación.
+
+### Web-remote
+```bash
+cd web-remote
+vercel --prod --yes
+```
+
+### Variables de entorno necesarias en Vercel
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `API_PIN` (4 dígitos para login)
+
+---
+
+## Notas técnicas
+
+### Zona horaria
+- Supabase y Vercel usan UTC
+- El historial web filtra por últimas 24h (no por "hoy") para evitar problemas de timezone
+- Las fechas en `data.json` son strings `YYYY-MM-DD` sin zona horaria
+
+### IDs
+- Localmente: auto-increment con `_seq`
+- Supabase: SERIAL (secuencias PostgreSQL)
+- Al sincronizar, se respetan los IDs de quien creó el registro
+
+### Soft delete
+- `deleted: true` en Supabase
+- El sync respeta y propaga los soft deletes
+- La web-remote solo puede cancelar prácticas marcadas como `source: 'web-remote'`

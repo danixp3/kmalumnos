@@ -1,29 +1,39 @@
 import { createClient } from '@supabase/supabase-js';
+import { setCorsHeaders, requireAuth, validators } from './_utils.js';
 
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_ANON_KEY || ''
 );
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
-  const { alumno_id, fecha } = req.body;
+  // Verificar autenticación
+  if (!requireAuth(req, res)) return;
 
-  if (!alumno_id || !fecha) {
-    return res.status(400).json({ error: 'Faltan campos: alumno_id y fecha son obligatorios' });
+  const { alumno_id, fecha } = req.body || {};
+
+  // Validar alumno_id
+  const alumnoIdVal = validators.positiveInt(alumno_id, 'alumno_id');
+  if (!alumnoIdVal.valid) {
+    return res.status(400).json({ error: alumnoIdVal.error });
   }
 
-  // Obtener vehiculo_id del alumno
+  // Validar fecha
+  const fechaVal = validators.fecha(fecha);
+  if (!fechaVal.valid) {
+    return res.status(400).json({ error: fechaVal.error });
+  }
+
+  // Obtener alumno y su vehículo
   const { data: alumno, error: errAlumno } = await supabase
     .from('alumnos')
     .select('id, nombre, vehiculo_id')
-    .eq('id', alumno_id)
+    .eq('id', alumnoIdVal.value)
     .single();
 
   if (errAlumno || !alumno) {
@@ -34,37 +44,43 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'El alumno no tiene vehículo asignado' });
   }
 
-  // Obtener el ID máximo actual de prácticas para generar uno nuevo
-  const { data: maxRow } = await supabase
+  // Verificar que no existe ya una práctica para este alumno en esta fecha
+  const { data: existente } = await supabase
     .from('practicas')
     .select('id')
-    .order('id', { ascending: false })
-    .limit(1)
+    .eq('alumno_id', alumnoIdVal.value)
+    .eq('fecha', fechaVal.value)
+    .eq('deleted', false)
     .single();
 
-  const newId = (maxRow?.id ?? 0) + 1;
+  if (existente) {
+    return res.status(400).json({ error: 'Ya existe una práctica para este alumno en esta fecha' });
+  }
 
   // Insertar práctica con km=0,0 (se rellenará desde la app de escritorio)
-  const { error: errInsert } = await supabase
+  const { data: newPractica, error: errInsert } = await supabase
     .from('practicas')
     .insert({
-      id: newId,
       alumno_id: alumno.id,
       vehiculo_id: alumno.vehiculo_id,
-      fecha,
+      fecha: fechaVal.value,
       km_inicial: 0,
       km_final: 0,
       deleted: false,
+      source: 'web-remote', // Marcar origen para historial
       updated_at: new Date().toISOString()
-    });
+    })
+    .select('id')
+    .single();
 
   if (errInsert) {
-    return res.status(500).json({ error: errInsert.message });
+    console.error('Error insertando práctica:', errInsert);
+    return res.status(500).json({ error: 'Error al registrar la práctica: ' + errInsert.message });
   }
 
   return res.status(200).json({
     ok: true,
-    mensaje: `Práctica registrada para ${alumno.nombre} el ${fecha}`,
-    practica_id: newId
+    mensaje: `Práctica registrada para ${alumno.nombre} el ${fechaVal.value}`,
+    practica_id: newPractica.id
   });
 }

@@ -129,8 +129,45 @@ function validarSolapamiento(vehiculo_id, fecha, kmI, kmF, excluirPracticaId = n
   return conflictos;
 }
 
+// Variable para almacenar el último error de guardado
+let _lastSaveError = null;
+
+function getLastSaveError() {
+  return _lastSaveError;
+}
+
 function save() {
-  fs.writeFileSync(getDataPath(), JSON.stringify(_data, null, 2), 'utf-8');
+  try {
+    const dataStr = JSON.stringify(_data, null, 2);
+    const filePath = getDataPath();
+    
+    // Escribir a archivo temporal primero (atomic write)
+    const tempPath = filePath + '.tmp';
+    fs.writeFileSync(tempPath, dataStr, 'utf-8');
+    
+    // Renombrar archivo temporal al archivo final (más seguro)
+    fs.renameSync(tempPath, filePath);
+    
+    _lastSaveError = null;
+    return true;
+  } catch (e) {
+    _lastSaveError = {
+      timestamp: new Date().toISOString(),
+      message: e.message,
+      code: e.code
+    };
+    console.error('ERROR guardando datos:', e.message);
+    
+    // Intentar notificar al proceso principal si estamos en renderer
+    try {
+      const { ipcRenderer } = require('electron');
+      if (ipcRenderer) {
+        ipcRenderer.send('save-error', _lastSaveError);
+      }
+    } catch {}
+    
+    return false;
+  }
 }
 
 function nextId(type) {
