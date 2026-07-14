@@ -501,8 +501,7 @@ function actualizarBtnComparar() {
 
 async function compararCSVs() {
   if (!csvAPath || !csvBPath) return;
-  const tolerancia = parseFloat(document.getElementById('cmp-tolerancia').value) || 5;
-  const res = await window.api.compararCsvs(csvAPath, csvBPath, { toleranciaKm: tolerancia });
+  const res = await window.api.compararCsvs(csvAPath, csvBPath, {});
   
   if (!res.ok) {
     alert('Error al comparar: ' + res.msg);
@@ -519,21 +518,25 @@ async function compararCSVs() {
       <div style="font-size:24px;font-weight:700">${r.totalB}</div>
       <div style="font-size:11px;color:var(--text-muted)">Prácticas CSV B</div>
     </div>
+    <div style="background:#e0e7ff;padding:12px;border-radius:8px;text-align:center">
+      <div style="font-size:24px;font-weight:700;color:#4f46e5">${r.alumnosTotal}</div>
+      <div style="font-size:11px;color:#3730a3">Alumnos totales</div>
+    </div>
     <div style="background:#d1fae5;padding:12px;border-radius:8px;text-align:center">
-      <div style="font-size:24px;font-weight:700;color:#059669">${r.coincidencias}</div>
-      <div style="font-size:11px;color:#065f46">Coincidencias</div>
+      <div style="font-size:24px;font-weight:700;color:#059669">${r.diasCoinciden}</div>
+      <div style="font-size:11px;color:#065f46">Días coinciden</div>
     </div>
     <div style="background:#fee2e2;padding:12px;border-radius:8px;text-align:center">
-      <div style="font-size:24px;font-weight:700;color:#dc2626">${r.conflictos}</div>
-      <div style="font-size:11px;color:#991b1b">Conflictos</div>
+      <div style="font-size:24px;font-weight:700;color:#dc2626">${r.diasConflicto}</div>
+      <div style="font-size:11px;color:#991b1b">Conflictos (≠ prácticas)</div>
     </div>
     <div style="background:#fef3c7;padding:12px;border-radius:8px;text-align:center">
-      <div style="font-size:24px;font-weight:700;color:#d97706">${r.soloEnA}</div>
-      <div style="font-size:11px;color:#92400e">Solo en A</div>
+      <div style="font-size:24px;font-weight:700;color:#d97706">${r.diasSoloEnA}</div>
+      <div style="font-size:11px;color:#92400e">Días solo en A</div>
     </div>
     <div style="background:#dbeafe;padding:12px;border-radius:8px;text-align:center">
-      <div style="font-size:24px;font-weight:700;color:#2563eb">${r.soloEnB}</div>
-      <div style="font-size:11px;color:#1e40af">Solo en B</div>
+      <div style="font-size:24px;font-weight:700;color:#2563eb">${r.diasSoloEnB}</div>
+      <div style="font-size:11px;color:#1e40af">Días solo en B</div>
     </div>
   `;
   
@@ -549,60 +552,53 @@ async function compararCSVs() {
     alumnosCard.style.display = 'none';
   }
   
-  // Conflictos
-  const conflictosCard = document.getElementById('cmp-conflictos-card');
-  if (res.conflictos.length) {
-    conflictosCard.style.display = '';
-    document.querySelector('#cmp-conflictos-table tbody').innerHTML = res.conflictos.map(c => `
-      <tr>
-        <td><strong>${esc(c.a.alumno)}</strong></td>
-        <td>${c.a.fecha}</td>
-        <td>${c.a.km_inicial} → ${c.a.km_final}</td>
-        <td>${c.b.km_inicial} → ${c.b.km_final}</td>
-        <td style="color:#dc2626;font-weight:600">Δ${Math.round(c.diffKmF)}</td>
-      </tr>
-    `).join('');
+  // Detalle por alumno
+  const detalleCard = document.getElementById('cmp-detalle-card');
+  const detalleBody = document.getElementById('cmp-detalle-body');
+  
+  // Filtrar solo alumnos con diferencias
+  const alumnosConDiferencias = res.porAlumno.filter(a => 
+    a.conflictos.length > 0 || a.soloEnA.length > 0 || a.soloEnB.length > 0
+  );
+  
+  if (alumnosConDiferencias.length > 0) {
+    detalleCard.style.display = '';
+    detalleBody.innerHTML = alumnosConDiferencias.map(a => {
+      let html = `<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-weight:600;font-size:14px;margin-bottom:8px;color:var(--primary)">${esc(a.nombre)}</div>`;
+      
+      if (a.coincidencias.length > 0) {
+        html += `<div style="margin-bottom:6px"><span style="color:#059669;font-weight:500">✓ Coinciden (${a.coincidencias.length}):</span> 
+          <span style="font-size:12px;color:var(--text-muted)">${a.coincidencias.map(c => `${c.fecha} (${c.cant})`).join(', ')}</span></div>`;
+      }
+      
+      if (a.conflictos.length > 0) {
+        html += `<div style="margin-bottom:6px"><span style="color:#dc2626;font-weight:500">⚠ Conflictos (${a.conflictos.length}):</span> 
+          <span style="font-size:12px">${a.conflictos.map(c => `<span style="background:#fee2e2;padding:2px 6px;border-radius:4px;margin:2px">${c.fecha}: A=${c.cantA} vs B=${c.cantB}</span>`).join(' ')}</span></div>`;
+      }
+      
+      if (a.soloEnA.length > 0) {
+        html += `<div style="margin-bottom:6px"><span style="color:#d97706;font-weight:500">📄 Solo en A (${a.soloEnA.length}):</span> 
+          <span style="font-size:12px">${a.soloEnA.map(d => `<span style="background:#fef3c7;padding:2px 6px;border-radius:4px;margin:2px">${d.fecha} (${d.cant})</span>`).join(' ')}</span></div>`;
+      }
+      
+      if (a.soloEnB.length > 0) {
+        html += `<div><span style="color:#2563eb;font-weight:500">📄 Solo en B (${a.soloEnB.length}):</span> 
+          <span style="font-size:12px">${a.soloEnB.map(d => `<span style="background:#dbeafe;padding:2px 6px;border-radius:4px;margin:2px">${d.fecha} (${d.cant})</span>`).join(' ')}</span></div>`;
+      }
+      
+      html += '</div>';
+      return html;
+    }).join('');
   } else {
-    conflictosCard.style.display = 'none';
+    detalleCard.style.display = 'none';
   }
   
-  // Solo en A
-  const soloACard = document.getElementById('cmp-solo-a-card');
-  if (res.soloEnA.length) {
-    soloACard.style.display = '';
-    document.querySelector('#cmp-solo-a-table tbody').innerHTML = res.soloEnA.map(p => `
-      <tr><td>${esc(p.alumno)}</td><td>${esc(p.vehiculo)}</td><td>${p.fecha}</td><td>${p.km_inicial}</td><td>${p.km_final}</td></tr>
-    `).join('');
-  } else {
-    soloACard.style.display = 'none';
-  }
-  
-  // Solo en B
-  const soloBCard = document.getElementById('cmp-solo-b-card');
-  if (res.soloEnB.length) {
-    soloBCard.style.display = '';
-    document.querySelector('#cmp-solo-b-table tbody').innerHTML = res.soloEnB.map(p => `
-      <tr><td>${esc(p.alumno)}</td><td>${esc(p.vehiculo)}</td><td>${p.fecha}</td><td>${p.km_inicial}</td><td>${p.km_final}</td></tr>
-    `).join('');
-  } else {
-    soloBCard.style.display = 'none';
-  }
-  
-  // Coincidencias
-  const coincidenciasCard = document.getElementById('cmp-coincidencias-card');
-  if (res.coincidencias.length) {
-    coincidenciasCard.style.display = '';
-    document.querySelector('#cmp-coincidencias-table tbody').innerHTML = res.coincidencias.map(c => `
-      <tr>
-        <td>${esc(c.a.alumno)}</td>
-        <td>${c.a.fecha}</td>
-        <td>${c.a.km_inicial} → ${c.a.km_final}</td>
-        <td>${c.b.km_inicial} → ${c.b.km_final}</td>
-      </tr>
-    `).join('');
-  } else {
-    coincidenciasCard.style.display = 'none';
-  }
+  // Ocultar cards antiguos que ya no usamos
+  document.getElementById('cmp-conflictos-card').style.display = 'none';
+  document.getElementById('cmp-solo-a-card').style.display = 'none';
+  document.getElementById('cmp-solo-b-card').style.display = 'none';
+  document.getElementById('cmp-coincidencias-card').style.display = 'none';
   
   document.getElementById('cmp-results').classList.remove('hidden');
 }
