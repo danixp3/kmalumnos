@@ -36,14 +36,11 @@
     position: relative;
   }
 
-  /* Animated gradient background */
   body::before {
     content: '';
     position: fixed;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
     background: 
       radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.15) 0%, transparent 50%),
       radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.12) 0%, transparent 40%),
@@ -57,378 +54,175 @@
     100% { transform: translate(-5%, -5%) rotate(3deg); }
   }
 
-  /* Floating orbs */
-  .orb {
-    position: fixed;
-    border-radius: 50%;
-    filter: blur(60px);
-    opacity: 0.5;
-    pointer-events: none;
-    z-index: -1;
-  }
+  .orb { position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.5; pointer-events: none; z-index: -1; }
+  .orb-1 { width: 200px; height: 200px; background: rgba(99,102,241,0.3); top: 10%; left: -10%; animation: float1 8s ease-in-out infinite; }
+  .orb-2 { width: 150px; height: 150px; background: rgba(139,92,246,0.25); bottom: 20%; right: -5%; animation: float2 10s ease-in-out infinite; }
+  .orb-3 { width: 100px; height: 100px; background: rgba(59,130,246,0.2); top: 50%; left: 50%; animation: float3 7s ease-in-out infinite; }
 
-  .orb-1 {
-    width: 200px; height: 200px;
-    background: rgba(99,102,241,0.3);
-    top: 10%; left: -10%;
-    animation: float1 8s ease-in-out infinite;
-  }
+  @keyframes float1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(30px, 20px) scale(1.1); } }
+  @keyframes float2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-20px, -30px) scale(1.15); } }
+  @keyframes float3 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(15px, -15px) scale(0.9); } }
 
-  .orb-2 {
-    width: 150px; height: 150px;
-    background: rgba(139,92,246,0.25);
-    bottom: 20%; right: -5%;
-    animation: float2 10s ease-in-out infinite;
-  }
-
-  .orb-3 {
-    width: 100px; height: 100px;
-    background: rgba(59,130,246,0.2);
-    top: 50%; left: 50%;
-    animation: float3 7s ease-in-out infinite;
-  }
-
-  @keyframes float1 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(30px, 20px) scale(1.1); }
-  }
-
-  @keyframes float2 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(-20px, -30px) scale(1.15); }
-  }
-
-  @keyframes float3 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(15px, -15px) scale(0.9); }
-  }
-
-  .header {
-    text-align: center;
-    margin-bottom: 32px;
-    padding-top: 12px;
-    animation: slideDown 0.6s ease-out;
-  }
-
-  @keyframes slideDown {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-
+  .header { text-align: center; margin-bottom: 32px; padding-top: 12px; animation: slideDown 0.6s ease-out; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 
   h1 {
-    font-size: 24px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    color: #fff;
+    font-size: 24px; font-weight: 800; letter-spacing: -0.5px; color: #fff;
     background: linear-gradient(135deg, #fff, #c7d2fe);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   }
 
-  .subtitle {
-    font-size: 14px;
-    color: var(--text-muted);
-    margin-top: 6px;
-    font-weight: 500;
-  }
+  .subtitle { font-size: 14px; color: var(--text-muted); margin-top: 6px; font-weight: 500; }
 
   .card {
-    background: var(--card);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: var(--radius);
-    padding: 24px;
+    background: var(--card); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-radius: var(--radius); padding: 24px;
     box-shadow: 0 8px 32px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,0.06);
-    margin-bottom: 20px;
-    border: 1px solid var(--card-border);
-    animation: slideUp 0.5s ease-out 0.1s both;
-    position: relative;
-    overflow: hidden;
+    margin-bottom: 20px; border: 1px solid var(--card-border);
+    animation: slideUp 0.5s ease-out 0.1s both; position: relative; overflow: hidden;
   }
 
   .card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 1px;
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
   }
 
-  @keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+  label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.8px; margin-bottom: 10px; text-transform: uppercase; }
+
+  select, input[type="date"], input[type="text"] {
+    width: 100%; padding: 14px 16px; border: 1.5px solid var(--border); border-radius: 14px;
+    font-size: 16px; font-family: inherit; color: var(--text); background: rgba(255,255,255,0.05);
+    outline: none; -webkit-appearance: none; appearance: none; transition: all .2s ease;
   }
 
-  label {
-    display: block;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text-muted);
-    letter-spacing: 0.8px;
-    margin-bottom: 10px;
-    text-transform: uppercase;
-  }
-
-  select, input[type="date"] {
-    width: 100%;
-    padding: 14px 16px;
-    border: 1.5px solid var(--border);
-    border-radius: 14px;
-    font-size: 16px;
-    font-family: inherit;
-    color: var(--text);
-    background: rgba(255,255,255,0.05);
-    outline: none;
-    -webkit-appearance: none;
-    appearance: none;
-    transition: all .2s ease;
-  }
-
-  select:focus, input[type="date"]:focus {
+  select:focus, input[type="date"]:focus, input[type="text"]:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(99,102,241,.2), 0 0 20px rgba(99,102,241,.15);
     background: rgba(255,255,255,0.08);
   }
 
-  select option {
-    background: #1e1e2e;
-    color: #fff;
-  }
+  select option { background: #1e1e2e; color: #fff; }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); }
 
-  input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(0.7);
-  }
-
-  .select-wrap {
-    position: relative;
-  }
-
-  .select-wrap::after {
-    content: '▾';
-    position: absolute;
-    right: 16px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-    pointer-events: none;
-    font-size: 14px;
-  }
+  .select-wrap { position: relative; }
+  .select-wrap::after { content: '▾'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; font-size: 14px; }
 
   .btn {
-    width: 100%;
-    padding: 18px;
-    border: none;
-    border-radius: 16px;
-    font-size: 17px;
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all .2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    letter-spacing: -0.2px;
-    animation: slideUp 0.5s ease-out 0.2s both;
-    position: relative;
-    overflow: hidden;
+    width: 100%; padding: 18px; border: none; border-radius: 16px; font-size: 17px; font-weight: 700;
+    font-family: inherit; cursor: pointer; transition: all .2s ease;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    letter-spacing: -0.2px; animation: slideUp 0.5s ease-out 0.2s both; position: relative; overflow: hidden;
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, var(--primary), #8b5cf6);
-    color: #fff;
+    background: linear-gradient(135deg, var(--primary), #8b5cf6); color: #fff;
     box-shadow: 0 8px 32px rgba(99,102,241,.4), 0 0 60px rgba(99,102,241,.15);
   }
 
   .btn-primary::before {
-    content: '';
-    position: absolute;
-    top: 0; left: -100%;
-    width: 100%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-    transition: left .5s ease;
+    content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent); transition: left .5s ease;
   }
 
-  .btn-primary:not(:disabled):hover::before {
-    left: 100%;
-  }
-
+  .btn-primary:not(:disabled):hover::before { left: 100%; }
   .btn-primary:active { transform: scale(0.97); filter: brightness(.9); }
   .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
+  .btn-secondary {
+    background: rgba(255,255,255,0.06); color: var(--primary); border: 1.5px solid var(--border);
+    box-shadow: none; margin-top: 12px;
+  }
+  .btn-secondary:hover { background: rgba(99,102,241,0.1); border-color: var(--primary); }
+
   .result {
-    display: none;
-    border-radius: var(--radius);
-    padding: 28px 24px;
-    text-align: center;
-    margin-top: 16px;
-    animation: popIn 0.4s cubic-bezier(.17,.67,.35,1.5);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    display: none; border-radius: var(--radius); padding: 28px 24px; text-align: center;
+    margin-top: 16px; animation: popIn 0.4s cubic-bezier(.17,.67,.35,1.5);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   }
 
-  @keyframes popIn {
-    from { opacity: 0; transform: scale(0.9); }
-    to { opacity: 1; transform: scale(1); }
-  }
+  @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
 
-  .result.ok {
-    display: block;
-    background: rgba(16,185,129,0.1);
-    border: 1.5px solid rgba(16,185,129,0.3);
-    box-shadow: 0 8px 32px rgba(16,185,129,.15);
-  }
+  .result.ok { display: block; background: rgba(16,185,129,0.1); border: 1.5px solid rgba(16,185,129,0.3); box-shadow: 0 8px 32px rgba(16,185,129,.15); }
+  .result.err { display: block; background: rgba(239,68,68,0.1); border: 1.5px solid rgba(239,68,68,0.3); box-shadow: 0 8px 32px rgba(239,68,68,.15); }
 
-  .result.err {
-    display: block;
-    background: rgba(239,68,68,0.1);
-    border: 1.5px solid rgba(239,68,68,0.3);
-    box-shadow: 0 8px 32px rgba(239,68,68,.15);
-  }
+  .result-icon { font-size: 48px; margin-bottom: 12px; animation: bounceIn 0.5s ease 0.2s both; }
+  @keyframes bounceIn { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
 
-  .result-icon {
-    font-size: 48px;
-    margin-bottom: 12px;
-    animation: bounceIn 0.5s ease 0.2s both;
-  }
-
-  @keyframes bounceIn {
-    0% { transform: scale(0); }
-    50% { transform: scale(1.2); }
-    100% { transform: scale(1); }
-  }
-
-  .result-title {
-    font-size: 18px;
-    font-weight: 700;
-    margin-bottom: 8px;
-  }
-
+  .result-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
   .result.ok .result-title { color: #34d399; }
   .result.err .result-title { color: #f87171; }
 
-  .result-msg {
-    font-size: 14px;
-    color: var(--text-muted);
-    line-height: 1.6;
-  }
+  .result-msg { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
 
   .btn-again {
-    margin-top: 20px;
-    width: 100%;
-    padding: 14px;
-    border: 1.5px solid var(--border);
-    border-radius: 14px;
-    font-size: 15px;
-    font-weight: 600;
-    font-family: inherit;
-    background: rgba(255,255,255,0.05);
-    color: var(--primary);
-    cursor: pointer;
-    transition: all .2s;
+    margin-top: 20px; width: 100%; padding: 14px; border: 1.5px solid var(--border);
+    border-radius: 14px; font-size: 15px; font-weight: 600; font-family: inherit;
+    background: rgba(255,255,255,0.05); color: var(--primary); cursor: pointer; transition: all .2s;
     backdrop-filter: blur(10px);
   }
+  .btn-again:hover { background: rgba(99,102,241,0.1); border-color: var(--primary); }
 
-  .btn-again:hover {
-    background: rgba(99,102,241,0.1);
-    border-color: var(--primary);
-  }
-
-  .loading-dots span {
-    display: inline-block;
-    animation: bounce .6s infinite;
-    font-size: 24px;
-  }
+  .loading-dots span { display: inline-block; animation: bounce .6s infinite; font-size: 24px; }
   .loading-dots span:nth-child(2) { animation-delay: .1s; }
   .loading-dots span:nth-child(3) { animation-delay: .2s; }
-
-  @keyframes bounce {
-    0%,80%,100% { transform: translateY(0); }
-    40% { transform: translateY(-6px); }
-  }
+  @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
 
   .field-gap { margin-bottom: 20px; }
   .field-gap:last-child { margin-bottom: 0; }
 
   .alumno-info {
-    display: none;
-    margin-top: 12px;
-    padding: 12px 16px;
-    background: rgba(255,255,255,0.04);
-    border-radius: 12px;
-    font-size: 13px;
-    color: var(--text-muted);
-    border: 1px solid rgba(255,255,255,0.06);
+    display: none; margin-top: 12px; padding: 12px 16px; background: rgba(255,255,255,0.04);
+    border-radius: 12px; font-size: 13px; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.06);
     animation: fadeIn 0.3s ease;
   }
 
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
   .tag {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 700;
-    background: rgba(99,102,241,0.2);
-    color: #a5b4fc;
-    margin-left: 6px;
-    border: 1px solid rgba(99,102,241,0.3);
+    display: inline-block; padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;
+    background: rgba(99,102,241,0.2); color: #a5b4fc; margin-left: 6px; border: 1px solid rgba(99,102,241,0.3);
   }
 
-  /* Sparkle animation for success */
-  .sparkles {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    pointer-events: none;
-    overflow: hidden;
-  }
+  .sparkles { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; overflow: hidden; }
+  .sparkle { position: absolute; width: 4px; height: 4px; background: #fff; border-radius: 50%; animation: sparkle 1.5s ease-out forwards; }
+  @keyframes sparkle { 0% { transform: scale(0) translateY(0); opacity: 1; } 100% { transform: scale(1) translateY(-60px); opacity: 0; } }
 
-  .sparkle {
-    position: absolute;
-    width: 4px; height: 4px;
-    background: #fff;
-    border-radius: 50%;
-    animation: sparkle 1.5s ease-out forwards;
-  }
-
-  @keyframes sparkle {
-    0% { transform: scale(0) translateY(0); opacity: 1; }
-    100% { transform: scale(1) translateY(-60px); opacity: 0; }
-  }
-
-  /* Subtle grid pattern */
   .grid-bg {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background-image: 
-      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-    z-index: -1;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 40px 40px; pointer-events: none; z-index: -1;
   }
 
-  /* Status bar line */
   .status-line {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 3px;
+    position: fixed; top: 0; left: 0; right: 0; height: 3px;
     background: linear-gradient(90deg, var(--primary), #8b5cf6, #a855f7, var(--primary));
-    background-size: 300% 100%;
-    animation: gradientSlide 4s linear infinite;
-    z-index: 100;
+    background-size: 300% 100%; animation: gradientSlide 4s linear infinite; z-index: 100;
   }
+  @keyframes gradientSlide { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
 
-  @keyframes gradientSlide {
-    0% { background-position: 0% 50%; }
-    100% { background-position: 300% 50%; }
+  /* Tabs */
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; animation: slideUp 0.5s ease-out 0.05s both; }
+  .tab {
+    flex: 1; padding: 12px; border: 1.5px solid var(--border); border-radius: 14px;
+    font-size: 14px; font-weight: 600; font-family: inherit; color: var(--text-muted);
+    background: rgba(255,255,255,0.03); cursor: pointer; transition: all .2s; text-align: center;
+  }
+  .tab.active { background: rgba(99,102,241,0.15); border-color: var(--primary); color: var(--primary); }
+  .tab:hover:not(.active) { background: rgba(255,255,255,0.06); }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Modal / formulario nuevo alumno */
+  .nuevo-alumno-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .nuevo-alumno-form .field-gap { margin-bottom: 16px; }
+
+  .badge-vehiculo {
+    display: inline-block; padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 700;
+    background: rgba(139,92,246,0.2); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.3);
+    margin-top: 4px;
   }
 </style>
 </head>
@@ -441,56 +235,132 @@
 <div class="orb orb-3"></div>
 
 <div class="header">
-  <h1>Registrar Práctica</h1>
+  <h1>KMAlumnos Web</h1>
   <p class="subtitle">Autoescuela · Control de kilómetros</p>
 </div>
 
-<div id="form-section">
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('practica')">Registrar Práctica</button>
+  <button class="tab" onclick="switchTab('alumno')">Nuevo Alumno</button>
+</div>
+
+<!-- SECCIÓN: REGISTRAR PRÁCTICA -->
+<div id="section-practica" class="section active">
+  <div id="form-section">
+    <div class="card">
+      <div class="field-gap">
+        <label>Vehículo</label>
+        <div class="select-wrap">
+          <select id="vehiculo-select" onchange="onVehiculoChange()">
+            <option value="">Cargando vehículos...</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-gap">
+        <label>Alumno</label>
+        <div class="select-wrap">
+          <select id="alumno-select" onchange="onAlumnoChange()" disabled>
+            <option value="">— Primero selecciona un vehículo —</option>
+          </select>
+        </div>
+        <div class="alumno-info" id="alumno-info"></div>
+      </div>
+
+      <div class="field-gap">
+        <label>Fecha</label>
+        <input type="date" id="fecha-input">
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-registrar" onclick="registrar()" disabled>
+      <span id="btn-text">✓ Registrar práctica</span>
+    </button>
+  </div>
+
+  <div class="result" id="result-ok" style="position: relative;">
+    <div class="sparkles" id="sparkles"></div>
+    <div class="result-icon">✅</div>
+    <div class="result-title">¡Práctica registrada!</div>
+    <div class="result-msg" id="result-ok-msg"></div>
+    <button class="btn-again" onclick="resetForm()">Registrar otra práctica</button>
+  </div>
+
+  <div class="result" id="result-err">
+    <div class="result-icon">❌</div>
+    <div class="result-title">Error</div>
+    <div class="result-msg" id="result-err-msg"></div>
+    <button class="btn-again" onclick="hideError()">Volver a intentarlo</button>
+  </div>
+</div>
+
+<!-- SECCIÓN: NUEVO ALUMNO -->
+<div id="section-alumno" class="section">
   <div class="card">
     <div class="field-gap">
-      <label>Alumno</label>
-      <div class="select-wrap">
-        <select id="alumno-select" onchange="onAlumnoChange()">
-          <option value="">Cargando alumnos...</option>
-        </select>
-      </div>
-      <div class="alumno-info" id="alumno-info"></div>
+      <label>Nombre del alumno</label>
+      <input type="text" id="nuevo-nombre" placeholder="Nombre completo">
     </div>
 
     <div class="field-gap">
-      <label>Fecha</label>
-      <input type="date" id="fecha-input">
+      <label>Tipo de permiso</label>
+      <div class="select-wrap">
+        <select id="nuevo-permiso">
+          <option value="B">B - Coche</option>
+          <option value="A">A - Moto</option>
+          <option value="A2">A2 - Moto (limitada)</option>
+          <option value="AM">AM - Ciclomotor</option>
+          <option value="C">C - Camión</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field-gap">
+      <label>Vehículo asignado</label>
+      <div class="select-wrap">
+        <select id="nuevo-vehiculo">
+          <option value="">— Sin asignar —</option>
+        </select>
+      </div>
     </div>
   </div>
 
-  <button class="btn btn-primary" id="btn-registrar" onclick="registrar()" disabled>
-    <span id="btn-text">✓ Registrar práctica</span>
+  <button class="btn btn-primary" id="btn-crear-alumno" onclick="crearAlumno()">
+    <span id="btn-crear-text">+ Crear alumno</span>
   </button>
-</div>
 
-<div class="result" id="result-ok" style="position: relative;">
-  <div class="sparkles" id="sparkles"></div>
-  <div class="result-icon">✅</div>
-  <div class="result-title">¡Práctica registrada!</div>
-  <div class="result-msg" id="result-ok-msg"></div>
-  <button class="btn-again" onclick="resetForm()">Registrar otra práctica</button>
-</div>
+  <div class="result" id="result-alumno-ok">
+    <div class="result-icon">✅</div>
+    <div class="result-title">Alumno creado</div>
+    <div class="result-msg" id="result-alumno-ok-msg"></div>
+    <button class="btn-again" onclick="resetAlumnoForm()">Crear otro alumno</button>
+  </div>
 
-<div class="result err" id="result-err">
-  <div class="result-icon">❌</div>
-  <div class="result-title">Error</div>
-  <div class="result-msg" id="result-err-msg"></div>
-  <button class="btn-again" onclick="hideError()">Volver a intentarlo</button>
+  <div class="result" id="result-alumno-err">
+    <div class="result-icon">❌</div>
+    <div class="result-title">Error</div>
+    <div class="result-msg" id="result-alumno-err-msg"></div>
+    <button class="btn-again" onclick="hideAlumnoError()">Volver a intentarlo</button>
+  </div>
 </div>
 
 <script>
   let alumnos = [];
+  let vehiculos = [];
 
-  // Poner fecha de hoy por defecto
-  const hoy = new Date().toLocaleDateString('sv-SE'); // formato YYYY-MM-DD
-  document.getElementById('fecha-input').value = hoy;
+  // Fecha de hoy por defecto
+  document.getElementById('fecha-input').value = new Date().toLocaleDateString('sv-SE');
 
-  // Sparkle effect on success
+  // Tabs
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      t.classList.toggle('active', (tab === 'practica' && i === 0) || (tab === 'alumno' && i === 1));
+    });
+    document.getElementById('section-practica').classList.toggle('active', tab === 'practica');
+    document.getElementById('section-alumno').classList.toggle('active', tab === 'alumno');
+  }
+
+  // Sparkles
   function createSparkles() {
     const container = document.getElementById('sparkles');
     container.innerHTML = '';
@@ -505,27 +375,66 @@
     }
   }
 
-  // Cargar alumnos al arrancar
-  async function cargarAlumnos() {
+  // Cargar vehículos y alumnos al arrancar
+  async function cargarDatos() {
     try {
-      const res = await fetch('/api/alumnos');
-      if (!res.ok) throw new Error('Error cargando alumnos');
-      alumnos = await res.json();
+      const [resV, resA] = await Promise.all([
+        fetch('/api/vehiculos'),
+        fetch('/api/alumnos')
+      ]);
 
-      const sel = document.getElementById('alumno-select');
-      if (!alumnos.length) {
-        sel.innerHTML = '<option value="">No hay alumnos registrados</option>';
-        return;
+      if (!resV.ok) throw new Error('Error cargando vehículos');
+      if (!resA.ok) throw new Error('Error cargando alumnos');
+
+      vehiculos = await resV.json();
+      alumnos = await resA.json();
+
+      // Popular selector de vehículos (práctica)
+      const selV = document.getElementById('vehiculo-select');
+      if (!vehiculos.length) {
+        selV.innerHTML = '<option value="">No hay vehículos registrados</option>';
+      } else {
+        selV.innerHTML = '<option value="">— Selecciona un vehículo —</option>' +
+          vehiculos.map(v => `<option value="${v.id}">${v.nombre}${v.matricula ? ' (' + v.matricula + ')' : ''}</option>`).join('');
       }
 
-      sel.innerHTML = '<option value="">— Selecciona un alumno —</option>' +
-        alumnos.map(a => `<option value="${a.id}">${a.nombre} (${a.permiso})</option>`).join('');
+      // Popular selector de vehículos (nuevo alumno)
+      const selNV = document.getElementById('nuevo-vehiculo');
+      selNV.innerHTML = '<option value="">— Sin asignar —</option>' +
+        vehiculos.map(v => `<option value="${v.id}">${v.nombre}${v.matricula ? ' (' + v.matricula + ')' : ''}</option>`).join('');
 
-      document.getElementById('btn-registrar').disabled = false;
     } catch (e) {
-      document.getElementById('alumno-select').innerHTML =
-        '<option value="">Error cargando alumnos</option>';
+      document.getElementById('vehiculo-select').innerHTML = '<option value="">Error cargando datos</option>';
     }
+  }
+
+  function onVehiculoChange() {
+    const vehiculoId = document.getElementById('vehiculo-select').value;
+    const selA = document.getElementById('alumno-select');
+    const info = document.getElementById('alumno-info');
+    const btn = document.getElementById('btn-registrar');
+
+    info.style.display = 'none';
+    btn.disabled = true;
+
+    if (!vehiculoId) {
+      selA.innerHTML = '<option value="">— Primero selecciona un vehículo —</option>';
+      selA.disabled = true;
+      return;
+    }
+
+    // Filtrar alumnos asignados a este vehículo
+    const alumnosFiltrados = alumnos.filter(a => a.vehiculo_id == vehiculoId);
+
+    if (!alumnosFiltrados.length) {
+      selA.innerHTML = '<option value="">No hay alumnos asignados a este vehículo</option>';
+      selA.disabled = true;
+      return;
+    }
+
+    selA.disabled = false;
+    selA.innerHTML = '<option value="">— Selecciona un alumno —</option>' +
+      alumnosFiltrados.map(a => `<option value="${a.id}">${a.nombre} (${a.permiso})</option>`).join('');
   }
 
   function onAlumnoChange() {
@@ -535,12 +444,9 @@
     const alumno = alumnos.find(a => a.id == sel.value);
 
     if (alumno) {
-      const tieneVehiculo = !!alumno.vehiculo_id;
       info.style.display = 'block';
-      info.innerHTML = tieneVehiculo
-        ? `<span class="tag">${alumno.permiso}</span> Permiso ${alumno.permiso}`
-        : `<span style="color:#f87171">⚠ Sin vehículo asignado</span>`;
-      btn.disabled = !tieneVehiculo;
+      info.innerHTML = `<span class="tag">${alumno.permiso}</span> Permiso ${alumno.permiso}`;
+      btn.disabled = false;
     } else {
       info.style.display = 'none';
       btn.disabled = true;
@@ -549,12 +455,12 @@
 
   async function registrar() {
     const alumnoId = document.getElementById('alumno-select').value;
-    const fecha    = document.getElementById('fecha-input').value;
+    const fecha = document.getElementById('fecha-input').value;
 
     if (!alumnoId) { showError('Selecciona un alumno.'); return; }
-    if (!fecha)    { showError('Selecciona una fecha.'); return; }
+    if (!fecha) { showError('Selecciona una fecha.'); return; }
 
-    const btn  = document.getElementById('btn-registrar');
+    const btn = document.getElementById('btn-registrar');
     const text = document.getElementById('btn-text');
     btn.disabled = true;
     text.innerHTML = '<span class="loading-dots"><span>·</span><span>·</span><span>·</span></span>';
@@ -575,12 +481,12 @@
         return;
       }
 
-      // Éxito
       const alumnoNombre = alumnos.find(a => a.id == alumnoId)?.nombre || '';
       const fechaFmt = fecha.split('-').reverse().join('/');
       document.getElementById('result-ok-msg').textContent =
         `${alumnoNombre} — ${fechaFmt}\nKm pendientes de asignar desde la app.`;
       document.getElementById('form-section').style.display = 'none';
+      document.getElementById('result-ok').classList.add('ok');
       document.getElementById('result-ok').style.display = 'block';
       createSparkles();
 
@@ -593,24 +499,100 @@
 
   function showError(msg) {
     document.getElementById('result-err-msg').textContent = msg;
+    document.getElementById('result-err').classList.add('err');
     document.getElementById('result-err').style.display = 'block';
   }
 
   function hideError() {
+    document.getElementById('result-err').classList.remove('err');
     document.getElementById('result-err').style.display = 'none';
   }
 
   function resetForm() {
+    document.getElementById('result-ok').classList.remove('ok');
     document.getElementById('result-ok').style.display = 'none';
     document.getElementById('form-section').style.display = 'block';
-    document.getElementById('alumno-select').value = '';
+    document.getElementById('vehiculo-select').value = '';
+    document.getElementById('alumno-select').innerHTML = '<option value="">— Primero selecciona un vehículo —</option>';
+    document.getElementById('alumno-select').disabled = true;
     document.getElementById('alumno-info').style.display = 'none';
     document.getElementById('fecha-input').value = new Date().toLocaleDateString('sv-SE');
     document.getElementById('btn-registrar').disabled = true;
     document.getElementById('btn-text').innerHTML = '✓ Registrar práctica';
   }
 
-  cargarAlumnos();
+  // --- Nuevo alumno ---
+  async function crearAlumno() {
+    const nombre = document.getElementById('nuevo-nombre').value.trim();
+    const permiso = document.getElementById('nuevo-permiso').value;
+    const vehiculoId = document.getElementById('nuevo-vehiculo').value;
+
+    if (!nombre) { showAlumnoError('Introduce el nombre del alumno.'); return; }
+
+    const btn = document.getElementById('btn-crear-alumno');
+    const text = document.getElementById('btn-crear-text');
+    btn.disabled = true;
+    text.innerHTML = '<span class="loading-dots"><span>·</span><span>·</span><span>·</span></span>';
+
+    try {
+      const res = await fetch('/api/crear-alumno', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre,
+          permiso,
+          vehiculo_id: vehiculoId ? parseInt(vehiculoId) : null
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        showAlumnoError(data.error || 'Error al crear el alumno.');
+        btn.disabled = false;
+        text.innerHTML = '+ Crear alumno';
+        return;
+      }
+
+      document.getElementById('result-alumno-ok-msg').textContent =
+        `${nombre} — Permiso ${permiso}${vehiculoId ? '\nVehículo asignado correctamente.' : '\nSin vehículo asignado.'}`;
+      document.getElementById('btn-crear-alumno').style.display = 'none';
+      document.getElementById('result-alumno-ok').classList.add('ok');
+      document.getElementById('result-alumno-ok').style.display = 'block';
+
+      // Recargar datos para que aparezca en la lista de prácticas
+      await cargarDatos();
+
+    } catch (e) {
+      showAlumnoError('No se pudo conectar con el servidor.');
+      btn.disabled = false;
+      text.innerHTML = '+ Crear alumno';
+    }
+  }
+
+  function showAlumnoError(msg) {
+    document.getElementById('result-alumno-err-msg').textContent = msg;
+    document.getElementById('result-alumno-err').classList.add('err');
+    document.getElementById('result-alumno-err').style.display = 'block';
+  }
+
+  function hideAlumnoError() {
+    document.getElementById('result-alumno-err').classList.remove('err');
+    document.getElementById('result-alumno-err').style.display = 'none';
+  }
+
+  function resetAlumnoForm() {
+    document.getElementById('result-alumno-ok').classList.remove('ok');
+    document.getElementById('result-alumno-ok').style.display = 'none';
+    document.getElementById('btn-crear-alumno').style.display = '';
+    document.getElementById('btn-crear-alumno').disabled = false;
+    document.getElementById('btn-crear-text').innerHTML = '+ Crear alumno';
+    document.getElementById('nuevo-nombre').value = '';
+    document.getElementById('nuevo-permiso').value = 'B';
+    document.getElementById('nuevo-vehiculo').value = '';
+  }
+
+  cargarDatos();
 </script>
 </body>
 </html>
