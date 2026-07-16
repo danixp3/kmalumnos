@@ -358,6 +358,23 @@ describe('los borrados del escritorio no dejan restos en la nube', () => {
   });
 });
 
+test('los km generados con "Relleno masivo" se suben a la nube (antes se quedaban solo en el PC)', async () => {
+  const vid = db.addVehiculo('Coche 1', '', 100);
+  const aid = db.addAlumno('Ana', 'B', vid);
+  const pid1 = db.addPractica(aid, vid, '2026-07-01', 0, 0); // prácticas sin km (como las del móvil)
+  const pid2 = db.addPractica(aid, vid, '2026-07-02', 0, 0);
+  await sync.sync(); // en la nube quedan con km 0,0
+
+  const res = db.rellenarKmMasivo(vid, 40, 45);
+  expect(res.rellenadas).toBe(2);
+  await sync.sync();
+
+  const nube = mockRemote.tables.practicas.filter(p => [pid1, pid2].includes(p.id));
+  expect(nube.every(p => p.km_final > 0)).toBe(true); // los km rellenados llegaron a la nube
+  const vNube = mockRemote.tables.vehiculos.find(v => v.id === vid);
+  expect(vNube.km_actual).toBeGreaterThan(100); // y el odómetro del vehículo también
+});
+
 test('un borrado hecho en el escritorio se propaga a la nube como soft delete', async () => {
   writeData(baseData());
   mockRemote.tables.practicas.push({
