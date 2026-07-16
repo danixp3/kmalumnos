@@ -976,12 +976,14 @@ const SYNC_LABELS = {
   error:   '✕ Error de sync'
 };
 
-function updateSyncBar(status) {
+function updateSyncBar(status, reason) {
   const bar   = document.getElementById('sync-bar');
   const label = document.getElementById('sync-label');
   if (!bar || !label) return;
   bar.dataset.status = status;
   label.textContent  = SYNC_LABELS[status] || status;
+  // Al pasar el ratón por encima se ve el motivo exacto del error
+  bar.title = (status === 'error' && reason) ? 'Motivo: ' + reason : '';
 }
 
 async function pushAllToCloud() {
@@ -1011,13 +1013,13 @@ async function syncNow() {
       if (currentAlumnoId) loadPracticas();
     }
   } else {
-    updateSyncBar(res && res.reason === 'Sin conexión a internet' ? 'offline' : 'error');
+    updateSyncBar(res && res.reason === 'Sin conexión a internet' ? 'offline' : 'error', res?.reason);
   }
 }
 
 // Escuchar cambios de estado desde main.js
-window.api.onSyncStatus((status) => {
-  updateSyncBar(status);
+window.api.onSyncStatus((status, reason) => {
+  updateSyncBar(status, reason);
   // Si llegaron datos nuevos (ok tras sync), refrescar
   if (status === 'ok') {
     loadDashboard();
