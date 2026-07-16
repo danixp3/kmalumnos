@@ -1,4 +1,40 @@
 // Utilidades compartidas para las APIs de web-remote
+import { createClient } from '@supabase/supabase-js';
+
+// Cliente de Supabase autenticado con la cuenta de sincronización.
+// Si SYNC_EMAIL/SYNC_PASSWORD están configuradas en Vercel, inicia sesión
+// (necesario cuando la BD exige usuarios autenticados vía RLS). Si no,
+// usa solo la anon key (modo transición). La sesión se cachea entre
+// invocaciones del mismo contenedor y se renueva antes de caducar.
+let _client = null;
+let _sessionExpiry = 0; // epoch en segundos
+
+export async function getSupabase() {
+  const now = Math.floor(Date.now() / 1000);
+  if (_client && now < _sessionExpiry - 60) return _client;
+
+  const client = createClient(
+    process.env.SUPABASE_URL || '',
+    process.env.SUPABASE_ANON_KEY || '',
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  );
+
+  if (process.env.SYNC_EMAIL && process.env.SYNC_PASSWORD) {
+    const { data, error } = await client.auth.signInWithPassword({
+      email: process.env.SYNC_EMAIL,
+      password: process.env.SYNC_PASSWORD
+    });
+    if (error) {
+      throw new Error('Error de autenticación del servidor: ' + error.message);
+    }
+    _sessionExpiry = (data.session && data.session.expires_at) || (now + 3000);
+  } else {
+    _sessionExpiry = now + 100 * 365 * 24 * 3600; // cliente anon: no caduca
+  }
+
+  _client = client;
+  return client;
+}
 
 // Validar variables de entorno
 export function checkEnvVars() {

@@ -1,10 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-import { setCorsHeaders, requireAuth } from './_utils.js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_ANON_KEY || ''
-);
+import { setCorsHeaders, requireAuth, getSupabase } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -14,6 +8,10 @@ export default async function handler(req, res) {
 
   // Verificar autenticación
   if (!requireAuth(req, res)) return;
+
+  let supabase;
+  try { supabase = await getSupabase(); }
+  catch (e) { return res.status(500).json({ error: e.message }); }
 
   // Obtener prácticas recientes creadas desde web-remote (últimas 24h)
   const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();

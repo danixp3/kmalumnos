@@ -1028,6 +1028,51 @@ window.api.onSyncStatus((status) => {
 // Obtener estado inicial
 window.api.getSyncStatus().then(s => updateSyncBar(s || 'offline'));
 
+// ─── CREDENCIALES DE SINCRONIZACIÓN ───────────────────────────────────────────
+async function refrescarEstadoCredsSync() {
+  const el = document.getElementById('sync-creds-estado');
+  if (!el) return;
+  const res = await window.api.getSyncCredsStatus();
+  if (res && res.configured) {
+    el.textContent = '✓ Configurada (' + res.email + ')';
+    el.style.color = 'var(--success, #10b981)';
+  } else {
+    el.textContent = '⚠ Sin configurar — este equipo aún no usa cuenta de sincronización.';
+    el.style.color = 'var(--warn, #f59e0b)';
+  }
+}
+
+async function abrirCredsSync() {
+  const res = await window.api.getSyncCredsStatus();
+  document.getElementById('sync-creds-email').value = (res && res.email) || '';
+  document.getElementById('sync-creds-password').value = '';
+  hideToast('sync-creds-alert');
+  openModal('modal-sync-creds');
+}
+
+async function guardarCredsSync() {
+  const email = document.getElementById('sync-creds-email').value.trim();
+  const password = document.getElementById('sync-creds-password').value;
+  if (!email || !password) {
+    showToast('sync-creds-alert', 'Introduce email y contraseña.', 'err');
+    return;
+  }
+  const btn = document.getElementById('sync-creds-guardar');
+  btn.disabled = true;
+  btn.textContent = 'Probando...';
+  const res = await window.api.saveSyncCreds(email, password);
+  btn.disabled = false;
+  btn.textContent = 'Guardar y probar';
+  if (res && res.ok) {
+    closeModal('modal-sync-creds');
+    refrescarEstadoCredsSync();
+  } else {
+    showToast('sync-creds-alert', (res && res.msg) || 'No se pudo conectar con esas credenciales.', 'err');
+  }
+}
+
+refrescarEstadoCredsSync();
+
 // ─── AUTO-UPDATE ──────────────────────────────────────────────────────────────
 function checkUpdates() {
   const label = document.getElementById('update-label');
