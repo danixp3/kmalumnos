@@ -335,6 +335,7 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
         const vid = nextId('v');
         v = { id: vid, nombre: vehiculo, matricula: '', km_actual: 0 };
         d.vehiculos.push(v);
+        const s = _sync(); if (s) s.markDirty('vehiculos', vid);
       }
 
       // Alumno
@@ -343,6 +344,7 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
         const aid = nextId('a');
         a = { id: aid, nombre: alumno, permiso: 'B', vehiculo_id: v.id };
         d.alumnos.push(a);
+        const s = _sync(); if (s) s.markDirty('alumnos', aid);
       }
 
       // Kilómetros
@@ -369,7 +371,11 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
 
       const pid = nextId('p');
       d.practicas.push({ id: pid, alumno_id: a.id, vehiculo_id: v.id, fecha, km_inicial: kmI, km_final: kmF });
-      if (kmF > v.km_actual) v.km_actual = kmF;
+      const s = _sync(); if (s) s.markDirty('practicas', pid);
+      if (kmF > v.km_actual) {
+        v.km_actual = kmF;
+        if (s) s.markDirty('vehiculos', v.id);
+      }
       ultimoKmPorAlumno[a.id] = kmF;
       insertados++;
     } catch (e) {
@@ -611,13 +617,18 @@ function rellenarKmMasivo(vehiculo_id, kmMin = 40, kmMax = 45, kmInicio = null, 
       p.km_final   = kmF;
       cursor = kmF;
       rellenadas++;
+      // Marcar el cambio para que los km lleguen a la nube (antes solo quedaban en este PC)
+      const s = _sync(); if (s) s.markDirty('practicas', p.id);
     }
   }
 
   // Actualizar km_actual del vehículo si creció
   let maxKm = v.km_actual;
   d.practicas.filter(p => p.vehiculo_id === vid).forEach(p => { if (p.km_final > maxKm) maxKm = p.km_final; });
-  v.km_actual = maxKm;
+  if (maxKm !== v.km_actual) {
+    v.km_actual = maxKm;
+    const s = _sync(); if (s) s.markDirty('vehiculos', vid);
+  }
 
   const detallesLog = sinKm.filter(p => p.km_final > 0).map(p => {
     const alumno = load().alumnos.find(a => a.id === p.alumno_id);
@@ -694,9 +705,16 @@ function corregirSolapamientos(vehiculo_id, kmMin = 40, kmMax = 45) {
   const corregidas = Object.keys(cambios).length;
 
   if (corregidas > 0) {
+    // Marcar los cambios para que lleguen a la nube (antes solo quedaban en este PC)
+    const s = _sync();
+    if (s) Object.keys(cambios).forEach(id => s.markDirty('practicas', Number(id)));
+
     // Actualizar km_actual del vehículo
     const maxKm = Math.max(...d.practicas.filter(p => p.vehiculo_id === vid).map(p => p.km_final));
-    if (maxKm > v.km_actual) v.km_actual = maxKm;
+    if (maxKm > v.km_actual) {
+      v.km_actual = maxKm;
+      if (s) s.markDirty('vehiculos', vid);
+    }
 
     const detalles = Object.values(cambios).map(c =>
       `${c.alumno} / ${fmtFechaLog(c.fecha)}: ${c.antes_ki}→${c.antes_kf}  ➜  ${c.despues_ki}→${c.despues_kf} km`
