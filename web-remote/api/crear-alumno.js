@@ -45,6 +45,7 @@ export default async function handler(req, res) {
       .from('vehiculos')
       .select('id')
       .eq('id', vehiculoIdFinal)
+      .eq('deleted', false)
       .single();
     
     if (errV || !vehiculo) {

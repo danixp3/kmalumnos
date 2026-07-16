@@ -16,6 +16,7 @@ export default async function handler(req, res) {
   const { data, error } = await supabase
     .from('alumnos')
     .select('id, nombre, permiso, vehiculo_id')
+    .eq('deleted', false)
     .order('nombre');
 
   if (error) {

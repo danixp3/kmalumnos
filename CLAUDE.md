@@ -36,7 +36,7 @@ CHANGELOG-SECURITY.md → auditoría de seguridad de julio 2026 y pendientes
 - Versionado semántico en `package.json`; el proceso de release completo está en `RELEASE.md`.
 - Sin TypeScript, sin bundler, sin frameworks: JS plano con `require` (app) y ES modules (web-remote/api).
 - Renderer aislado: `contextIsolation: true`, `nodeIntegration: false`; toda operación pasa por IPC (`main.js`) → `db.js`/`sync.js`.
-- Los borrados remotos de prácticas son soft delete (`deleted: true`); alumnos y vehículos se borran de verdad en Supabase.
+- Todos los borrados remotos son soft delete (`deleted: true`) desde v1.3.11: prácticas, alumnos y vehículos. Nunca borrar filas de verdad en Supabase — la FK de prácticas lo impide para alumnos y, sin la marca, los demás dispositivos no se enteran del borrado.
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (actualizar al cerrar cada tarea)
@@ -54,7 +54,9 @@ _Última actualización: 2026-07-16 — T1 (diagnóstico BD) y T4 (tests de sync
 - **2026-07-16 (S1-S3 · "Error de sync" del 2º PC: causa encontrada y corregida):** Los logs de Supabase mostraban al 2º PC haciendo solo el ping cada 2 min sin llegar nunca a descargar: `sync.js` leía `data.json` sin defensas y reventaba si el archivo faltaba o estaba dañado (mientras `db.js` muestra 0s en silencio) → un PC vacío jamás podía hacer la descarga inicial. Corregido en v1.3.10: carga defensiva (copia del archivo dañado + re-descarga completa), escritura atómica, descarga de vehículos (antes no se bajaban nunca) en orden vehículos→alumnos→prácticas para reconstruir un PC desde cero, `pushAll` ya no adelanta `lastSync`, y el motivo del error se muestra como tooltip en la barra de sync. 4 tests nuevos (33 en verde). Release v1.3.10 publicada por API (assets con guiones, descarga verificada HTTP 200); pendiente confirmar que el 2º PC se actualiza y recupera sus datos.
 - **Opción A · pendiente:** A4 release ya publicada y reparada — falta actualizar los 2 PCs a v1.3.9 y meter credenciales (UI: Backup → Cuenta de sincronización); A5 cambiar políticas RLS `allow_all` → "solo el usuario de sync autenticado" (política por uid) y verificar que la anon key sola ya no lee. **A5 solo cuando ambos PCs tengan v1.3.9 con credenciales.** Hasta A5, la BD sigue expuesta.
 
-- **Versión:** 1.3.10 (publicada 2026-07-16). App en producción real (instalada y en uso), web-remote desplegada.
+- **2026-07-16 (L1-L3 · borrados que no llegaban a la nube, v1.3.11):** El 2º PC mostraba alumnos/prácticas que el usuario había borrado. 3 causas: `deleteAlumno` no encolaba el borrado de sus prácticas, `pushAll` descartaba borrados pendientes, y el DELETE de alumnos en Supabase fallaba en silencio por la FK de prácticas. Arreglo: soft delete universal (columna `deleted` añadida a `alumnos` y `vehiculos` por migración, subida y bajada de tombstones en `sync.js`, filtros `deleted=false` en web-remote, redesplegada y verificada). Limpieza hecha: 57 prácticas + 7 alumnos + 1 vehículo marcados borrados; nube activa = espejo del PC principal (1/10/113). 4 tests nuevos (37 en verde).
+- **Pendiente inmediato:** cuando ambos PCs estén en v1.3.11, retocar `updated_at` de los tombstones (alumnos 17-23, vehículo 3, y sus prácticas) para que ambos PCs procesen los borrados aunque la v1.3.10 los hubiera re-añadido localmente entre medias.
+- **Versión:** 1.3.11 (publicada 2026-07-16). App en producción real (instalada y en uso), web-remote desplegada.
 - **Funciona:** CRUD completo, algoritmos de km, import/export CSV, backups, auto-update, sync bidireccional cada 2 min, web móvil con PIN e historial 24 h.
 - **Tests:** los cálculos de `db.js` están cubiertos (`npm test`). Siguen sin tests: sincronización (`sync.js`), API web-remote y UI.
 - **Riesgos de seguridad conocidos (pendientes):**
