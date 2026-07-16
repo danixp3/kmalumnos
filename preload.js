@@ -55,7 +55,7 @@ contextBridge.exposeInMainWorld('api', {
   syncNow:       ()                          => ipcRenderer.invoke('sync-now'),
   syncPushAll:   ()                          => ipcRenderer.invoke('sync-push-all'),
   getSyncStatus: ()                          => ipcRenderer.invoke('sync-status'),
-  onSyncStatus:  (cb)                        => ipcRenderer.on('sync-status', (_, status) => cb(status)),
+  onSyncStatus:  (cb)                        => ipcRenderer.on('sync-status', (_, status, reason) => cb(status, reason)),
   saveSyncCreds:      (email, password)      => ipcRenderer.invoke('save-sync-creds', email, password),
   getSyncCredsStatus: ()                     => ipcRenderer.invoke('get-sync-creds-status'),
 

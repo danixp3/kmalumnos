@@ -35,7 +35,14 @@ Esto genera en `dist/`:
 - `KMAlumnos Setup 1.X.X.exe.blockmap` ← necesario para el auto-update
 - `latest.yml` ← necesario para el auto-update
 
-### 4. Crear el Release en GitHub
+### 4. Renombrar los instaladores (¡OBLIGATORIO antes de subir!)
+El `latest.yml` que genera electron-builder apunta a los archivos con **guiones** (`KMAlumnos-Setup-1.X.X.exe`), pero `npm run dist` los genera con **espacios**. Si se suben con espacios, la web de GitHub convierte los espacios en puntos y el auto-update falla con 404 (pasó en la v1.3.9). Renombrar antes de subir:
+```
+ren "dist\KMAlumnos Setup 1.X.X.exe" "KMAlumnos-Setup-1.X.X.exe"
+ren "dist\KMAlumnos Setup 1.X.X.exe.blockmap" "KMAlumnos-Setup-1.X.X.exe.blockmap"
+```
+
+### 5. Crear el Release en GitHub
 Ejecutar este comando para abrir la página de nuevo release:
 ```
 start https://github.com/danixp3/kmalumnos/releases/new
@@ -44,9 +51,9 @@ start https://github.com/danixp3/kmalumnos/releases/new
 El usuario debe hacer manualmente en el navegador:
 1. **Tag**: escribir `v1.X.X` (misma versión que en package.json)
 2. **Title**: `KMAlumnos v1.X.X`
-3. **Subir archivos** desde la carpeta `dist/`:
-   - `KMAlumnos Setup 1.X.X.exe`
-   - `KMAlumnos Setup 1.X.X.exe.blockmap`
+3. **Subir archivos** desde la carpeta `dist/` (ya renombrados con guiones):
+   - `KMAlumnos-Setup-1.X.X.exe`
+   - `KMAlumnos-Setup-1.X.X.exe.blockmap`
    - `latest.yml`
 4. Clic en **Publish release**
 

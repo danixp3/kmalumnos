@@ -82,9 +82,10 @@ app.whenReady().then(() => {
   sync.startAutoSync(2 * 60 * 1000);
 
   // Notificar a la UI cuando cambia el estado de sync
+  // (el motivo del error viaja junto al estado para poder mostrarlo en la UI)
   sync.onStatusChange((status) => {
     if (mainWin && !mainWin.isDestroyed()) {
-      mainWin.webContents.send('sync-status', status);
+      mainWin.webContents.send('sync-status', status, sync.getLastError());
     }
   });
 });

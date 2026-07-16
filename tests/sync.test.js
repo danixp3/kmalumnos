@@ -211,6 +211,87 @@ describe('autenticación de la cuenta de sincronización', () => {
   });
 });
 
+describe('recuperación cuando data.json falta o está dañado', () => {
+  // Simula una nube con datos "antiguos" (subidos hace días desde el otro PC)
+  function nubeConDatos() {
+    mockRemote.tables.vehiculos.push({
+      id: 1, nombre: 'Coche 1', matricula: '1234ABC', km_actual: 200,
+      updated_at: '2026-07-01T10:00:00.000Z'
+    });
+    mockRemote.tables.alumnos.push({
+      id: 1, nombre: 'Ana', permiso: 'B', vehiculo_id: 1,
+      updated_at: '2026-07-01T10:00:00.000Z'
+    });
+    mockRemote.tables.practicas.push({
+      id: 1, alumno_id: 1, vehiculo_id: 1, fecha: '2026-07-01',
+      km_inicial: '100', km_final: '140', nota: '', deleted: false,
+      updated_at: '2026-07-01T10:00:00.000Z'
+    });
+  }
+
+  test('PC recién instalado (sin data.json): la primera sync reconstruye TODO desde la nube en una pasada', async () => {
+    if (fs.existsSync(dataFile)) fs.unlinkSync(dataFile);
+    nubeConDatos();
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(sync.getStatus()).toBe('ok');
+    const d = readData(); // el archivo ahora existe
+    expect(d.vehiculos).toHaveLength(1);
+    expect(d.vehiculos[0]).toMatchObject({ id: 1, nombre: 'Coche 1', km_actual: 200 });
+    expect(d.alumnos).toHaveLength(1);
+    expect(d.practicas).toHaveLength(1); // la práctica entra porque vehículo y alumno se bajaron antes
+  });
+
+  test('data.json dañado: guarda una copia, lo regenera y re-descarga todo aunque lastSync fuese reciente', async () => {
+    fs.writeFileSync(dataFile, '{"vehiculos": [{"id":', 'utf-8'); // JSON truncado
+    fs.writeFileSync(pendingFile, JSON.stringify({
+      vehiculos: [], alumnos: [], practicas: [],
+      deleted: { practicas: [], alumnos: [], vehiculos: [] },
+      lastSync: new Date().toISOString() // reciente: sin el arreglo, no bajaría nada
+    }), 'utf-8');
+    nubeConDatos();
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    const d = readData();
+    expect(d.vehiculos).toHaveLength(1);
+    expect(d.alumnos).toHaveLength(1);
+    expect(d.practicas).toHaveLength(1);
+    // El archivo dañado no se pierde: queda una copia para inspección
+    const copias = fs.readdirSync(userDataDir).filter(f => f.startsWith('data.json.danado-'));
+    expect(copias.length).toBeGreaterThan(0);
+    for (const c of copias) fs.unlinkSync(path.join(userDataDir, c)); // limpieza
+  });
+
+  test('los cambios de km de un vehículo hechos en otro PC llegan a este', async () => {
+    writeData(baseData());
+    mockRemote.tables.vehiculos.push({
+      id: 1, nombre: 'Coche 1', matricula: '', km_actual: 350,
+      updated_at: new Date().toISOString()
+    });
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(readData().vehiculos[0].km_actual).toBe(350);
+  });
+
+  test('"Subir todo a la nube" ya no impide descargar después los datos antiguos de la nube', async () => {
+    writeData(baseData());
+    nubeConDatos(); // la nube tiene una práctica antigua que este PC no tiene
+
+    const res = await sync.pushAll();
+    expect(res.ok).toBe(true);
+
+    const res2 = await sync.sync();
+    expect(res2.ok).toBe(true);
+    expect(readData().practicas).toHaveLength(1); // la práctica antigua sí se descargó
+  });
+});
+
 test('un borrado hecho en el escritorio se propaga a la nube como soft delete', async () => {
   writeData(baseData());
   mockRemote.tables.practicas.push({

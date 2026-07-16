@@ -46,6 +46,7 @@ const STATUS = {
 };
 
 let currentStatus = STATUS.OFFLINE;
+let _lastError = null; // motivo del último error de sync, para mostrarlo en la UI
 
 function getPendingPath() {
   if (!_pendingPath) _pendingPath = path.join(app.getPath('userData'), 'pending_sync.json');
@@ -55,6 +56,42 @@ function getPendingPath() {
 function getDataPath() {
   if (!_dataPath) _dataPath = path.join(app.getPath('userData'), 'data.json');
   return _dataPath;
+}
+
+// Carga data.json de forma defensiva (igual que db.js): si el archivo no existe
+// o está dañado, devuelve la estructura vacía en vez de lanzar excepción, y
+// marca `regenerado` para que el sync haga una descarga completa desde la nube.
+// Si el archivo estaba dañado, guarda una copia antes de descartarlo.
+function loadDataSafe() {
+  const p = getDataPath();
+  let data = null;
+  let regenerado = false;
+  if (fs.existsSync(p)) {
+    try {
+      data = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    } catch {
+      try { fs.copyFileSync(p, p + '.danado-' + Date.now()); } catch {}
+      regenerado = true;
+    }
+  } else {
+    regenerado = true;
+  }
+  if (!data || typeof data !== 'object') data = {};
+  if (!Array.isArray(data.vehiculos)) data.vehiculos = [];
+  if (!Array.isArray(data.alumnos))   data.alumnos = [];
+  if (!Array.isArray(data.practicas)) data.practicas = [];
+  if (!Array.isArray(data.logs))      data.logs = [];
+  if (!data._seq) data._seq = { v: 1, a: 1, p: 1 };
+  return { data, regenerado };
+}
+
+// Escritura atómica (tmp + rename) para que un cierre brusco a mitad de
+// escritura no deje data.json corrupto.
+function saveData(data) {
+  const p = getDataPath();
+  const tmp = p + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
+  fs.renameSync(tmp, p);
 }
 
 // Fija las credenciales de sincronización. Al cambiarlas se descarta el cliente
@@ -137,6 +174,10 @@ function getStatus() {
   return currentStatus;
 }
 
+function getLastError() {
+  return _lastError;
+}
+
 // ─── SYNC ────────────────────────────────────────────────────────────────────
 
 async function checkOnline() {
@@ -156,6 +197,7 @@ async function sync() {
     // Distinguir "sin internet" de "credenciales inválidas": si el cliente no se
     // pudo crear por un fallo de inicio de sesión, avisar de credenciales.
     if (_authError) {
+      _lastError = _authError;
       setStatus(STATUS.ERROR);
       return { ok: false, reason: 'Credenciales de sincronización inválidas' };
     }
@@ -166,11 +208,12 @@ async function sync() {
   setStatus(STATUS.SYNCING);
 
   try {
-    const rawData = fs.readFileSync(getDataPath(), 'utf-8');
-    const data = JSON.parse(rawData);
+    const { data, regenerado } = loadDataSafe();
     const pending = loadPending();
+    // Si data.json no existía o estaba dañado, forzar descarga completa
+    if (regenerado) pending.lastSync = '1970-01-01T00:00:00.000Z';
     const sb = await ensureClient();
-    if (!sb) { setStatus(STATUS.ERROR); return { ok: false, reason: 'Credenciales de sincronización inválidas' }; }
+    if (!sb) { _lastError = _authError || 'Credenciales de sincronización inválidas'; setStatus(STATUS.ERROR); return { ok: false, reason: _lastError }; }
 
     // ── 1. SUBIR CAMBIOS LOCALES ──────────────────────────────────────────────
 
@@ -219,11 +262,64 @@ async function sync() {
       await sb.from('vehiculos').delete().eq('id', id);
     }
 
-    // ── 2. BAJAR CAMBIOS REMOTOS (del móvil) ─────────────────────────────────
+    // ── 2. BAJAR CAMBIOS REMOTOS (del móvil / del otro PC) ───────────────────
+    // Orden importante: vehiculos → alumnos → practicas, para que un PC vacío
+    // pueda reconstruir todo en una sola pasada (las prácticas se descartan si
+    // su alumno o vehículo no existe aún localmente).
 
     const lastSync = pending.lastSync || '1970-01-01T00:00:00.000Z';
     let pulled = 0;
     let dataChanged = false;
+
+    // Vehículos nuevos o modificados
+    const { data: remoteVehiculos, error: errV } = await sb
+      .from('vehiculos')
+      .select('*')
+      .gt('updated_at', lastSync);
+
+    if (!errV && remoteVehiculos) {
+      for (const rv of remoteVehiculos) {
+        const idx = data.vehiculos.findIndex(x => x.id === rv.id);
+        if (idx === -1) {
+          data.vehiculos.push({
+            id: rv.id, nombre: rv.nombre, matricula: rv.matricula || '',
+            km_actual: parseFloat(rv.km_actual) || 0, updated_at: rv.updated_at
+          });
+          if (rv.id >= data._seq.v) data._seq.v = rv.id + 1;
+          dataChanged = true;
+          pulled++;
+        } else {
+          const localUpdated  = data.vehiculos[idx].updated_at || '1970-01-01T00:00:00.000Z';
+          const remoteUpdated = rv.updated_at || '1970-01-01T00:00:00.000Z';
+          if (remoteUpdated > localUpdated) {
+            Object.assign(data.vehiculos[idx], {
+              nombre: rv.nombre, matricula: rv.matricula || '',
+              km_actual: parseFloat(rv.km_actual) || 0, updated_at: rv.updated_at
+            });
+            dataChanged = true;
+            pulled++;
+          }
+        }
+      }
+    }
+
+    // Nuevos alumnos desde el móvil (por si se añaden desde la web)
+    const { data: remoteAlumnos, error: errA } = await sb
+      .from('alumnos')
+      .select('*')
+      .gt('updated_at', lastSync);
+
+    if (!errA && remoteAlumnos) {
+      for (const ra of remoteAlumnos) {
+        const idx = data.alumnos.findIndex(x => x.id === ra.id);
+        if (idx === -1) {
+          data.alumnos.push({ id: ra.id, nombre: ra.nombre, permiso: ra.permiso, vehiculo_id: ra.vehiculo_id });
+          if (ra.id >= data._seq.a) data._seq.a = ra.id + 1;
+          dataChanged = true;
+          pulled++;
+        }
+      }
+    }
 
     // Nuevas prácticas desde el móvil
     const { data: remotePracticas, error: errP } = await sb
@@ -271,26 +367,8 @@ async function sync() {
           }
         }
 
-    // Nuevos alumnos desde el móvil (por si se añaden desde la web)
-    const { data: remoteAlumnos, error: errA } = await sb
-      .from('alumnos')
-      .select('*')
-      .gt('updated_at', lastSync);
-
-    if (!errA && remoteAlumnos) {
-      for (const ra of remoteAlumnos) {
-        const idx = data.alumnos.findIndex(x => x.id === ra.id);
-        if (idx === -1) {
-          data.alumnos.push({ id: ra.id, nombre: ra.nombre, permiso: ra.permiso, vehiculo_id: ra.vehiculo_id });
-          if (ra.id >= data._seq.a) data._seq.a = ra.id + 1;
-          dataChanged = true;
-          pulled++;
-        }
-      }
-    }
-
-    if (dataChanged) {
-      fs.writeFileSync(getDataPath(), JSON.stringify(data, null, 2), 'utf-8');
+    if (dataChanged || regenerado) {
+      saveData(data);
       // Limpiar caché de db.js
       try { require('./db')._clearCache(); } catch {}
     }
@@ -305,10 +383,12 @@ async function sync() {
     pending.lastSync            = new Date().toISOString();
     savePending(pending);
 
+    _lastError = null;
     setStatus(STATUS.OK);
     return { ok: true, pulled };
 
   } catch (e) {
+    _lastError = e.message;
     setStatus(STATUS.ERROR);
     return { ok: false, reason: e.message };
   }
@@ -322,9 +402,9 @@ async function pushAll() {
 
   setStatus(STATUS.SYNCING);
   try {
-    const data = JSON.parse(fs.readFileSync(getDataPath(), 'utf-8'));
+    const { data } = loadDataSafe();
     const sb   = await ensureClient();
-    if (!sb) { setStatus(STATUS.ERROR); return { ok: false, reason: 'Credenciales de sincronización inválidas' }; }
+    if (!sb) { _lastError = _authError || 'Credenciales de sincronización inválidas'; setStatus(STATUS.ERROR); return { ok: false, reason: _lastError }; }
     const now  = new Date().toISOString();
 
     // Subir en orden: vehiculos → alumnos → practicas
@@ -347,16 +427,18 @@ async function pushAll() {
       );
     }
 
-    // Limpiar pending y marcar lastSync
+    // Limpiar pending. OJO: no adelantar lastSync aquí — si este PC aún no ha
+    // descargado los datos antiguos de la nube, adelantarla se los saltaría.
     const pending = loadPending();
     pending.vehiculos = []; pending.alumnos = []; pending.practicas = [];
     pending.deleted = { practicas: [], alumnos: [], vehiculos: [] };
-    pending.lastSync = now;
     savePending(pending);
 
+    _lastError = null;
     setStatus(STATUS.OK);
     return { ok: true };
   } catch (e) {
+    _lastError = e.message;
     setStatus(STATUS.ERROR);
     return { ok: false, reason: e.message };
   }
@@ -391,5 +473,6 @@ module.exports = {
   onStatusChange,
   setCredentials,
   hasCredentials,
-  getAuthError
+  getAuthError,
+  getLastError
 };
