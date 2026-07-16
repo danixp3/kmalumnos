@@ -226,10 +226,17 @@ function addAlumno(nombre, permiso, vehiculo_id) {
 
 function deleteAlumno(id) {
   const d = load();
+  // Encolar también el borrado de sus prácticas en la nube: si no, quedan
+  // "vivas" en Supabase y reaparecen al reconstruir otro PC.
+  const practicasDelAlumno = d.practicas.filter(x => x.alumno_id === id).map(x => x.id);
   d.alumnos   = d.alumnos.filter(x => x.id !== id);
   d.practicas = d.practicas.filter(x => x.alumno_id !== id);
   save();
-  const s = _sync(); if (s) s.markDeleted('alumnos', id);
+  const s = _sync();
+  if (s) {
+    for (const pid of practicasDelAlumno) s.markDeleted('practicas', pid);
+    s.markDeleted('alumnos', id);
+  }
 }
 
 function updateAlumno(id, nombre, permiso, vehiculo_id) {

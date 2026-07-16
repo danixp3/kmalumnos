@@ -223,7 +223,7 @@ async function sync() {
       if (v) {
         await sb.from('vehiculos').upsert({
           id: v.id, nombre: v.nombre, matricula: v.matricula,
-          km_actual: v.km_actual, updated_at: new Date().toISOString()
+          km_actual: v.km_actual, deleted: false, updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
       }
     }
@@ -234,7 +234,7 @@ async function sync() {
       if (a) {
         await sb.from('alumnos').upsert({
           id: a.id, nombre: a.nombre, permiso: a.permiso,
-          vehiculo_id: a.vehiculo_id, updated_at: new Date().toISOString()
+          vehiculo_id: a.vehiculo_id, deleted: false, updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
       }
     }
@@ -251,15 +251,17 @@ async function sync() {
       }
     }
 
-    // Eliminaciones
+    // Eliminaciones — todas por soft delete (marca deleted). Borrar de verdad
+    // un alumno falla en Supabase si tiene prácticas (clave foránea) y además
+    // sin la marca los otros dispositivos nunca se enteran del borrado.
     for (const id of (pending.deleted.practicas || [])) {
       await sb.from('practicas').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
     }
     for (const id of (pending.deleted.alumnos || [])) {
-      await sb.from('alumnos').delete().eq('id', id);
+      await sb.from('alumnos').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
     }
     for (const id of (pending.deleted.vehiculos || [])) {
-      await sb.from('vehiculos').delete().eq('id', id);
+      await sb.from('vehiculos').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
     }
 
     // ── 2. BAJAR CAMBIOS REMOTOS (del móvil / del otro PC) ───────────────────
@@ -280,6 +282,15 @@ async function sync() {
     if (!errV && remoteVehiculos) {
       for (const rv of remoteVehiculos) {
         const idx = data.vehiculos.findIndex(x => x.id === rv.id);
+        if (rv.deleted) {
+          // Borrado en otro dispositivo: quitarlo también aquí
+          if (idx !== -1) {
+            data.vehiculos.splice(idx, 1);
+            data.alumnos.forEach(a => { if (a.vehiculo_id === rv.id) a.vehiculo_id = null; });
+            dataChanged = true;
+          }
+          continue;
+        }
         if (idx === -1) {
           data.vehiculos.push({
             id: rv.id, nombre: rv.nombre, matricula: rv.matricula || '',
@@ -312,6 +323,15 @@ async function sync() {
     if (!errA && remoteAlumnos) {
       for (const ra of remoteAlumnos) {
         const idx = data.alumnos.findIndex(x => x.id === ra.id);
+        if (ra.deleted) {
+          // Borrado en otro dispositivo: quitar el alumno y sus prácticas aquí
+          if (idx !== -1) {
+            data.alumnos.splice(idx, 1);
+            data.practicas = data.practicas.filter(p => p.alumno_id !== ra.id);
+            dataChanged = true;
+          }
+          continue;
+        }
         if (idx === -1) {
           data.alumnos.push({ id: ra.id, nombre: ra.nombre, permiso: ra.permiso, vehiculo_id: ra.vehiculo_id });
           if (ra.id >= data._seq.a) data._seq.a = ra.id + 1;
@@ -410,13 +430,13 @@ async function pushAll() {
     // Subir en orden: vehiculos → alumnos → practicas
     if (data.vehiculos.length) {
       await sb.from('vehiculos').upsert(
-        data.vehiculos.map(v => ({ ...v, updated_at: now })),
+        data.vehiculos.map(v => ({ ...v, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
     if (data.alumnos.length) {
       await sb.from('alumnos').upsert(
-        data.alumnos.map(a => ({ ...a, updated_at: now })),
+        data.alumnos.map(a => ({ ...a, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
@@ -427,9 +447,21 @@ async function pushAll() {
       );
     }
 
+    // Ejecutar los borrados pendientes antes de vaciar la cola: antes se
+    // descartaban sin subir y los registros borrados quedaban vivos en la nube.
+    const pending = loadPending();
+    for (const id of (pending.deleted.practicas || [])) {
+      await sb.from('practicas').update({ deleted: true, updated_at: now }).eq('id', id);
+    }
+    for (const id of (pending.deleted.alumnos || [])) {
+      await sb.from('alumnos').update({ deleted: true, updated_at: now }).eq('id', id);
+    }
+    for (const id of (pending.deleted.vehiculos || [])) {
+      await sb.from('vehiculos').update({ deleted: true, updated_at: now }).eq('id', id);
+    }
+
     // Limpiar pending. OJO: no adelantar lastSync aquí — si este PC aún no ha
     // descargado los datos antiguos de la nube, adelantarla se los saltaría.
-    const pending = loadPending();
     pending.vehiculos = []; pending.alumnos = []; pending.practicas = [];
     pending.deleted = { practicas: [], alumnos: [], vehiculos: [] };
     savePending(pending);

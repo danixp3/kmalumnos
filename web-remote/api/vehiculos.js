@@ -16,6 +16,7 @@ export default async function handler(req, res) {
   const { data, error } = await supabase
     .from('vehiculos')
     .select('id, nombre, matricula, km_actual')
+    .eq('deleted', false)
     .order('nombre');
 
   if (error) {

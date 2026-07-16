@@ -292,6 +292,72 @@ describe('recuperación cuando data.json falta o está dañado', () => {
   });
 });
 
+describe('los borrados del escritorio no dejan restos en la nube', () => {
+  test('borrar un alumno borra también sus prácticas en la nube (no solo el alumno)', async () => {
+    const vid = db.addVehiculo('Coche 1', '', 0);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const pid1 = db.addPractica(aid, vid, '2026-07-01', 100, 140);
+    const pid2 = db.addPractica(aid, vid, '2026-07-02', 140, 180);
+    await sync.sync(); // todo subido a la nube
+
+    db.deleteAlumno(aid);
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    // El alumno queda marcado como borrado en la nube (borrarlo de verdad falla
+    // por la clave foránea de sus prácticas, y sin marca los demás dispositivos
+    // no se enterarían del borrado)
+    expect(mockRemote.tables.alumnos).toHaveLength(1);
+    expect(mockRemote.tables.alumnos[0].deleted).toBe(true);
+    const practicasNube = mockRemote.tables.practicas.filter(p => [pid1, pid2].includes(p.id));
+    expect(practicasNube).toHaveLength(2);
+    expect(practicasNube.every(p => p.deleted === true)).toBe(true); // sus prácticas, marcadas borradas
+  });
+
+  test('un alumno borrado en el otro PC desaparece de este, con sus prácticas', async () => {
+    writeData(baseData({
+      practicas: [{ id: 1, alumno_id: 1, vehiculo_id: 1, fecha: '2026-07-01', km_inicial: 100, km_final: 140 }]
+    }));
+    mockRemote.tables.alumnos.push({
+      id: 1, nombre: 'Ana', permiso: 'B', vehiculo_id: 1,
+      deleted: true, updated_at: new Date().toISOString()
+    });
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(readData().alumnos).toHaveLength(0);
+    expect(readData().practicas).toHaveLength(0);
+  });
+
+  test('un vehículo borrado en el otro PC desaparece de este', async () => {
+    writeData(baseData());
+    mockRemote.tables.vehiculos.push({
+      id: 1, nombre: 'Coche 1', matricula: '', km_actual: 200,
+      deleted: true, updated_at: new Date().toISOString()
+    });
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(readData().vehiculos).toHaveLength(0);
+    expect(readData().alumnos[0].vehiculo_id).toBeNull(); // el alumno queda sin vehículo asignado
+  });
+
+  test('"Subir todo a la nube" ejecuta los borrados pendientes en vez de descartarlos', async () => {
+    const vid = db.addVehiculo('Coche 1', '', 0);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const pid = db.addPractica(aid, vid, '2026-07-01', 100, 140);
+    await sync.sync(); // todo subido a la nube
+
+    db.deletePractica(pid); // queda encolado como borrado pendiente
+    const res = await sync.pushAll(); // antes: vaciaba la cola sin subir el borrado
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.practicas[0].deleted).toBe(true);
+  });
+});
+
 test('un borrado hecho en el escritorio se propaga a la nube como soft delete', async () => {
   writeData(baseData());
   mockRemote.tables.practicas.push({
