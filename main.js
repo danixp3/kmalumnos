@@ -1,9 +1,47 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const db = require('./db');
 const sync = require('./sync');
 const { autoUpdater } = require('electron-updater');
+
+// ─── CREDENCIALES DE SINCRONIZACIÓN ────────────────────────────────────────────
+// Se guardan en userData (nunca en el código). La contraseña se cifra con
+// safeStorage (DPAPI en Windows) cuando está disponible.
+function getCredsPath() {
+  return path.join(app.getPath('userData'), 'sync_creds.json');
+}
+
+function saveSyncCreds(email, password) {
+  try {
+    let stored = { email, encrypted: false, password };
+    if (safeStorage && safeStorage.isEncryptionAvailable()) {
+      stored = { email, encrypted: true, password: safeStorage.encryptString(password).toString('base64') };
+    }
+    fs.writeFileSync(getCredsPath(), JSON.stringify(stored), 'utf-8');
+    return true;
+  } catch (e) {
+    console.error('Error guardando credenciales:', e.message);
+    return false;
+  }
+}
+
+function loadSyncCreds() {
+  try {
+    const p = getCredsPath();
+    if (!fs.existsSync(p)) return null;
+    const stored = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    let password = stored.password;
+    if (stored.encrypted && safeStorage && safeStorage.isEncryptionAvailable()) {
+      password = safeStorage.decryptString(Buffer.from(stored.password, 'base64'));
+    }
+    if (!stored.email || !password) return null;
+    return { email: stored.email, password };
+  } catch (e) {
+    console.error('Error leyendo credenciales:', e.message);
+    return null;
+  }
+}
 
 // NO descargar automáticamente - preguntar primero
 autoUpdater.autoDownload = false;
@@ -35,6 +73,10 @@ app.whenReady().then(() => {
   createWindow();
   // Comprueba actualizaciones 3s después de arrancar (no bloquea el inicio)
   setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 3000);
+
+  // Cargar credenciales de sincronización (si el usuario ya las configuró)
+  const creds = loadSyncCreds();
+  if (creds) sync.setCredentials(creds.email, creds.password);
 
   // Arrancar sync automático (cada 2 min)
   sync.startAutoSync(2 * 60 * 1000);
@@ -258,3 +300,18 @@ ipcMain.handle('install-update', () => autoUpdater.quitAndInstall(true, true));
 ipcMain.handle('sync-now', async () => sync.sync());
 ipcMain.handle('sync-push-all', async () => sync.pushAll());
 ipcMain.handle('sync-status', () => sync.getStatus());
+
+// Credenciales de sincronización (la contraseña nunca se devuelve al renderer)
+ipcMain.handle('save-sync-creds', async (_, email, password) => {
+  if (!email || !password) return { ok: false, msg: 'Faltan email o contraseña.' };
+  const ok = saveSyncCreds(email, password);
+  if (!ok) return { ok: false, msg: 'No se pudieron guardar las credenciales.' };
+  sync.setCredentials(email, password);
+  const res = await sync.sync(); // probar inmediatamente
+  if (!res.ok) return { ok: false, msg: res.reason || 'No se pudo sincronizar con esas credenciales.' };
+  return { ok: true };
+});
+ipcMain.handle('get-sync-creds-status', () => {
+  const creds = loadSyncCreds();
+  return { configured: !!creds, email: creds ? creds.email : null };
+});

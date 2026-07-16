@@ -26,6 +26,14 @@ let _pendingPath = null;
 let _dataPath    = null;
 let _syncTimer   = null;
 
+// Credenciales de la cuenta de sincronización (email/contraseña de Supabase Auth).
+// Si están presentes, la app inicia sesión antes de sincronizar y así la base de
+// datos puede exigir usuarios autenticados (RLS) en lugar de aceptar la anon key
+// pública sola. Si no hay credenciales, se trabaja solo con la anon key (modo
+// transición, compatible con la configuración antigua).
+let _creds     = null;
+let _authError = null;
+
 // Callbacks para notificar a la UI el estado de sync
 let _onStatusChange = null;
 
@@ -49,12 +57,43 @@ function getDataPath() {
   return _dataPath;
 }
 
-function getSupabase() {
-  if (!supabase) {
-    supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
-      auth: { persistSession: false }
-    });
+// Fija las credenciales de sincronización. Al cambiarlas se descarta el cliente
+// cacheado para forzar un nuevo inicio de sesión en la próxima operación.
+function setCredentials(email, password) {
+  _creds = (email && password) ? { email, password } : null;
+  supabase = null;
+  _authError = null;
+}
+
+function hasCredentials() {
+  return !!_creds;
+}
+
+function getAuthError() {
+  return _authError;
+}
+
+// Crea el cliente de Supabase y, si hay credenciales, inicia sesión.
+// Devuelve el cliente listo, o null si el inicio de sesión falló.
+async function ensureClient() {
+  if (supabase) return supabase;
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON, {
+    auth: { persistSession: false }
+  });
+  if (_creds) {
+    try {
+      const { error } = await client.auth.signInWithPassword({
+        email: _creds.email,
+        password: _creds.password
+      });
+      if (error) { _authError = error.message; return null; }
+    } catch (e) {
+      _authError = e.message;
+      return null;
+    }
   }
+  _authError = null;
+  supabase = client;
   return supabase;
 }
 
@@ -102,7 +141,8 @@ function getStatus() {
 
 async function checkOnline() {
   try {
-    const sb = getSupabase();
+    const sb = await ensureClient();
+    if (!sb) return false;
     const { error } = await sb.from('meta').select('key').limit(1);
     return !error;
   } catch {
@@ -113,6 +153,12 @@ async function checkOnline() {
 async function sync() {
   const online = await checkOnline();
   if (!online) {
+    // Distinguir "sin internet" de "credenciales inválidas": si el cliente no se
+    // pudo crear por un fallo de inicio de sesión, avisar de credenciales.
+    if (_authError) {
+      setStatus(STATUS.ERROR);
+      return { ok: false, reason: 'Credenciales de sincronización inválidas' };
+    }
     setStatus(STATUS.OFFLINE);
     return { ok: false, reason: 'Sin conexión a internet' };
   }
@@ -123,7 +169,8 @@ async function sync() {
     const rawData = fs.readFileSync(getDataPath(), 'utf-8');
     const data = JSON.parse(rawData);
     const pending = loadPending();
-    const sb = getSupabase();
+    const sb = await ensureClient();
+    if (!sb) { setStatus(STATUS.ERROR); return { ok: false, reason: 'Credenciales de sincronización inválidas' }; }
 
     // ── 1. SUBIR CAMBIOS LOCALES ──────────────────────────────────────────────
 
@@ -276,7 +323,8 @@ async function pushAll() {
   setStatus(STATUS.SYNCING);
   try {
     const data = JSON.parse(fs.readFileSync(getDataPath(), 'utf-8'));
-    const sb   = getSupabase();
+    const sb   = await ensureClient();
+    if (!sb) { setStatus(STATUS.ERROR); return { ok: false, reason: 'Credenciales de sincronización inválidas' }; }
     const now  = new Date().toISOString();
 
     // Subir en orden: vehiculos → alumnos → practicas
@@ -340,5 +388,8 @@ module.exports = {
   STATUS,
   startAutoSync,
   stopAutoSync,
-  onStatusChange
+  onStatusChange,
+  setCredentials,
+  hasCredentials,
+  getAuthError
 };

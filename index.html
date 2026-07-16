@@ -1199,6 +1199,18 @@
         </button>
         <div id="restaurar-err" class="hidden alert alert-err" style="margin-top:14px"></div>
       </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#e0e7ff">🔐</div>
+          Cuenta de sincronización
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:8px">Introduce el email y la contraseña de sincronización para que este equipo pueda conectarse de forma segura a la nube. Se pide una sola vez y se guarda cifrado en este ordenador.</p>
+        <p id="sync-creds-estado" style="font-size:12.5px;font-weight:600;margin-bottom:16px"></p>
+        <button class="btn btn-primary" onclick="abrirCredsSync()">
+          🔐 Configurar cuenta de sincronización...
+        </button>
+      </div>
     </div>
 
     <!-- ── TIMELINE VEHÍCULO ─────────────────── -->
@@ -1491,6 +1503,29 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ═══ MODAL CUENTA DE SINCRONIZACIÓN ═════════════════════ -->
+<div class="overlay" id="modal-sync-creds">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon">🔐</div>
+      <h3>Cuenta de sincronización</h3>
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Email de sincronización</label>
+      <input type="email" id="sync-creds-email" autocomplete="off" style="width:100%">
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Contraseña</label>
+      <input type="password" id="sync-creds-password" autocomplete="off" style="width:100%">
+    </div>
+    <div id="sync-creds-alert" class="hidden alert alert-err" style="margin-bottom:8px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-sync-creds')">Cancelar</button>
+      <button class="btn btn-primary" id="sync-creds-guardar" onclick="guardarCredsSync()">Guardar y probar</button>
+    </div>
   </div>
 </div>
 
