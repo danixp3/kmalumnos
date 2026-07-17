@@ -11,7 +11,7 @@ Objetivo: situarse en la arquitectura con el mínimo de tokens y no repetir los 
 
 1. **Leer `references/mapa.md`** (siempre — sustituye a releer CONTEXT.md y a explorar archivos para orientarse). Ahí está: el flujo UI→IPC→datos, las funciones clave por archivo, los endpoints de la web, los invariantes y las trampas históricas.
 
-2. **Localizar el cambio en el mapa**: qué capas toca (renderer / IPC / db / sync / web-remote) y qué invariantes de la checklist aplican. Abrir después **solo** las funciones concretas a modificar (con Grep/Read parcial), no archivos enteros; si hay que explorar más de 2-3 archivos, delegar en un sub-agente Explore y quedarse con el resumen.
+2. **Localizar el cambio en el mapa**: qué capas toca (renderer / IPC / db / sync / web-remote) y qué invariantes de la checklist aplican. Para implementar, usar la skill con el mapa fino de esa zona: **/cambiar-app** (escritorio: anclas de los 5 archivos + receta punta a punta + tests), **/cambiar-web** (web-remote) o **/mejorar-ui** (solo aspecto). Abrir **solo** las funciones concretas a modificar (Grep/Read parcial), no archivos enteros; si hay que explorar más de 2-3 archivos, delegar en un sub-agente Explore y quedarse con el resumen.
 
 3. **Plan en tareas atómicas** con criterio de aceptación verificable cada una, presentado al usuario en términos de objetivos y resultados (metodología del proyecto). Si el cambio es arriesgado (datos, Supabase, release), explicar el riesgo y pedir confirmación explícita antes de ejecutar.
 
