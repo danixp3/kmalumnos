@@ -21,12 +21,19 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     if (page === 'dashboard') loadDashboard();
-    if (page === 'vehiculos') loadVehiculos();
+    if (page === 'vehiculos') { loadVehiculos(); aplicarRangoPref('relleno-min', 'relleno-max'); }
     if (page === 'alumnos') { loadVehiculosSelect(); loadAlumnos(); }
-    if (page === 'solapamientos') loadSolapamientos();
-    if (page === 'timeline') loadTimelineSelect();
+    if (page === 'kilometros') {
+      const activeTab = document.querySelector('#page-kilometros .page-tab.active')?.dataset.tab || 'mapa';
+      cambiarTabKilometros(activeTab);
+    }
+    if (page === 'datos') {
+      const activeTab = document.querySelector('#page-datos .page-tab.active')?.dataset.tab || 'importar';
+      cambiarTabDatos(activeTab);
+    }
     if (page === 'logs') loadLogs();
     if (page === 'registro-rapido') loadRegistroRapidoInit();
+    if (page === 'ajustes') loadAjustes();
   });
 });
 
@@ -48,7 +55,7 @@ async function loadDashboard() {
   }
   if (r.solapamientos > 0) {
     partes.push(
-      `<div class="alert alert-err" style="margin-bottom:8px;cursor:pointer" onclick="navegarA('solapamientos')" title="Ir a Solapamientos">` +
+      `<div class="alert alert-err" style="margin-bottom:8px;cursor:pointer" onclick="navegarA('kilometros','conflictos')" title="Ir a Kilómetros → Conflictos">` +
       `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><strong>${r.solapamientos} solapamiento(s) detectado(s).</strong> Ve a <u>Solapamientos</u> para corregirlos.</div>`
     );
   }
@@ -60,9 +67,27 @@ async function loadDashboard() {
   alertas.innerHTML = partes.join('');
 }
 
-function navegarA(page) {
+function navegarA(page, tab) {
   const link = document.querySelector(`#sidebar nav a[data-page="${page}"]`);
   if (link) link.click();
+  if (tab) {
+    if (page === 'kilometros') cambiarTabKilometros(tab);
+    if (page === 'datos') cambiarTabDatos(tab);
+  }
+}
+
+// ─── PESTAÑAS DE PÁGINA (Kilómetros / Datos) ──────────────────────────────────
+function cambiarTabKilometros(tab) {
+  document.querySelectorAll('#page-kilometros .page-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('#page-kilometros .tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-kilometros-' + tab));
+  if (tab === 'mapa') loadTimelineSelect();
+  if (tab === 'conflictos') { aplicarRangoPref('solap-min', 'solap-max'); loadSolapamientos(); }
+}
+
+function cambiarTabDatos(tab) {
+  document.querySelectorAll('#page-datos .page-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('#page-datos .tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-datos-' + tab));
+  if (tab === 'importar') aplicarRangoPref('imp-min', 'imp-max');
 }
 
 // ─── VEHÍCULOS ───────────────────────────────────────────────────────────────
@@ -145,7 +170,7 @@ async function rellenarMasivo() {
   el.className = 'alert alert-ok';
   const saltadasMsg = result.saltadas ? ` (${result.saltadas} saltadas por tope)` : '';
   el.innerHTML = `${result.rellenadas} práctica(s) rellenadas${saltadasMsg}. &nbsp;
-    <button class="btn btn-warn btn-sm" style="margin-left:8px" onclick="navegarA('solapamientos')">
+    <button class="btn btn-warn btn-sm" style="margin-left:8px" onclick="navegarA('kilometros','conflictos')">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Verificar solapamientos ahora
     </button>`;
   el.classList.remove('hidden');
@@ -302,6 +327,7 @@ function verPracticas(alumnoId, vehiculoId, nombre) {
   document.getElementById('p-ki').value = '';
   document.getElementById('p-kf').value = '';
   document.getElementById('km-preview').classList.add('hidden');
+  aplicarRangoPref('p-min', 'p-max');
   loadPracticas();
 }
 
@@ -431,9 +457,10 @@ async function savePractica() {
 
   await window.api.updatePractica(id, fecha, ki, kf);
   closeModal('modal-practica');
-  // Si venimos de solapamientos, recargar esa vista; si no, las prácticas del alumno
-  const solapPage = document.getElementById('page-solapamientos');
-  if (solapPage && solapPage.classList.contains('active')) {
+  // Si venimos de la pestaña Conflictos (Kilómetros), recargar esa vista; si no, las prácticas del alumno
+  const kilometrosPage = document.getElementById('page-kilometros');
+  const conflictosTab = document.getElementById('tab-kilometros-conflictos');
+  if (kilometrosPage && kilometrosPage.classList.contains('active') && conflictosTab && conflictosTab.classList.contains('active')) {
     loadSolapamientos();
   } else {
     loadPracticas();
@@ -653,6 +680,38 @@ function esc(str) {
 function tagPermiso(p) {
   const cls = p === 'B' ? 'tag-b' : p === 'C' ? 'tag-c' : 'tag-a';
   return `<span class="tag ${cls}">${p}</span>`;
+}
+
+// ─── PREFERENCIAS (rango de km por defecto) ──────────────────────────────────
+const PREF_RANGO_KEY = 'kmalumnos_rango_km';
+
+function getRangoPref() {
+  try {
+    const raw = localStorage.getItem(PREF_RANGO_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && !isNaN(p.min) && !isNaN(p.max)) return p;
+    }
+  } catch (e) {}
+  return { min: 40, max: 45 };
+}
+
+function guardarRangoPref(min, max) {
+  try { localStorage.setItem(PREF_RANGO_KEY, JSON.stringify({ min, max })); } catch (e) {}
+}
+
+function aplicarRangoPref(idMin, idMax) {
+  const pref = getRangoPref();
+  const elMin = document.getElementById(idMin);
+  const elMax = document.getElementById(idMax);
+  if (elMin) elMin.value = pref.min;
+  if (elMax) elMax.value = pref.max;
+}
+
+function guardarRangoPrefDesdeAjustes() {
+  const min = parseFloat(document.getElementById('pref-km-min').value) || 40;
+  const max = parseFloat(document.getElementById('pref-km-max').value) || 45;
+  guardarRangoPref(min, max);
 }
 
 // ─── SOLAPAMIENTOS ───────────────────────────────────────────────────────────
@@ -984,14 +1043,23 @@ const SYNC_LABELS = {
   error:   '✕ Error de sync'
 };
 
+const AJUSTES_SYNC_COLORS = { ok: '#10b981', syncing: '#6366f1', pending: '#f59e0b', offline: '#64748b', error: '#ef4444' };
+
 function updateSyncBar(status, reason) {
   const bar   = document.getElementById('sync-bar');
   const label = document.getElementById('sync-label');
-  if (!bar || !label) return;
-  bar.dataset.status = status;
-  label.textContent  = SYNC_LABELS[status] || status;
-  // Al pasar el ratón por encima se ve el motivo exacto del error
-  bar.title = (status === 'error' && reason) ? 'Motivo: ' + reason : '';
+  if (bar && label) {
+    bar.dataset.status = status;
+    label.textContent  = SYNC_LABELS[status] || status;
+    // Al pasar el ratón por encima se ve el motivo exacto del error
+    bar.title = (status === 'error' && reason) ? 'Motivo: ' + reason : '';
+  }
+
+  // Segundo indicador, grande y legible, en Ajustes
+  const ajLabel = document.getElementById('ajustes-sync-label');
+  const ajDot   = document.getElementById('ajustes-sync-dot');
+  if (ajLabel) ajLabel.textContent = SYNC_LABELS[status] || status;
+  if (ajDot) ajDot.style.background = AJUSTES_SYNC_COLORS[status] || '#64748b';
 }
 
 async function pushAllToCloud() {
@@ -1082,6 +1150,17 @@ async function guardarCredsSync() {
 }
 
 refrescarEstadoCredsSync();
+
+// ─── AJUSTES ──────────────────────────────────────────────────────────────────
+async function loadAjustes() {
+  aplicarRangoPref('pref-km-min', 'pref-km-max');
+  refrescarEstadoCredsSync();
+  const v = await window.api.getVersion();
+  const el = document.getElementById('ajustes-version');
+  if (el) el.textContent = 'v' + v;
+  const s = await window.api.getSyncStatus();
+  updateSyncBar(s || 'offline');
+}
 
 // ─── AUTO-UPDATE ──────────────────────────────────────────────────────────────
 function checkUpdates() {
@@ -1362,3 +1441,7 @@ function cambiarFechaRR(delta) {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('relleno-vehiculo')?.addEventListener('change', actualizarContadorSinKm);
 loadDashboard();
+window.api.getVersion().then(v => {
+  const el = document.getElementById('app-version');
+  if (el) el.textContent = 'v' + v;
+});

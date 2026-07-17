@@ -12,19 +12,20 @@ Localizar siempre por **anclas** (cadenas literales, greppables); nunca por núm
 
 ## renderer.js (~1220 líneas)
 
-**Secciones (anclas):** `ESTADO`, `NAVEGACIÓN`, `DASHBOARD`, `VEHÍCULOS`, `ALUMNOS`, `PRÁCTICAS`, `IMPORTAR CSV`, `EXPORTAR / COMPARAR CSV`, `MODALES`, `UTILS`, `SOLAPAMIENTOS`, `LOGS`, `BACKUP`, `TIMELINE DEL VEHÍCULO`, `SYNC UI`, `CREDENCIALES DE SINCRONIZACIÓN`, `AUTO-UPDATE`, `TOASTS (mensajes no bloqueantes)`, `REGISTRO RÁPIDO`, `INIT` (todas con prefijo `// ─── `).
+**Secciones (anclas):** `DIÁLOGOS NATIVOS (fix de foco)`, `ESTADO`, `NAVEGACIÓN`, `DASHBOARD`, `PESTAÑAS DE PÁGINA (Kilómetros / Datos)`, `VEHÍCULOS`, `ALUMNOS`, `PRÁCTICAS`, `IMPORTAR CSV`, `EXPORTAR / COMPARAR CSV`, `MODALES`, `UTILS`, `PREFERENCIAS (rango de km por defecto)`, `SOLAPAMIENTOS`, `LOGS`, `BACKUP`, `TIMELINE DEL VEHÍCULO`, `SYNC UI`, `CREDENCIALES DE SINCRONIZACIÓN`, `AJUSTES`, `AUTO-UPDATE`, `TOASTS (mensajes no bloqueantes)`, `REGISTRO RÁPIDO`, `INIT` (todas con prefijo `// ─── `).
+
+El sidebar quedó en 4 grupos — Gestión (dashboard, registro-rapido, alumnos, vehiculos), Análisis (kilometros, logs), Datos (datos), Sistema (ajustes) — pero las secciones internas de renderer.js casi no cambiaron de nombre: `IMPORTAR CSV`/`EXPORTAR / COMPARAR CSV` (antes página propia) ahora se renderizan dentro de `page-datos` como pestañas Importar/Exportar/Comparar; `SOLAPAMIENTOS` y `TIMELINE DEL VEHÍCULO` (antes páginas propias) ahora son las pestañas "Conflictos" y "Mapa del vehículo" de `page-kilometros`; `BACKUP` (antes página propia) ahora vive dentro de `page-ajustes` junto con sync, updates y preferencias. Las funciones internas (`loadSolapamientos`, `loadTimelineSelect`, `hacerBackup`, etc.) siguen igual bajo el capó — solo cambió cómo se llega a ellas.
 
 **Funciones por área** (cada una llama a su `window.api.*` homónimo salvo nota):
-- Dashboard: `loadDashboard` (getResumen + alertas), `navegarA(page)`.
+- Dashboard: `loadDashboard` (getResumen + alertas), `navegarA(page, tab?)` (el 2º argumento opcional selecciona pestaña interna, p.ej. `navegarA('kilometros','conflictos')` para ir directo a Conflictos desde una alerta).
 - Vehículos: `loadVehiculos`, `rellenarMasivo`, `addVehiculo`/`deleteVehiculo`, `openEditVehiculo`/`saveVehiculoKm`.
 - Alumnos: `loadAlumnos`, `addAlumno`/`deleteAlumno`, `openEditAlumno`/`saveAlumno`, `verAnotaciones`; subvistas con `verPracticas()`/`volverAlumnos()`.
 - Prácticas: `loadPracticas`, `generarKmPractica`, `addPractica`/`deletePractica`, `openEditPractica`/`savePractica` (valida solapamiento antes de guardar; refresca según página activa).
-- Solapamientos: `loadSolapamientos`, `corregirTodosSolapamientos`.
-- Timeline: `loadTimelineSelect`, `loadTimeline`, `renderTimelineChart` (solo dibujo).
-- CSV: `seleccionarCSV`/`importarCSV`, `exportarCSV`, `seleccionarCsvA/B`/`compararCSVs`.
+- Página Kilómetros (pestañas): `cambiarTabKilometros(tab)` (`'mapa'`|`'conflictos'`) conmuta `#tab-kilometros-mapa`/`#tab-kilometros-conflictos` y dispara `loadTimelineSelect()`/`loadSolapamientos()`. Debajo siguen `loadSolapamientos`/`corregirTodosSolapamientos` (Conflictos) y `loadTimelineSelect`/`loadTimeline`/`renderTimelineChart` (Mapa del vehículo).
+- Página Datos (pestañas): `cambiarTabDatos(tab)` (`'importar'`|`'exportar'`|`'comparar'`) conmuta `#tab-datos-importar` etc. Debajo siguen `seleccionarCSV`/`importarCSV`, `exportarCSV`, `seleccionarCsvA/B`/`compararCSVs`.
 - Registro rápido: `loadRegistroRapido(Init)`, `renderRRAlumnos`, `abrirNotaRR`/`guardarNotaRR`, `ajustarRR`, `cambiarFechaRR`.
-- Backup: `hacerBackup`, `restaurarBackup` (termina en `location.reload()`).
-- Sync: `updateSyncBar`, `syncNow`, `pushAllToCloud`, listener `onSyncStatus`; credenciales `refrescarEstadoCredsSync`/`abrirCredsSync`/`guardarCredsSync`.
+- Ajustes (`loadAjustes`, ejecuta al entrar a la página): pinta versión (`window.api.getVersion()` → `#ajustes-version`), rango km por defecto (`aplicarRangoPref('pref-km-min','pref-km-max')`) y estado de credenciales/sync. Incluye `hacerBackup`/`restaurarBackup` (termina en `location.reload()`) y las barras `#push-all-bar`/`#update-bar` (antes en el footer del sidebar). Preferencia de rango km: `getRangoPref()`/`guardarRangoPref(min,max)` (localStorage `kmalumnos_rango_km`, default 40/45), `aplicarRangoPref(idMin,idMax)` (rellena un par de inputs con la pref guardada, se usa en Vehículos/Kilómetros/Datos/Ajustes) y `guardarRangoPrefDesdeAjustes()` (lee `#pref-km-min`/`#pref-km-max` y guarda).
+- Sync: `updateSyncBar`, `syncNow`, `pushAllToCloud`, listener `onSyncStatus`; credenciales `refrescarEstadoCredsSync`/`abrirCredsSync`/`guardarCredsSync`. El footer del sidebar ahora solo tiene el indicador compacto `#sync-dot`/`#sync-label` (click = `syncNow()`) y `#app-version`.
 - Update: `checkUpdates`, `showUpdateProgress`, listeners `onUpdate*`.
 
 **Patrones de la casa** (imitarlos, no inventar otros):
@@ -39,7 +40,7 @@ Localizar siempre por **anclas** (cadenas literales, greppables); nunca por núm
 
 Secciones `// ─── IPC HANDLERS` y `// ─── SYNC IPC HANDLERS`; ventana en `function createWindow() {`; auto-updater desde `// NO descargar automáticamente - preguntar primero` (listeners `autoUpdater.on(...)`).
 
-Handlers: mecánicos en su mayoría — canal kebab-case → misma función camelCase de db.js (`get-vehiculos`→`db.getVehiculos`, `add-practica`→`db.addPractica`...). Excepciones con lógica propia: `importar-csv`/`comparar-csvs` (parsean el CSV en main), `exportar-csv` y `crear-backup`/`restaurar-backup` (diálogos de archivo), `generar-km` (cálculo inline), `save-sync-creds`/`get-sync-creds-status` (safeStorage local + `sync.setCredentials`), `sync-now`/`sync-push-all`/`sync-status` → `sync.*`.
+Handlers: mecánicos en su mayoría — canal kebab-case → misma función camelCase de db.js (`get-vehiculos`→`db.getVehiculos`, `add-practica`→`db.addPractica`...). Excepciones con lógica propia: `importar-csv`/`comparar-csvs` (parsean el CSV en main), `exportar-csv` y `crear-backup`/`restaurar-backup` (diálogos de archivo), `generar-km` (cálculo inline), `save-sync-creds`/`get-sync-creds-status` (safeStorage local + `sync.setCredentials`), `sync-now`/`sync-push-all`/`sync-status` → `sync.*`. Handler mecánico sin argumentos: `ipcMain.handle('app:version', () => app.getVersion())`, justo tras el handler de fix de foco `ui:refocus`; expuesto en preload.js como `getVersion: () => ipcRenderer.invoke('app:version')` y pintado en `#app-version` (footer del sidebar) y `#ajustes-version` (página Ajustes).
 
 ## db.js (~940 líneas)
 

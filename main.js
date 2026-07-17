@@ -157,6 +157,8 @@ ipcMain.handle('ui:refocus', () => {
   return true;
 });
 
+ipcMain.handle('app:version', () => app.getVersion());
+
 ipcMain.handle('get-vehiculos', () => db.getVehiculos());
 ipcMain.handle('add-vehiculo', (_, nombre, matricula, km_actual) => {
   const id = db.addVehiculo(nombre, matricula, km_actual);
