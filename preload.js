@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
+  // UI
+  refocus: () => ipcRenderer.invoke('ui:refocus'),
+
   // Vehículos
   getVehiculos:     ()                        => ipcRenderer.invoke('get-vehiculos'),
   addVehiculo:      (n, m, km)               => ipcRenderer.invoke('add-vehiculo', n, m, km),

@@ -1,3 +1,11 @@
+// ─── DIÁLOGOS NATIVOS (fix de foco) ────────────────────────────────────────────
+// Los diálogos nativos de Chromium dejan los inputs sin foco en Electron
+// (bug conocido): tras cada confirm/alert forzamos blur+focus de la ventana.
+const _confirm = window.confirm.bind(window);
+const _alert = window.alert.bind(window);
+window.confirm = (msg) => { const r = _confirm(msg); window.api.refocus(); return r; };
+window.alert = (msg) => { _alert(msg); window.api.refocus(); };
+
 // ─── ESTADO ──────────────────────────────────────────────────────────────────
 let currentAlumnoId = null;
 let currentAlumnoVehiculoId = null;

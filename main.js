@@ -146,6 +146,17 @@ app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) creat
 
 // ─── IPC HANDLERS ────────────────────────────────────────────────────────────
 
+// Bug conocido de Electron/Chromium: tras un dialogo nativo (confirm/alert)
+// el renderer se queda sin poder enfocar inputs hasta que la ventana pierde
+// y recupera el foco. Este handler hace ese blur+focus programaticamente
+// (equivalente a minimizar y restaurar).
+ipcMain.handle('ui:refocus', () => {
+  if (!mainWin || mainWin.isDestroyed()) return false;
+  mainWin.blur();
+  mainWin.focus();
+  return true;
+});
+
 ipcMain.handle('get-vehiculos', () => db.getVehiculos());
 ipcMain.handle('add-vehiculo', (_, nombre, matricula, km_actual) => {
   const id = db.addVehiculo(nombre, matricula, km_actual);
