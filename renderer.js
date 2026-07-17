@@ -35,18 +35,18 @@ async function loadDashboard() {
   if (r.sinKm > 0) {
     partes.push(
       `<div class="alert alert-warn" style="margin-bottom:8px;cursor:pointer" onclick="navegarA('vehiculos')" title="Ir a Vehículos para rellenar">` +
-      `⚡ <strong>${r.sinKm} práctica(s) sin kilómetros.</strong> Ve a <u>Vehículos → Relleno masivo</u> para generarlos automáticamente.</div>`
+      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><strong>${r.sinKm} práctica(s) sin kilómetros.</strong> Ve a <u>Vehículos → Relleno masivo</u> para generarlos automáticamente.</div>`
     );
   }
   if (r.solapamientos > 0) {
     partes.push(
       `<div class="alert alert-err" style="margin-bottom:8px;cursor:pointer" onclick="navegarA('solapamientos')" title="Ir a Solapamientos">` +
-      `⚠️ <strong>${r.solapamientos} solapamiento(s) detectado(s).</strong> Ve a <u>Solapamientos</u> para corregirlos.</div>`
+      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><strong>${r.solapamientos} solapamiento(s) detectado(s).</strong> Ve a <u>Solapamientos</u> para corregirlos.</div>`
     );
   }
   if (partes.length === 0 && r.practicas > 0) {
     partes.push(
-      `<div class="alert alert-ok" style="margin-bottom:8px">✅ Todo en orden. No hay prácticas sin km ni solapamientos.</div>`
+      `<div class="alert alert-ok" style="margin-bottom:8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.27"/></svg>Todo en orden. No hay prácticas sin km ni solapamientos.</div>`
     );
   }
   alertas.innerHTML = partes.join('');
@@ -77,7 +77,7 @@ async function loadVehiculos() {
   const rows = await Promise.all(vehiculosCache.map(async v => {
     const sinKm = await window.api.getPracticasSinKm(v.id);
     const sinKmBadge = sinKm > 0
-      ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700">⚠ ${sinKm}</span>`
+      ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700">${sinKm}</span>`
       : `<span style="color:#bbb">—</span>`;
     return `<tr>
       <td><strong>${esc(v.nombre)}</strong></td>
@@ -85,8 +85,8 @@ async function loadVehiculos() {
       <td><span class="km-badge">${fmt(v.km_actual)} km</span></td>
       <td>${sinKmBadge}</td>
       <td>
-        <button class="btn btn-warn btn-sm" onclick="openEditVehiculo(${v.id},'${esc(v.nombre)}',${v.km_actual})">✏ Editar km</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteVehiculo(${v.id},'${esc(v.nombre)}')">🗑 Borrar</button>
+        <button class="btn btn-warn btn-sm" onclick="openEditVehiculo(${v.id},'${esc(v.nombre)}',${v.km_actual})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar km</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteVehiculo(${v.id},'${esc(v.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
       </td>
     </tr>`;
   }));
@@ -100,7 +100,7 @@ async function actualizarContadorSinKm() {
   const vid = parseInt(sel.value);
   if (!vid) { info.textContent = ''; return; }
   const n = await window.api.getPracticasSinKm(vid);
-  info.textContent = n > 0 ? `${n} práctica(s) sin km` : '✅ Todo relleno';
+  info.textContent = n > 0 ? `${n} práctica(s) sin km` : '✓ Todo relleno';
   info.style.color = n > 0 ? '#d97706' : '#15803d';
 }
 
@@ -136,9 +136,9 @@ async function rellenarMasivo() {
   const el = document.getElementById('relleno-alert');
   el.className = 'alert alert-ok';
   const saltadasMsg = result.saltadas ? ` (${result.saltadas} saltadas por tope)` : '';
-  el.innerHTML = `✅ ${result.rellenadas} práctica(s) rellenadas${saltadasMsg}. &nbsp;
+  el.innerHTML = `${result.rellenadas} práctica(s) rellenadas${saltadasMsg}. &nbsp;
     <button class="btn btn-warn btn-sm" style="margin-left:8px" onclick="navegarA('solapamientos')">
-      🔍 Verificar solapamientos ahora
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Verificar solapamientos ahora
     </button>`;
   el.classList.remove('hidden');
   loadVehiculos();
@@ -210,10 +210,10 @@ async function loadAlumnos() {
       <td>${a.vehiculo_nombre ? esc(a.vehiculo_nombre) : '<span style="color:#bbb">Sin asignar</span>'}</td>
       <td><span style="font-weight:700">${practicas.length}</span></td>
       <td>
-        <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${esc(a.nombre)}')">📋 Prácticas</button>
-        <button class="btn btn-sm" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')">📝 Anotaciones</button>
-        <button class="btn btn-warn btn-sm" onclick="openEditAlumno(${a.id},'${esc(a.nombre)}','${a.permiso}',${a.vehiculo_id || 'null'})">✏ Editar</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteAlumno(${a.id},'${esc(a.nombre)}')">🗑 Borrar</button>
+        <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Prácticas</button>
+        <button class="btn btn-sm" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Anotaciones</button>
+        <button class="btn btn-warn btn-sm" onclick="openEditAlumno(${a.id},'${esc(a.nombre)}','${a.permiso}',${a.vehiculo_id || 'null'})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAlumno(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
       </td>
     </tr>`;
   }));
@@ -325,8 +325,8 @@ async function loadPracticas() {
       <td>${kmFCell}</td>
       <td>${diffCell}</td>
       <td>
-        <button class="btn btn-warn btn-sm" onclick="openEditPractica(${p.id},'${p.fecha}',${p.km_inicial},${p.km_final})">✏</button>
-        <button class="btn btn-danger btn-sm" onclick="deletePractica(${p.id})">🗑</button>
+        <button class="btn btn-warn btn-sm" onclick="openEditPractica(${p.id},'${p.fecha}',${p.km_inicial},${p.km_final})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+        <button class="btn btn-danger btn-sm" onclick="deletePractica(${p.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </td>
     </tr>`;
   }).join('');
@@ -353,7 +353,7 @@ async function generarKmPractica() {
   document.getElementById('p-kf').value = result.km_final;
 
   const preview = document.getElementById('km-preview');
-  preview.textContent = `⚡ Generado: ${fmt(result.km_inicial)} → ${fmt(result.km_final)}  (+${result.diff} km)`;
+  preview.textContent = `Generado: ${fmt(result.km_inicial)} → ${fmt(result.km_final)}  (+${result.diff} km)`;
   preview.classList.remove('hidden');
 }
 
@@ -415,7 +415,7 @@ async function savePractica() {
         `• ${c.alumno} — ${fmtFecha(c.fecha)}: ${fmt(c.km_inicial)} → ${fmt(c.km_final)}`
       ).join('\n');
       const continuar = confirm(
-        `⚠️ Estos km se solapan con ${conflictos.length} práctica(s) del mismo vehículo:\n\n${detalle}\n\n¿Guardar igualmente?`
+        `Estos km se solapan con ${conflictos.length} práctica(s) del mismo vehículo:\n\n${detalle}\n\n¿Guardar igualmente?`
       );
       if (!continuar) return;
     }
@@ -448,12 +448,12 @@ async function importarCSV() {
   const kmMax = parseFloat(document.getElementById('imp-max').value) || 45;
   const result = await window.api.importarCsv(selectedCsvPath, kmMin, kmMax);
   if (!result.ok) {
-    showImportAlert('❌ Error: ' + result.msg, 'err');
+    showImportAlert('Error: ' + result.msg, 'err');
     return;
   }
-  let msg = `✅ Importación completada: ${result.insertados} prácticas insertadas.`;
+  let msg = `Importación completada: ${result.insertados} prácticas insertadas.`;
   if (result.errores > 0) {
-    msg += `\n\n⚠️ ${result.errores} filas con error:\n`;
+    msg += `\n\n${result.errores} filas con error:\n`;
     msg += result.erroresDetalle.map(e => `  • Fila ${e.fila}: ${e.motivo}  [${e.datos}]`).join('\n');
     showImportAlert(msg.replace(/\n/g, '<br>'), result.insertados > 0 ? 'ok' : 'err');
   } else {
@@ -483,10 +483,10 @@ async function exportarCSV() {
   if (res.canceled) { el.classList.add('hidden'); return; }
   if (!res.ok) {
     el.className = 'alert alert-err';
-    el.textContent = '❌ Error: ' + res.msg;
+    el.textContent = 'Error: ' + res.msg;
   } else {
     el.className = 'alert alert-ok';
-    el.textContent = `✅ Exportadas ${res.total} prácticas a: ${res.path}`;
+    el.textContent = `Exportadas ${res.total} prácticas a: ${res.path}`;
   }
   el.classList.remove('hidden');
 }
@@ -585,17 +585,17 @@ async function compararCSVs() {
       }
       
       if (a.conflictos.length > 0) {
-        html += `<div style="margin-bottom:6px"><span style="color:#dc2626;font-weight:500">⚠ Conflictos (${a.conflictos.length}):</span> 
+        html += `<div style="margin-bottom:6px"><span style="color:#dc2626;font-weight:500">Conflictos (${a.conflictos.length}):</span> 
           <span style="font-size:12px">${a.conflictos.map(c => `<span style="background:#fee2e2;padding:2px 6px;border-radius:4px;margin:2px">${c.fecha}: A=${c.cantA} vs B=${c.cantB}</span>`).join(' ')}</span></div>`;
       }
       
       if (a.soloEnA.length > 0) {
-        html += `<div style="margin-bottom:6px"><span style="color:#d97706;font-weight:500">📄 Solo en A (${a.soloEnA.length}):</span> 
+        html += `<div style="margin-bottom:6px"><span style="color:#d97706;font-weight:500">Solo en A (${a.soloEnA.length}):</span> 
           <span style="font-size:12px">${a.soloEnA.map(d => `<span style="background:#fef3c7;padding:2px 6px;border-radius:4px;margin:2px">${d.fecha} (${d.cant})</span>`).join(' ')}</span></div>`;
       }
       
       if (a.soloEnB.length > 0) {
-        html += `<div><span style="color:#2563eb;font-weight:500">📄 Solo en B (${a.soloEnB.length}):</span> 
+        html += `<div><span style="color:#2563eb;font-weight:500">Solo en B (${a.soloEnB.length}):</span> 
           <span style="font-size:12px">${a.soloEnB.map(d => `<span style="background:#dbeafe;padding:2px 6px;border-radius:4px;margin:2px">${d.fecha} (${d.cant})</span>`).join(' ')}</span></div>`;
       }
       
@@ -654,7 +654,7 @@ async function loadSolapamientos() {
   const btnCorregir = document.getElementById('btn-corregir-todo');
 
   if (!conflictos.length) {
-    el.innerHTML = '<div class="card"><p class="empty" style="color:#15803d;font-weight:600">✅ No se detectaron solapamientos de kilómetros.</p></div>';
+    el.innerHTML = '<div class="card"><p class="empty" style="color:#15803d;font-weight:600">✓ No se detectaron solapamientos de kilómetros.</p></div>';
     if (btnCorregir) btnCorregir.style.display = 'none';
     return;
   }
@@ -669,12 +669,12 @@ async function loadSolapamientos() {
   });
 
   const vehiculosAfectados = Object.keys(porVehiculo).length;
-  let html = `<div class="alert alert-err" style="margin-bottom:16px">⚠️ Se encontraron <strong>${conflictos.length}</strong> solapamiento(s) en <strong>${vehiculosAfectados}</strong> vehículo(s). Pulsa <strong>🔧 Corregir todo automáticamente</strong> para que el programa reordene todos los km.</div>`;
+  let html = `<div class="alert alert-err" style="margin-bottom:16px">Se encontraron <strong>${conflictos.length}</strong> solapamiento(s) en <strong>${vehiculosAfectados}</strong> vehículo(s). Pulsa <strong>Corregir todo automáticamente</strong> para que el programa reordene todos los km.</div>`;
 
   for (const [vehiculo, lista] of Object.entries(porVehiculo)) {
     html += `<div class="card" style="padding:0 0 1px;margin-bottom:16px">
       <div style="padding:12px 16px;background:#fef3c7;border-radius:10px 10px 0 0;font-weight:700;font-size:13px;color:#92400e">
-        🚙 ${esc(vehiculo)} — ${lista.length} conflicto(s)
+        ${esc(vehiculo)} — ${lista.length} conflicto(s)
       </div>
       <table>
         <thead><tr><th>Alumno A</th><th>Fecha A</th><th>Km A</th><th></th><th>Alumno B</th><th>Fecha B</th><th>Km B</th></tr></thead>
@@ -686,7 +686,7 @@ async function loadSolapamientos() {
         <td><strong>${esc(a.alumno)}</strong></td>
         <td>${fmtFecha(a.fecha)}</td>
         <td><span class="km-badge">${fmt(a.km_inicial)} → ${fmt(a.km_final)}</span></td>
-        <td style="color:#dc2626;font-weight:700;text-align:center">⚡</td>
+        <td style="color:#dc2626;font-weight:700;text-align:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></td>
         <td><strong>${esc(b.alumno)}</strong></td>
         <td>${fmtFecha(b.fecha)}</td>
         <td><span class="km-badge">${fmt(b.km_inicial)} → ${fmt(b.km_final)}</span></td>
@@ -723,14 +723,14 @@ async function corregirTodosSolapamientos() {
 
   if (!restantes.length) {
     if (btnCorregir) btnCorregir.style.display = 'none';
-    el.innerHTML = `<div class="alert alert-ok">✅ Corrección completada. ${totalCorregidas} práctica(s) reordenadas. No quedan solapamientos.</div>`;
+    el.innerHTML = `<div class="alert alert-ok">Corrección completada. ${totalCorregidas} práctica(s) reordenadas. No quedan solapamientos.</div>`;
   } else {
-    el.innerHTML = `<div class="alert alert-err">⚠️ Se corrigieron ${totalCorregidas} prácticas pero aún quedan ${restantes.length} solapamientos. Pulsa Analizar para revisar.</div>`;
+    el.innerHTML = `<div class="alert alert-err">Se corrigieron ${totalCorregidas} prácticas pero aún quedan ${restantes.length} solapamientos. Pulsa Analizar para revisar.</div>`;
   }
 }
 
 // ─── LOGS ────────────────────────────────────────────────────────────────────
-const LOG_ICONS = { importacion: '📥', relleno: '⚡', correccion: '🔧' };
+const LOG_ICONS = { importacion: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>', relleno: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>', correccion: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>' };
 const LOG_COLORS = { importacion: '#1d4ed8', relleno: '#15803d', correccion: '#92400e' };
 const LOG_BG = { importacion: '#eff6ff', relleno: '#f0fdf4', correccion: '#fef3c7' };
 
@@ -742,7 +742,7 @@ async function loadLogs() {
     return;
   }
   el.innerHTML = logs.map(log => {
-    const ico = LOG_ICONS[log.tipo] || '📋';
+    const ico = LOG_ICONS[log.tipo] || '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>';
     const color = LOG_COLORS[log.tipo] || '#444';
     const bg = LOG_BG[log.tipo] || '#f9f9f9';
     const fecha = new Date(log.fecha).toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
@@ -773,10 +773,10 @@ async function hacerBackup() {
   const result = await window.api.crearBackup();
   const el = document.getElementById('backup-ok');
   if (result.ok) {
-    el.innerHTML = `✅ Copia guardada en: <strong>${esc(result.file)}</strong>`;
+    el.innerHTML = `Copia guardada en: <strong>${esc(result.file)}</strong>`;
     el.className = 'alert alert-ok';
   } else {
-    el.innerHTML = `❌ ${esc(result.msg)}`;
+    el.innerHTML = `Error: ${esc(result.msg)}`;
     el.className = 'alert alert-err';
   }
   el.classList.remove('hidden');
@@ -791,7 +791,7 @@ async function restaurarBackup() {
     el.classList.remove('hidden');
     return;
   }
-  alert('✅ Backup restaurado correctamente. La aplicación se recargará ahora.');
+  alert('Backup restaurado correctamente. La aplicación se recargará ahora.');
   location.reload();
 }
 
@@ -834,17 +834,17 @@ async function loadTimeline() {
 
     // Color de fila según estado
     let rowStyle = '';
-    let estadoCell = '<span style="color:#15803d;font-size:12px">✅ OK</span>';
+    let estadoCell = '<span style="color:#15803d;font-size:12px">✓ OK</span>';
 
     if (p.sin_km) {
       rowStyle = ' style="background:#fffbeb"';
       estadoCell = '<span style="color:#d97706;font-size:12px;font-weight:600">⏳ Sin km</span>';
     } else if (p.gap !== null && p.gap < 0) {
       rowStyle = ' style="background:#fef2f2"';
-      estadoCell = `<span style="color:#dc2626;font-size:12px;font-weight:600">⚡ Solapa ${fmt(p.gap)} km</span>`;
+      estadoCell = `<span style="color:#dc2626;font-size:12px;font-weight:600">Solapa ${fmt(p.gap)} km</span>`;
     } else if (p.gap !== null && p.gap > 0) {
       rowStyle = ' style="background:#fffbeb"';
-      estadoCell = `<span style="color:#d97706;font-size:12px;font-weight:600">🔶 Hueco +${fmt(p.gap)} km</span>`;
+      estadoCell = `<span style="color:#d97706;font-size:12px;font-weight:600">Hueco +${fmt(p.gap)} km</span>`;
     }
 
     const kmI = p.sin_km ? '<span style="color:#d97706;font-style:italic">—</span>' : `<strong>${fmt(p.km_inicial)}</strong>`;
@@ -936,7 +936,7 @@ function renderTimelineChart(practicas) {
     `;
 
     const diff = Math.round((p.km_final - p.km_inicial) * 10) / 10;
-    const tooltipText = `${p.alumno_nombre}\n📅 ${fmtFecha(p.fecha)}\n📍 ${fmt(p.km_inicial)} → ${fmt(p.km_final)}\n🛣 +${diff} km${isSolap ? '\n⚡ SOLAPA ' + fmt(p.gap) + ' km' : ''}${isHueco ? '\n🔶 Hueco +' + fmt(p.gap) + ' km' : ''}`;
+    const tooltipText = `${p.alumno_nombre}\n${fmtFecha(p.fecha)}\n${fmt(p.km_inicial)} → ${fmt(p.km_final)}\n+${diff} km${isSolap ? '\nSOLAPA ' + fmt(p.gap) + ' km' : ''}${isHueco ? '\nHueco +' + fmt(p.gap) + ' km' : ''}`;
 
     bar.addEventListener('mouseenter', e => {
       bar.style.opacity = '1';
@@ -1039,7 +1039,7 @@ async function refrescarEstadoCredsSync() {
     el.textContent = '✓ Configurada (' + res.email + ')';
     el.style.color = 'var(--success, #10b981)';
   } else {
-    el.textContent = '⚠ Sin configurar — este equipo aún no usa cuenta de sincronización.';
+    el.textContent = 'Sin configurar — este equipo aún no usa cuenta de sincronización.';
     el.style.color = 'var(--warn, #f59e0b)';
   }
 }
@@ -1087,7 +1087,7 @@ function checkUpdates() {
 window.api.onUpdateNotAvailable(() => {
   const label = document.getElementById('update-label');
   const bar   = document.getElementById('update-bar');
-  label.textContent = '✅ Ya tienes la última versión';
+  label.textContent = '✓ Ya tienes la última versión';
   bar.style.color = 'rgba(16,185,129,.7)';
   bar.style.pointerEvents = '';
   setTimeout(() => {
@@ -1133,7 +1133,7 @@ function showUpdateProgress(pct) {
 window.api.onUpdateDownloaded(() => {
   const label = document.getElementById('update-label');
   const bar   = document.getElementById('update-bar');
-  label.textContent = '✅ Descargada - clic para instalar';
+  label.textContent = '✓ Descargada — clic para instalar';
   bar.style.color = 'rgba(16,185,129,.8)';
   bar.style.pointerEvents = '';
   bar.onclick = () => {
@@ -1146,7 +1146,7 @@ window.api.onUpdateDownloaded(() => {
 window.api.onUpdateError((msg) => {
   const label = document.getElementById('update-label');
   const bar   = document.getElementById('update-bar');
-  label.textContent = '❌ Error al actualizar';
+  label.textContent = '✕ Error al actualizar';
   bar.style.color = 'rgba(239,68,68,.7)';
   bar.style.pointerEvents = '';
   setTimeout(() => {
@@ -1243,7 +1243,7 @@ function renderRRAlumnos(alumnos) {
         <div class="rr-item-permiso">Permiso ${a.permiso}</div>
       </div>
       <div class="rr-counter" onclick="event.stopPropagation()">
-        <button class="rr-nota-btn${a.nota ? ' has-nota' : ''}" onclick="abrirNotaRR(${a.id})" data-nota="${esc(a.nota || '')}" title="${a.nota ? esc(a.nota) : 'Añadir nota'}">❗</button>
+        <button class="rr-nota-btn${a.nota ? ' has-nota' : ''}" onclick="abrirNotaRR(${a.id})" data-nota="${esc(a.nota || '')}" title="${a.nota ? esc(a.nota) : 'Añadir nota'}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
         <button class="rr-counter-btn minus" onclick="ajustarRR(${a.id}, -1)">−</button>
         <span class="rr-counter-num" data-count="${a.id}">${a.num_practicas}</span>
         <button class="rr-counter-btn plus" onclick="ajustarRR(${a.id}, 1)">+</button>

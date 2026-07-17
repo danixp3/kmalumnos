@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Registrador de Kilómetros - Autoescuela</title>
+<title>KMAlumnos — Gestión de autoescuela</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
   :root {
-    --primary: #6366f1;
-    --primary-dark: #4f46e5;
-    --primary-light: #e0e7ff;
+    --primary: #4f46e5;
+    --primary-dark: #4338ca;
+    --primary-light: #eef2ff;
     --success: #10b981;
     --success-light: #d1fae5;
     --danger: #ef4444;
@@ -19,17 +19,19 @@
     --warn-light: #fef3c7;
     --gray: #64748b;
     --gray-light: #f1f5f9;
-    --sidebar-bg: #0f172a;
-    --sidebar-hover: rgba(99,102,241,.15);
-    --sidebar-active: rgba(99,102,241,.25);
-    --text: #0f172a;
-    --text-muted: #64748b;
-    --border: #e2e8f0;
-    --bg: #f8fafc;
+    --sidebar-bg: #ffffff;
+    --sidebar-border: #ebedf2;
+    --sidebar-text: #5b6472;
+    --sidebar-hover: #f4f5f9;
+    --sidebar-active: #eef2ff;
+    --text: #101828;
+    --text-muted: #667085;
+    --border: #e7e9f0;
+    --bg: #f6f7f9;
     --card: #ffffff;
     --radius: 12px;
-    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
-    --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 10px 30px rgba(0,0,0,.1);
+    --shadow: 0 1px 2px rgba(16,24,40,.05);
+    --shadow-md: 0 4px 14px rgba(16,24,40,.08), 0 1px 2px rgba(16,24,40,.05);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -54,8 +56,9 @@
 
   /* ── SIDEBAR ────────────────────────────────── */
   #sidebar {
-    width: 220px;
+    width: 232px;
     background: var(--sidebar-bg);
+    border-right: 1px solid var(--sidebar-border);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
@@ -64,18 +67,9 @@
     overflow: hidden;
   }
 
-  #sidebar::before {
-    content: '';
-    position: absolute;
-    top: -80px; left: -80px;
-    width: 260px; height: 260px;
-    background: radial-gradient(circle, rgba(99,102,241,.3) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
   .sidebar-header {
-    padding: 22px 18px 18px;
-    border-bottom: 1px solid rgba(255,255,255,.06);
+    padding: 20px 16px 16px;
+    border-bottom: 1px solid var(--sidebar-border);
   }
 
   .sidebar-logo {
@@ -86,12 +80,12 @@
 
   .sidebar-logo-icon {
     width: 36px; height: 36px;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
     border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
     flex-shrink: 0;
-    box-shadow: 0 4px 12px rgba(99,102,241,.4);
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(79,70,229,.35);
   }
 
   .sidebar-logo-text {
@@ -99,17 +93,17 @@
   }
 
   .sidebar-logo-text strong {
-    color: #fff;
-    font-size: 14px;
+    color: var(--text);
+    font-size: 14.5px;
     font-weight: 700;
     letter-spacing: -.3px;
     line-height: 1.2;
   }
 
   .sidebar-logo-text span {
-    color: rgba(255,255,255,.4);
+    color: var(--text-muted);
     font-size: 11px;
-    font-weight: 400;
+    font-weight: 500;
   }
 
   #sidebar nav {
@@ -118,13 +112,14 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    overflow-y: auto;
   }
 
   .nav-section {
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 600;
-    color: rgba(255,255,255,.25);
-    letter-spacing: 1px;
+    color: #98a2b3;
+    letter-spacing: .8px;
     text-transform: uppercase;
     padding: 12px 8px 6px;
   }
@@ -133,34 +128,35 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    color: rgba(255,255,255,.5);
+    color: var(--sidebar-text);
     text-decoration: none;
-    padding: 9px 10px;
+    padding: 8.5px 10px;
     border-radius: 8px;
     font-size: 13px;
     font-weight: 500;
-    transition: all .18s ease;
+    transition: background .15s ease, color .15s ease;
     cursor: pointer;
     position: relative;
   }
 
   #sidebar nav a:hover {
     background: var(--sidebar-hover);
-    color: rgba(255,255,255,.85);
+    color: var(--text);
   }
 
   #sidebar nav a.active {
     background: var(--sidebar-active);
-    color: #a5b4fc;
+    color: var(--primary);
+    font-weight: 600;
   }
 
   #sidebar nav a.active::before {
     content: '';
     position: absolute;
-    left: 0; top: 50%;
+    left: -10px; top: 50%;
     transform: translateY(-50%);
     width: 3px; height: 18px;
-    background: #6366f1;
+    background: var(--primary);
     border-radius: 0 3px 3px 0;
   }
 
@@ -168,7 +164,7 @@
     width: 20px; height: 20px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
-    opacity: .75;
+    opacity: .8;
   }
 
   #sidebar nav a.active .nav-icon,
@@ -178,8 +174,10 @@
   #content {
     flex: 1;
     overflow-y: auto;
-    padding: 32px 36px;
+    padding: 28px 34px;
   }
+
+  .page { max-width: 1180px; margin: 0 auto; }
 
   /* ── PAGES ──────────────────────────────────── */
   .page { display: none; animation: fadeIn .2s ease; }
@@ -198,8 +196,8 @@
     margin-bottom: 24px;
   }
 
-  .page-title { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -.5px; }
-  .page-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .page-title { font-size: 21px; font-weight: 700; color: var(--text); letter-spacing: -.45px; }
+  .page-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 3px; }
 
   /* ── CARDS ──────────────────────────────────── */
   .card {
@@ -239,32 +237,41 @@
   .stat {
     background: var(--card);
     border-radius: var(--radius);
-    padding: 20px 22px;
+    padding: 18px 20px;
     box-shadow: var(--shadow);
     border: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 16px;
     transition: box-shadow .2s, transform .2s;
   }
 
   .stat:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 
+  .stat-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .stat .lbl {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-weight: 600;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+  }
+
   .stat-icon {
-    width: 46px; height: 46px;
-    border-radius: 12px;
+    width: 34px; height: 34px;
+    border-radius: 9px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 22px;
     flex-shrink: 0;
   }
 
-  .stat-icon-blue  { background: #e0e7ff; }
-  .stat-icon-green { background: #d1fae5; }
-  .stat-icon-orange{ background: #fef3c7; }
+  .stat-icon-blue  { background: #eef2ff; color: #4f46e5; }
+  .stat-icon-green { background: #ecfdf5; color: #059669; }
+  .stat-icon-orange{ background: #fffbeb; color: #d97706; }
 
-  .stat-info { flex: 1; min-width: 0; }
-  .stat .num { font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: -1px; line-height: 1; }
-  .stat .lbl { font-size: 12px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+  .stat .num { font-size: 30px; font-weight: 700; color: var(--text); letter-spacing: -1px; line-height: 1; }
 
   /* ── FORMS ──────────────────────────────────── */
   .form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 0; }
@@ -279,19 +286,20 @@
 
   input, select {
     padding: 8px 11px;
-    border: 1.5px solid var(--border);
+    border: 1px solid #d6dae3;
     border-radius: 8px;
     font-size: 13px;
     font-family: inherit;
     outline: none;
     background: #fff;
     color: var(--text);
+    box-shadow: 0 1px 2px rgba(16,24,40,.04);
     transition: border-color .15s, box-shadow .15s;
   }
 
   input:focus, select:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+    box-shadow: 0 0 0 3px rgba(79,70,229,.13);
   }
 
   input::placeholder { color: #cbd5e1; }
@@ -313,17 +321,18 @@
     white-space: nowrap;
   }
 
-  .btn:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.12); }
-  .btn:active { transform: translateY(0); filter: brightness(.96); box-shadow: none; }
+  .btn:hover { filter: brightness(1.05); box-shadow: 0 2px 8px rgba(16,24,40,.12); }
+  .btn:active { filter: brightness(.95); box-shadow: none; }
 
-  .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(99,102,241,.3); }
-  .btn-success { background: var(--success); color: #fff; box-shadow: 0 2px 8px rgba(16,185,129,.3); }
-  .btn-danger  { background: var(--danger);  color: #fff; box-shadow: 0 2px 8px rgba(239,68,68,.3); }
-  .btn-warn    { background: var(--warn);    color: #fff; box-shadow: 0 2px 8px rgba(245,158,11,.3); }
-  .btn-gray    { background: #e2e8f0; color: var(--gray); box-shadow: none; }
-  .btn-gray:hover { background: #cbd5e1; }
-  .btn-outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); box-shadow: none; }
-  .btn-outline:hover { background: var(--primary-light); }
+  .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 1px 3px rgba(79,70,229,.35); }
+  .btn-primary:hover { background: var(--primary-dark); filter: none; }
+  .btn-success { background: var(--success); color: #fff; box-shadow: 0 1px 3px rgba(16,185,129,.3); }
+  .btn-danger  { background: var(--danger);  color: #fff; box-shadow: 0 1px 3px rgba(239,68,68,.3); }
+  .btn-warn    { background: var(--warn);    color: #fff; box-shadow: 0 1px 3px rgba(245,158,11,.3); }
+  .btn-gray    { background: #eef0f4; color: #475467; box-shadow: none; }
+  .btn-gray:hover { background: #e3e6ec; filter: none; box-shadow: none; }
+  .btn-outline { background: #fff; color: var(--primary); border: 1px solid #d3d9f0; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+  .btn-outline:hover { background: var(--primary-light); border-color: var(--primary); filter: none; }
 
   .btn-sm { padding: 6px 11px; font-size: 12px; border-radius: 6px; }
   .btn-icon { padding: 7px; border-radius: 7px; }
@@ -333,27 +342,28 @@
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
-  thead { background: var(--gray-light); }
+  thead { background: #f9fafc; }
   th {
-    padding: 11px 14px;
+    padding: 10px 14px;
     text-align: left;
     font-weight: 600;
-    font-size: 11.5px;
-    color: var(--text-muted);
-    letter-spacing: .4px;
+    font-size: 11px;
+    color: #667085;
+    letter-spacing: .5px;
     text-transform: uppercase;
     border-bottom: 1px solid var(--border);
   }
 
   td {
-    padding: 11px 14px;
-    border-bottom: 1px solid #f1f5f9;
+    padding: 10.5px 14px;
+    border-bottom: 1px solid #f2f4f7;
     vertical-align: middle;
   }
 
+  tbody { background: #fff; }
   tbody tr:last-child td { border-bottom: none; }
   tbody tr { transition: background .1s; }
-  tbody tr:hover td { background: #fafbff; }
+  tbody tr:hover td { background: #f8f9fc; }
 
   /* ── BADGES ─────────────────────────────────── */
   .tag {
@@ -550,10 +560,10 @@
   .modal {
     background: var(--card);
     border-radius: 16px;
-    padding: 28px 30px;
+    padding: 26px 28px;
     width: 440px;
     max-width: 95vw;
-    box-shadow: 0 20px 60px rgba(0,0,0,.2);
+    box-shadow: 0 24px 64px rgba(16,24,40,.18), 0 4px 12px rgba(16,24,40,.08);
     border: 1px solid var(--border);
     animation: modalIn .22s ease;
   }
@@ -644,58 +654,92 @@
 
   /* ── BANNER CARD ────────────────────────────── */
   .card-banner {
-    border-left: 4px solid var(--primary);
-    background: linear-gradient(to right, #f5f3ff, #fff);
+    border-left: 3px solid var(--primary);
+    background: linear-gradient(to right, #f8f9ff, #fff 45%);
   }
 
   .card-banner-success {
-    border-left: 4px solid var(--success);
-    background: linear-gradient(to right, #f0fdf4, #fff);
+    border-left: 3px solid var(--success);
+    background: linear-gradient(to right, #f4fdf8, #fff 45%);
   }
 
   .card-banner-warn {
-    border-left: 4px solid var(--warn);
-    background: linear-gradient(to right, #fffbeb, #fff);
+    border-left: 3px solid var(--warn);
+    background: linear-gradient(to right, #fffcf2, #fff 45%);
   }
 
   /* ── DIVIDER ────────────────────────────────── */
   .divider { height: 1px; background: var(--border); margin: 16px 0; }
 
-  /* ── DASH QUICK GUIDE ───────────────────────── */
-  .guide-grid {
+  /* ── DASH QUICK ACTIONS ─────────────────────── */
+  .section-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin: 22px 0 10px;
+  }
+
+  .quick-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
-    margin-top: 14px;
   }
 
-  .guide-item {
+  .quick-card {
     display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    background: var(--gray-light);
+    align-items: center;
+    gap: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: all .18s ease;
+    user-select: none;
+  }
+
+  .quick-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+    border-color: #d3d9f0;
+  }
+
+  .quick-icon {
+    width: 40px; height: 40px;
     border-radius: 10px;
-    padding: 13px 15px;
-  }
-
-  .guide-item-icon {
-    font-size: 20px;
+    background: #eef2ff;
+    color: #4f46e5;
+    display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
-    margin-top: 1px;
   }
 
-  .guide-item-text strong {
+  .quick-text { flex: 1; min-width: 0; }
+
+  .quick-text strong {
     display: block;
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 600;
     color: var(--text);
-    margin-bottom: 2px;
+    margin-bottom: 1px;
   }
 
-  .guide-item-text span {
+  .quick-text span {
     font-size: 12px;
     color: var(--text-muted);
   }
+
+  .quick-arrow { color: #c0c7d2; transition: transform .18s, color .18s; flex-shrink: 0; }
+  .quick-card:hover .quick-arrow { transform: translateX(2px); color: var(--primary); }
+
+  .quick-card-primary { background: linear-gradient(135deg, #4f46e5, #7c3aed); border-color: transparent; }
+  .quick-card-primary .quick-icon { background: rgba(255,255,255,.16); color: #fff; }
+  .quick-card-primary .quick-text strong { color: #fff; }
+  .quick-card-primary .quick-text span { color: rgba(255,255,255,.75); }
+  .quick-card-primary .quick-arrow { color: rgba(255,255,255,.6); }
+  .quick-card-primary:hover .quick-arrow { color: #fff; }
 
   /* ── RANGE INPUT ────────────────────────────── */
   .range-group {
@@ -710,14 +754,14 @@
   /* ── SYNC STATUS ────────────────────────────── */
   #sync-bar {
     padding: 10px 14px;
-    border-top: 1px solid rgba(255,255,255,.06);
+    border-top: 1px solid var(--sidebar-border);
     display: flex;
     align-items: center;
     gap: 8px;
     cursor: pointer;
     transition: background .15s;
   }
-  #sync-bar:hover { background: rgba(255,255,255,.04); }
+  #sync-bar:hover { background: var(--sidebar-hover); }
 
   #sync-dot {
     width: 8px; height: 8px;
@@ -737,16 +781,16 @@
 
   #sync-label {
     font-size: 11px;
-    color: rgba(255,255,255,.45);
+    color: #98a2b3;
     flex: 1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  #sync-bar[data-status="ok"]      #sync-label { color: rgba(16,185,129,.7); }
-  #sync-bar[data-status="syncing"] #sync-label { color: rgba(99,102,241,.8); }
-  #sync-bar[data-status="pending"] #sync-label { color: rgba(245,158,11,.7); }
-  #sync-bar[data-status="error"]   #sync-label { color: rgba(239,68,68,.7); }
+  #sync-bar[data-status="ok"]      #sync-label { color: #059669; }
+  #sync-bar[data-status="syncing"] #sync-label { color: #4f46e5; }
+  #sync-bar[data-status="pending"] #sync-label { color: #b45309; }
+  #sync-bar[data-status="error"]   #sync-label { color: #dc2626; }
 </style>
 </head>
 <body>
@@ -756,9 +800,12 @@
   <div id="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-logo">
+        <div class="sidebar-logo-icon">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 12l3.5-3.5"/><path d="M7.5 14.5a5 5 0 0 1 9 0"/></svg>
+        </div>
         <div class="sidebar-logo-text">
-          <strong>Reg. Kilómetros</strong>
-          <span>Autoescuela</span>
+          <strong>KMAlumnos</strong>
+          <span>Gestión de autoescuela</span>
         </div>
       </div>
     </div>
@@ -771,11 +818,11 @@
         </span>
         Inicio
       </a>
-      <a data-page="vehiculos">
+      <a data-page="registro-rapido">
         <span class="nav-icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><circle cx="12" cy="21" r="1"/><circle cx="20" cy="21" r="1"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </span>
-        Vehículos
+        Registro Rápido
       </a>
       <a data-page="alumnos">
         <span class="nav-icon">
@@ -783,26 +830,14 @@
         </span>
         Alumnos
       </a>
-      <a data-page="registro-rapido">
+      <a data-page="vehiculos">
         <span class="nav-icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><circle cx="12" cy="21" r="1"/><circle cx="20" cy="21" r="1"/></svg>
         </span>
-        Registro Rápido
+        Vehículos
       </a>
 
       <div class="nav-section" style="margin-top:6px">Herramientas</div>
-      <a data-page="importar">
-        <span class="nav-icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        </span>
-        Importar CSV
-      </a>
-      <a data-page="csv-tools">
-        <span class="nav-icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
-        </span>
-        Exportar / Comparar
-      </a>
       <a data-page="timeline">
         <span class="nav-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="8 8 3 12 8 16"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -815,12 +850,26 @@
         </span>
         Solapamientos
       </a>
+      <a data-page="importar">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </span>
+        Importar CSV
+      </a>
+      <a data-page="csv-tools">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
+        </span>
+        Exportar / Comparar
+      </a>
       <a data-page="logs">
         <span class="nav-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         </span>
         Historial
       </a>
+
+      <div class="nav-section" style="margin-top:6px">Sistema</div>
       <a data-page="backup">
         <span class="nav-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -833,15 +882,15 @@
     <div id="sync-bar" data-status="offline" title="Haz clic para sincronizar ahora" onclick="syncNow()">
       <div id="sync-dot"></div>
       <span id="sync-label">Sin conexión</span>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#c0c7d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     </div>
     <!-- Subida inicial de todos los datos -->
-    <div id="push-all-bar" title="Subir todos los datos a la nube por primera vez" onclick="pushAllToCloud()" style="padding:8px 14px;border-top:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;font-size:11px;color:rgba(255,255,255,.3)">
+    <div id="push-all-bar" title="Subir todos los datos a la nube por primera vez" onclick="pushAllToCloud()" style="padding:8px 14px;border-top:1px solid #f1f3f7;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;font-size:11px;color:#98a2b3">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
       Subir todo a la nube
     </div>
     <!-- Buscar actualizaciones -->
-    <div id="update-bar" title="Buscar actualizaciones" onclick="checkUpdates()" style="padding:8px 14px;border-top:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;font-size:11px;color:rgba(255,255,255,.3)">
+    <div id="update-bar" title="Buscar actualizaciones" onclick="checkUpdates()" style="padding:8px 14px;border-top:1px solid #f1f3f7;display:flex;align-items:center;gap:8px;cursor:pointer;transition:background .15s;font-size:11px;color:#98a2b3">
       <svg id="update-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
       <span id="update-label">Buscar actualizaciones</span>
     </div>
@@ -861,64 +910,85 @@
 
       <div class="stats">
         <div class="stat">
-          <div class="stat-icon stat-icon-blue">🚙</div>
-          <div class="stat-info">
-            <div class="num" id="stat-vehiculos">0</div>
-            <div class="lbl">Vehículos</div>
+          <div class="stat-head">
+            <span class="lbl">Vehículos</span>
+            <div class="stat-icon stat-icon-blue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+            </div>
           </div>
+          <div class="num" id="stat-vehiculos">0</div>
         </div>
         <div class="stat">
-          <div class="stat-icon stat-icon-green">👤</div>
-          <div class="stat-info">
-            <div class="num" id="stat-alumnos">0</div>
-            <div class="lbl">Alumnos</div>
+          <div class="stat-head">
+            <span class="lbl">Alumnos</span>
+            <div class="stat-icon stat-icon-green">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
           </div>
+          <div class="num" id="stat-alumnos">0</div>
         </div>
         <div class="stat">
-          <div class="stat-icon stat-icon-orange">📋</div>
-          <div class="stat-info">
-            <div class="num" id="stat-practicas">0</div>
-            <div class="lbl">Prácticas registradas</div>
+          <div class="stat-head">
+            <span class="lbl">Prácticas registradas</span>
+            <div class="stat-icon stat-icon-orange">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
+            </div>
           </div>
+          <div class="num" id="stat-practicas">0</div>
         </div>
       </div>
 
       <!-- Alertas de estado -->
-      <div id="dash-alertas" style="margin-bottom:16px"></div>
+      <div id="dash-alertas" style="margin-bottom:4px"></div>
 
-      <div class="card">
-        <div class="card-title">
-          <div class="card-title-icon" style="background:#e0e7ff">🗺️</div>
-          Guía rápida
+      <div class="section-label">Accesos rápidos</div>
+      <div class="quick-grid">
+        <div class="quick-card quick-card-primary" onclick="navegarA('registro-rapido')">
+          <div class="quick-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </div>
+          <div class="quick-text">
+            <strong>Registro Rápido</strong>
+            <span>Apunta las prácticas del día en segundos</span>
+          </div>
+          <div class="quick-arrow">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
         </div>
-        <div class="guide-grid">
-          <div class="guide-item">
-            <div class="guide-item-icon">🚙</div>
-            <div class="guide-item-text">
-              <strong>Vehículos</strong>
-              <span>Gestiona vehículos y sus kilómetros del odómetro</span>
-            </div>
+        <div class="quick-card" onclick="navegarA('alumnos')">
+          <div class="quick-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           </div>
-          <div class="guide-item">
-            <div class="guide-item-icon">👤</div>
-            <div class="guide-item-text">
-              <strong>Alumnos</strong>
-              <span>Añade alumnos y registra sus prácticas</span>
-            </div>
+          <div class="quick-text">
+            <strong>Alumnos</strong>
+            <span>Gestiona alumnos y su historial de prácticas</span>
           </div>
-          <div class="guide-item">
-            <div class="guide-item-icon">📥</div>
-            <div class="guide-item-text">
-              <strong>Importar CSV</strong>
-              <span>Carga masiva de prácticas desde un archivo CSV</span>
-            </div>
+          <div class="quick-arrow">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
           </div>
-          <div class="guide-item">
-            <div class="guide-item-icon">⚠️</div>
-            <div class="guide-item-text">
-              <strong>Solapamientos</strong>
-              <span>Detecta y corrige conflictos de kilómetros</span>
-            </div>
+        </div>
+        <div class="quick-card" onclick="navegarA('vehiculos')">
+          <div class="quick-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+          </div>
+          <div class="quick-text">
+            <strong>Vehículos</strong>
+            <span>Flota, odómetros y relleno masivo de km</span>
+          </div>
+          <div class="quick-arrow">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+        </div>
+        <div class="quick-card" onclick="navegarA('solapamientos')">
+          <div class="quick-icon">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div class="quick-text">
+            <strong>Solapamientos</strong>
+            <span>Detecta y corrige conflictos de kilómetros</span>
+          </div>
+          <div class="quick-arrow">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
           </div>
         </div>
       </div>
@@ -935,7 +1005,7 @@
 
       <div class="card">
         <div class="card-title">
-          <div class="card-title-icon" style="background:#e0e7ff">➕</div>
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
           Añadir vehículo
         </div>
         <div class="form-row">
@@ -960,7 +1030,7 @@
 
       <div class="card card-banner">
         <div class="card-title">
-          <div class="card-title-icon" style="background:#e0e7ff">⚡</div>
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
           Relleno masivo de kilómetros
         </div>
         <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Genera kilómetros coherentes con el odómetro del vehículo para todas las prácticas con los km en blanco. Los km se calculan respetando la cronología real.</p>
@@ -986,7 +1056,7 @@
             </div>
           </div>
           <button class="btn btn-primary" onclick="rellenarMasivo()" style="align-self:flex-end">
-            ⚡ Rellenar km en blanco
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Rellenar km en blanco
           </button>
           <span id="relleno-sinKm" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
         </div>
@@ -1014,7 +1084,7 @@
 
         <div class="card">
           <div class="card-title">
-            <div class="card-title-icon" style="background:#d1fae5">➕</div>
+            <div class="card-title-icon" style="background:#ecfdf5;color:#059669"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
             Añadir alumno
           </div>
           <div class="form-row">
@@ -1067,7 +1137,7 @@
 
         <div class="card">
           <div class="card-title">
-            <div class="card-title-icon" style="background:#fef3c7">📅</div>
+            <div class="card-title-icon" style="background:#fffbeb;color:#d97706"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
             Nueva práctica
           </div>
           <div class="form-row" style="align-items:flex-end;gap:10px">
@@ -1091,7 +1161,7 @@
                 <input type="number" id="p-max" value="45" min="1" max="200" title="Máximo">
               </div>
             </div>
-            <button class="btn btn-warn" onclick="generarKmPractica()" style="align-self:flex-end">⚡ Generar km</button>
+            <button class="btn btn-warn" onclick="generarKmPractica()" style="align-self:flex-end"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar km</button>
             <button class="btn btn-success" onclick="addPractica()" style="align-self:flex-end">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Añadir práctica
@@ -1120,7 +1190,7 @@
 
       <div class="card">
         <div class="card-title">
-          <div class="card-title-icon" style="background:#fee2e2">🔍</div>
+          <div class="card-title-icon" style="background:#fef2f2;color:#dc2626"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
           Análisis de solapamientos
         </div>
         <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Detecta prácticas que comparten el mismo tramo de kilómetros en el mismo vehículo. El programa reordena los km respetando la duración de cada práctica.</p>
@@ -1134,10 +1204,10 @@
             </div>
           </div>
           <button class="btn btn-primary" onclick="loadSolapamientos()" style="align-self:flex-end">
-            🔍 Analizar
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Analizar
           </button>
           <button class="btn btn-success" id="btn-corregir-todo" onclick="corregirTodosSolapamientos()" style="display:none;align-self:flex-end">
-            🔧 Corregir todo automáticamente
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Corregir todo automáticamente
           </button>
         </div>
       </div>
@@ -1177,38 +1247,38 @@
 
       <div class="card card-banner-success">
         <div class="card-title">
-          <div class="card-title-icon" style="background:#d1fae5">💾</div>
+          <div class="card-title-icon" style="background:#ecfdf5;color:#059669"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
           Guardar copia de seguridad
         </div>
         <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">Exporta todos tus datos (alumnos, vehículos, prácticas e historial) a un archivo JSON. Elige la carpeta donde quieres guardarlo.</p>
         <button class="btn btn-success" onclick="hacerBackup()">
-          💾 Guardar copia ahora...
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Guardar copia ahora...
         </button>
         <div id="backup-ok" class="hidden alert alert-ok" style="margin-top:14px"></div>
       </div>
 
       <div class="card card-banner-warn">
         <div class="card-title">
-          <div class="card-title-icon" style="background:#fef3c7">📂</div>
+          <div class="card-title-icon" style="background:#fffbeb;color:#d97706"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
           Restaurar copia de seguridad
         </div>
-        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:4px">Carga un backup anterior. <strong style="color:var(--danger)">⚠ Esto reemplazará todos los datos actuales.</strong></p>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:4px">Carga un backup anterior. <strong style="color:var(--danger)">Esto reemplazará todos los datos actuales.</strong></p>
         <p style="font-size:12px;color:#94a3b8;margin-bottom:16px">La aplicación se recargará automáticamente tras restaurar.</p>
         <button class="btn btn-warn" onclick="restaurarBackup()">
-          📂 Seleccionar backup y restaurar...
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Seleccionar backup y restaurar...
         </button>
         <div id="restaurar-err" class="hidden alert alert-err" style="margin-top:14px"></div>
       </div>
 
       <div class="card">
         <div class="card-title">
-          <div class="card-title-icon" style="background:#e0e7ff">🔐</div>
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
           Cuenta de sincronización
         </div>
         <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:8px">Introduce el email y la contraseña de sincronización para que este equipo pueda conectarse de forma segura a la nube. Se pide una sola vez y se guarda cifrado en este ordenador.</p>
         <p id="sync-creds-estado" style="font-size:12.5px;font-weight:600;margin-bottom:16px"></p>
         <button class="btn btn-primary" onclick="abrirCredsSync()">
-          🔐 Configurar cuenta de sincronización...
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Configurar cuenta de sincronización...
         </button>
       </div>
     </div>
@@ -1229,7 +1299,7 @@
             <select id="timeline-vehiculo" style="width:200px" onchange="loadTimeline()"></select>
           </div>
           <button class="btn btn-primary" onclick="loadTimeline()" style="align-self:flex-end">
-            🔄 Actualizar
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Actualizar
           </button>
           <span id="timeline-resumen" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
         </div>
@@ -1239,7 +1309,7 @@
       <div id="timeline-chart-wrap" style="display:none;margin-bottom:16px">
         <div class="card" style="padding:18px 22px">
           <div class="card-title" style="margin-bottom:12px">
-            <div class="card-title-icon" style="background:#e0e7ff">📊</div>
+            <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
             Mapa visual de kilómetros
           </div>
           <div id="timeline-chart-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;font-size:12px"></div>
@@ -1264,7 +1334,7 @@
 
       <div class="card">
         <div class="card-title">
-          <div class="card-title-icon" style="background:#e0e7ff">📄</div>
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
           Formato requerido del CSV
         </div>
         <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px">La primera fila debe ser la cabecera con exactamente estas columnas:</p>
@@ -1277,7 +1347,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 
       <div class="card">
         <div class="card-title">
-          <div class="card-title-icon" style="background:#d1fae5">⬆️</div>
+          <div class="card-title-icon" style="background:#ecfdf5;color:#059669"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
           Importar archivo
         </div>
         <div id="import-alert" class="hidden" style="margin-bottom:14px"></div>
@@ -1320,7 +1390,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <!-- EXPORTAR -->
       <div class="card">
         <div class="card-title">
-          <div class="card-title-icon" style="background:#d1fae5">⬇️</div>
+          <div class="card-title-icon" style="background:#ecfdf5;color:#059669"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
           Exportar prácticas a CSV
         </div>
         <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Exporta todas las prácticas en formato compatible para re-importar o analizar.</p>
@@ -1334,7 +1404,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <!-- COMPARAR -->
       <div class="card">
         <div class="card-title">
-          <div class="card-title-icon" style="background:#e0e7ff">🔍</div>
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
           Comparar dos CSV
         </div>
         <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Compara prácticas de dos fuentes distintas (ej: IA vs manual) y encuentra diferencias.</p>
@@ -1344,14 +1414,14 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
             <label>CSV A (origen/referencia)</label>
             <div style="display:flex;gap:8px">
               <input type="text" id="csv-a-path" readonly placeholder="Seleccionar archivo..." style="flex:1">
-              <button class="btn btn-outline btn-sm" onclick="seleccionarCsvA()">📁</button>
+              <button class="btn btn-outline btn-sm" onclick="seleccionarCsvA()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
             </div>
           </div>
           <div class="form-group" style="flex:1">
             <label>CSV B (a comparar)</label>
             <div style="display:flex;gap:8px">
               <input type="text" id="csv-b-path" readonly placeholder="Seleccionar archivo..." style="flex:1">
-              <button class="btn btn-outline btn-sm" onclick="seleccionarCsvB()">📁</button>
+              <button class="btn btn-outline btn-sm" onclick="seleccionarCsvB()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
             </div>
           </div>
         </div>
@@ -1368,7 +1438,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <div id="cmp-results" class="hidden">
         <div class="card">
           <div class="card-title">
-            <div class="card-title-icon" style="background:#fef3c7">📊</div>
+            <div class="card-title-icon" style="background:#fffbeb;color:#d97706"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
             Resumen de comparación
           </div>
           <div id="cmp-resumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px"></div>
@@ -1376,7 +1446,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 
         <div class="card" id="cmp-alumnos-card" style="display:none">
           <div class="card-title">
-            <div class="card-title-icon" style="background:#fee2e2">👥</div>
+            <div class="card-title-icon" style="background:#fef2f2;color:#dc2626"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
             Alumnos diferentes
           </div>
           <div id="cmp-alumnos" style="font-size:13px"></div>
@@ -1384,7 +1454,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 
         <div class="card" id="cmp-detalle-card" style="display:none">
           <div class="card-title">
-            <div class="card-title-icon" style="background:#e0e7ff">📋</div>
+            <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
             Detalle por alumno (diferencias)
           </div>
           <div id="cmp-detalle-body" style="max-height:500px;overflow-y:auto"></div>
@@ -1392,7 +1462,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 
         <div class="card" id="cmp-conflictos-card" style="display:none">
           <div class="card-title">
-            <div class="card-title-icon" style="background:#fee2e2">⚠️</div>
+            <div class="card-title-icon" style="background:#fef2f2;color:#dc2626"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
             Conflictos (mismo alumno/fecha, km muy diferentes)
           </div>
           <div class="table-wrap">
@@ -1405,7 +1475,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 
         <div class="card" id="cmp-solo-a-card" style="display:none">
           <div class="card-title">
-            <div class="card-title-icon" style="background:#fef3c7">📄</div>
+            <div class="card-title-icon" style="background:#fffbeb;color:#d97706"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
             Solo en CSV A (no están en B)
           </div>
           <div class="table-wrap">
@@ -1418,7 +1488,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 
         <div class="card" id="cmp-solo-b-card" style="display:none">
           <div class="card-title">
-            <div class="card-title-icon" style="background:#d1fae5">📄</div>
+            <div class="card-title-icon" style="background:#ecfdf5;color:#059669"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
             Solo en CSV B (no están en A)
           </div>
           <div class="table-wrap">
@@ -1431,7 +1501,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 
         <div class="card" id="cmp-coincidencias-card" style="display:none">
           <div class="card-title">
-            <div class="card-title-icon" style="background:#d1fae5">✅</div>
+            <div class="card-title-icon" style="background:#ecfdf5;color:#059669"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.27"/></svg></div>
             Coincidencias
           </div>
           <div class="table-wrap">
@@ -1455,7 +1525,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 
       <div class="card">
         <div class="card-title">
-          <div class="card-title-icon" style="background:#e0e7ff">📅</div>
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
           Fecha y Vehículo
         </div>
         <div class="form-row" style="align-items:flex-end;gap:16px">
@@ -1488,7 +1558,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
         <div class="card" style="padding:16px 20px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
             <div class="card-title" style="margin-bottom:0">
-              <div class="card-title-icon" style="background:#d1fae5">👤</div>
+              <div class="card-title-icon" style="background:#ecfdf5;color:#059669"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
               Alumnos del vehículo
             </div>
             <span id="rr-contador" style="font-size:12px;color:var(--text-muted)"></span>
@@ -1510,7 +1580,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <div class="overlay" id="modal-sync-creds">
   <div class="modal">
     <div class="modal-header">
-      <div class="modal-header-icon">🔐</div>
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
       <h3>Cuenta de sincronización</h3>
     </div>
     <div class="form-group" style="margin-bottom:14px">
@@ -1533,7 +1603,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <div class="overlay" id="modal-vehiculo">
   <div class="modal">
     <div class="modal-header">
-      <div class="modal-header-icon">🚙</div>
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>
       <h3>Editar vehículo</h3>
     </div>
     <input type="hidden" id="edit-v-id">
@@ -1556,7 +1626,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <div class="overlay" id="modal-alumno">
   <div class="modal">
     <div class="modal-header">
-      <div class="modal-header-icon">👤</div>
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
       <h3>Editar alumno</h3>
     </div>
     <input type="hidden" id="edit-a-id">
@@ -1589,7 +1659,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <div class="overlay" id="modal-practica">
   <div class="modal">
     <div class="modal-header">
-      <div class="modal-header-icon">📋</div>
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
       <h3>Editar práctica</h3>
     </div>
     <input type="hidden" id="edit-p-id">
@@ -1616,7 +1686,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <div class="overlay" id="modal-nota-rr">
   <div class="modal" style="width:380px">
     <div class="modal-header">
-      <div class="modal-header-icon">❗</div>
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
       <h3 id="modal-nota-titulo">Nota</h3>
     </div>
     <div class="form-group">
@@ -1633,7 +1703,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <div class="overlay" id="modal-anotaciones">
   <div class="modal" style="width:500px;max-height:80vh;display:flex;flex-direction:column">
     <div class="modal-header">
-      <div class="modal-header-icon">📝</div>
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
       <h3 id="modal-anotaciones-titulo">Anotaciones</h3>
     </div>
     <div id="modal-anotaciones-body" style="overflow-y:auto;max-height:50vh;padding:4px 0"></div>
