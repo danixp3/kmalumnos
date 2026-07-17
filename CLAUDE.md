@@ -44,8 +44,9 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 ## Estado actual (solo el estado vivo — al cerrar tareas, añadir aquí y mover lo viejo a HISTORIAL.md)
 _Última actualización: 2026-07-17._
 
-- **Versión:** 1.3.12 (2026-07-16), instalada en los 2 PCs; web-remote desplegada y verificada. Sync bidireccional OK: nube = espejo del PC principal (1 vehículo / 10 alumnos / 113 prácticas). Suite: 38 tests en verde (`npm test`).
-- **UI (2026-07-17):** rediseño SaaS completo — escritorio con sidebar claro, dashboard de accesos rápidos e iconografía SVG sin emojis (viaja en la próxima release); web-remote rediseñada y DESPLEGADA (smoke test OK).
+- **Versión:** 1.4.0 (2026-07-17) publicada con auto-update verificado; web-remote desplegada y verificada. Sync bidireccional OK: nube = espejo del PC principal (1 vehículo / 10 alumnos / 113 prácticas). Suite: 38 tests en verde (`npm test`).
+- **UI (2026-07-17):** rediseño SaaS completo — escritorio con sidebar claro, dashboard de accesos rápidos e iconografía SVG sin emojis (publicada en v1.4.0); web-remote rediseñada y DESPLEGADA (smoke test OK).
+- **Fix foco (v1.4.0):** los diálogos nativos confirm/alert dejaban los inputs sin foco (bug de Electron); ahora la app fuerza blur+focus tras cada diálogo.
 - **Fix web:** /api/vehiculos y /api/alumnos reintentan ante PGRST303 ("JWT issued at future" en arranques fríos concurrentes de Vercel) — era la causa del "Error cargando datos" intermitente.
 - **Aviso datos:** la nube devuelve 9 alumnos activos y la doc decía 10 — pendiente revisar con /estado-nube.
 - **Skills del proyecto** (`.claude/skills/`, usarlas siempre que aplique en vez de rehacer el proceso a mano): `/publicar-release` (release completa verificada), `/desplegar-web` (deploy Vercel por API), `/diagnostico-sync` (runbook de discrepancias de datos), `/preparar-cambio` (arranque de tarea con mapa condensado), `/cerrar-tarea` (ritual de cierre), `/estado-nube` (chequeo rápido local vs nube), `/cambiar-web` (desarrollo de web-remote con mapa + smoke test), `/cambiar-app` (desarrollo de escritorio: anclas + receta punta a punta + tests), `/mejorar-ui` (rediseño iterativo de las dos interfaces).
