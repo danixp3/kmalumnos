@@ -8,7 +8,7 @@
 <meta property="og:title" content="KMAlumnos Web">
 <meta property="og:description" content="Registrar prácticas de autoescuela">
 <meta name="theme-color" content="#6366f1">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%234f46e5'/><g fill='none' stroke='white' stroke-width='7' stroke-linecap='round'><circle cx='50' cy='50' r='26'/><path d='M50 50l11-11'/><path d='M39 61a15 15 0 0 1 22 0'/></g></svg>">
 <title>KMAlumnos Web</title>
 <style>
   :root {
@@ -17,13 +17,13 @@
     --success: #10b981;
     --danger: #ef4444;
     --warn: #f59e0b;
-    --bg: #0f0f1a;
-    --card: rgba(255,255,255,0.06);
-    --card-border: rgba(255,255,255,0.1);
+    --bg: #0b0e17;
+    --card: rgba(255,255,255,0.055);
+    --card-border: rgba(255,255,255,0.09);
     --text: #f1f5f9;
     --text-muted: #94a3b8;
     --border: rgba(255,255,255,0.12);
-    --radius: 20px;
+    --radius: 18px;
     --glow: rgba(99,102,241,0.4);
   }
 
@@ -58,7 +58,7 @@
     100% { transform: translate(-5%, -5%) rotate(3deg); }
   }
 
-  .orb { position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.5; pointer-events: none; z-index: -1; }
+  .orb { position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.35; pointer-events: none; z-index: -1; }
   .orb-1 { width: 200px; height: 200px; background: rgba(99,102,241,0.3); top: 10%; left: -10%; animation: float1 8s ease-in-out infinite; }
   .orb-2 { width: 150px; height: 150px; background: rgba(139,92,246,0.25); bottom: 20%; right: -5%; animation: float2 10s ease-in-out infinite; }
   .orb-3 { width: 100px; height: 100px; background: rgba(59,130,246,0.2); top: 50%; left: 50%; animation: float3 7s ease-in-out infinite; }
@@ -67,17 +67,28 @@
   @keyframes float2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-20px, -30px) scale(1.15); } }
   @keyframes float3 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(15px, -15px) scale(0.9); } }
 
-  .header { text-align: center; margin-bottom: 32px; padding-top: 12px; animation: slideDown 0.6s ease-out; }
+  .header { text-align: center; margin-bottom: 26px; padding-top: 12px; animation: slideDown 0.6s ease-out; }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 
+  .logo-mark {
+    width: 52px; height: 52px; margin: 0 auto 12px; border-radius: 16px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    display: flex; align-items: center; justify-content: center; color: #fff;
+    box-shadow: 0 8px 24px rgba(99,102,241,.35), inset 0 1px 0 rgba(255,255,255,.25);
+  }
+
   h1 {
-    font-size: 24px; font-weight: 800; letter-spacing: -0.5px; color: #fff;
+    font-size: 23px; font-weight: 800; letter-spacing: -0.5px; color: #fff;
     background: linear-gradient(135deg, #fff, #c7d2fe);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   }
 
-  .subtitle { font-size: 14px; color: var(--text-muted); margin-top: 6px; font-weight: 500; }
-  .version { font-size: 11px; color: var(--text-muted); opacity: 0.6; margin-top: 4px; }
+  .subtitle { font-size: 13px; color: var(--text-muted); margin-top: 5px; font-weight: 500; }
+  .version {
+    display: inline-block; margin-top: 10px; font-size: 10.5px; font-weight: 600; letter-spacing: .4px;
+    color: #a5b4fc; background: rgba(99,102,241,.12); border: 1px solid rgba(99,102,241,.25);
+    padding: 2px 10px; border-radius: 99px;
+  }
 
   .card {
     background: var(--card); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
@@ -97,7 +108,7 @@
   label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.8px; margin-bottom: 10px; text-transform: uppercase; }
 
   select, input[type="date"], input[type="text"], input[type="password"] {
-    width: 100%; padding: 14px 16px; border: 1.5px solid var(--border); border-radius: 14px;
+    width: 100%; padding: 13px 15px; border: 1px solid var(--border); border-radius: 12px;
     font-size: 16px; font-family: inherit; color: var(--text); background: rgba(255,255,255,0.05);
     outline: none; -webkit-appearance: none; appearance: none; transition: all .2s ease;
   }
@@ -115,7 +126,7 @@
   .select-wrap::after { content: '▾'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; font-size: 14px; }
 
   .btn {
-    width: 100%; padding: 18px; border: none; border-radius: 16px; font-size: 17px; font-weight: 700;
+    width: 100%; padding: 16px; border: none; border-radius: 14px; font-size: 16px; font-weight: 700;
     font-family: inherit; cursor: pointer; transition: all .2s ease;
     display: flex; align-items: center; justify-content: center; gap: 8px;
     letter-spacing: -0.2px; position: relative; overflow: hidden;
@@ -123,7 +134,7 @@
 
   .btn-primary {
     background: linear-gradient(135deg, var(--primary), #8b5cf6); color: #fff;
-    box-shadow: 0 8px 32px rgba(99,102,241,.4), 0 0 60px rgba(99,102,241,.15);
+    box-shadow: 0 6px 22px rgba(99,102,241,.35);
   }
 
   .btn-primary::before {
@@ -166,6 +177,8 @@
   .result-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
   .result.ok .result-title { color: #34d399; }
   .result.err .result-title { color: #f87171; }
+  .result.ok .result-icon { color: #34d399; }
+  .result.err .result-icon { color: #f87171; }
 
   .result-msg { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
 
@@ -204,26 +217,32 @@
 
   .grid-bg {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-image: linear-gradient(rgba(255,255,255,0.014) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.014) 1px, transparent 1px);
     background-size: 40px 40px; pointer-events: none; z-index: -1;
   }
 
   .status-line {
-    position: fixed; top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, var(--primary), #8b5cf6, #a855f7, var(--primary));
-    background-size: 300% 100%; animation: gradientSlide 4s linear infinite; z-index: 100;
+    position: fixed; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--primary), #8b5cf6, transparent);
+    opacity: .7; z-index: 100;
   }
-  @keyframes gradientSlide { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
 
-  /* Tabs */
-  .tabs { display: flex; gap: 8px; margin-bottom: 20px; animation: slideUp 0.5s ease-out 0.05s both; flex-wrap: wrap; }
-  .tab {
-    flex: 1; min-width: 80px; padding: 12px 8px; border: 1.5px solid var(--border); border-radius: 14px;
-    font-size: 13px; font-weight: 600; font-family: inherit; color: var(--text-muted);
-    background: rgba(255,255,255,0.03); cursor: pointer; transition: all .2s; text-align: center;
+  /* Tabs (control segmentado) */
+  .tabs {
+    display: flex; gap: 4px; margin-bottom: 20px; animation: slideUp 0.5s ease-out 0.05s both;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    border-radius: 14px; padding: 4px;
   }
-  .tab.active { background: rgba(99,102,241,0.15); border-color: var(--primary); color: var(--primary); }
-  .tab:hover:not(.active) { background: rgba(255,255,255,0.06); }
+  .tab {
+    flex: 1; min-width: 70px; padding: 10px 6px; border: none; border-radius: 10px;
+    font-size: 13px; font-weight: 600; font-family: inherit; color: var(--text-muted);
+    background: transparent; cursor: pointer; transition: all .2s; text-align: center;
+  }
+  .tab.active {
+    background: linear-gradient(135deg, var(--primary), #8b5cf6); color: #fff;
+    box-shadow: 0 4px 14px rgba(99,102,241,.35);
+  }
+  .tab:hover:not(.active) { color: var(--text); }
 
   .section { display: none; }
   .section.active { display: block; }
@@ -243,16 +262,17 @@
   }
   #login-screen.hidden { display: none; }
   .pin-input {
-    font-size: 32px; letter-spacing: 12px; text-align: center; width: 200px;
-    background: rgba(255,255,255,0.08); border: 2px solid var(--border);
+    font-size: 30px; letter-spacing: 14px; text-align: center; width: 210px;
+    background: rgba(255,255,255,0.07); border: 1.5px solid var(--border); border-radius: 14px;
+    font-weight: 700;
   }
   .pin-input:focus { border-color: var(--primary); }
   .login-error { color: var(--danger); font-size: 14px; margin-top: 12px; min-height: 20px; }
 
   /* Historial */
   .historial-item {
-    background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 12px;
-    padding: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+    padding: 15px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px;
   }
   .historial-info { flex: 1; }
   .historial-nombre { font-weight: 700; font-size: 15px; }
@@ -261,9 +281,11 @@
 
   /* Logout button */
   .logout-btn {
-    position: fixed; top: 12px; right: 12px; z-index: 101;
-    background: rgba(255,255,255,0.1); border: 1px solid var(--border); border-radius: 8px;
-    padding: 6px 12px; font-size: 12px; color: var(--text-muted); cursor: pointer;
+    position: fixed; top: 14px; right: 14px; z-index: 101;
+    background: rgba(255,255,255,0.06); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border); border-radius: 99px;
+    padding: 6px 14px; font-size: 12px; font-weight: 600; font-family: inherit;
+    color: var(--text-muted); cursor: pointer;
   }
   .logout-btn:hover { background: rgba(239,68,68,0.2); color: #f87171; }
 </style>
@@ -274,8 +296,11 @@
 <div id="login-screen">
   <div class="orb orb-1"></div>
   <div class="orb orb-2"></div>
-  <div class="header" style="margin-bottom:40px">
-    <h1>🔐 KMAlumnos</h1>
+  <div class="header" style="margin-bottom:36px">
+    <div class="logo-mark">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 12l3.5-3.5"/><path d="M7.5 14.5a5 5 0 0 1 9 0"/></svg>
+    </div>
+    <h1>KMAlumnos</h1>
     <p class="subtitle">Introduce el PIN de acceso</p>
   </div>
   <div class="card" style="width:100%;max-width:300px;text-align:center">
@@ -296,9 +321,12 @@
   <button class="logout-btn" onclick="cerrarSesion()">Salir</button>
 
   <div class="header">
-    <h1>KMAlumnos Web</h1>
-    <p class="subtitle">Autoescuela · Control de kilómetros</p>
-    <p class="version">v1.1.0</p>
+    <div class="logo-mark">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 12l3.5-3.5"/><path d="M7.5 14.5a5 5 0 0 1 9 0"/></svg>
+    </div>
+    <h1>KMAlumnos</h1>
+    <p class="subtitle">Registro de prácticas · Autoescuela</p>
+    <span class="version">v1.1.0</span>
   </div>
 
   <div class="tabs">
@@ -343,14 +371,14 @@
 
     <div class="result" id="result-ok" style="position: relative;">
       <div class="sparkles" id="sparkles"></div>
-      <div class="result-icon">✅</div>
+      <div class="result-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.27"/></svg></div>
       <div class="result-title">¡Práctica registrada!</div>
       <div class="result-msg" id="result-ok-msg"></div>
       <button class="btn-again" onclick="resetForm()">Registrar otra práctica</button>
     </div>
 
     <div class="result" id="result-err" onclick="hideError()">
-      <div class="result-icon">❌</div>
+      <div class="result-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
       <div class="result-title">Error</div>
       <div class="result-msg" id="result-err-msg"></div>
       <button class="btn-again" onclick="hideError()">Volver a intentarlo</button>
@@ -393,14 +421,14 @@
     </button>
 
     <div class="result" id="result-alumno-ok">
-      <div class="result-icon">✅</div>
+      <div class="result-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.27"/></svg></div>
       <div class="result-title">Alumno creado</div>
       <div class="result-msg" id="result-alumno-ok-msg"></div>
       <button class="btn-again" onclick="resetAlumnoForm()">Crear otro alumno</button>
     </div>
 
     <div class="result" id="result-alumno-err" onclick="hideAlumnoError()">
-      <div class="result-icon">❌</div>
+      <div class="result-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
       <div class="result-title">Error</div>
       <div class="result-msg" id="result-alumno-err-msg"></div>
       <button class="btn-again" onclick="hideAlumnoError()">Volver a intentarlo</button>
@@ -410,12 +438,15 @@
   <!-- SECCIÓN: HISTORIAL -->
   <div id="section-historial" class="section">
     <div class="card">
-      <label style="margin-bottom:16px">Últimas prácticas registradas (hoy)</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <label style="margin-bottom:0">Prácticas registradas hoy</label>
+        <span class="tag" id="historial-count" style="display:none;margin-left:0"></span>
+      </div>
       <div id="historial-list">
         <div class="historial-empty">Cargando...</div>
       </div>
     </div>
-    <button class="btn btn-secondary" onclick="cargarHistorial()">🔄 Actualizar</button>
+    <button class="btn btn-secondary" onclick="cargarHistorial()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Actualizar</button>
   </div>
 </div>
 
@@ -792,7 +823,13 @@
       if (!res.ok) throw new Error('Error cargando historial');
       
       const practicas = await res.json();
-      
+
+      const count = document.getElementById('historial-count');
+      if (count) {
+        count.textContent = practicas.length;
+        count.style.display = practicas.length ? 'inline-block' : 'none';
+      }
+
       if (!practicas.length) {
         list.innerHTML = '<div class="historial-empty">No hay prácticas registradas hoy desde esta web.</div>';
         return;

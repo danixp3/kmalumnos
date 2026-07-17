@@ -61,6 +61,24 @@ export function setCorsHeaders(req, res) {
   res.setHeader('Access-Control-Max-Age', '86400');
 }
 
+// Reintenta una consulta a Supabase si falla por PGRST303 ("JWT issued at
+// future"): error transitorio de Supabase cuando dos contenedores serverless
+// arrancan en frío casi a la vez y cada uno hace su propio signInWithPassword
+// (ver getSupabase) — el pequeño desfase de reloj entre el nodo de Auth que
+// emite el JWT y el nodo de PostgREST que lo valida hace que, por un instante,
+// el JWT parezca "emitido en el futuro". Repetir la consulta tras una pequeña
+// espera basta para que el reloj se ponga al día.
+export async function withRetry(queryFn, { retries = 1, delayMs = 400 } = {}) {
+  let result = await queryFn();
+  let attempt = 0;
+  while (result.error && result.error.code === 'PGRST303' && attempt < retries) {
+    await new Promise(r => setTimeout(r, delayMs));
+    result = await queryFn();
+    attempt++;
+  }
+  return result;
+}
+
 // Validar token de autenticación
 export function validateToken(token) {
   if (!token) return false;

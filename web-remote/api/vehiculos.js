@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, getSupabase } from './_utils.js';
+import { setCorsHeaders, requireAuth, getSupabase, withRetry } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -13,11 +13,11 @@ export default async function handler(req, res) {
   try { supabase = await getSupabase(); }
   catch (e) { return res.status(500).json({ error: e.message }); }
 
-  const { data, error } = await supabase
+  const { data, error } = await withRetry(() => supabase
     .from('vehiculos')
     .select('id, nombre, matricula, km_actual')
     .eq('deleted', false)
-    .order('nombre');
+    .order('nombre'));
 
   if (error) {
     console.error('Error obteniendo vehículos:', error);
