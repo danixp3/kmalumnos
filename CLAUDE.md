@@ -45,6 +45,9 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 _Última actualización: 2026-07-17._
 
 - **Versión:** 1.3.12 (2026-07-16), instalada en los 2 PCs; web-remote desplegada y verificada. Sync bidireccional OK: nube = espejo del PC principal (1 vehículo / 10 alumnos / 113 prácticas). Suite: 38 tests en verde (`npm test`).
+- **UI (2026-07-17):** rediseño SaaS completo — escritorio con sidebar claro, dashboard de accesos rápidos e iconografía SVG sin emojis (viaja en la próxima release); web-remote rediseñada y DESPLEGADA (smoke test OK).
+- **Fix web:** /api/vehiculos y /api/alumnos reintentan ante PGRST303 ("JWT issued at future" en arranques fríos concurrentes de Vercel) — era la causa del "Error cargando datos" intermitente.
+- **Aviso datos:** la nube devuelve 9 alumnos activos y la doc decía 10 — pendiente revisar con /estado-nube.
 - **Skills del proyecto** (`.claude/skills/`, usarlas siempre que aplique en vez de rehacer el proceso a mano): `/publicar-release` (release completa verificada), `/desplegar-web` (deploy Vercel por API), `/diagnostico-sync` (runbook de discrepancias de datos), `/preparar-cambio` (arranque de tarea con mapa condensado), `/cerrar-tarea` (ritual de cierre), `/estado-nube` (chequeo rápido local vs nube), `/cambiar-web` (desarrollo de web-remote con mapa + smoke test), `/cambiar-app` (desarrollo de escritorio: anclas + receta punta a punta + tests), `/mejorar-ui` (rediseño iterativo de las dos interfaces).
 - **MCPs:** Supabase, GitHub y Vercel en `.mcp.json` (git-ignored). El `gh` CLI da 401: para GitHub usar el MCP o la API REST con ese token.
 - **CRÍTICO pendiente (A5):** la BD sigue expuesta: repo público + anon key en `sync.js` + RLS `allow_all`. Falta: meter credenciales de sync en ambos PCs (UI: Backup → Cuenta de sincronización) y cambiar RLS a "solo el usuario de sync autenticado" (por uid). Ojo: privatizar el repo rompería el auto-update, y endurecer RLS antes de que ambos PCs tengan credenciales rompería el sync. El PIN (2004) está commiteado en CHANGELOG-SECURITY.md y CONTEXT.md; el token web es `base64(PIN:timestamp)` sin rate limiting real.
@@ -52,9 +55,10 @@ _Última actualización: 2026-07-17._
 
 ## Metodología de trabajo
 
-1. Actúas como Agente Supervisor: el usuario no programa; háblale de objetivos y resultados, nunca de detalles de código salvo que lo pida.
-2. Toda petición se trocea en tareas atómicas, cada una con un criterio de aceptación verificable. Preséntalas antes de ejecutar.
-3. Para explorar código o buscar información extensa, delega en sub-agentes y quédate solo con sus resúmenes; no cargues archivos enteros en el contexto principal sin necesidad.
-4. Ninguna tarea se da por cerrada sin pasar la validación: los tests del proyecto (cuando existan) y el criterio de aceptación. Si falla, itera sin pedir intervención del usuario salvo bloqueo real.
-5. Al cerrar cada tarea, actualiza la sección "Estado actual" de este archivo en máximo 3 líneas por cambio.
-6. Antes de cambios arriesgados (borrar datos, tocar Supabase, releases), explica el riesgo y pide confirmación explícita.
+1. Fable 5 actúa como Director: interpreta la petición, la trocea en tareas atómicas con criterio de aceptación verificable, y las presenta antes de ejecutar. El usuario no programa: háblale de objetivos y resultados, nunca de detalles de código salvo que lo pida.
+2. **El Director no ejecuta: dirige.** Toda modificación de archivos (código, documentación o skills) la realiza un worker (Agent tool con `model: "sonnet"`) con instrucciones cerradas del Director: qué cambiar, dónde y con qué criterio de aceptación. El Director solo lee/verifica lo mínimo imprescindible para dirigir y validar.
+3. Los workers deben usar las skills del proyecto (`.claude/skills/`) como primera fuente (mapas, anclas, recetas) en vez de releer archivos enteros — es la vía para ahorrar tokens y ser eficientes.
+4. Si un cambio deja desactualizada una skill, el Director dictamina la corrección y la aplica otro worker; nunca el Director directamente.
+5. Ninguna tarea se da por cerrada sin validación: los tests del proyecto y el criterio de aceptación. Si falla, el Director itera con nuevos encargos a workers sin pedir intervención del usuario salvo bloqueo real.
+6. Al cerrar cada tarea, actualizar la sección "Estado actual" de este archivo en máximo 3 líneas por cambio.
+7. Antes de cambios arriesgados (borrar datos, tocar Supabase, releases), explicar el riesgo y pedir confirmación explícita.
