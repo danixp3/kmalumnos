@@ -67,6 +67,13 @@ function createWindow() {
   });
   mainWin.loadFile('index.html');
   mainWin.setMenuBarVisibility(false);
+
+  // Los botones laterales del ratón (atrás/adelante) no deben navegar el
+  // historial de Electron: en Registro Rápido los captura el renderer para
+  // cambiar de fecha (ver 'mouseup' en renderer.js).
+  mainWin.on('app-command', (event, cmd) => {
+    if (cmd === 'browser-backward' || cmd === 'browser-forward') event.preventDefault();
+  });
 }
 
 app.whenReady().then(() => {
@@ -86,6 +93,14 @@ app.whenReady().then(() => {
   sync.onStatusChange((status) => {
     if (mainWin && !mainWin.isDestroyed()) {
       mainWin.webContents.send('sync-status', status, sync.getLastError());
+    }
+  });
+
+  // Avisar cuando un sync (automático o manual) detecta conflictos reales:
+  // dos ediciones a la vez del mismo registro entre este PC y otro dispositivo.
+  sync.onConflictos((conflictos) => {
+    if (mainWin && !mainWin.isDestroyed()) {
+      mainWin.webContents.send('sync-conflictos', conflictos.length);
     }
   });
 });
@@ -167,6 +182,15 @@ ipcMain.handle('add-vehiculo', (_, nombre, matricula, km_actual) => {
 ipcMain.handle('delete-vehiculo', (_, id) => { db.deleteVehiculo(id); return true; });
 ipcMain.handle('update-vehiculo-km', (_, id, km) => { db.updateVehiculoKm(id, km); return true; });
 
+ipcMain.handle('get-profesores', () => db.getProfesores());
+ipcMain.handle('add-profesor', (_, nombre, nota) => db.addProfesor(nombre, nota));
+ipcMain.handle('delete-profesor', (_, id) => { db.deleteProfesor(id); return true; });
+ipcMain.handle('update-profesor', (_, id, nombre, nota) => { db.updateProfesor(id, nombre, nota); return true; });
+
+ipcMain.handle('get-tarifas', () => db.getTarifas());
+ipcMain.handle('set-tarifa', (_, permiso, tipo, precio) => db.setTarifa(permiso, tipo, precio));
+ipcMain.handle('delete-tarifa', (_, id) => { db.deleteTarifa(id); return true; });
+
 ipcMain.handle('get-alumnos', () => db.getAlumnos());
 ipcMain.handle('add-alumno', (_, nombre, permiso, vehiculo_id) => db.addAlumno(nombre, permiso, vehiculo_id));
 ipcMain.handle('delete-alumno', (_, id) => { db.deleteAlumno(id); return true; });
@@ -174,11 +198,17 @@ ipcMain.handle('update-alumno', (_, id, nombre, permiso, vehiculo_id) => { db.up
 
 ipcMain.handle('get-practicas', (_, alumno_id) => db.getPracticasByAlumno(alumno_id));
 ipcMain.handle('get-ultima-practica', (_, alumno_id) => db.getUltimaPractica(alumno_id));
-ipcMain.handle('add-practica', (_, alumno_id, vehiculo_id, fecha, km_inicial, km_final) =>
-  db.addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final)
+ipcMain.handle('add-practica', (_, alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo) =>
+  db.addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo)
 );
 ipcMain.handle('delete-practica', (_, id) => { db.deletePractica(id); return true; });
-ipcMain.handle('update-practica', (_, id, fecha, km_inicial, km_final) => { db.updatePractica(id, fecha, km_inicial, km_final); return true; });
+ipcMain.handle('update-practica', (_, id, fecha, km_inicial, km_final, profesor_id, tipo) => { db.updatePractica(id, fecha, km_inicial, km_final, profesor_id, tipo); return true; });
+
+ipcMain.handle('get-pagos-alumno', (_, alumno_id) => db.getPagosByAlumno(alumno_id));
+ipcMain.handle('add-pago', (_, alumno_id, fecha, cantidad, nota) => db.addPago(alumno_id, fecha, cantidad, nota));
+ipcMain.handle('update-pago', (_, id, fecha, cantidad, nota) => { db.updatePago(id, fecha, cantidad, nota); return true; });
+ipcMain.handle('delete-pago', (_, id) => { db.deletePago(id); return true; });
+ipcMain.handle('get-deudas', () => db.getDeudas());
 
 ipcMain.handle('get-resumen', () => db.getResumen());
 ipcMain.handle('get-solapamientos', () => db.getSolapamientos());
@@ -191,19 +221,15 @@ ipcMain.handle('get-timeline-vehiculo', (_, vehiculo_id) => db.getTimelineVehicu
 ipcMain.handle('get-alumnos-por-vehiculo', (_, vehiculo_id, fecha) => db.getAlumnosPorVehiculo(vehiculo_id, fecha));
 ipcMain.handle('registrar-practicas-masivas', (_, vehiculo_id, fecha, alumno_ids) => db.registrarPracticasMasivas(vehiculo_id, fecha, alumno_ids));
 ipcMain.handle('eliminar-practica-por-fecha', (_, vehiculo_id, fecha, alumno_id) => db.eliminarPracticaPorFecha(vehiculo_id, fecha, alumno_id));
-ipcMain.handle('ajustar-practicas-alumno', (_, vehiculo_id, fecha, alumno_id, delta) => db.ajustarPracticasAlumno(vehiculo_id, fecha, alumno_id, delta));
-ipcMain.handle('guardar-nota-alumno', (_, vehiculo_id, fecha, alumno_id, nota) => db.guardarNotaAlumno(vehiculo_id, fecha, alumno_id, nota));
+ipcMain.handle('ajustar-practicas-alumno', (_, vehiculo_id, fecha, alumno_id, delta, profesor_id, tipo) => db.ajustarPracticasAlumno(vehiculo_id, fecha, alumno_id, delta, profesor_id, tipo));
+ipcMain.handle('guardar-nota-alumno', (_, vehiculo_id, fecha, alumno_id, nota, profesor_id, tipo) => db.guardarNotaAlumno(vehiculo_id, fecha, alumno_id, nota, profesor_id, tipo));
 ipcMain.handle('get-anotaciones-alumno', (_, alumno_id) => db.getAnotacionesAlumno(alumno_id));
 
 ipcMain.handle('get-logs', () => db.getLogs());
 ipcMain.handle('clear-logs', () => db.clearLogs());
 ipcMain.handle('validar-solapamiento', (_, vehiculo_id, fecha, kmI, kmF, excluirId) => db.validarSolapamiento(vehiculo_id, fecha, kmI, kmF, excluirId));
 
-ipcMain.handle('crear-backup', async () => {
-  const result = await dialog.showOpenDialog({ title: 'Seleccionar carpeta para el backup', properties: ['openDirectory'] });
-  if (result.canceled || !result.filePaths.length) return { ok: false, msg: 'Cancelado.' };
-  return db.crearBackup(result.filePaths[0]);
-});
+ipcMain.handle('crear-backup', () => db.crearBackup());
 
 ipcMain.handle('restaurar-backup', async () => {
   const result = await dialog.showOpenDialog({
@@ -213,6 +239,14 @@ ipcMain.handle('restaurar-backup', async () => {
   });
   if (result.canceled || !result.filePaths.length) return { ok: false, msg: 'Cancelado.' };
   return db.restaurarBackup(result.filePaths[0]);
+});
+
+ipcMain.handle('get-ultimo-backup', () => db.obtenerUltimoBackup());
+
+ipcMain.handle('restaurar-ultimo-backup', () => {
+  const ultimo = db.obtenerUltimoBackup();
+  if (!ultimo) return { ok: false, msg: 'No hay copias de seguridad guardadas.' };
+  return db.restaurarBackup(ultimo.file);
 });
 
 ipcMain.handle('open-csv-dialog', async () => {

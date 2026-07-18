@@ -26,6 +26,15 @@ let _pendingPath = null;
 let _dataPath    = null;
 let _syncTimer   = null;
 
+// "Sync inmediato": tras cada cambio local se reprograma este debounce, para
+// que una ráfaga de mutaciones (relleno masivo, importación CSV...) dispare UN
+// solo sync al terminar, no uno por cambio. Solo se arma mientras el auto-sync
+// está en marcha (ver startAutoSync/stopAutoSync) — así los tests que llaman a
+// markDirty/markDeleted sin arrancar la app no programan timers reales.
+let _syncInmediatoTimer      = null;
+let _syncInmediatoActivo     = false;
+let _syncInmediatoDebounceMs = 5000;
+
 // Credenciales de la cuenta de sincronización (email/contraseña de Supabase Auth).
 // Si están presentes, la app inicia sesión antes de sincronizar y así la base de
 // datos puede exigir usuarios autenticados (RLS) en lugar de aceptar la anon key
@@ -36,6 +45,9 @@ let _authError = null;
 
 // Callbacks para notificar a la UI el estado de sync
 let _onStatusChange = null;
+// Callback para notificar a la UI cuántos conflictos reales hubo en el último
+// sync() (ver "DETECCIÓN DE CONFLICTOS" más abajo).
+let _onConflictos = null;
 
 const STATUS = {
   OFFLINE:  'offline',
@@ -77,11 +89,17 @@ function loadDataSafe() {
     regenerado = true;
   }
   if (!data || typeof data !== 'object') data = {};
-  if (!Array.isArray(data.vehiculos)) data.vehiculos = [];
-  if (!Array.isArray(data.alumnos))   data.alumnos = [];
-  if (!Array.isArray(data.practicas)) data.practicas = [];
-  if (!Array.isArray(data.logs))      data.logs = [];
-  if (!data._seq) data._seq = { v: 1, a: 1, p: 1 };
+  if (!Array.isArray(data.vehiculos))  data.vehiculos = [];
+  if (!Array.isArray(data.profesores)) data.profesores = [];
+  if (!Array.isArray(data.alumnos))    data.alumnos = [];
+  if (!Array.isArray(data.practicas))  data.practicas = [];
+  if (!Array.isArray(data.tarifas))    data.tarifas = [];
+  if (!Array.isArray(data.pagos))      data.pagos = [];
+  if (!Array.isArray(data.logs))       data.logs = [];
+  if (!data._seq) data._seq = { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1 };
+  if (!data._seq.pf) data._seq.pf = 1;
+  if (!data._seq.t) data._seq.t = 1;
+  if (!data._seq.pg) data._seq.pg = 1;
   return { data, regenerado };
 }
 
@@ -141,7 +159,11 @@ function loadPending() {
   if (fs.existsSync(p)) {
     try { return JSON.parse(fs.readFileSync(p, 'utf-8')); } catch {}
   }
-  return { vehiculos: [], alumnos: [], practicas: [], deleted: { practicas: [], alumnos: [], vehiculos: [] }, lastSync: '1970-01-01T00:00:00.000Z' };
+  return {
+    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [],
+    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [] },
+    lastSync: '1970-01-01T00:00:00.000Z'
+  };
 }
 
 function savePending(pending) {
@@ -150,19 +172,25 @@ function savePending(pending) {
 
 function markDirty(table, id) {
   const p = loadPending();
+  // Defensa: un pending_sync.json de una versión anterior puede no traer la
+  // clave de una tabla nueva (p.ej. "profesores" en instalaciones ya en uso).
+  if (!p[table]) p[table] = [];
   if (!p[table].includes(id)) p[table].push(id);
   savePending(p);
   setStatus(STATUS.PENDING);
+  programarSyncInmediato();
 }
 
 function markDeleted(table, id) {
   const p = loadPending();
+  if (!p.deleted) p.deleted = {};
   if (!p.deleted[table]) p.deleted[table] = [];
   if (!p.deleted[table].includes(id)) p.deleted[table].push(id);
   // Quitar de dirty si estaba
   p[table] = (p[table] || []).filter(x => x !== id);
   savePending(p);
   setStatus(STATUS.PENDING);
+  programarSyncInmediato();
 }
 
 function setStatus(status) {
@@ -176,6 +204,50 @@ function getStatus() {
 
 function getLastError() {
   return _lastError;
+}
+
+// ─── DETECCIÓN DE CONFLICTOS ──────────────────────────────────────────────────
+// La regla de resolución no cambia: en la bajada, el registro con updated_at
+// más reciente gana siempre (sea local o remoto). Lo que faltaba era darse
+// cuenta de cuándo esa sustitución descarta de verdad una edición local que
+// aún no había llegado a la nube — antes pasaba en silencio.
+//
+// Un conflicto real es: el id que la nube acaba de sustituir localmente estaba
+// en pending_sync.json (edición local sin subir todavía) Y el contenido que
+// baja de la nube es distinto del que había en local. Si el contenido es
+// idéntico, es simplemente el eco de nuestra propia subida del paso 1 de este
+// mismo sync() (no hay pérdida de nada, no se registra).
+//
+// LIMITACIÓN CONOCIDA (caso inverso, no cubierto aquí): si la edición local es
+// la más reciente, este mismo sync() la subirá en el paso 1 con un upsert ciego
+// que sobrescribe la nube sin comprobar antes su contenido. Si otro dispositivo
+// había dejado ahí un cambio que este PC nunca llegó a descargar, se pierde sin
+// avisar. Detectarlo exigiría un SELECT extra por cada id pendiente antes de
+// subir (un viaje de red más por sync) — se deja documentado, sin implementar.
+function _valoresDifieren(local, remoto, campos) {
+  return campos.some(c => {
+    const a = local ? local[c] : undefined;
+    const b = remoto ? remoto[c] : undefined;
+    const an = (a === undefined || a === null) ? '' : a;
+    const bn = (b === undefined || b === null) ? '' : b;
+    return String(an) !== String(bn);
+  });
+}
+
+function _detectarYRegistrarConflicto(data, tabla, pendingIds, id, campos, localAntes, remotoNuevo, conflictos) {
+  if (!(pendingIds || []).includes(id)) return; // este PC no tenía una edición local sin subir
+  if (!_valoresDifieren(localAntes, remotoNuevo, campos)) return; // eco de nuestra propia subida, no un conflicto
+
+  const cambios = campos
+    .filter(c => _valoresDifieren(localAntes, remotoNuevo, [c]))
+    .map(c => `${c}: "${localAntes ? (localAntes[c] ?? '') : ''}" (este PC, descartado) → "${remotoNuevo[c] ?? ''}" (otro dispositivo)`)
+    .join('; ');
+  const descripcion = `Conflicto de sincronización en ${tabla} #${id}: dos ediciones a la vez, gana el otro dispositivo (más reciente).`;
+
+  conflictos.push({ tabla, id, ganador: 'remoto', cambios });
+  try {
+    require('./db').registrarLogEnData(data, 'conflicto_sync', descripcion, [cambios]);
+  } catch { /* no interrumpir el sync por un fallo al loguear */ }
 }
 
 // ─── SYNC ────────────────────────────────────────────────────────────────────
@@ -215,7 +287,14 @@ async function sync() {
     const sb = await ensureClient();
     if (!sb) { _lastError = _authError || 'Credenciales de sincronización inválidas'; setStatus(STATUS.ERROR); return { ok: false, reason: _lastError }; }
 
+    // Conflictos reales detectados en la bajada de este sync (ver "DETECCIÓN DE
+    // CONFLICTOS" más arriba): edición local sin subir todavía que la nube
+    // acaba de sustituir con un contenido distinto.
+    const conflictos = [];
+
     // ── 1. SUBIR CAMBIOS LOCALES ──────────────────────────────────────────────
+    // OJO (caso inverso, no cubierto — ver nota junto a _detectarYRegistrarConflicto):
+    // estos upserts son ciegos, no comprueban el estado remoto antes de escribir.
 
     // Vehículos dirty
     for (const id of pending.vehiculos) {
@@ -224,6 +303,28 @@ async function sync() {
         await sb.from('vehiculos').upsert({
           id: v.id, nombre: v.nombre, matricula: v.matricula,
           km_actual: v.km_actual, deleted: false, updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      }
+    }
+
+    // Profesores dirty
+    for (const id of (pending.profesores || [])) {
+      const pr = data.profesores.find(x => x.id === id);
+      if (pr) {
+        await sb.from('profesores').upsert({
+          id: pr.id, nombre: pr.nombre, nota: pr.nota || '',
+          deleted: false, updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      }
+    }
+
+    // Tarifas dirty
+    for (const id of (pending.tarifas || [])) {
+      const t = data.tarifas.find(x => x.id === id);
+      if (t) {
+        await sb.from('tarifas').upsert({
+          id: t.id, permiso: t.permiso, tipo: t.tipo, precio: t.precio || 0,
+          deleted: false, updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
       }
     }
@@ -246,7 +347,21 @@ async function sync() {
         await sb.from('practicas').upsert({
           id: p.id, alumno_id: p.alumno_id, vehiculo_id: p.vehiculo_id,
           fecha: p.fecha, km_inicial: p.km_inicial, km_final: p.km_final,
-          nota: p.nota || '', deleted: false, updated_at: new Date().toISOString()
+          nota: p.nota || '', profesor_id: p.profesor_id || null,
+          tipo: p.tipo || null,
+          deleted: false, updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      }
+    }
+
+    // Pagos dirty
+    for (const id of (pending.pagos || [])) {
+      const pg = data.pagos.find(x => x.id === id);
+      if (pg) {
+        await sb.from('pagos').upsert({
+          id: pg.id, alumno_id: pg.alumno_id, fecha: pg.fecha,
+          cantidad: pg.cantidad || 0, nota: pg.nota || '',
+          deleted: false, updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
       }
     }
@@ -263,11 +378,21 @@ async function sync() {
     for (const id of (pending.deleted.vehiculos || [])) {
       await sb.from('vehiculos').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
     }
+    for (const id of (pending.deleted.profesores || [])) {
+      await sb.from('profesores').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
+    }
+    for (const id of (pending.deleted.tarifas || [])) {
+      await sb.from('tarifas').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
+    }
+    for (const id of (pending.deleted.pagos || [])) {
+      await sb.from('pagos').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
+    }
 
     // ── 2. BAJAR CAMBIOS REMOTOS (del móvil / del otro PC) ───────────────────
-    // Orden importante: vehiculos → alumnos → practicas, para que un PC vacío
-    // pueda reconstruir todo en una sola pasada (las prácticas se descartan si
-    // su alumno o vehículo no existe aún localmente).
+    // Orden importante: vehiculos → profesores → tarifas → alumnos → practicas → pagos,
+    // para que un PC vacío pueda reconstruir todo en una sola pasada (las prácticas se
+    // descartan si su alumno o vehículo no existe aún localmente; tarifas y pagos no
+    // dependen de nada más y se aplican directamente).
 
     const lastSync = pending.lastSync || '1970-01-01T00:00:00.000Z';
     let pulled = 0;
@@ -303,10 +428,87 @@ async function sync() {
           const localUpdated  = data.vehiculos[idx].updated_at || '1970-01-01T00:00:00.000Z';
           const remoteUpdated = rv.updated_at || '1970-01-01T00:00:00.000Z';
           if (remoteUpdated > localUpdated) {
-            Object.assign(data.vehiculos[idx], {
+            const nuevo = {
               nombre: rv.nombre, matricula: rv.matricula || '',
-              km_actual: parseFloat(rv.km_actual) || 0, updated_at: rv.updated_at
-            });
+              km_actual: parseFloat(rv.km_actual) || 0
+            };
+            _detectarYRegistrarConflicto(data, 'vehiculos', pending.vehiculos,
+              rv.id, ['nombre', 'matricula', 'km_actual'], data.vehiculos[idx], nuevo, conflictos);
+            Object.assign(data.vehiculos[idx], nuevo, { updated_at: rv.updated_at });
+            dataChanged = true;
+            pulled++;
+          }
+        }
+      }
+    }
+
+    // Profesores nuevos o modificados
+    const { data: remoteProfesores, error: errPf } = await sb
+      .from('profesores')
+      .select('*')
+      .gt('updated_at', lastSync);
+
+    if (!errPf && remoteProfesores) {
+      for (const rp of remoteProfesores) {
+        const idx = data.profesores.findIndex(x => x.id === rp.id);
+        if (rp.deleted) {
+          // Borrado en otro dispositivo: quitarlo también aquí. Sus prácticas
+          // ya impartidas conservan el profesor_id (igual que un alumno borrado).
+          if (idx !== -1) {
+            data.profesores.splice(idx, 1);
+            dataChanged = true;
+          }
+          continue;
+        }
+        if (idx === -1) {
+          data.profesores.push({ id: rp.id, nombre: rp.nombre, nota: rp.nota || '', updated_at: rp.updated_at });
+          if (rp.id >= data._seq.pf) data._seq.pf = rp.id + 1;
+          dataChanged = true;
+          pulled++;
+        } else {
+          const localUpdated  = data.profesores[idx].updated_at || '1970-01-01T00:00:00.000Z';
+          const remoteUpdated = rp.updated_at || '1970-01-01T00:00:00.000Z';
+          if (remoteUpdated > localUpdated) {
+            const nuevo = { nombre: rp.nombre, nota: rp.nota || '' };
+            _detectarYRegistrarConflicto(data, 'profesores', pending.profesores,
+              rp.id, ['nombre', 'nota'], data.profesores[idx], nuevo, conflictos);
+            Object.assign(data.profesores[idx], nuevo, { updated_at: rp.updated_at });
+            dataChanged = true;
+            pulled++;
+          }
+        }
+      }
+    }
+
+    // Tarifas nuevas o modificadas
+    const { data: remoteTarifas, error: errT } = await sb
+      .from('tarifas')
+      .select('*')
+      .gt('updated_at', lastSync);
+
+    if (!errT && remoteTarifas) {
+      for (const rt of remoteTarifas) {
+        const idx = data.tarifas.findIndex(x => x.id === rt.id);
+        if (rt.deleted) {
+          if (idx !== -1) {
+            data.tarifas.splice(idx, 1);
+            dataChanged = true;
+          }
+          continue;
+        }
+        if (idx === -1) {
+          data.tarifas.push({ id: rt.id, permiso: rt.permiso, tipo: rt.tipo, precio: parseFloat(rt.precio) || 0, updated_at: rt.updated_at });
+          if (rt.id >= data._seq.t) data._seq.t = rt.id + 1;
+          dataChanged = true;
+          pulled++;
+        } else {
+          const localUpdated  = data.tarifas[idx].updated_at || '1970-01-01T00:00:00.000Z';
+          const remoteUpdated = rt.updated_at || '1970-01-01T00:00:00.000Z';
+          if (remoteUpdated > localUpdated) {
+            const nuevo = { permiso: rt.permiso, tipo: rt.tipo, precio: parseFloat(rt.precio) || 0 };
+            _detectarYRegistrarConflicto(data, 'tarifas', pending.tarifas,
+              rt.id, ['permiso', 'tipo', 'precio'], data.tarifas[idx], nuevo, conflictos);
+            Object.assign(data.tarifas[idx], nuevo, { updated_at: rt.updated_at });
             dataChanged = true;
             pulled++;
           }
@@ -362,7 +564,9 @@ async function sync() {
               const practica = {
                 id: rp.id, alumno_id: rp.alumno_id, vehiculo_id: rp.vehiculo_id,
                 fecha: rp.fecha, km_inicial: parseFloat(rp.km_inicial), km_final: parseFloat(rp.km_final),
-                nota: rp.nota || '', updated_at: rp.updated_at
+                nota: rp.nota || '', profesor_id: rp.profesor_id != null ? rp.profesor_id : null,
+                tipo: rp.tipo != null ? rp.tipo : null,
+                updated_at: rp.updated_at
               };
               if (idx !== -1) {
                 // Comparar timestamps: solo sobrescribir si el remoto es más reciente
@@ -371,6 +575,9 @@ async function sync() {
                 const remoteUpdated = rp.updated_at || '1970-01-01T00:00:00.000Z';
             
                 if (remoteUpdated > localUpdated) {
+                  _detectarYRegistrarConflicto(data, 'practicas', pending.practicas, rp.id,
+                    ['alumno_id', 'vehiculo_id', 'fecha', 'km_inicial', 'km_final', 'nota', 'profesor_id', 'tipo'],
+                    local, practica, conflictos);
                   data.practicas[idx] = practica;
                   dataChanged = true;
                   pulled++;
@@ -387,6 +594,49 @@ async function sync() {
           }
         }
 
+    // Pagos nuevos o modificados
+    const { data: remotePagos, error: errPg } = await sb
+      .from('pagos')
+      .select('*')
+      .gt('updated_at', lastSync);
+
+    if (!errPg && remotePagos) {
+      for (const rpg of remotePagos) {
+        const idx = data.pagos.findIndex(x => x.id === rpg.id);
+        if (rpg.deleted) {
+          if (idx !== -1) {
+            data.pagos.splice(idx, 1);
+            dataChanged = true;
+          }
+          continue;
+        }
+        if (idx === -1) {
+          data.pagos.push({
+            id: rpg.id, alumno_id: rpg.alumno_id, fecha: rpg.fecha,
+            cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || '',
+            updated_at: rpg.updated_at
+          });
+          if (rpg.id >= data._seq.pg) data._seq.pg = rpg.id + 1;
+          dataChanged = true;
+          pulled++;
+        } else {
+          const localUpdated  = data.pagos[idx].updated_at || '1970-01-01T00:00:00.000Z';
+          const remoteUpdated = rpg.updated_at || '1970-01-01T00:00:00.000Z';
+          if (remoteUpdated > localUpdated) {
+            const nuevo = {
+              alumno_id: rpg.alumno_id, fecha: rpg.fecha,
+              cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || ''
+            };
+            _detectarYRegistrarConflicto(data, 'pagos', pending.pagos,
+              rpg.id, ['alumno_id', 'fecha', 'cantidad', 'nota'], data.pagos[idx], nuevo, conflictos);
+            Object.assign(data.pagos[idx], nuevo, { updated_at: rpg.updated_at });
+            dataChanged = true;
+            pulled++;
+          }
+        }
+      }
+    }
+
     if (dataChanged || regenerado) {
       saveData(data);
       // Limpiar caché de db.js
@@ -395,22 +645,71 @@ async function sync() {
 
     // ── 3. ACTUALIZAR ESTADO PENDING ─────────────────────────────────────────
     pending.vehiculos           = [];
+    pending.profesores          = [];
+    pending.tarifas             = [];
     pending.alumnos             = [];
     pending.practicas           = [];
+    pending.pagos               = [];
     pending.deleted.practicas   = [];
     pending.deleted.alumnos     = [];
     pending.deleted.vehiculos   = [];
+    pending.deleted.profesores  = [];
+    pending.deleted.tarifas     = [];
+    pending.deleted.pagos       = [];
     pending.lastSync            = new Date().toISOString();
     savePending(pending);
 
     _lastError = null;
     setStatus(STATUS.OK);
-    return { ok: true, pulled };
+    if (conflictos.length && _onConflictos) _onConflictos(conflictos);
+    return { ok: true, pulled, conflictos: conflictos.length };
 
   } catch (e) {
     _lastError = e.message;
     setStatus(STATUS.ERROR);
     return { ok: false, reason: e.message };
+  }
+}
+
+// ─── SYNC INMEDIATO (debounce tras cada cambio) ──────────────────────────────
+// Objetivo: que el usuario no espere hasta el ciclo de 2 minutos del auto-sync.
+// Cada llamada reinicia el temporizador de 5 s; si llegan varios cambios
+// seguidos (relleno masivo, importación CSV...) solo se dispara UN sync al
+// terminar la ráfaga. El auto-sync de 2 minutos sigue como red de seguridad.
+
+function programarSyncInmediato() {
+  // Sin auto-sync en marcha (app aún no arrancada del todo, o un test que llama
+  // a markDirty/markDeleted directamente) no se programa nada: evita timers
+  // reales colgando y sincronizaciones de fondo fuera de la app real.
+  if (!_syncInmediatoActivo) return;
+  if (_syncInmediatoTimer) clearTimeout(_syncInmediatoTimer);
+  _syncInmediatoTimer = setTimeout(_dispararSyncInmediato, _syncInmediatoDebounceMs);
+  if (typeof _syncInmediatoTimer.unref === 'function') _syncInmediatoTimer.unref();
+}
+
+function _dispararSyncInmediato() {
+  _syncInmediatoTimer = null;
+  if (currentStatus === STATUS.SYNCING) {
+    // Ya hay un sync en curso (el propio auto-sync, un "Subir todo" manual...):
+    // reprogramar para cuando acabe, en vez de solapar dos syncs a la vez.
+    programarSyncInmediato();
+    return;
+  }
+  // Llamada a través de module.exports (no a la función local) para que sea
+  // observable/interceptable desde los tests igual que cualquier otro caller.
+  module.exports.sync();
+}
+
+// Solo para tests: activa/desactiva el mecanismo sin depender del setInterval
+// real de startAutoSync, y permite acortar el debounce para no alargar los
+// tests. Sin esta activación explícita (o startAutoSync), markDirty/markDeleted
+// no programan ningún temporizador.
+function _configurarSyncInmediatoParaTests({ activo, debounceMs } = {}) {
+  if (activo !== undefined) _syncInmediatoActivo = activo;
+  if (debounceMs !== undefined) _syncInmediatoDebounceMs = debounceMs;
+  if (!_syncInmediatoActivo && _syncInmediatoTimer) {
+    clearTimeout(_syncInmediatoTimer);
+    _syncInmediatoTimer = null;
   }
 }
 
@@ -427,10 +726,22 @@ async function pushAll() {
     if (!sb) { _lastError = _authError || 'Credenciales de sincronización inválidas'; setStatus(STATUS.ERROR); return { ok: false, reason: _lastError }; }
     const now  = new Date().toISOString();
 
-    // Subir en orden: vehiculos → alumnos → practicas
+    // Subir en orden: vehiculos → profesores → tarifas → alumnos → practicas → pagos
     if (data.vehiculos.length) {
       await sb.from('vehiculos').upsert(
         data.vehiculos.map(v => ({ ...v, deleted: false, updated_at: now })),
+        { onConflict: 'id' }
+      );
+    }
+    if (data.profesores.length) {
+      await sb.from('profesores').upsert(
+        data.profesores.map(p => ({ ...p, deleted: false, updated_at: now })),
+        { onConflict: 'id' }
+      );
+    }
+    if (data.tarifas.length) {
+      await sb.from('tarifas').upsert(
+        data.tarifas.map(t => ({ ...t, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
@@ -443,6 +754,12 @@ async function pushAll() {
     if (data.practicas.length) {
       await sb.from('practicas').upsert(
         data.practicas.map(p => ({ ...p, deleted: false, updated_at: now })),
+        { onConflict: 'id' }
+      );
+    }
+    if (data.pagos.length) {
+      await sb.from('pagos').upsert(
+        data.pagos.map(pg => ({ ...pg, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
@@ -459,11 +776,20 @@ async function pushAll() {
     for (const id of (pending.deleted.vehiculos || [])) {
       await sb.from('vehiculos').update({ deleted: true, updated_at: now }).eq('id', id);
     }
+    for (const id of (pending.deleted.profesores || [])) {
+      await sb.from('profesores').update({ deleted: true, updated_at: now }).eq('id', id);
+    }
+    for (const id of (pending.deleted.tarifas || [])) {
+      await sb.from('tarifas').update({ deleted: true, updated_at: now }).eq('id', id);
+    }
+    for (const id of (pending.deleted.pagos || [])) {
+      await sb.from('pagos').update({ deleted: true, updated_at: now }).eq('id', id);
+    }
 
     // Limpiar pending. OJO: no adelantar lastSync aquí — si este PC aún no ha
     // descargado los datos antiguos de la nube, adelantarla se los saltaría.
-    pending.vehiculos = []; pending.alumnos = []; pending.practicas = [];
-    pending.deleted = { practicas: [], alumnos: [], vehiculos: [] };
+    pending.vehiculos = []; pending.profesores = []; pending.tarifas = []; pending.alumnos = []; pending.practicas = []; pending.pagos = [];
+    pending.deleted = { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [] };
     savePending(pending);
 
     _lastError = null;
@@ -479,18 +805,29 @@ async function pushAll() {
 // ─── AUTO-SYNC ────────────────────────────────────────────────────────────────
 
 function startAutoSync(intervalMs = 2 * 60 * 1000) {
+  // Arma el mecanismo de sync inmediato (debounce tras cada cambio local)
+  _syncInmediatoActivo = true;
   // Sync inmediato al arrancar
-  setTimeout(() => sync(), 3000);
+  const initialTimer = setTimeout(() => sync(), 3000);
+  if (typeof initialTimer.unref === 'function') initialTimer.unref();
   // Luego cada intervalMs
   _syncTimer = setInterval(() => sync(), intervalMs);
 }
 
 function stopAutoSync() {
   if (_syncTimer) { clearInterval(_syncTimer); _syncTimer = null; }
+  _syncInmediatoActivo = false;
+  if (_syncInmediatoTimer) { clearTimeout(_syncInmediatoTimer); _syncInmediatoTimer = null; }
 }
 
 function onStatusChange(cb) {
   _onStatusChange = cb;
+}
+
+// cb recibe el array de conflictos { tabla, id, ganador, cambios } del último
+// sync() que encontró alguno. No se llama si no hubo ninguno.
+function onConflictos(cb) {
+  _onConflictos = cb;
 }
 
 module.exports = {
@@ -503,8 +840,11 @@ module.exports = {
   startAutoSync,
   stopAutoSync,
   onStatusChange,
+  onConflictos,
   setCredentials,
   hasCredentials,
   getAuthError,
-  getLastError
+  getLastError,
+  programarSyncInmediato,
+  _configurarSyncInmediatoParaTests
 };

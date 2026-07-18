@@ -2,9 +2,12 @@
  * db.js  –  almacenamiento en JSON local (sin módulos nativos)
  * Estructura del archivo data.json:
  * {
- *   vehiculos: [ { id, nombre, matricula, km_actual } ],
- *   alumnos:   [ { id, nombre, permiso, vehiculo_id } ],
- *   practicas: [ { id, alumno_id, vehiculo_id, fecha, km_inicial, km_final } ]
+ *   vehiculos:  [ { id, nombre, matricula, km_actual } ],
+ *   profesores: [ { id, nombre, nota } ],
+ *   alumnos:    [ { id, nombre, permiso, vehiculo_id } ],
+ *   practicas:  [ { id, alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo } ],
+ *   tarifas:    [ { id, permiso, tipo, precio } ],
+ *   pagos:      [ { id, alumno_id, fecha, cantidad, nota } ]
  * }
  */
 
@@ -35,9 +38,15 @@ function load() {
   if (fs.existsSync(p)) {
     try { _data = JSON.parse(fs.readFileSync(p, 'utf-8')); } catch { _data = null; }
   }
-  if (!_data) _data = { vehiculos: [], alumnos: [], practicas: [], logs: [], _seq: { v: 1, a: 1, p: 1 } };
-  if (!_data._seq) _data._seq = { v: 1, a: 1, p: 1 };
+  if (!_data) _data = { vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], logs: [], _seq: { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1 } };
+  if (!_data._seq) _data._seq = { v: 1, pf: 1, a: 1, p: 1 };
+  if (!_data._seq.pf) _data._seq.pf = 1;
+  if (!_data._seq.t) _data._seq.t = 1;
+  if (!_data._seq.pg) _data._seq.pg = 1;
   if (!_data.logs) _data.logs = [];
+  if (!_data.profesores) _data.profesores = [];
+  if (!_data.tarifas) _data.tarifas = [];
+  if (!_data.pagos) _data.pagos = [];
   return _data;
 }
 
@@ -47,17 +56,32 @@ function fmtFechaLog(str) {
   return `${d}/${m}/${y}`;
 }
 
-function addLog(tipo, descripcion, detalles = []) {
-  const d = load();
-  d.logs.unshift({
+function _construirLog(tipo, descripcion, detalles = []) {
+  return {
     id: Date.now(),
     fecha: new Date().toISOString(),
     tipo,
     descripcion,
     detalles
-  });
+  };
+}
+
+function addLog(tipo, descripcion, detalles = []) {
+  const d = load();
+  d.logs.unshift(_construirLog(tipo, descripcion, detalles));
   // Limitar a 500 entradas
   if (d.logs.length > 500) d.logs = d.logs.slice(0, 500);
+}
+
+// Añade una entrada de log directamente a un objeto `data` ya cargado por otro
+// módulo (sync.js gestiona su propio `data` en memoria y su propio save(), por
+// lo que no puede usar addLog()/load()/save() sin arriesgar pisarse con su
+// propia escritura). Misma forma y mismo recorte a 500 que addLog, para no
+// duplicar el formato de los logs.
+function registrarLogEnData(data, tipo, descripcion, detalles = []) {
+  if (!Array.isArray(data.logs)) data.logs = [];
+  data.logs.unshift(_construirLog(tipo, descripcion, detalles));
+  if (data.logs.length > 500) data.logs = data.logs.slice(0, 500);
 }
 
 function getLogs() {
@@ -71,13 +95,55 @@ function clearLogs() {
 }
 
 // ─── BACKUP ──────────────────────────────────────────────────────────────────
+const MAX_BACKUPS = 20;
+
+function getBackupsDir() {
+  const dir = path.join(path.dirname(getDataPath()), 'backups');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function _pruneBackupsAntiguos() {
+  const dir = getBackupsDir();
+  const nombres = fs.readdirSync(dir).filter(f => /^backup-.*\.json$/.test(f));
+  if (nombres.length <= MAX_BACKUPS) return;
+  nombres.sort();
+  const aBorrar = nombres.slice(0, nombres.length - MAX_BACKUPS);
+  for (const nombre of aBorrar) {
+    try { fs.unlinkSync(path.join(dir, nombre)); } catch { /* no interrumpir por un fallo puntual */ }
+  }
+}
+
 function crearBackup(destDir) {
   const src = getDataPath();
   if (!fs.existsSync(src)) return { ok: false, msg: 'No hay datos que guardar.' };
-  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const destFile = path.join(destDir, `kmalumnos_backup_${ts}.json`);
+  if (destDir) {
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const destFile = path.join(destDir, `kmalumnos_backup_${ts}.json`);
+    fs.copyFileSync(src, destFile);
+    return { ok: true, file: destFile };
+  }
+  const pad = n => String(n).padStart(2, '0');
+  const now = new Date();
+  const nombre = `backup-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
+  const destFile = path.join(getBackupsDir(), nombre);
   fs.copyFileSync(src, destFile);
-  return { ok: true, file: destFile };
+  _pruneBackupsAntiguos();
+  return { ok: true, file: destFile, nombre: path.basename(destFile) };
+}
+
+function obtenerUltimoBackup() {
+  try {
+    const dir = getBackupsDir();
+    const nombres = fs.readdirSync(dir).filter(f => /^backup-.*\.json$/.test(f));
+    if (!nombres.length) return null;
+    nombres.sort();
+    const nombre = nombres[nombres.length - 1];
+    const file = path.join(dir, nombre);
+    return { file, nombre, fecha: fs.statSync(file).mtime.toISOString() };
+  } catch {
+    return null;
+  }
 }
 
 function restaurarBackup(srcFile) {
@@ -203,6 +269,75 @@ function deleteVehiculo(id) {
   const s = _sync(); if (s) s.markDeleted('vehiculos', id);
 }
 
+// ─── PROFESORES ──────────────────────────────────────────────────────────────
+function getProfesores() {
+  const d = load();
+  return d.profesores
+    .slice()
+    .sort((a, b) => a.nombre.localeCompare(b.nombre))
+    .map(p => ({ ...p, num_practicas: d.practicas.filter(x => x.profesor_id === p.id).length }));
+}
+
+function addProfesor(nombre, nota) {
+  const d = load();
+  const id = nextId('pf');
+  d.profesores.push({ id, nombre, nota: nota || '' });
+  save();
+  const s = _sync(); if (s) s.markDirty('profesores', id);
+  return id;
+}
+
+function updateProfesor(id, nombre, nota) {
+  const d = load();
+  const p = d.profesores.find(x => x.id === id);
+  if (p) {
+    p.nombre = nombre;
+    p.nota = nota || '';
+    save();
+    const s = _sync(); if (s) s.markDirty('profesores', id);
+  }
+}
+
+function deleteProfesor(id) {
+  const d = load();
+  d.profesores = d.profesores.filter(x => x.id !== id);
+  // Las prácticas ya impartidas conservan su profesor_id: no se tocan ni se
+  // reasignan, igual que las prácticas de un alumno borrado conservan sus km.
+  save();
+  const s = _sync(); if (s) s.markDeleted('profesores', id);
+}
+
+// ─── TARIFAS ─────────────────────────────────────────────────────────────────
+function getTarifas() {
+  const d = load();
+  return d.tarifas
+    .slice()
+    .sort((a, b) => a.permiso.localeCompare(b.permiso) || a.tipo.localeCompare(b.tipo));
+}
+
+function setTarifa(permiso, tipo, precio) {
+  const d = load();
+  const t = d.tarifas.find(x => x.permiso === permiso && x.tipo === tipo);
+  if (t) {
+    t.precio = parseFloat(precio) || 0;
+    save();
+    const s = _sync(); if (s) s.markDirty('tarifas', t.id);
+    return t.id;
+  }
+  const id = nextId('t');
+  d.tarifas.push({ id, permiso, tipo, precio: parseFloat(precio) || 0 });
+  save();
+  const s = _sync(); if (s) s.markDirty('tarifas', id);
+  return id;
+}
+
+function deleteTarifa(id) {
+  const d = load();
+  d.tarifas = d.tarifas.filter(x => x.id !== id);
+  save();
+  const s = _sync(); if (s) s.markDeleted('tarifas', id);
+}
+
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
 function getAlumnos() {
   const d = load();
@@ -259,7 +394,8 @@ function getPracticasByAlumno(alumno_id) {
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id)
     .map(p => {
       const v = d.vehiculos.find(x => x.id === p.vehiculo_id);
-      return { ...p, vehiculo_nombre: v ? v.nombre : null };
+      const prof = d.profesores.find(x => x.id === p.profesor_id);
+      return { ...p, vehiculo_nombre: v ? v.nombre : null, profesor_nombre: prof ? prof.nombre : null };
     });
 }
 
@@ -268,12 +404,16 @@ function getUltimaPractica(alumno_id) {
   return practicas.length ? practicas[practicas.length - 1] : null;
 }
 
-function addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final) {
+function addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id = null, tipo = 'circulacion') {
   const d = load();
   const id = nextId('p');
   const ki = parseFloat(km_inicial);
   const kf = parseFloat(km_final);
-  d.practicas.push({ id, alumno_id: parseInt(alumno_id), vehiculo_id: parseInt(vehiculo_id), fecha, km_inicial: ki, km_final: kf });
+  d.practicas.push({
+    id, alumno_id: parseInt(alumno_id), vehiculo_id: parseInt(vehiculo_id), fecha, km_inicial: ki, km_final: kf,
+    profesor_id: profesor_id ? parseInt(profesor_id) : null,
+    tipo: tipo || 'circulacion'
+  });
   // Actualizar km vehículo si corresponde
   const v = d.vehiculos.find(x => x.id === parseInt(vehiculo_id));
   if (v && kf > v.km_actual) v.km_actual = kf;
@@ -289,16 +429,94 @@ function deletePractica(id) {
   const s = _sync(); if (s) s.markDeleted('practicas', id);
 }
 
-function updatePractica(id, fecha, km_inicial, km_final) {
+function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tipo = 'circulacion') {
   const d = load();
   const p = d.practicas.find(x => x.id === id);
   if (p) {
     p.fecha = fecha;
     p.km_inicial = parseFloat(km_inicial);
     p.km_final = parseFloat(km_final);
+    p.profesor_id = profesor_id ? parseInt(profesor_id) : null;
+    p.tipo = tipo || 'circulacion';
     save();
     const s = _sync(); if (s) s.markDirty('practicas', id);
   }
+}
+
+// ─── PAGOS ───────────────────────────────────────────────────────────────────
+function getPagosByAlumno(alumno_id) {
+  const d = load();
+  const aid = parseInt(alumno_id);
+  return d.pagos
+    .filter(p => p.alumno_id === aid)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
+}
+
+function addPago(alumno_id, fecha, cantidad, nota) {
+  const d = load();
+  const id = nextId('pg');
+  d.pagos.push({
+    id,
+    alumno_id: parseInt(alumno_id),
+    fecha,
+    cantidad: parseFloat(cantidad) || 0,
+    nota: nota || ''
+  });
+  save();
+  const s = _sync(); if (s) s.markDirty('pagos', id);
+  return id;
+}
+
+function updatePago(id, fecha, cantidad, nota) {
+  const d = load();
+  const p = d.pagos.find(x => x.id === id);
+  if (p) {
+    p.fecha = fecha;
+    p.cantidad = parseFloat(cantidad) || 0;
+    p.nota = nota || '';
+    save();
+    const s = _sync(); if (s) s.markDirty('pagos', id);
+  }
+}
+
+function deletePago(id) {
+  const d = load();
+  d.pagos = d.pagos.filter(x => x.id !== id);
+  save();
+  const s = _sync(); if (s) s.markDeleted('pagos', id);
+}
+
+function getDeudas() {
+  const d = load();
+  return d.alumnos
+    .slice()
+    .sort((a, b) => a.nombre.localeCompare(b.nombre))
+    .map(alumno => {
+      const practicasAlumno = d.practicas.filter(p => p.alumno_id === alumno.id);
+      let total_generado = 0;
+      let sin_tarifa = false;
+      for (const p of practicasAlumno) {
+        const tipo = p.tipo || 'circulacion';
+        const tarifa = d.tarifas.find(t => t.permiso === alumno.permiso && t.tipo === tipo);
+        if (tarifa) {
+          total_generado += tarifa.precio;
+        } else {
+          sin_tarifa = true;
+        }
+      }
+      const total_pagado = getPagosByAlumno(alumno.id).reduce((sum, p) => sum + p.cantidad, 0);
+      const saldo = total_generado - total_pagado;
+      return {
+        alumno_id: alumno.id,
+        alumno_nombre: alumno.nombre,
+        permiso: alumno.permiso,
+        num_practicas: practicasAlumno.length,
+        total_generado,
+        total_pagado,
+        saldo,
+        sin_tarifa
+      };
+    });
 }
 
 // ─── IMPORTACIÓN CSV ─────────────────────────────────────────────────────────
@@ -864,21 +1082,21 @@ function registrarPracticasMasivas(vehiculo_id, fecha, alumno_ids) {
  * Ajusta el número de prácticas de un alumno en una fecha.
  * Si delta > 0, añade prácticas. Si delta < 0, elimina.
  */
-function ajustarPracticasAlumno(vehiculo_id, fecha, alumno_id, delta) {
+function ajustarPracticasAlumno(vehiculo_id, fecha, alumno_id, delta, profesor_id = null, tipo = 'circulacion') {
   const d = load();
   const vid = parseInt(vehiculo_id);
   const aid = parseInt(alumno_id);
-  
-  const practicasExistentes = d.practicas.filter(p => 
-    p.alumno_id === aid && 
-    p.vehiculo_id === vid && 
+
+  const practicasExistentes = d.practicas.filter(p =>
+    p.alumno_id === aid &&
+    p.vehiculo_id === vid &&
     p.fecha === fecha
   );
-  
+
   const actual = practicasExistentes.length;
   const nuevo = Math.max(0, actual + delta);
   const diff = nuevo - actual;
-  
+
   if (diff > 0) {
     // Añadir prácticas
     for (let i = 0; i < diff; i++) {
@@ -889,7 +1107,9 @@ function ajustarPracticasAlumno(vehiculo_id, fecha, alumno_id, delta) {
         vehiculo_id: vid,
         fecha,
         km_inicial: 0,
-        km_final: 0
+        km_final: 0,
+        profesor_id: profesor_id ? parseInt(profesor_id) : null,
+        tipo: tipo || 'circulacion'
       });
       const s = _sync(); if (s) s.markDirty('practicas', pid);
     }
@@ -913,17 +1133,17 @@ function ajustarPracticasAlumno(vehiculo_id, fecha, alumno_id, delta) {
  * Guarda una nota en las prácticas de un alumno para una fecha.
  * Si no tiene prácticas ese día, crea una con km=0 para poder guardar la nota.
  */
-function guardarNotaAlumno(vehiculo_id, fecha, alumno_id, nota) {
+function guardarNotaAlumno(vehiculo_id, fecha, alumno_id, nota, profesor_id = null, tipo = 'circulacion') {
   const d = load();
   const vid = parseInt(vehiculo_id);
   const aid = parseInt(alumno_id);
-  
-  let practicas = d.practicas.filter(p => 
-    p.alumno_id === aid && 
-    p.vehiculo_id === vid && 
+
+  let practicas = d.practicas.filter(p =>
+    p.alumno_id === aid &&
+    p.vehiculo_id === vid &&
     p.fecha === fecha
   );
-  
+
   // Si no tiene prácticas ese día, crear una para poder guardar la nota
   if (practicas.length === 0 && nota) {
     const nuevaPractica = {
@@ -933,7 +1153,9 @@ function guardarNotaAlumno(vehiculo_id, fecha, alumno_id, nota) {
       fecha: fecha,
       km_inicial: 0,
       km_final: 0,
-      nota: nota
+      nota: nota,
+      profesor_id: profesor_id ? parseInt(profesor_id) : null,
+      tipo: tipo || 'circulacion'
     };
     d.practicas.push(nuevaPractica);
     save();
@@ -1041,13 +1263,16 @@ function getAnotacionesAlumno(alumno_id) {
 
 module.exports = {
   getVehiculos, addVehiculo, updateVehiculoKm, deleteVehiculo,
+  getProfesores, addProfesor, updateProfesor, deleteProfesor,
+  getTarifas, setTarifa, deleteTarifa,
   getAlumnos, addAlumno, deleteAlumno, updateAlumno,
   getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica,
+  getPagosByAlumno, addPago, updatePago, deletePago, getDeudas,
   importarCSV, exportarCSV, compararCSVs, getResumen, getSolapamientos,
   rellenarKmMasivo, getPracticasSinKm,
   corregirSolapamientos,
-  getLogs, clearLogs,
-  crearBackup, restaurarBackup,
+  getLogs, clearLogs, registrarLogEnData,
+  crearBackup, restaurarBackup, obtenerUltimoBackup,
   validarSolapamiento,
   getTimelineVehiculo,
   getAlumnosPorVehiculo, registrarPracticasMasivas, eliminarPracticaPorFecha, ajustarPracticasAlumno, guardarNotaAlumno,
