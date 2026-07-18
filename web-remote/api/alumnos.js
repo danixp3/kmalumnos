@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, getSupabase, withRetry, getEmpresaId } from './_utils.js';
+import { setCorsHeaders, requireAuth, getSupabase, withRetry, handleSupabaseError } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -6,26 +6,19 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Método no permitido' });
 
-  // Verificar autenticación
-  if (!requireAuth(req, res)) return;
+  const auth = requireAuth(req, res);
+  if (!auth) return;
 
-  let supabase;
-  try { supabase = await getSupabase(); }
-  catch (e) { return res.status(500).json({ error: e.message }); }
-
-  const empresaId = await getEmpresaId();
+  const supabase = getSupabase(auth.token);
 
   const { data, error } = await withRetry(() => supabase
     .from('alumnos')
     .select('id, nombre, permiso, vehiculo_id')
     .eq('deleted', false)
-    .eq('empresa_id', empresaId)
+    .eq('empresa_id', auth.empresaId)
     .order('nombre'));
 
-  if (error) {
-    console.error('Error obteniendo alumnos:', error);
-    return res.status(500).json({ error: 'Error al obtener alumnos: ' + error.message });
-  }
+  if (handleSupabaseError(error, res, 'Error al obtener alumnos')) return;
 
   res.json(data || []);
 }

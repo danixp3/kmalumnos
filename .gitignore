@@ -4,3 +4,4 @@ dist2/
 .mcp.json
 .hermes/
 dogfood-output/
+__pycache__/

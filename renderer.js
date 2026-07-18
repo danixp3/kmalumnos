@@ -30,7 +30,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
       const activeTab = document.querySelector('#page-pagos .page-tab.active')?.dataset.tab || 'deudas';
       cambiarTabPagos(activeTab);
     }
-    if (page === 'alumnos') { loadVehiculosSelect(); loadAlumnos(); }
+    if (page === 'alumnos') { loadVehiculosSelect(); llenarSelectProfesores('a-profesor'); loadAlumnos(); }
     if (page === 'kilometros') {
       const activeTab = document.querySelector('#page-kilometros .page-tab.active')?.dataset.tab || 'mapa';
       cambiarTabKilometros(activeTab);
@@ -126,7 +126,7 @@ async function loadVehiculos() {
       <td><span class="km-badge">${fmt(v.km_actual)} km</span></td>
       <td>${sinKmBadge}</td>
       <td>
-        <button class="btn btn-warn btn-sm" onclick="openEditVehiculo(${v.id},'${esc(v.nombre)}',${v.km_actual})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar km</button>
+        <button class="btn btn-warn btn-sm" onclick="openEditVehiculo(${v.id},'${esc(v.nombre)}','${esc(v.matricula || '')}',${v.km_actual})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteVehiculo(${v.id},'${esc(v.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
       </td>
     </tr>`;
@@ -203,17 +203,22 @@ async function deleteVehiculo(id, nombre) {
   loadVehiculos();
 }
 
-function openEditVehiculo(id, nombre, km) {
+function openEditVehiculo(id, nombre, matricula, km) {
   document.getElementById('edit-v-id').value = id;
   document.getElementById('edit-v-nombre').value = nombre;
+  document.getElementById('edit-v-matricula').value = matricula || '';
   document.getElementById('edit-v-km').value = km;
   openModal('modal-vehiculo');
 }
 
-async function saveVehiculoKm() {
+async function saveVehiculo() {
   const id = parseInt(document.getElementById('edit-v-id').value);
+  const nombre = document.getElementById('edit-v-nombre').value.trim();
+  const matricula = document.getElementById('edit-v-matricula').value.trim();
   const km = parseFloat(document.getElementById('edit-v-km').value);
+  if (!nombre) { alert('Introduce un nombre para el vehículo.'); return; }
   if (isNaN(km)) { alert('Introduce un km válido.'); return; }
+  await window.api.updateVehiculo(id, nombre, matricula);
   await window.api.updateVehiculoKm(id, km);
   closeModal('modal-vehiculo');
   loadVehiculos();
@@ -312,10 +317,12 @@ async function loadAlumnos() {
 function poblarFiltrosAlumnos() {
   const selVehiculo = document.getElementById('f-alumnos-vehiculo');
   const selPermiso = document.getElementById('f-alumnos-permiso');
+  const selProfesor = document.getElementById('f-alumnos-profesor');
   if (!selVehiculo || !selPermiso) return;
 
   const vehiculoActual = selVehiculo.value;
   const permisoActual = selPermiso.value;
+  const profesorActual = selProfesor ? selProfesor.value : '';
 
   const vehiculosVistos = new Map();
   let haySinAsignar = false;
@@ -340,18 +347,40 @@ function poblarFiltrosAlumnos() {
   selPermiso.innerHTML = '<option value="">Todos los permisos</option>' +
     permisosOpts.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
 
+  if (selProfesor) {
+    const profesoresVistos = new Map();
+    let haySinProfesor = false;
+    alumnosCache.forEach(a => {
+      if (a.profesor_id) {
+        if (!profesoresVistos.has(a.profesor_id)) {
+          profesoresVistos.set(a.profesor_id, a.profesor_nombre || `Profesor ${a.profesor_id}`);
+        }
+      } else {
+        haySinProfesor = true;
+      }
+    });
+    const profesoresOpts = [...profesoresVistos.entries()]
+      .sort((x, y) => x[1].localeCompare(y[1], 'es', { numeric: true }));
+    selProfesor.innerHTML = '<option value="">Todos los profesores</option>' +
+      profesoresOpts.map(([id, nombre]) => `<option value="${id}">${esc(nombre)}</option>`).join('') +
+      (haySinProfesor ? '<option value="none">Sin asignar</option>' : '');
+  }
+
   // Restaurar la selección previa si la opción sigue existiendo (para no perder el filtro al refrescar)
   if ([...selVehiculo.options].some(o => o.value === vehiculoActual)) selVehiculo.value = vehiculoActual;
   if ([...selPermiso.options].some(o => o.value === permisoActual)) selPermiso.value = permisoActual;
+  if (selProfesor && [...selProfesor.options].some(o => o.value === profesorActual)) selProfesor.value = profesorActual;
 }
 
 function limpiarFiltrosAlumnos() {
   const nombre = document.getElementById('f-alumnos-nombre');
   const vehiculo = document.getElementById('f-alumnos-vehiculo');
   const permiso = document.getElementById('f-alumnos-permiso');
+  const profesor = document.getElementById('f-alumnos-profesor');
   if (nombre) nombre.value = '';
   if (vehiculo) vehiculo.value = '';
   if (permiso) permiso.value = '';
+  if (profesor) profesor.value = '';
   renderAlumnosTabla();
 }
 
@@ -387,6 +416,7 @@ function renderAlumnosTabla() {
   const nombreFiltro = (document.getElementById('f-alumnos-nombre')?.value || '').trim().toLowerCase();
   const vehiculoFiltro = document.getElementById('f-alumnos-vehiculo')?.value || '';
   const permisoFiltro = document.getElementById('f-alumnos-permiso')?.value || '';
+  const profesorFiltro = document.getElementById('f-alumnos-profesor')?.value || '';
 
   let filtrados = alumnosCache.filter(a => {
     if (nombreFiltro && !a.nombre.toLowerCase().includes(nombreFiltro)) return false;
@@ -396,6 +426,11 @@ function renderAlumnosTabla() {
       return false;
     }
     if (permisoFiltro && a.permiso !== permisoFiltro) return false;
+    if (profesorFiltro === 'none') {
+      if (a.profesor_id) return false;
+    } else if (profesorFiltro && String(a.profesor_id || '') !== profesorFiltro) {
+      return false;
+    }
     return true;
   });
 
@@ -407,17 +442,18 @@ function renderAlumnosTabla() {
       if (col === 'nombre') { va = a.nombre || ''; vb = b.nombre || ''; }
       else if (col === 'permiso') { va = a.permiso || ''; vb = b.permiso || ''; }
       else if (col === 'vehiculo') { va = a.vehiculo_nombre || ''; vb = b.vehiculo_nombre || ''; }
+      else if (col === 'profesor') { va = a.profesor_nombre || ''; vb = b.profesor_nombre || ''; }
       return va.localeCompare(vb, 'es', { numeric: true }) * dir;
     });
   }
   actualizarIndicadoresOrdenAlumnos();
 
   if (!alumnosCache.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty">No hay alumnos registrados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No hay alumnos registrados</td></tr>';
     return;
   }
   if (!filtrados.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty">Ningún alumno coincide con los filtros</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Ningún alumno coincide con los filtros</td></tr>';
     return;
   }
 
@@ -427,11 +463,12 @@ function renderAlumnosTabla() {
       <td><strong>${esc(a.nombre)}</strong></td>
       <td>${tag}</td>
       <td>${a.vehiculo_nombre ? esc(a.vehiculo_nombre) : '<span style="color:#bbb">Sin asignar</span>'}</td>
+      <td>${a.profesor_nombre ? esc(a.profesor_nombre) : '<span style="color:#bbb">Sin asignar</span>'}</td>
       <td><span style="font-weight:700">${a.num_practicas}</span></td>
       <td>
         <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Prácticas</button>
         <button class="btn btn-sm" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Anotaciones</button>
-        <button class="btn btn-warn btn-sm" onclick="openEditAlumno(${a.id},'${esc(a.nombre)}','${a.permiso}',${a.vehiculo_id || 'null'})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
+        <button class="btn btn-warn btn-sm" onclick="openEditAlumno(${a.id},'${esc(a.nombre)}','${a.permiso}',${a.vehiculo_id || 'null'},${a.profesor_id || 'null'})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteAlumno(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
       </td>
     </tr>`;
@@ -442,13 +479,14 @@ async function addAlumno() {
   const nombre = document.getElementById('a-nombre').value.trim();
   const permiso = document.getElementById('a-permiso').value;
   const vid = document.getElementById('a-vehiculo').value || null;
+  const profId = document.getElementById('a-profesor')?.value || null;
   if (!nombre) {
     showToast('alumno-alert', 'Introduce el nombre del alumno.', 'err');
     document.getElementById('a-nombre').focus();
     return;
   }
   hideToast('alumno-alert');
-  await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null);
+  await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null);
   document.getElementById('a-nombre').value = '';
   loadAlumnos();
 }
@@ -480,11 +518,12 @@ async function verAnotaciones(alumnoId, nombre) {
   modal.classList.add('open');
 }
 
-function openEditAlumno(id, nombre, permiso, vehiculo_id) {
+async function openEditAlumno(id, nombre, permiso, vehiculo_id, profesor_id) {
   document.getElementById('edit-a-id').value = id;
   document.getElementById('edit-a-nombre').value = nombre;
   document.getElementById('edit-a-permiso').value = permiso;
   document.getElementById('edit-a-vehiculo').value = vehiculo_id || '';
+  await llenarSelectProfesores('edit-a-profesor', profesor_id);
   openModal('modal-alumno');
 }
 
@@ -493,8 +532,9 @@ async function saveAlumno() {
   const nombre = document.getElementById('edit-a-nombre').value.trim();
   const permiso = document.getElementById('edit-a-permiso').value;
   const vid = document.getElementById('edit-a-vehiculo').value || null;
+  const profId = document.getElementById('edit-a-profesor')?.value || null;
   if (!nombre) { alert('Introduce un nombre.'); return; }
-  await window.api.updateAlumno(id, nombre, permiso, vid ? parseInt(vid) : null);
+  await window.api.updateAlumno(id, nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null);
   closeModal('modal-alumno');
   loadAlumnos();
 }

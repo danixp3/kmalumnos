@@ -59,6 +59,7 @@ Excepción conocida: `auth.js` no usa `_utils.js` (duplica CORS y validateToken 
 3. Vercel corre en UTC: rangos "de hoy" no existen, se usa "últimas 24 h".
 4. Datos pintados en el HTML → `escapeHtml()`.
 5. Endpoint nuevo = añadirlo también a `apiFetch` en el front y, si procede, al smoke test (`scripts/probar_web.py`).
+6. Los INSERT de `practica.js` y `crear-alumno.js` autorreparan la secuencia de ids si chocan con 23505 (RPC `reparar_secuencias` + un reintento), porque el escritorio sube ids propios y la secuencia de la nube se queda atrás.
 
 ## Envs en Vercel
 

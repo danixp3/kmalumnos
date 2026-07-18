@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, getSupabase, getEmpresaId } from './_utils.js';
+import { setCorsHeaders, requireAuth, getSupabase, handleSupabaseError } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -6,14 +6,10 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Método no permitido' });
 
-  // Verificar autenticación
-  if (!requireAuth(req, res)) return;
+  const auth = requireAuth(req, res);
+  if (!auth) return;
 
-  let supabase;
-  try { supabase = await getSupabase(); }
-  catch (e) { return res.status(500).json({ error: e.message }); }
-
-  const empresaId = await getEmpresaId();
+  const supabase = getSupabase(auth.token);
 
   // Obtener prácticas recientes creadas desde web-remote (últimas 24h)
   const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -29,16 +25,13 @@ export default async function handler(req, res) {
       vehiculos(nombre)
     `)
     .eq('deleted', false)
-    .eq('empresa_id', empresaId)
+    .eq('empresa_id', auth.empresaId)
     .eq('source', 'web-remote')
     .gte('updated_at', hace24h)
     .order('updated_at', { ascending: false })
     .limit(20);
 
-  if (error) {
-    console.error('Error obteniendo historial:', error);
-    return res.status(500).json({ error: 'Error al obtener historial: ' + error.message });
-  }
+  if (handleSupabaseError(error, res, 'Error al obtener historial')) return;
 
   // Formatear respuesta
   const practicas = (data || []).map(p => ({

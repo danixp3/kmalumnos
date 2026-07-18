@@ -4,33 +4,41 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta property="og:title" content="KMAlumnos Web">
 <meta property="og:description" content="Registrar prácticas de autoescuela">
-<meta name="theme-color" content="#6366f1">
+<meta name="theme-color" content="#f6f7f9">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%234f46e5'/><g fill='none' stroke='white' stroke-width='7' stroke-linecap='round'><circle cx='50' cy='50' r='26'/><path d='M50 50l11-11'/><path d='M39 61a15 15 0 0 1 22 0'/></g></svg>">
 <title>KMAlumnos Web</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  /* ── TOKENS (mismo sistema que el escritorio, adaptado a táctil) ── */
   :root {
-    --primary: #6366f1;
-    --primary-dark: #4f46e5;
+    --primary: #4f46e5;
+    --primary-dark: #4338ca;
+    --primary-light: #eef2ff;
     --success: #10b981;
+    --success-light: #d1fae5;
     --danger: #ef4444;
+    --danger-light: #fee2e2;
     --warn: #f59e0b;
-    --bg: #0b0e17;
-    --card: rgba(255,255,255,0.055);
-    --card-border: rgba(255,255,255,0.09);
-    --text: #f1f5f9;
-    --text-muted: #94a3b8;
-    --border: rgba(255,255,255,0.12);
-    --radius: 18px;
-    --glow: rgba(99,102,241,0.4);
+    --warn-light: #fef3c7;
+    --text: #101828;
+    --text-muted: #667085;
+    --border: #e3e6ee;
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --card-border: #e3e6ee;
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(16,24,40,.05);
+    --shadow-md: 0 6px 20px rgba(16,24,40,.09), 0 1px 2px rgba(16,24,40,.05);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
   body {
-    font-family: -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-family: 'Inter', -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
     background: var(--bg);
     color: var(--text);
     min-height: 100dvh;
@@ -38,157 +46,119 @@
     padding-top: max(env(safe-area-inset-top), 24px);
     overflow-x: hidden;
     position: relative;
+    -webkit-font-smoothing: antialiased;
   }
 
-  body::before {
-    content: '';
-    position: fixed;
-    top: -50%; left: -50%;
-    width: 200%; height: 200%;
-    background: 
-      radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.15) 0%, transparent 50%),
-      radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.12) 0%, transparent 40%),
-      radial-gradient(ellipse at 50% 80%, rgba(59,130,246,0.1) 0%, transparent 40%);
-    animation: bgShift 12s ease-in-out infinite alternate;
-    z-index: -1;
-  }
-
-  @keyframes bgShift {
-    0% { transform: translate(0, 0) rotate(0deg); }
-    100% { transform: translate(-5%, -5%) rotate(3deg); }
-  }
-
-  .orb { position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.35; pointer-events: none; z-index: -1; }
-  .orb-1 { width: 200px; height: 200px; background: rgba(99,102,241,0.3); top: 10%; left: -10%; animation: float1 8s ease-in-out infinite; }
-  .orb-2 { width: 150px; height: 150px; background: rgba(139,92,246,0.25); bottom: 20%; right: -5%; animation: float2 10s ease-in-out infinite; }
-  .orb-3 { width: 100px; height: 100px; background: rgba(59,130,246,0.2); top: 50%; left: 50%; animation: float3 7s ease-in-out infinite; }
-
-  @keyframes float1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(30px, 20px) scale(1.1); } }
-  @keyframes float2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-20px, -30px) scale(1.15); } }
-  @keyframes float3 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(15px, -15px) scale(0.9); } }
-
-  .header { text-align: center; margin-bottom: 26px; padding-top: 12px; animation: slideDown 0.6s ease-out; }
-  @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+  /* ── HEADER / MARCA ── */
+  .header { text-align: center; margin-bottom: 26px; padding-top: 12px; animation: slideDown 0.5s ease-out; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
 
   .logo-mark {
-    width: 52px; height: 52px; margin: 0 auto 12px; border-radius: 16px;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    width: 52px; height: 52px; margin: 0 auto 12px; border-radius: 14px;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
     display: flex; align-items: center; justify-content: center; color: #fff;
-    box-shadow: 0 8px 24px rgba(99,102,241,.35), inset 0 1px 0 rgba(255,255,255,.25);
+    box-shadow: 0 4px 14px rgba(79,70,229,.32);
   }
 
   h1 {
-    font-size: 23px; font-weight: 800; letter-spacing: -0.5px; color: #fff;
-    background: linear-gradient(135deg, #fff, #c7d2fe);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--text);
   }
 
   .subtitle { font-size: 13px; color: var(--text-muted); margin-top: 5px; font-weight: 500; }
   .version {
-    display: inline-block; margin-top: 10px; font-size: 10.5px; font-weight: 600; letter-spacing: .4px;
-    color: #a5b4fc; background: rgba(99,102,241,.12); border: 1px solid rgba(99,102,241,.25);
-    padding: 2px 10px; border-radius: 99px;
+    display: inline-block; margin-top: 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .4px;
+    color: #4338ca; background: #e0e7ff; border: 1px solid rgba(67,56,202,.15);
+    padding: 3px 10px; border-radius: 99px;
   }
 
+  /* ── CARDS ── */
   .card {
-    background: var(--card); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-    border-radius: var(--radius); padding: 24px;
-    box-shadow: 0 8px 32px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,0.06);
-    margin-bottom: 20px; border: 1px solid var(--card-border);
-    animation: slideUp 0.5s ease-out 0.1s both; position: relative; overflow: hidden;
+    background: var(--card);
+    border-radius: var(--radius); padding: 22px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px; border: 1px solid var(--border);
+    animation: slideUp 0.4s ease-out 0.05s both; position: relative;
   }
 
-  .card::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-  }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 
-  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  /* ── FORMS ── */
+  label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.6px; margin-bottom: 10px; text-transform: uppercase; }
 
-  label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.8px; margin-bottom: 10px; text-transform: uppercase; }
-
-  select, input[type="date"], input[type="text"], input[type="password"] {
+  select, input[type="date"], input[type="text"], input[type="password"], input[type="email"] {
     width: 100%; padding: 13px 15px; border: 1px solid var(--border); border-radius: 12px;
-    font-size: 16px; font-family: inherit; color: var(--text); background: rgba(255,255,255,0.05);
-    outline: none; -webkit-appearance: none; appearance: none; transition: all .2s ease;
+    font-size: 16px; font-family: inherit; color: var(--text); background: #fff;
+    outline: none; -webkit-appearance: none; appearance: none; transition: all .15s ease;
+    box-shadow: 0 1px 2px rgba(16,24,40,.04);
   }
 
-  select:focus, input[type="date"]:focus, input[type="text"]:focus, input[type="password"]:focus {
+  select:focus, input[type="date"]:focus, input[type="text"]:focus, input[type="password"]:focus, input[type="email"]:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99,102,241,.2), 0 0 20px rgba(99,102,241,.15);
-    background: rgba(255,255,255,0.08);
+    box-shadow: 0 0 0 3px rgba(79,70,229,.14);
   }
 
-  select option { background: #1e1e2e; color: #fff; }
-  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); }
-
+  input::placeholder { color: #b6bccb; }
   .select-wrap { position: relative; }
   .select-wrap::after { content: '▾'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; font-size: 14px; }
 
+  /* ── BUTTONS ── */
   .btn {
-    width: 100%; padding: 16px; border: none; border-radius: 14px; font-size: 16px; font-weight: 700;
-    font-family: inherit; cursor: pointer; transition: all .2s ease;
+    width: 100%; padding: 15px; border: none; border-radius: 13px; font-size: 16px; font-weight: 700;
+    font-family: inherit; cursor: pointer; transition: all .15s ease;
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    letter-spacing: -0.2px; position: relative; overflow: hidden;
+    letter-spacing: -0.2px; position: relative;
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, var(--primary), #8b5cf6); color: #fff;
-    box-shadow: 0 6px 22px rgba(99,102,241,.35);
+    background: var(--primary); color: #fff;
+    box-shadow: 0 2px 8px rgba(79,70,229,.3);
   }
-
-  .btn-primary::before {
-    content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent); transition: left .5s ease;
-  }
-
-  .btn-primary:not(:disabled):hover::before { left: 100%; }
-  .btn-primary:active { transform: scale(0.97); filter: brightness(.9); }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-primary:active { transform: scale(0.98); filter: brightness(.95); }
   .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
   .btn-secondary {
-    background: rgba(255,255,255,0.06); color: var(--primary); border: 1.5px solid var(--border);
-    box-shadow: none; margin-top: 12px;
+    background: #fff; color: var(--primary); border: 1.5px solid var(--border);
+    box-shadow: 0 1px 2px rgba(16,24,40,.04); margin-top: 12px;
   }
-  .btn-secondary:hover { background: rgba(99,102,241,0.1); border-color: var(--primary); }
+  .btn-secondary:hover { background: var(--primary-light); border-color: var(--primary); }
 
   .btn-danger {
-    background: rgba(239,68,68,0.15); color: #f87171; border: 1.5px solid rgba(239,68,68,0.3);
-    font-size: 14px; padding: 10px 16px; width: auto;
+    background: var(--danger-light); color: #b91c1c; border: 1.5px solid rgba(239,68,68,.25);
+    font-size: 14px; padding: 10px 16px; width: auto; box-shadow: none;
   }
-  .btn-danger:hover { background: rgba(239,68,68,0.25); }
+  .btn-danger:hover { background: #fecaca; }
 
   .result {
-    display: none; border-radius: var(--radius); padding: 28px 24px; text-align: center;
-    margin-top: 16px; animation: popIn 0.4s cubic-bezier(.17,.67,.35,1.5);
+    display: none; border-radius: var(--radius); padding: 26px 22px; text-align: center;
+    margin-top: 16px; animation: popIn 0.35s cubic-bezier(.17,.67,.35,1.5);
     position: relative; z-index: 10;
   }
-  
+
   .result.err { cursor: pointer; }
 
-  @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+  @keyframes popIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
 
-  .result.ok { display: block; background: rgba(16,185,129,0.1); border: 1.5px solid rgba(16,185,129,0.3); box-shadow: 0 8px 32px rgba(16,185,129,.15); }
-  .result.err { display: block; background: rgba(239,68,68,0.1); border: 1.5px solid rgba(239,68,68,0.3); box-shadow: 0 8px 32px rgba(239,68,68,.15); }
+  .result.ok { display: block; background: var(--success-light); border: 1.5px solid #a7f3d0; box-shadow: var(--shadow); }
+  .result.err { display: block; background: var(--danger-light); border: 1.5px solid #fecaca; box-shadow: var(--shadow); }
 
-  .result-icon { font-size: 48px; margin-bottom: 12px; animation: bounceIn 0.5s ease 0.2s both; }
-  @keyframes bounceIn { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+  .result-icon { margin-bottom: 12px; display: flex; align-items: center; justify-content: center; animation: bounceIn 0.4s ease 0.15s both; }
+  @keyframes bounceIn { 0% { transform: scale(0); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
 
-  .result-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-  .result.ok .result-title { color: #34d399; }
-  .result.err .result-title { color: #f87171; }
-  .result.ok .result-icon { color: #34d399; }
-  .result.err .result-icon { color: #f87171; }
+  .result-title { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .result.ok .result-title { color: #059669; }
+  .result.err .result-title { color: #dc2626; }
+  .result.ok .result-icon { color: #059669; }
+  .result.err .result-icon { color: #dc2626; }
 
-  .result-msg { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+  .result-msg { font-size: 14px; color: var(--text-muted); line-height: 1.6; white-space: pre-line; }
 
   .btn-again {
-    margin-top: 20px; width: 100%; padding: 14px; border: 1.5px solid var(--border);
-    border-radius: 14px; font-size: 15px; font-weight: 600; font-family: inherit;
-    background: rgba(255,255,255,0.05); color: var(--primary); cursor: pointer; transition: all .2s;
-    backdrop-filter: blur(10px);
+    margin-top: 20px; width: 100%; padding: 13px; border: 1.5px solid var(--border);
+    border-radius: 13px; font-size: 15px; font-weight: 600; font-family: inherit;
+    background: #fff; color: var(--primary); cursor: pointer; transition: all .15s;
   }
-  .btn-again:hover { background: rgba(99,102,241,0.1); border-color: var(--primary); }
+  .btn-again:hover { background: var(--primary-light); border-color: var(--primary); }
 
   .loading-dots span { display: inline-block; animation: bounce .6s infinite; font-size: 24px; }
   .loading-dots span:nth-child(2) { animation-delay: .1s; }
@@ -199,48 +169,45 @@
   .field-gap:last-child { margin-bottom: 0; }
 
   .alumno-info {
-    display: none; margin-top: 12px; padding: 12px 16px; background: rgba(255,255,255,0.04);
-    border-radius: 12px; font-size: 13px; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.06);
-    animation: fadeIn 0.3s ease;
+    display: none; margin-top: 12px; padding: 12px 16px; background: var(--primary-light);
+    border-radius: 12px; font-size: 13px; color: var(--text-muted); border: 1px solid rgba(79,70,229,.12);
+    animation: fadeIn 0.25s ease;
   }
 
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
+  /* ── BADGES ── */
   .tag {
-    display: inline-block; padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;
-    background: rgba(99,102,241,0.2); color: #a5b4fc; margin-left: 6px; border: 1px solid rgba(99,102,241,0.3);
+    display: inline-block; padding: 3px 10px; border-radius: 7px; font-size: 12px; font-weight: 700;
+    background: #e0e7ff; color: #4338ca; margin-left: 6px; border: 1px solid rgba(67,56,202,.12);
   }
+
+  .btn-ver-practicas {
+    display: inline-block; width: auto; margin-top: 8px; padding: 6px 14px;
+    border: 1px solid var(--border); border-radius: 10px; font-size: 12px; font-weight: 700;
+    font-family: inherit; color: var(--primary); background: #fff;
+    cursor: pointer; transition: all .15s ease;
+  }
+  .btn-ver-practicas:hover { background: var(--primary-light); border-color: var(--primary); }
 
   .sparkles { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; overflow: hidden; }
-  .sparkle { position: absolute; width: 4px; height: 4px; background: #fff; border-radius: 50%; animation: sparkle 1.5s ease-out forwards; }
+  .sparkle { position: absolute; width: 5px; height: 5px; border-radius: 50%; animation: sparkle 1.4s ease-out forwards; }
   @keyframes sparkle { 0% { transform: scale(0) translateY(0); opacity: 1; } 100% { transform: scale(1) translateY(-60px); opacity: 0; } }
-
-  .grid-bg {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background-image: linear-gradient(rgba(255,255,255,0.014) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.014) 1px, transparent 1px);
-    background-size: 40px 40px; pointer-events: none; z-index: -1;
-  }
-
-  .status-line {
-    position: fixed; top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, transparent, var(--primary), #8b5cf6, transparent);
-    opacity: .7; z-index: 100;
-  }
 
   /* Tabs (control segmentado) */
   .tabs {
-    display: flex; gap: 4px; margin-bottom: 20px; animation: slideUp 0.5s ease-out 0.05s both;
-    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
-    border-radius: 14px; padding: 4px;
+    display: flex; gap: 4px; margin-bottom: 20px; animation: slideUp 0.4s ease-out 0.03s both;
+    background: #eef0f4; border: 1px solid var(--border);
+    border-radius: 13px; padding: 4px;
   }
   .tab {
-    flex: 1; min-width: 70px; padding: 10px 6px; border: none; border-radius: 10px;
+    flex: 1; min-width: 70px; padding: 10px 6px; border: none; border-radius: 9px;
     font-size: 13px; font-weight: 600; font-family: inherit; color: var(--text-muted);
-    background: transparent; cursor: pointer; transition: all .2s; text-align: center;
+    background: transparent; cursor: pointer; transition: all .15s; text-align: center;
   }
   .tab.active {
-    background: linear-gradient(135deg, var(--primary), #8b5cf6); color: #fff;
-    box-shadow: 0 4px 14px rgba(99,102,241,.35);
+    background: var(--primary); color: #fff;
+    box-shadow: 0 2px 8px rgba(79,70,229,.3);
   }
   .tab:hover:not(.active) { color: var(--text); }
 
@@ -248,77 +215,119 @@
   .section.active { display: block; }
 
   .badge-vehiculo {
-    display: inline-block; padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 700;
-    background: rgba(139,92,246,0.2); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.3);
+    display: inline-block; padding: 4px 12px; border-radius: 9px; font-size: 11px; font-weight: 700;
+    background: #f3e8ff; color: #6b21a8; border: 1px solid rgba(107,33,168,.15);
     margin-top: 4px;
   }
 
   /* Login screen */
-  #login-screen {
+  #login-screen, #profile-screen {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: var(--bg); z-index: 1000;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 24px;
+    padding: 24px; overflow-y: auto;
   }
   #login-screen.hidden { display: none; }
-  .pin-input {
-    font-size: 30px; letter-spacing: 14px; text-align: center; width: 210px;
-    background: rgba(255,255,255,0.07); border: 1.5px solid var(--border); border-radius: 14px;
-    font-weight: 700;
-  }
-  .pin-input:focus { border-color: var(--primary); }
   .login-error { color: var(--danger); font-size: 14px; margin-top: 12px; min-height: 20px; }
 
   /* Historial */
   .historial-item {
-    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+    background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow);
     padding: 15px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px;
   }
   .historial-info { flex: 1; }
-  .historial-nombre { font-weight: 700; font-size: 15px; }
+  .historial-nombre { font-weight: 700; font-size: 15px; color: var(--text); }
   .historial-fecha { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
   .historial-empty { text-align: center; color: var(--text-muted); padding: 40px 20px; }
 
   /* Logout button */
   .logout-btn {
     position: fixed; top: 14px; right: 14px; z-index: 101;
-    background: rgba(255,255,255,0.06); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    border: 1px solid var(--border); border-radius: 99px;
+    background: #fff;
+    border: 1px solid var(--border); border-radius: 99px; box-shadow: var(--shadow);
     padding: 6px 14px; font-size: 12px; font-weight: 600; font-family: inherit;
     color: var(--text-muted); cursor: pointer;
   }
-  .logout-btn:hover { background: rgba(239,68,68,0.2); color: #f87171; }
+  .logout-btn:hover { background: var(--danger-light); color: #b91c1c; border-color: rgba(239,68,68,.3); }
+
+  /* Tarjeta de perfil de profesor (pantalla de selección) */
+  .profile-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 16px 18px; margin-bottom: 12px; cursor: pointer;
+    font-size: 15px; font-weight: 700; color: var(--text);
+    transition: all .15s ease; animation: slideUp 0.35s ease-out both;
+  }
+  .profile-card:hover { border-color: var(--primary); background: var(--primary-light); }
+  .profile-card:active { transform: scale(0.98); background: #e0e7ff; }
+  .profile-card .chev { color: var(--text-muted); font-size: 18px; }
+  .profile-empty-msg {
+    text-align: center; color: var(--text-muted); font-size: 13px;
+    padding: 4px 6px 16px; line-height: 1.5;
+  }
+  .profile-error-msg {
+    text-align: center; color: #dc2626; font-size: 13px;
+    padding: 4px 6px 16px; line-height: 1.5;
+  }
+
+  /* Indicador de perfil activo (cabecera de main-app) */
+  .perfil-activo {
+    position: fixed; top: 14px; left: 14px; z-index: 101;
+    display: flex; align-items: center; gap: 8px;
+    background: #fff;
+    border: 1px solid var(--border); border-radius: 99px; box-shadow: var(--shadow);
+    padding: 6px 8px 6px 14px; font-size: 12px; font-family: inherit;
+  }
+  .perfil-activo span { color: var(--text-muted); font-weight: 600; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .perfil-activo button {
+    background: var(--primary-light); border: 1px solid rgba(79,70,229,.2); border-radius: 99px;
+    padding: 4px 10px; font-size: 11px; font-weight: 700; font-family: inherit;
+    color: var(--primary-dark); cursor: pointer; transition: all .15s ease;
+  }
+  .perfil-activo button:hover { background: #e0e7ff; }
 </style>
 </head>
 <body>
 
 <!-- LOGIN SCREEN -->
 <div id="login-screen">
-  <div class="orb orb-1"></div>
-  <div class="orb orb-2"></div>
   <div class="header" style="margin-bottom:36px">
     <div class="logo-mark">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 12l3.5-3.5"/><path d="M7.5 14.5a5 5 0 0 1 9 0"/></svg>
     </div>
     <h1>KMAlumnos</h1>
-    <p class="subtitle">Introduce el PIN de acceso</p>
+    <p class="subtitle">Inicia sesión con tu cuenta de la app de escritorio</p>
   </div>
   <div class="card" style="width:100%;max-width:300px;text-align:center">
-    <input type="password" id="pin-input" class="pin-input" maxlength="4" placeholder="····" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+    <input type="email" id="login-email" placeholder="Email" autocomplete="username">
+    <input type="password" id="login-password" placeholder="Contraseña" autocomplete="current-password" style="margin-top:12px">
     <div class="login-error" id="login-error"></div>
-    <button class="btn btn-primary" style="margin-top:20px" onclick="verificarPin()">Entrar</button>
+    <button class="btn btn-primary" style="margin-top:20px" onclick="iniciarSesion()">Entrar</button>
+    <p class="subtitle" style="margin-top:16px;font-size:12.5px">¿Sin cuenta? Créala en la aplicación de escritorio.</p>
   </div>
+</div>
+
+<!-- PROFILE SCREEN -->
+<div id="profile-screen" style="display:none">
+  <div class="header" style="margin-bottom:36px">
+    <div class="logo-mark">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 12l3.5-3.5"/><path d="M7.5 14.5a5 5 0 0 1 9 0"/></svg>
+    </div>
+    <h1>¿Quién eres?</h1>
+    <p class="subtitle">Elige tu perfil para continuar</p>
+  </div>
+  <div id="profesores-list" style="width:100%;max-width:340px"></div>
 </div>
 
 <!-- MAIN APP -->
 <div id="main-app" style="display:none">
-  <div class="status-line"></div>
-  <div class="grid-bg"></div>
-  <div class="orb orb-1"></div>
-  <div class="orb orb-2"></div>
-  <div class="orb orb-3"></div>
-  
   <button class="logout-btn" onclick="cerrarSesion()">Salir</button>
+
+  <div class="perfil-activo" id="perfil-activo-badge" style="display:none">
+    <span id="perfil-activo-nombre"></span>
+    <button onclick="cambiarPerfil()">Cambiar</button>
+  </div>
 
   <div class="header">
     <div class="logo-mark">
@@ -448,112 +457,221 @@
     </div>
     <button class="btn btn-secondary" onclick="cargarHistorial()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Actualizar</button>
   </div>
+
+  <!-- SECCIÓN: DETALLE DE ALUMNO (solo lectura, no es una pestaña del tab bar) -->
+  <div id="section-detalle-alumno" class="section">
+    <button class="btn btn-secondary" onclick="cerrarDetalleAlumno()">‹ Volver</button>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <label style="margin-bottom:0" id="detalle-alumno-nombre"></label>
+        <span class="tag" id="detalle-alumno-total" style="display:none"></span>
+      </div>
+    </div>
+    <div id="detalle-alumno-list"></div>
+  </div>
 </div>
 
 <script>
-  const API_TOKEN_KEY = 'kmalumnos_token';
-  const SESSION_KEY = 'kmalumnos_session';
+  const SUPABASE_URL = 'https://dmwoqugdnwgkcqtixhyw.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtd29xdWdkbndna2NxdGl4aHl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjA5NjYsImV4cCI6MjA5OTU5Njk2Nn0.8XhWdS0ohrCbZcKpHWKsJz22rY8ASA4IkgpbtE_pHkc';
+  const PROFESOR_KEY = 'kmalumnos_profesor'; // localStorage: perfil de profesor activo
+
   let alumnos = [];
   let vehiculos = [];
-  let apiToken = null;
+  let profesoresDisponibles = [];
+  let perfilActivo = null; // { id, nombre } o { id: null, nombre: 'Sin profesor' }
+
+  let supabaseClient = null;
+  async function initSupabase() {
+    if (supabaseClient) return supabaseClient;
+    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+    supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return supabaseClient;
+  }
 
   // ─── AUTENTICACIÓN ─────────────────────────────────────────────────────────
-  function checkSession() {
-    const session = localStorage.getItem(SESSION_KEY);
-    const token = localStorage.getItem(API_TOKEN_KEY);
-    if (session && token) {
-      // Verificar que la sesión no ha expirado (24h)
-      const sessionTime = parseInt(session);
-      if (Date.now() - sessionTime < 24 * 60 * 60 * 1000) {
-        apiToken = token;
+  async function checkSession() {
+    await initSupabase();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+
+    if (!session) {
+      showLogin();
+      return;
+    }
+
+    const guardado = localStorage.getItem(PROFESOR_KEY);
+    if (guardado) {
+      try {
+        perfilActivo = JSON.parse(guardado);
         showApp();
         return;
+      } catch {
+        // JSON inválido: seguimos y pedimos elegir perfil
       }
     }
-    showLogin();
+    showProfiles();
   }
 
   function showLogin() {
-    document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('main-app').style.display = 'none';
-    document.getElementById('pin-input').focus();
+    document.getElementById('profile-screen').style.display = 'none';
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('login-password').value = '';
+    document.getElementById('login-email').focus();
+  }
+
+  async function showProfiles() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('main-app').style.display = 'none';
+    document.getElementById('profile-screen').style.display = 'flex';
+
+    const list = document.getElementById('profesores-list');
+    list.innerHTML = '<div class="profile-empty-msg">Cargando perfiles...</div>';
+
+    let errorCarga = false;
+    try {
+      const res = await apiFetch('/api/profesores');
+      if (!res.ok) throw new Error('Error cargando profesores');
+      profesoresDisponibles = await res.json();
+    } catch (e) {
+      profesoresDisponibles = [];
+      errorCarga = true;
+    }
+
+    let html = '';
+    if (errorCarga) {
+      html += '<div class="profile-error-msg">No se pudo cargar la lista de profesores. Puedes continuar sin perfil.</div>';
+    } else if (!profesoresDisponibles.length) {
+      html += '<div class="profile-empty-msg">Esta autoescuela aún no tiene profesores dados de alta.</div>';
+    } else {
+      html += profesoresDisponibles.map(p =>
+        `<div class="profile-card" data-id="${p.id}">
+          <span>${escapeHtml(p.nombre)}</span><span class="chev">›</span>
+        </div>`
+      ).join('');
+    }
+    html += `<div class="profile-card" id="perfil-sin-profesor"><span>Sin profesor</span><span class="chev">›</span></div>`;
+    list.innerHTML = html;
+
+    // Data embebida solo como id numérico (data-id); el nombre se busca en
+    // profesoresDisponibles (variable JS), nunca se inyecta en el atributo.
+    list.querySelectorAll('.profile-card[data-id]').forEach(card => {
+      card.addEventListener('click', () => {
+        const id = parseInt(card.dataset.id);
+        const p = profesoresDisponibles.find(x => x.id === id);
+        seleccionarPerfil(id, p ? p.nombre : '');
+      });
+    });
+    document.getElementById('perfil-sin-profesor').addEventListener('click', () => {
+      seleccionarPerfil(null, 'Sin profesor');
+    });
+  }
+
+  function seleccionarPerfil(id, nombre) {
+    perfilActivo = { id, nombre };
+    localStorage.setItem(PROFESOR_KEY, JSON.stringify(perfilActivo));
+    showApp();
+  }
+
+  function cambiarPerfil() {
+    showProfiles();
   }
 
   function showApp() {
     document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('profile-screen').style.display = 'none';
     document.getElementById('main-app').style.display = 'block';
     document.getElementById('fecha-input').value = new Date().toLocaleDateString('sv-SE');
+
+    const badge = document.getElementById('perfil-activo-badge');
+    if (perfilActivo) {
+      document.getElementById('perfil-activo-nombre').innerHTML = escapeHtml(perfilActivo.nombre);
+      badge.style.display = 'flex';
+    } else {
+      badge.style.display = 'none';
+    }
+
     cargarDatos();
   }
 
-  async function verificarPin() {
-    const pin = document.getElementById('pin-input').value;
+  async function iniciarSesion() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
     const errorEl = document.getElementById('login-error');
-    
-    if (pin.length !== 4) {
-      errorEl.textContent = 'El PIN debe tener 4 dígitos';
+
+    if (!email || !password) {
+      errorEl.textContent = 'Introduce tu email y contraseña.';
       return;
     }
 
-    try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin })
-      });
+    errorEl.textContent = '';
 
-      const data = await res.json();
-      
-      if (res.ok && data.ok) {
-        apiToken = data.token;
-        localStorage.setItem(API_TOKEN_KEY, apiToken);
-        localStorage.setItem(SESSION_KEY, Date.now().toString());
-        errorEl.textContent = '';
-        showApp();
-      } else {
-        errorEl.textContent = data.error || 'PIN incorrecto';
-        document.getElementById('pin-input').value = '';
-        document.getElementById('pin-input').focus();
+    try {
+      await initSupabase();
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        const msg = error.message || '';
+        errorEl.textContent = /invalid|credentials|password|email/i.test(msg)
+          ? 'Email o contraseña incorrectos'
+          : msg;
+        return;
       }
+
+      localStorage.removeItem(PROFESOR_KEY);
+      perfilActivo = null;
+      await showProfiles();
     } catch (e) {
       errorEl.textContent = 'Error de conexión';
     }
   }
 
-  function cerrarSesion() {
-    localStorage.removeItem(API_TOKEN_KEY);
-    localStorage.removeItem(SESSION_KEY);
-    apiToken = null;
-    document.getElementById('pin-input').value = '';
+  // Enter para enviar el formulario de login
+  document.getElementById('login-email').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') iniciarSesion();
+  });
+  document.getElementById('login-password').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') iniciarSesion();
+  });
+
+  async function cerrarSesion() {
+    await supabaseClient?.auth.signOut();
+    localStorage.removeItem(PROFESOR_KEY);
+    perfilActivo = null;
+    document.getElementById('login-email').value = '';
+    document.getElementById('login-password').value = '';
+    document.getElementById('login-error').textContent = '';
     showLogin();
   }
 
-  // Enter para enviar PIN
-  document.getElementById('pin-input').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') verificarPin();
-  });
-
-  // ─── API FETCH CON TOKEN ───────────────────────────────────────────────────
+  // ─── API FETCH CON TOKEN DE SESIÓN ─────────────────────────────────────────
   async function apiFetch(url, options = {}) {
+    await initSupabase();
+    const { data: { session } } = await supabaseClient.auth.getSession();
     const headers = { ...(options.headers || {}) };
-    if (apiToken) headers['X-API-Token'] = apiToken;
-    
+    if (session?.access_token) headers['Authorization'] = 'Bearer ' + session.access_token;
+
     const res = await fetch(url, { ...options, headers });
-    
-    // Si el token es inválido, volver al login
+
+    // Si la sesión es inválida, volver al login
     if (res.status === 401) {
       cerrarSesion();
       throw new Error('Sesión expirada');
     }
-    
+
     return res;
   }
 
   // ─── TABS ──────────────────────────────────────────────────────────────────
   function switchTab(tab) {
+    document.getElementById('section-detalle-alumno').classList.remove('active');
+
     document.querySelectorAll('.tab').forEach((t, i) => {
-      t.classList.toggle('active', 
-        (tab === 'practica' && i === 0) || 
+      t.classList.toggle('active',
+        (tab === 'practica' && i === 0) ||
         (tab === 'alumno' && i === 1) ||
         (tab === 'historial' && i === 2)
       );
@@ -561,8 +679,71 @@
     document.getElementById('section-practica').classList.toggle('active', tab === 'practica');
     document.getElementById('section-alumno').classList.toggle('active', tab === 'alumno');
     document.getElementById('section-historial').classList.toggle('active', tab === 'historial');
-    
+
     if (tab === 'historial') cargarHistorial();
+  }
+
+  // ─── DETALLE DE ALUMNO (solo lectura) ─────────────────────────────────────
+  let tabAntesDeDetalle = 'practica'; // pestaña a la que se vuelve al cerrar el detalle
+
+  function verPracticasAlumno(id) {
+    tabAntesDeDetalle = document.querySelector('.tab.active')?.textContent.includes('Registrar') ? 'practica'
+      : document.querySelector('.tab.active')?.textContent.includes('Nuevo') ? 'alumno' : 'historial';
+    document.getElementById('section-practica').classList.remove('active');
+    document.getElementById('section-alumno').classList.remove('active');
+    document.getElementById('section-historial').classList.remove('active');
+    document.getElementById('section-detalle-alumno').classList.add('active');
+    cargarDetalleAlumno(id);
+  }
+
+  function cerrarDetalleAlumno() {
+    document.getElementById('section-detalle-alumno').classList.remove('active');
+    switchTab(tabAntesDeDetalle);
+  }
+
+  async function cargarDetalleAlumno(id) {
+    const nombreEl = document.getElementById('detalle-alumno-nombre');
+    const totalEl = document.getElementById('detalle-alumno-total');
+    const listEl = document.getElementById('detalle-alumno-list');
+    nombreEl.textContent = 'Cargando...';
+    totalEl.style.display = 'none';
+    listEl.innerHTML = '<div class="historial-empty">Cargando...</div>';
+
+    try {
+      const res = await apiFetch('/api/practicas-alumno?alumno_id=' + id);
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar las prácticas');
+
+      nombreEl.textContent = data.alumno.nombre;
+      totalEl.textContent = data.total + (data.total === 1 ? ' práctica' : ' prácticas');
+      totalEl.style.display = 'inline-block';
+
+      if (!data.practicas.length) {
+        listEl.innerHTML = '<div class="historial-empty">Este alumno todavía no tiene prácticas registradas.</div>';
+        return;
+      }
+
+      listEl.innerHTML = data.practicas.map(p => {
+        const tipoTxt = p.tipo === 'pista' ? 'Pista' : 'Circulación';
+        const tieneKm = p.km_final > 0 || p.km_inicial > 0;
+        const kmTxt = tieneKm ? (Math.max(0, p.km_final - p.km_inicial) + ' km') : 'Km pendientes';
+        const partes = [kmTxt];
+        if (p.profesor_nombre) partes.push(escapeHtml(p.profesor_nombre));
+        const fechaFmt = typeof p.fecha === 'string' ? p.fecha.split('-').reverse().join('/') : '';
+        return `
+          <div class="historial-item">
+            <div class="historial-info">
+              <div class="historial-nombre">${fechaFmt} <span class="tag">${tipoTxt}</span></div>
+              <div class="historial-fecha">${partes.join(' · ')}</div>
+              ${p.nota ? `<div class="historial-fecha">${escapeHtml(p.nota)}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      nombreEl.textContent = 'Alumno';
+      listEl.innerHTML = `<div class="historial-empty">${escapeHtml(e.message || 'Error cargando las prácticas.')}</div>`;
+    }
   }
 
   // ─── SPARKLES ──────────────────────────────────────────────────────────────
@@ -575,7 +756,7 @@
       sparkle.style.left = Math.random() * 100 + '%';
       sparkle.style.top = Math.random() * 100 + '%';
       sparkle.style.animationDelay = Math.random() * 0.5 + 's';
-      sparkle.style.background = ['#6366f1','#8b5cf6','#a855f7','#34d399','#fff'][Math.floor(Math.random()*5)];
+      sparkle.style.background = ['#4f46e5','#7c3aed','#059669','#f59e0b'][Math.floor(Math.random()*4)];
       container.appendChild(sparkle);
     }
   }
@@ -657,7 +838,8 @@
 
     if (alumno) {
       info.style.display = 'block';
-      info.innerHTML = `<span class="tag">${escapeHtml(alumno.permiso)}</span> Permiso ${escapeHtml(alumno.permiso)}`;
+      info.innerHTML = `<span class="tag">${escapeHtml(alumno.permiso)}</span> Permiso ${escapeHtml(alumno.permiso)}
+        <button class="btn-ver-practicas" onclick="verPracticasAlumno(${alumno.id})">Ver prácticas</button>`;
       btn.disabled = false;
     } else {
       info.style.display = 'none';
@@ -682,7 +864,7 @@
       const res = await apiFetch('/api/practica', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alumno_id: parseInt(alumnoId), fecha })
+        body: JSON.stringify({ alumno_id: parseInt(alumnoId), fecha, profesor_id: perfilActivo ? perfilActivo.id : null })
       });
 
       const data = await res.json();
@@ -759,7 +941,8 @@
         body: JSON.stringify({
           nombre,
           permiso,
-          vehiculo_id: vehiculoId ? parseInt(vehiculoId) : null
+          vehiculo_id: vehiculoId ? parseInt(vehiculoId) : null,
+          profesor_id: perfilActivo ? perfilActivo.id : null
         })
       });
 

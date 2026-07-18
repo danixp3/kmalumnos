@@ -1,47 +1,37 @@
 // Utilidades compartidas para las APIs de web-remote
 import { createClient } from '@supabase/supabase-js';
 
-// Cliente de Supabase autenticado con la cuenta de sincronización.
-// Si SYNC_EMAIL/SYNC_PASSWORD están configuradas en Vercel, inicia sesión
-// (necesario cuando la BD exige usuarios autenticados vía RLS). Si no,
-// usa solo la anon key (modo transición). La sesión se cachea entre
-// invocaciones del mismo contenedor y se renueva antes de caducar.
-let _client = null;
-let _sessionExpiry = 0; // epoch en segundos
-let _userId = null;
-
-export async function getSupabase() {
-  const now = Math.floor(Date.now() / 1000);
-  if (_client && now < _sessionExpiry - 60) return _client;
-
-  const client = createClient(
+// Cliente de Supabase autenticado con el token de la SPA (passthrough).
+// La SPA hace login con supabase-js en el navegador (signInWithPassword) y
+// manda su access_token en cada petición vía "Authorization: Bearer <token>".
+// Aquí construimos un cliente con la anon key + ese header reenviado, así
+// PostgREST valida el JWT del lado de la BD: si es inválido o ha caducado,
+// las consultas devuelven un error de autenticación que mapeamos a 401
+// (ver isAuthError/handleSupabaseError).
+export function getSupabase(token) {
+  return createClient(
     process.env.SUPABASE_URL || '',
     process.env.SUPABASE_ANON_KEY || '',
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  );
-
-  if (process.env.SYNC_EMAIL && process.env.SYNC_PASSWORD) {
-    const { data, error } = await client.auth.signInWithPassword({
-      email: process.env.SYNC_EMAIL,
-      password: process.env.SYNC_PASSWORD
-    });
-    if (error) {
-      throw new Error('Error de autenticación del servidor: ' + error.message);
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${token}` } }
     }
-    _sessionExpiry = (data.session && data.session.expires_at) || (now + 3000);
-    _userId = (data.user && data.user.id) || (data.session && data.session.user && data.session.user.id) || null;
-  } else {
-    _sessionExpiry = now + 100 * 365 * 24 * 3600; // cliente anon: no caduca
-    _userId = null;
-  }
-
-  _client = client;
-  return client;
+  );
 }
 
-export async function getEmpresaId() {
-  await getSupabase();
-  return _userId;
+// Extrae el empresa_id (uid del usuario de Supabase Auth) del JWT, leyendo
+// el claim `sub` del payload. No se verifica la firma aquí: PostgREST ya
+// rechaza tokens con firma inválida al ejecutar la consulta. Esto es solo
+// para saber a qué empresa filtrar.
+export function empresaIdFromToken(token) {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const json = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
+    return json.sub || null;
+  } catch {
+    return null;
+  }
 }
 
 // Validar variables de entorno
@@ -49,7 +39,6 @@ export function checkEnvVars() {
   const missing = [];
   if (!process.env.SUPABASE_URL) missing.push('SUPABASE_URL');
   if (!process.env.SUPABASE_ANON_KEY) missing.push('SUPABASE_ANON_KEY');
-  if (!process.env.API_PIN) missing.push('API_PIN');
   return missing;
 }
 
@@ -65,17 +54,14 @@ export function setCorsHeaders(req, res) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Max-Age', '86400');
 }
 
 // Reintenta una consulta a Supabase si falla por PGRST303 ("JWT issued at
-// future"): error transitorio de Supabase cuando dos contenedores serverless
-// arrancan en frío casi a la vez y cada uno hace su propio signInWithPassword
-// (ver getSupabase) — el pequeño desfase de reloj entre el nodo de Auth que
-// emite el JWT y el nodo de PostgREST que lo valida hace que, por un instante,
-// el JWT parezca "emitido en el futuro". Repetir la consulta tras una pequeña
-// espera basta para que el reloj se ponga al día.
+// future"): error transitorio de reloj entre el nodo de Auth que emite el
+// JWT y el nodo de PostgREST que lo valida. Repetir tras una pequeña espera
+// basta para que el reloj se ponga al día.
 export async function withRetry(queryFn, { retries = 1, delayMs = 400 } = {}) {
   let result = await queryFn();
   let attempt = 0;
@@ -87,38 +73,50 @@ export async function withRetry(queryFn, { retries = 1, delayMs = 400 } = {}) {
   return result;
 }
 
-// Validar token de autenticación
-export function validateToken(token) {
-  if (!token) return false;
-  try {
-    const decoded = Buffer.from(token, 'base64').toString('utf-8');
-    const [pin, timestamp] = decoded.split(':');
-    const expectedPin = process.env.API_PIN;
-    
-    if (pin !== expectedPin) return false;
-    
-    const tokenTime = parseInt(timestamp);
-    if (Date.now() - tokenTime > 24 * 60 * 60 * 1000) return false;
-    
-    return true;
-  } catch {
-    return false;
-  }
+// ¿Es este error de Supabase un fallo de autenticación (JWT inválido,
+// caducado o rechazado por PostgREST)?
+export function isAuthError(error) {
+  if (!error) return false;
+  return error.code === 'PGRST301' || /jwt|JWSError/i.test(error.message || '');
 }
 
-// Middleware de autenticación
+// Middleware de autenticación: exige "Authorization: Bearer <token>" con
+// forma de JWT y un claim `sub` legible. Devuelve { token, empresaId } o
+// null (y ya ha respondido 401) si falta o es ilegible. OJO: esto NO
+// verifica la firma del token; la verificación real la hace PostgREST al
+// ejecutar la primera consulta (ver isAuthError/handleSupabaseError).
 export function requireAuth(req, res) {
-  const token = req.headers['x-api-token'];
-  if (!validateToken(token)) {
+  const header = req.headers['authorization'] || '';
+  if (!header.startsWith('Bearer ') || header.length <= 7) {
     res.status(401).json({ error: 'No autorizado. Inicia sesión de nuevo.' });
-    return false;
+    return null;
   }
+  const token = header.slice(7);
+  const empresaId = empresaIdFromToken(token);
+  if (!empresaId) {
+    res.status(401).json({ error: 'No autorizado. Inicia sesión de nuevo.' });
+    return null;
+  }
+  return { token, empresaId };
+}
+
+// Traduce un error de Supabase/PostgREST a la respuesta HTTP adecuada. Si es
+// un error de autenticación, responde 401 (la SPA vuelve al login); si no,
+// 500. Devuelve true si ya ha respondido (el caller debe hacer `return`
+// inmediatamente después).
+export function handleSupabaseError(error, res, fallbackMsg) {
+  if (!error) return false;
+  if (isAuthError(error)) {
+    res.status(401).json({ error: 'Sesión expirada. Inicia sesión de nuevo.' });
+    return true;
+  }
+  console.error(fallbackMsg, error);
+  res.status(500).json({ error: fallbackMsg + ': ' + error.message });
   return true;
 }
 
 // Validadores de entrada
 export const validators = {
-  // Validar que sea un entero positivo
   positiveInt(value, fieldName) {
     const num = parseInt(value);
     if (isNaN(num) || num < 1) {
@@ -126,8 +124,6 @@ export const validators = {
     }
     return { valid: true, value: num };
   },
-
-  // Validar fecha YYYY-MM-DD
   fecha(value) {
     if (!value || typeof value !== 'string') {
       return { valid: false, error: 'Fecha requerida' };
@@ -135,18 +131,15 @@ export const validators = {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
       return { valid: false, error: 'Formato de fecha inválido (usar YYYY-MM-DD)' };
     }
-    // Validar que sea una fecha real
     const date = new Date(value);
     if (isNaN(date.getTime())) {
       return { valid: false, error: 'Fecha no válida' };
     }
-    // No permitir fechas futuras más de 1 día
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     if (date > tomorrow) {
       return { valid: false, error: 'No se permiten fechas futuras' };
     }
-    // No permitir fechas de hace más de 30 días
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     if (date < thirtyDaysAgo) {
@@ -154,8 +147,6 @@ export const validators = {
     }
     return { valid: true, value };
   },
-
-  // Validar string no vacío
   nonEmptyString(value, fieldName, maxLength = 100) {
     if (!value || typeof value !== 'string') {
       return { valid: false, error: `${fieldName} es requerido` };
@@ -169,8 +160,6 @@ export const validators = {
     }
     return { valid: true, value: trimmed };
   },
-
-  // Validar tipo de permiso
   permiso(value) {
     const valid = ['A', 'A2', 'AM', 'B', 'C'];
     if (!valid.includes(value)) {

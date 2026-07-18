@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, validators, getSupabase, getEmpresaId } from './_utils.js';
+import { setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -6,14 +6,10 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
-  // Verificar autenticación
-  if (!requireAuth(req, res)) return;
+  const auth = requireAuth(req, res);
+  if (!auth) return;
 
-  let supabase;
-  try { supabase = await getSupabase(); }
-  catch (e) { return res.status(500).json({ error: e.message }); }
-
-  const empresaId = await getEmpresaId();
+  const supabase = getSupabase(auth.token);
 
   const { practica_id } = req.body || {};
 
@@ -29,8 +25,12 @@ export default async function handler(req, res) {
     .select('id, fecha, source, updated_at')
     .eq('id', practicaIdVal.value)
     .eq('deleted', false)
-    .eq('empresa_id', empresaId)
+    .eq('empresa_id', auth.empresaId)
     .single();
+
+  if (errFind && isAuthError(errFind)) {
+    return res.status(401).json({ error: 'Sesión expirada. Inicia sesión de nuevo.' });
+  }
 
   if (errFind || !practica) {
     return res.status(404).json({ error: 'Práctica no encontrada' });
@@ -54,10 +54,7 @@ export default async function handler(req, res) {
     .update({ deleted: true, updated_at: new Date().toISOString() })
     .eq('id', practicaIdVal.value);
 
-  if (errDelete) {
-    console.error('Error cancelando práctica:', errDelete);
-    return res.status(500).json({ error: 'Error al cancelar la práctica: ' + errDelete.message });
-  }
+  if (handleSupabaseError(errDelete, res, 'Error al cancelar la práctica')) return;
 
   return res.status(200).json({
     ok: true,
