@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, getSupabase } from './_utils.js';
+import { setCorsHeaders, requireAuth, getSupabase, getEmpresaId } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -12,6 +12,8 @@ export default async function handler(req, res) {
   let supabase;
   try { supabase = await getSupabase(); }
   catch (e) { return res.status(500).json({ error: e.message }); }
+
+  const empresaId = await getEmpresaId();
 
   // Obtener prácticas recientes creadas desde web-remote (últimas 24h)
   const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -27,6 +29,7 @@ export default async function handler(req, res) {
       vehiculos(nombre)
     `)
     .eq('deleted', false)
+    .eq('empresa_id', empresaId)
     .eq('source', 'web-remote')
     .gte('updated_at', hace24h)
     .order('updated_at', { ascending: false })

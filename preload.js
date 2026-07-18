@@ -83,6 +83,9 @@ contextBridge.exposeInMainWorld('api', {
   onSyncConflictos: (cb)                     => ipcRenderer.on('sync-conflictos', (_, n) => cb(n)),
   saveSyncCreds:      (email, password)      => ipcRenderer.invoke('save-sync-creds', email, password),
   getSyncCredsStatus: ()                     => ipcRenderer.invoke('get-sync-creds-status'),
+  registrarEmpresa:   (email, password)      => ipcRenderer.invoke('registrar-empresa', email, password),
+  getEstadoCuenta:    ()                     => ipcRenderer.invoke('get-estado-cuenta'),
+  clearSyncCreds:     ()                     => ipcRenderer.invoke('clear-sync-creds'),
 
   // Auto-update
   checkForUpdates:  ()     => ipcRenderer.invoke('check-for-updates'),
