@@ -28,6 +28,10 @@ module.exports = function makeFakeSupabase(remote) {
         const idx = rows.findIndex(r => r.id === item.id);
         if (idx === -1) rows.push({ ...item });
         else rows[idx] = { ...rows[idx], ...item };
+        // Hook opcional para los tests: simula que "mientras tanto" otro
+        // dispositivo escribió también sobre esta fila (la ventana de red real
+        // entre nuestra subida y nuestra bajada, dentro del mismo sync()).
+        if (typeof remote._onUpsert === 'function') remote._onUpsert(state.table, item);
       }
       return { data: null, error: null };
     }

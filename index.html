@@ -354,6 +354,16 @@
     border-bottom: 1px solid var(--border);
   }
 
+  th.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  th.sortable:hover { color: var(--text); }
+  th.sortable.sort-active { color: var(--primary); }
+  .sort-ind { display: inline-flex; vertical-align: middle; margin-left: 4px; }
+  .sort-ind svg { display: block; }
+
   td {
     padding: 10.5px 14px;
     border-bottom: 1px solid #f2f4f7;
@@ -401,6 +411,17 @@
     font-size: 11.5px;
     font-weight: 700;
   }
+
+  .saldo-pendiente, .saldo-ok {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .saldo-pendiente { background: var(--danger-light); color: #b91c1c; }
+  .saldo-ok        { background: var(--success-light); color: #15803d; }
 
   /* ── REGISTRO RÁPIDO ITEMS ──────────────────── */
   .rr-item {
@@ -828,6 +849,19 @@
   #sync-bar[data-status="syncing"] #sync-label { color: #4f46e5; }
   #sync-bar[data-status="pending"] #sync-label { color: #b45309; }
   #sync-bar[data-status="error"]   #sync-label { color: #dc2626; }
+
+  #sync-conflictos-badge {
+    flex-shrink: 0;
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  #sync-conflictos-badge:hover { background: #dc2626; }
 </style>
 </head>
 <body>
@@ -873,6 +907,18 @@
         </span>
         Vehículos
       </a>
+      <a data-page="profesores">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>
+        </span>
+        Profesores
+      </a>
+      <a data-page="pagos">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        </span>
+        Pagos
+      </a>
 
       <div class="nav-section" style="margin-top:6px">Análisis</div>
       <a data-page="kilometros">
@@ -909,6 +955,7 @@
     <div id="sync-bar" data-status="offline" title="Haz clic para sincronizar ahora" onclick="syncNow()">
       <div id="sync-dot"></div>
       <span id="sync-label">Sin conexión</span>
+      <span id="sync-conflictos-badge" class="hidden" title="Conflictos de sincronización — ver detalle en Historial" onclick="event.stopPropagation(); navegarA('logs')"></span>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#c0c7d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     </div>
     <!-- Versión instalada -->
@@ -1090,6 +1137,91 @@
       </div>
     </div>
 
+    <!-- ── PROFESORES ─────────────────────────── -->
+    <div id="page-profesores" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Profesores</div>
+          <div class="page-subtitle">Gestión de los profesores que imparten prácticas</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+          Añadir profesor
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombre</label>
+            <input type="text" id="pf-nombre" placeholder="Nombre del profesor" style="width:200px">
+          </div>
+          <div class="form-group">
+            <label>Nota (opcional)</label>
+            <input type="text" id="pf-nota" placeholder="Ej: mañanas, permiso B" style="width:220px">
+          </div>
+          <button class="btn btn-primary" onclick="addProfesor()" style="align-self:flex-end">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Añadir profesor
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="tabla-profesores">
+          <thead><tr><th>Nombre</th><th>Nota</th><th>Prácticas impartidas</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── PAGOS ──────────────────────────────── -->
+    <div id="page-pagos" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Pagos</div>
+          <div class="page-subtitle">Deudas de alumnos y tarifas por permiso</div>
+        </div>
+      </div>
+
+      <div class="page-tabs" id="pagos-tabs">
+        <button class="page-tab active" data-tab="deudas" onclick="cambiarTabPagos('deudas')">Deudas</button>
+        <button class="page-tab" data-tab="tarifas" onclick="cambiarTabPagos('tarifas')">Tarifas</button>
+      </div>
+
+      <!-- DEUDAS -->
+      <div class="tab-content active" id="tab-pagos-deudas">
+        <div id="pagos-aviso-sin-tarifa" class="hidden alert alert-warn" style="margin-bottom:14px">
+          Hay alumnos con prácticas de un tipo sin tarifa definida — su deuda puede estar incompleta. Revisa la pestaña Tarifas.
+        </div>
+
+        <div class="table-wrap">
+          <table id="tabla-deudas">
+            <thead><tr><th>Alumno</th><th>Permiso</th><th>Prácticas</th><th>Generado</th><th>Pagado</th><th>Saldo pendiente</th><th>Acciones</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TARIFAS -->
+      <div class="tab-content" id="tab-pagos-tarifas">
+        <div class="card">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+            Precio de las prácticas por permiso
+          </div>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Define el precio de una práctica de circulación y de pista para cada permiso. Los cambios se guardan al salir del campo.</p>
+          <div class="table-wrap">
+            <table id="tabla-tarifas">
+              <thead><tr><th>Permiso</th><th>Circulación (€)</th><th>Pista (€)</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="pagos-tarifa-toast" class="hidden alert" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── ALUMNOS ────────────────────────────── -->
     <div id="page-alumnos" class="page">
       <!-- LISTA ALUMNOS -->
@@ -1133,9 +1265,40 @@
           <div id="alumno-alert" class="hidden" style="margin-top:12px"></div>
         </div>
 
+        <div class="card">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></div>
+            Filtros
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Buscar por nombre</label>
+              <input type="text" id="f-alumnos-nombre" placeholder="Nombre del alumno..." style="width:200px" oninput="renderAlumnosTabla()">
+            </div>
+            <div class="form-group">
+              <label>Vehículo asignado</label>
+              <select id="f-alumnos-vehiculo" style="width:180px" onchange="renderAlumnosTabla()"><option value="">Todos los vehículos</option></select>
+            </div>
+            <div class="form-group">
+              <label>Permiso</label>
+              <select id="f-alumnos-permiso" style="width:150px" onchange="renderAlumnosTabla()"><option value="">Todos los permisos</option></select>
+            </div>
+            <button class="btn btn-gray btn-sm" onclick="limpiarFiltrosAlumnos()" style="align-self:flex-end">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Limpiar filtros
+            </button>
+          </div>
+        </div>
+
         <div class="table-wrap">
           <table id="tabla-alumnos">
-            <thead><tr><th>Nombre</th><th>Permiso</th><th>Vehículo</th><th>Prácticas</th><th>Acciones</th></tr></thead>
+            <thead><tr>
+              <th class="sortable" data-sort="nombre" onclick="ordenarAlumnos('nombre')">Nombre<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="permiso" onclick="ordenarAlumnos('permiso')">Permiso<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="vehiculo" onclick="ordenarAlumnos('vehiculo')">Vehículo<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="practicas" onclick="ordenarAlumnos('practicas')">Prácticas<span class="sort-ind"></span></th>
+              <th>Acciones</th>
+            </tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -1180,6 +1343,13 @@
                 <input type="number" id="p-max" value="45" min="1" max="200" title="Máximo">
               </div>
             </div>
+            <div class="form-group">
+              <label>Tipo</label>
+              <select id="p-tipo" style="width:130px">
+                <option value="circulacion" selected>Circulación</option>
+                <option value="pista">Pista</option>
+              </select>
+            </div>
             <button class="btn btn-warn" onclick="generarKmPractica()" style="align-self:flex-end"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar km</button>
             <button class="btn btn-success" onclick="addPractica()" style="align-self:flex-end">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1191,7 +1361,7 @@
 
         <div class="table-wrap">
           <table id="tabla-practicas">
-            <thead><tr><th>#</th><th>Fecha</th><th>Km inicial</th><th>Km final</th><th>Recorrido</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>#</th><th>Fecha</th><th>Km inicial</th><th>Km final</th><th>Recorrido</th><th>Profesor</th><th>Tipo</th><th>Acciones</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -1315,6 +1485,7 @@
           <div id="ajustes-sync-dot" style="width:10px;height:10px;border-radius:50%;background:#64748b;flex-shrink:0"></div>
           <span id="ajustes-sync-label" style="font-size:14px;font-weight:600;color:var(--text)">Comprobando estado…</span>
         </div>
+        <div id="ajustes-sync-conflictos" class="hidden alert alert-warn" style="margin-bottom:16px;cursor:pointer" onclick="navegarA('logs')"></div>
         <div class="form-row" style="gap:10px;margin-bottom:20px">
           <button class="btn btn-primary" onclick="syncNow()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -1345,11 +1516,24 @@
           <div class="card-title-icon" style="background:#ecfdf5;color:#059669"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
           Guardar copia de seguridad
         </div>
-        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">Exporta todos tus datos (alumnos, vehículos, prácticas e historial) a un archivo JSON. Elige la carpeta donde quieres guardarlo.</p>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">Exporta todos tus datos (alumnos, vehículos, prácticas e historial) a un archivo JSON en la carpeta de copias de la aplicación.</p>
         <button class="btn btn-success" onclick="hacerBackup()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Guardar copia ahora...
         </button>
         <div id="backup-ok" class="hidden alert alert-ok" style="margin-top:14px"></div>
+      </div>
+
+      <!-- RESTAURAR ÚLTIMO BACKUP -->
+      <div class="card card-banner-warn">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#fffbeb;color:#d97706"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+          Restaurar último backup
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:4px">Restaura la copia más reciente guardada automáticamente en la carpeta de la aplicación. <strong style="color:var(--danger)">Esto reemplazará todos los datos actuales.</strong></p>
+        <p id="ultimo-backup-info" style="font-size:12px;color:#94a3b8;margin-bottom:16px">Comprobando...</p>
+        <button class="btn btn-warn" id="btn-restaurar-ultimo" onclick="restaurarUltimoBackup()" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Restaurar último backup
+        </button>
       </div>
 
       <div class="card card-banner-warn">
@@ -1620,10 +1804,17 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
             <label>Vehículo</label>
             <select id="rr-vehiculo" style="width:200px"></select>
           </div>
-          <button class="btn btn-primary" onclick="loadRegistroRapido()" style="align-self:flex-end">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            Cargar alumnos
-          </button>
+          <div class="form-group">
+            <label>Profesor</label>
+            <select id="rr-profesor" style="width:180px"><option value="">— Sin profesor —</option></select>
+          </div>
+          <div class="form-group">
+            <label>Tipo</label>
+            <select id="rr-tipo" style="width:140px">
+              <option value="circulacion" selected>Circulación</option>
+              <option value="pista">Pista</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -1638,7 +1829,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
             </div>
             <span id="rr-contador" style="font-size:12px;color:var(--text-muted)"></span>
           </div>
-          <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Haz clic en cada alumno que hizo práctica ese día. Los seleccionados aparecen en verde.</p>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Haz clic en cada alumno que hizo práctica ese día (los seleccionados aparecen en verde). Clic derecho para descontar la última práctica registrada ese día.</p>
           <div id="rr-lista" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:10px"></div>
         </div>
       </div>
@@ -1746,13 +1937,47 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <label>Km inicial</label>
       <input type="number" id="edit-p-ki" min="0" step="0.1" style="width:100%">
     </div>
-    <div class="form-group">
+    <div class="form-group" style="margin-bottom:14px">
       <label>Km final</label>
       <input type="number" id="edit-p-kf" min="0" step="0.1" style="width:100%">
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Profesor</label>
+      <select id="edit-p-profesor" style="width:100%"><option value="">— Sin profesor —</option></select>
+    </div>
+    <div class="form-group">
+      <label>Tipo de práctica</label>
+      <select id="edit-p-tipo">
+        <option value="circulacion">Circulación</option>
+        <option value="pista">Pista</option>
+      </select>
     </div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-practica')">Cancelar</button>
       <button class="btn btn-primary" onclick="savePractica()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL EDITAR PROFESOR ═══════════════════════════════ -->
+<div class="overlay" id="modal-profesor">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></div>
+      <h3>Editar profesor</h3>
+    </div>
+    <input type="hidden" id="edit-pf-id">
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Nombre</label>
+      <input type="text" id="edit-pf-nombre" style="width:100%">
+    </div>
+    <div class="form-group">
+      <label>Nota</label>
+      <input type="text" id="edit-pf-nota" style="width:100%">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-profesor')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProfesor()">Guardar cambios</button>
     </div>
   </div>
 </div>
@@ -1788,6 +2013,54 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
   </div>
 </div>
 
+<!-- ═══ MODAL ANOTAR PAGO ═══════════════════════════════ -->
+<div class="overlay" id="modal-pago">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+      <h3 id="modal-pago-titulo">Anotar pago</h3>
+    </div>
+    <input type="hidden" id="edit-pago-alumno-id">
+    <input type="hidden" id="edit-pago-id">
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Cantidad (€)</label>
+      <input type="number" id="edit-pago-cantidad" min="0" step="0.01" style="width:100%">
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Fecha</label>
+      <input type="date" id="edit-pago-fecha" style="width:100%">
+    </div>
+    <div class="form-group">
+      <label>Nota (opcional)</label>
+      <input type="text" id="edit-pago-nota" placeholder="Ej: pago en efectivo, transferencia..." style="width:100%">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-pago')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePago()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL HISTORIAL DE PAGOS ═══════════════════════════════ -->
+<div class="overlay" id="modal-historial-pagos">
+  <div class="modal" style="width:520px;max-height:80vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+      <h3 id="modal-historial-pagos-titulo">Historial de pagos</h3>
+    </div>
+    <div class="table-wrap" style="overflow-y:auto;max-height:50vh">
+      <table id="tabla-historial-pagos">
+        <thead><tr><th>Fecha</th><th>Cantidad</th><th>Nota</th><th>Acciones</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="form-row" style="justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-gray" onclick="closeModal('modal-historial-pagos')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script src="date-utils.js"></script>
 <script src="renderer.js"></script>
 </body>
 </html>

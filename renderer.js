@@ -11,6 +11,9 @@ let currentAlumnoId = null;
 let currentAlumnoVehiculoId = null;
 let selectedCsvPath = null;
 let vehiculosCache = [];
+let profesoresCache = [];
+let alumnosCache = [];
+let alumnosSort = { col: null, dir: 1 };
 
 // ─── NAVEGACIÓN ──────────────────────────────────────────────────────────────
 document.querySelectorAll('#sidebar nav a').forEach(link => {
@@ -22,6 +25,11 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     document.getElementById('page-' + page).classList.add('active');
     if (page === 'dashboard') loadDashboard();
     if (page === 'vehiculos') { loadVehiculos(); aplicarRangoPref('relleno-min', 'relleno-max'); }
+    if (page === 'profesores') loadProfesores();
+    if (page === 'pagos') {
+      const activeTab = document.querySelector('#page-pagos .page-tab.active')?.dataset.tab || 'deudas';
+      cambiarTabPagos(activeTab);
+    }
     if (page === 'alumnos') { loadVehiculosSelect(); loadAlumnos(); }
     if (page === 'kilometros') {
       const activeTab = document.querySelector('#page-kilometros .page-tab.active')?.dataset.tab || 'mapa';
@@ -211,6 +219,69 @@ async function saveVehiculoKm() {
   loadVehiculos();
 }
 
+// ─── PROFESORES ───────────────────────────────────────────────────────────────
+async function loadProfesores() {
+  profesoresCache = await window.api.getProfesores();
+  const tbody = document.querySelector('#tabla-profesores tbody');
+  if (!profesoresCache.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">No hay profesores registrados</td></tr>';
+    return;
+  }
+  tbody.innerHTML = profesoresCache.map(p => `<tr>
+      <td><strong>${esc(p.nombre)}</strong></td>
+      <td>${esc(p.nota) || '<span style="color:#bbb">—</span>'}</td>
+      <td>${p.num_practicas}</td>
+      <td>
+        <button class="btn btn-warn btn-sm" onclick="openEditProfesor(${p.id},'${esc(p.nombre)}','${esc(p.nota || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteProfesor(${p.id},'${esc(p.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function addProfesor() {
+  const nombre = document.getElementById('pf-nombre').value.trim();
+  const nota = document.getElementById('pf-nota').value.trim();
+  if (!nombre) { alert('Introduce un nombre para el profesor.'); return; }
+  await window.api.addProfesor(nombre, nota);
+  document.getElementById('pf-nombre').value = '';
+  document.getElementById('pf-nota').value = '';
+  loadProfesores();
+}
+
+async function deleteProfesor(id, nombre) {
+  if (!confirm(`¿Borrar el profesor "${nombre}"? Las prácticas ya registradas conservarán a este profesor en su historial.`)) return;
+  await window.api.deleteProfesor(id);
+  loadProfesores();
+}
+
+function openEditProfesor(id, nombre, nota) {
+  document.getElementById('edit-pf-id').value = id;
+  document.getElementById('edit-pf-nombre').value = nombre;
+  document.getElementById('edit-pf-nota').value = nota;
+  openModal('modal-profesor');
+}
+
+async function saveProfesor() {
+  const id = parseInt(document.getElementById('edit-pf-id').value);
+  const nombre = document.getElementById('edit-pf-nombre').value.trim();
+  const nota = document.getElementById('edit-pf-nota').value.trim();
+  if (!nombre) { alert('Introduce un nombre para el profesor.'); return; }
+  await window.api.updateProfesor(id, nombre, nota);
+  closeModal('modal-profesor');
+  loadProfesores();
+}
+
+// Rellena un <select> de profesores con un placeholder "Sin profesor" y,
+// opcionalmente, deja preseleccionado un id (usado al editar una práctica).
+async function llenarSelectProfesores(selectId, selectedId) {
+  profesoresCache = await window.api.getProfesores();
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Sin profesor —</option>' +
+    profesoresCache.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
+  sel.value = (selectedId !== undefined && selectedId !== null) ? String(selectedId) : '';
+}
+
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
 async function loadVehiculosSelect() {
   vehiculosCache = await window.api.getVehiculos();
@@ -228,20 +299,135 @@ async function loadVehiculosSelect() {
 
 async function loadAlumnos() {
   const alumnos = await window.api.getAlumnos();
+  // Para cada alumno contar prácticas (una sola vez; el resto de filtrado/orden es en memoria)
+  alumnosCache = await Promise.all(alumnos.map(async a => {
+    const practicas = await window.api.getPracticas(a.id);
+    return { ...a, num_practicas: practicas.length };
+  }));
+  poblarFiltrosAlumnos();
+  renderAlumnosTabla();
+}
+
+// ─── Filtros y ordenación de la tabla de alumnos (en memoria, sobre alumnosCache) ───
+function poblarFiltrosAlumnos() {
+  const selVehiculo = document.getElementById('f-alumnos-vehiculo');
+  const selPermiso = document.getElementById('f-alumnos-permiso');
+  if (!selVehiculo || !selPermiso) return;
+
+  const vehiculoActual = selVehiculo.value;
+  const permisoActual = selPermiso.value;
+
+  const vehiculosVistos = new Map();
+  let haySinAsignar = false;
+  alumnosCache.forEach(a => {
+    if (a.vehiculo_id) {
+      if (!vehiculosVistos.has(a.vehiculo_id)) {
+        vehiculosVistos.set(a.vehiculo_id, a.vehiculo_nombre || `Vehículo ${a.vehiculo_id}`);
+      }
+    } else {
+      haySinAsignar = true;
+    }
+  });
+  const vehiculosOpts = [...vehiculosVistos.entries()]
+    .sort((x, y) => x[1].localeCompare(y[1], 'es', { numeric: true }));
+
+  selVehiculo.innerHTML = '<option value="">Todos los vehículos</option>' +
+    vehiculosOpts.map(([id, nombre]) => `<option value="${id}">${esc(nombre)}</option>`).join('') +
+    (haySinAsignar ? '<option value="none">Sin asignar</option>' : '');
+
+  const permisosOpts = [...new Set(alumnosCache.map(a => a.permiso).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+  selPermiso.innerHTML = '<option value="">Todos los permisos</option>' +
+    permisosOpts.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+
+  // Restaurar la selección previa si la opción sigue existiendo (para no perder el filtro al refrescar)
+  if ([...selVehiculo.options].some(o => o.value === vehiculoActual)) selVehiculo.value = vehiculoActual;
+  if ([...selPermiso.options].some(o => o.value === permisoActual)) selPermiso.value = permisoActual;
+}
+
+function limpiarFiltrosAlumnos() {
+  const nombre = document.getElementById('f-alumnos-nombre');
+  const vehiculo = document.getElementById('f-alumnos-vehiculo');
+  const permiso = document.getElementById('f-alumnos-permiso');
+  if (nombre) nombre.value = '';
+  if (vehiculo) vehiculo.value = '';
+  if (permiso) permiso.value = '';
+  renderAlumnosTabla();
+}
+
+function ordenarAlumnos(col) {
+  if (alumnosSort.col === col) {
+    alumnosSort.dir *= -1;
+  } else {
+    alumnosSort.col = col;
+    alumnosSort.dir = 1;
+  }
+  renderAlumnosTabla();
+}
+
+const SVG_SORT_ASC = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
+const SVG_SORT_DESC = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+
+function actualizarIndicadoresOrdenAlumnos() {
+  document.querySelectorAll('#tabla-alumnos thead th[data-sort]').forEach(th => {
+    const ind = th.querySelector('.sort-ind');
+    if (!ind) return;
+    if (th.dataset.sort === alumnosSort.col) {
+      ind.innerHTML = alumnosSort.dir === 1 ? SVG_SORT_ASC : SVG_SORT_DESC;
+      th.classList.add('sort-active');
+    } else {
+      ind.innerHTML = '';
+      th.classList.remove('sort-active');
+    }
+  });
+}
+
+function renderAlumnosTabla() {
   const tbody = document.querySelector('#tabla-alumnos tbody');
-  if (!alumnos.length) {
+  const nombreFiltro = (document.getElementById('f-alumnos-nombre')?.value || '').trim().toLowerCase();
+  const vehiculoFiltro = document.getElementById('f-alumnos-vehiculo')?.value || '';
+  const permisoFiltro = document.getElementById('f-alumnos-permiso')?.value || '';
+
+  let filtrados = alumnosCache.filter(a => {
+    if (nombreFiltro && !a.nombre.toLowerCase().includes(nombreFiltro)) return false;
+    if (vehiculoFiltro === 'none') {
+      if (a.vehiculo_id) return false;
+    } else if (vehiculoFiltro && String(a.vehiculo_id || '') !== vehiculoFiltro) {
+      return false;
+    }
+    if (permisoFiltro && a.permiso !== permisoFiltro) return false;
+    return true;
+  });
+
+  const { col, dir } = alumnosSort;
+  if (col) {
+    filtrados = [...filtrados].sort((a, b) => {
+      if (col === 'practicas') return (a.num_practicas - b.num_practicas) * dir;
+      let va = '', vb = '';
+      if (col === 'nombre') { va = a.nombre || ''; vb = b.nombre || ''; }
+      else if (col === 'permiso') { va = a.permiso || ''; vb = b.permiso || ''; }
+      else if (col === 'vehiculo') { va = a.vehiculo_nombre || ''; vb = b.vehiculo_nombre || ''; }
+      return va.localeCompare(vb, 'es', { numeric: true }) * dir;
+    });
+  }
+  actualizarIndicadoresOrdenAlumnos();
+
+  if (!alumnosCache.length) {
     tbody.innerHTML = '<tr><td colspan="5" class="empty">No hay alumnos registrados</td></tr>';
     return;
   }
-  // Para cada alumno contar prácticas
-  const rows = await Promise.all(alumnos.map(async a => {
-    const practicas = await window.api.getPracticas(a.id);
+  if (!filtrados.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Ningún alumno coincide con los filtros</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtrados.map(a => {
     const tag = tagPermiso(a.permiso);
     return `<tr>
       <td><strong>${esc(a.nombre)}</strong></td>
       <td>${tag}</td>
       <td>${a.vehiculo_nombre ? esc(a.vehiculo_nombre) : '<span style="color:#bbb">Sin asignar</span>'}</td>
-      <td><span style="font-weight:700">${practicas.length}</span></td>
+      <td><span style="font-weight:700">${a.num_practicas}</span></td>
       <td>
         <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Prácticas</button>
         <button class="btn btn-sm" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Anotaciones</button>
@@ -249,8 +435,7 @@ async function loadAlumnos() {
         <button class="btn btn-danger btn-sm" onclick="deleteAlumno(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
       </td>
     </tr>`;
-  }));
-  tbody.innerHTML = rows.join('');
+  }).join('');
 }
 
 async function addAlumno() {
@@ -343,7 +528,7 @@ async function loadPracticas() {
   const practicas = await window.api.getPracticas(currentAlumnoId);
   const tbody = document.querySelector('#tabla-practicas tbody');
   if (!practicas.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">No hay prácticas registradas para este alumno</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No hay prácticas registradas para este alumno</td></tr>';
     return;
   }
   tbody.innerHTML = practicas.map((p, i) => {
@@ -352,14 +537,20 @@ async function loadPracticas() {
     const kmICell = sinKm ? '<span style="color:#d97706;font-style:italic">Sin km</span>' : fmt(p.km_inicial);
     const kmFCell = sinKm ? '<span style="color:#d97706;font-style:italic">Sin km</span>' : fmt(p.km_final);
     const diffCell = sinKm ? '<span style="color:#d97706;font-style:italic">—</span>' : `<span class="km-badge">+${diff} km</span>`;
+    const profesorCell = p.profesor_nombre ? esc(p.profesor_nombre) : '<span style="color:#bbb">—</span>';
+    const profesorIdArg = p.profesor_id != null ? p.profesor_id : 'null';
+    const tipo = p.tipo || 'circulacion';
+    const tipoCell = tipo === 'pista' ? 'Pista' : 'Circulación';
     return `<tr${sinKm ? ' style="background:#fffbeb"' : ''}>
       <td>${i + 1}</td>
       <td>${fmtFecha(p.fecha)}</td>
       <td>${kmICell}</td>
       <td>${kmFCell}</td>
       <td>${diffCell}</td>
+      <td>${profesorCell}</td>
+      <td>${tipoCell}</td>
       <td>
-        <button class="btn btn-warn btn-sm" onclick="openEditPractica(${p.id},'${p.fecha}',${p.km_inicial},${p.km_final})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+        <button class="btn btn-warn btn-sm" onclick="openEditPractica(${p.id},'${p.fecha}',${p.km_inicial},${p.km_final},${profesorIdArg},'${tipo}')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
         <button class="btn btn-danger btn-sm" onclick="deletePractica(${p.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </td>
     </tr>`;
@@ -411,7 +602,8 @@ async function addPractica() {
 
   if (sinKm) { ki = 0; kf = 0; }
 
-  await window.api.addPractica(currentAlumnoId, vid, fecha, ki, kf);
+  const tipo = document.getElementById('p-tipo')?.value || 'circulacion';
+  await window.api.addPractica(currentAlumnoId, vid, fecha, ki, kf, null, tipo);
   document.getElementById('p-ki').value = '';
   document.getElementById('p-kf').value = '';
   document.getElementById('km-preview').classList.add('hidden');
@@ -424,11 +616,13 @@ async function deletePractica(id) {
   loadPracticas();
 }
 
-function openEditPractica(id, fecha, ki, kf) {
+async function openEditPractica(id, fecha, ki, kf, profesorId, tipo) {
   document.getElementById('edit-p-id').value = id;
   document.getElementById('edit-p-fecha').value = fecha;
   document.getElementById('edit-p-ki').value = ki;
   document.getElementById('edit-p-kf').value = kf;
+  document.getElementById('edit-p-tipo').value = tipo || 'circulacion';
+  await llenarSelectProfesores('edit-p-profesor', profesorId);
   openModal('modal-practica');
 }
 
@@ -437,6 +631,8 @@ async function savePractica() {
   const fecha = document.getElementById('edit-p-fecha').value;
   const ki = parseFloat(document.getElementById('edit-p-ki').value);
   const kf = parseFloat(document.getElementById('edit-p-kf').value);
+  const profesorId = document.getElementById('edit-p-profesor').value;
+  const tipo = document.getElementById('edit-p-tipo').value || 'circulacion';
   if (!fecha || isNaN(ki) || isNaN(kf)) { alert('Rellena todos los campos.'); return; }
   if (kf <= ki) { alert('El km final debe ser mayor que el inicial.'); return; }
 
@@ -455,7 +651,7 @@ async function savePractica() {
     }
   }
 
-  await window.api.updatePractica(id, fecha, ki, kf);
+  await window.api.updatePractica(id, fecha, ki, kf, profesorId, tipo);
   closeModal('modal-practica');
   // Si venimos de la pestaña Conflictos (Kilómetros), recargar esa vista; si no, las prácticas del alumno
   const kilometrosPage = document.getElementById('page-kilometros');
@@ -465,6 +661,157 @@ async function savePractica() {
   } else {
     loadPracticas();
   }
+}
+
+// ─── PAGOS ────────────────────────────────────────────────────────────────────
+function cambiarTabPagos(tab) {
+  document.querySelectorAll('#page-pagos .page-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('#page-pagos .tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-pagos-' + tab));
+  if (tab === 'deudas') loadDeudas();
+  if (tab === 'tarifas') loadTarifas();
+}
+
+async function loadDeudas() {
+  const deudas = await window.api.getDeudas();
+  const tbody = document.querySelector('#tabla-deudas tbody');
+  const aviso = document.getElementById('pagos-aviso-sin-tarifa');
+  aviso.classList.toggle('hidden', !deudas.some(d => d.sin_tarifa));
+
+  if (!deudas.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay alumnos registrados</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = deudas.map(d => {
+    const saldoClase = d.saldo > 0 ? 'saldo-pendiente' : 'saldo-ok';
+    const avisoIcon = d.sin_tarifa
+      ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warn);vertical-align:-2px;margin-right:4px" title="Alguna práctica no tiene tarifa asignada"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+      : '';
+    return `<tr>
+      <td>${avisoIcon}<strong>${esc(d.alumno_nombre)}</strong></td>
+      <td>${tagPermiso(d.permiso)}</td>
+      <td>${d.num_practicas}</td>
+      <td>${fmt(d.total_generado)} €</td>
+      <td>${fmt(d.total_pagado)} €</td>
+      <td><span class="${saldoClase}">${fmt(d.saldo)} €</span></td>
+      <td>
+        <button class="btn btn-primary btn-sm" onclick="abrirModalPago(${d.alumno_id},'${esc(d.alumno_nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Anotar pago</button>
+        <button class="btn btn-gray btn-sm" onclick="abrirHistorialPagos(${d.alumno_id},'${esc(d.alumno_nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Historial</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function abrirModalPago(alumnoId, alumnoNombre) {
+  document.getElementById('edit-pago-id').value = '';
+  document.getElementById('edit-pago-alumno-id').value = alumnoId;
+  document.getElementById('edit-pago-cantidad').value = '';
+  document.getElementById('edit-pago-nota').value = '';
+  document.getElementById('edit-pago-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('modal-pago-titulo').textContent = `Anotar pago — ${alumnoNombre}`;
+  openModal('modal-pago');
+}
+
+function openEditPago(id, alumnoId, alumnoNombre, fecha, cantidad, nota) {
+  document.getElementById('edit-pago-id').value = id;
+  document.getElementById('edit-pago-alumno-id').value = alumnoId;
+  document.getElementById('edit-pago-fecha').value = fecha;
+  document.getElementById('edit-pago-cantidad').value = cantidad;
+  document.getElementById('edit-pago-nota').value = nota || '';
+  document.getElementById('modal-pago-titulo').textContent = `Editar pago — ${alumnoNombre}`;
+  openModal('modal-pago');
+}
+
+async function savePago() {
+  const id = document.getElementById('edit-pago-id').value;
+  const alumnoId = parseInt(document.getElementById('edit-pago-alumno-id').value);
+  const fecha = document.getElementById('edit-pago-fecha').value;
+  const cantidad = parseFloat(document.getElementById('edit-pago-cantidad').value);
+  const nota = document.getElementById('edit-pago-nota').value.trim();
+  if (!fecha) { alert('Selecciona una fecha.'); return; }
+  if (isNaN(cantidad) || cantidad <= 0) { alert('Introduce una cantidad válida.'); return; }
+
+  if (id) {
+    await window.api.updatePago(parseInt(id), fecha, cantidad, nota);
+  } else {
+    await window.api.addPago(alumnoId, fecha, cantidad, nota);
+  }
+  closeModal('modal-pago');
+  loadDeudas();
+
+  // Si el historial de este alumno está abierto, refrescarlo también
+  const modalHist = document.getElementById('modal-historial-pagos');
+  if (modalHist.classList.contains('open') && parseInt(modalHist.dataset.alumnoId) === alumnoId) {
+    abrirHistorialPagos(alumnoId, modalHist.dataset.alumnoNombre);
+  }
+}
+
+async function abrirHistorialPagos(alumnoId, alumnoNombre) {
+  const pagos = await window.api.getPagosAlumno(alumnoId);
+  const modal = document.getElementById('modal-historial-pagos');
+  modal.dataset.alumnoId = alumnoId;
+  modal.dataset.alumnoNombre = alumnoNombre;
+  document.getElementById('modal-historial-pagos-titulo').textContent = `Historial de pagos — ${alumnoNombre}`;
+  const tbody = document.querySelector('#tabla-historial-pagos tbody');
+  if (!pagos.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">No hay pagos registrados</td></tr>';
+  } else {
+    tbody.innerHTML = pagos.map(p => `<tr>
+      <td>${fmtFecha(p.fecha)}</td>
+      <td>${fmt(p.cantidad)} €</td>
+      <td>${p.nota ? esc(p.nota) : '<span style="color:#bbb">—</span>'}</td>
+      <td>
+        <button class="btn btn-warn btn-sm" onclick="openEditPago(${p.id},${alumnoId},'${esc(alumnoNombre)}','${p.fecha}',${p.cantidad},'${esc(p.nota || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+        <button class="btn btn-danger btn-sm" onclick="deletePagoUI(${p.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+      </td>
+    </tr>`).join('');
+  }
+  openModal('modal-historial-pagos');
+}
+
+async function deletePagoUI(id) {
+  if (!confirm('¿Borrar este pago?')) return;
+  await window.api.deletePago(id);
+  const modal = document.getElementById('modal-historial-pagos');
+  const alumnoId = parseInt(modal.dataset.alumnoId);
+  const alumnoNombre = modal.dataset.alumnoNombre;
+  await abrirHistorialPagos(alumnoId, alumnoNombre);
+  loadDeudas();
+}
+
+async function loadTarifas() {
+  const [tarifas, alumnos] = await Promise.all([window.api.getTarifas(), window.api.getAlumnos()]);
+  const permisos = Array.from(new Set([
+    ...alumnos.map(a => a.permiso),
+    ...tarifas.map(t => t.permiso)
+  ])).sort();
+
+  const tbody = document.querySelector('#tabla-tarifas tbody');
+  if (!permisos.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty">No hay permisos todavía — añade un alumno primero</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = permisos.map(permiso => {
+    const tCirc = tarifas.find(t => t.permiso === permiso && t.tipo === 'circulacion');
+    const tPista = tarifas.find(t => t.permiso === permiso && t.tipo === 'pista');
+    const idCirc = `tarifa-${permiso}-circulacion`;
+    const idPista = `tarifa-${permiso}-pista`;
+    return `<tr>
+      <td>${tagPermiso(permiso)}</td>
+      <td><input type="number" id="${idCirc}" min="0" step="0.01" value="${tCirc ? tCirc.precio : 0}" style="width:100px" onchange="guardarTarifaUI('${permiso}','circulacion','${idCirc}')"></td>
+      <td><input type="number" id="${idPista}" min="0" step="0.01" value="${tPista ? tPista.precio : 0}" style="width:100px" onchange="guardarTarifaUI('${permiso}','pista','${idPista}')"></td>
+    </tr>`;
+  }).join('');
+}
+
+async function guardarTarifaUI(permiso, tipo, valorInputId) {
+  const input = document.getElementById(valorInputId);
+  const valor = parseFloat(input.value);
+  if (isNaN(valor) || valor < 0) { alert('Introduce un precio válido.'); return; }
+  await window.api.setTarifa(permiso, tipo, valor);
+  const tipoTxt = tipo === 'pista' ? 'Pista' : 'Circulación';
+  showToast('pagos-tarifa-toast', `Tarifa de ${permiso} (${tipoTxt}) guardada: ${fmt(valor)} €`, 'ok');
 }
 
 // ─── IMPORTAR CSV ─────────────────────────────────────────────────────────────
@@ -797,11 +1144,12 @@ async function corregirTodosSolapamientos() {
 }
 
 // ─── LOGS ────────────────────────────────────────────────────────────────────
-const LOG_ICONS = { importacion: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>', relleno: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>', correccion: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>' };
-const LOG_COLORS = { importacion: '#1d4ed8', relleno: '#15803d', correccion: '#92400e' };
-const LOG_BG = { importacion: '#eff6ff', relleno: '#f0fdf4', correccion: '#fef3c7' };
+const LOG_ICONS = { importacion: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>', relleno: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>', correccion: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>', conflicto_sync: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' };
+const LOG_COLORS = { importacion: '#1d4ed8', relleno: '#15803d', correccion: '#92400e', conflicto_sync: '#b91c1c' };
+const LOG_BG = { importacion: '#eff6ff', relleno: '#f0fdf4', correccion: '#fef3c7', conflicto_sync: '#fef2f2' };
 
 async function loadLogs() {
+  ocultarConflictosSync(); // visitar Historial cuenta como "visto" el aviso de conflictos
   const logs = await window.api.getLogs();
   const el = document.getElementById('logs-result');
   if (!logs.length) {
@@ -840,13 +1188,46 @@ async function hacerBackup() {
   const result = await window.api.crearBackup();
   const el = document.getElementById('backup-ok');
   if (result.ok) {
-    el.innerHTML = `Copia guardada en: <strong>${esc(result.file)}</strong>`;
+    el.innerHTML = `Copia guardada: <strong>${esc(result.nombre || result.file)}</strong>`;
     el.className = 'alert alert-ok';
   } else {
     el.innerHTML = `Error: ${esc(result.msg)}`;
     el.className = 'alert alert-err';
   }
   el.classList.remove('hidden');
+  loadUltimoBackup();
+}
+
+let ultimoBackupInfo = null;
+
+async function loadUltimoBackup() {
+  const el = document.getElementById('ultimo-backup-info');
+  const btn = document.getElementById('btn-restaurar-ultimo');
+  ultimoBackupInfo = await window.api.getUltimoBackup();
+  if (!el || !btn) return;
+  if (!ultimoBackupInfo) {
+    el.textContent = 'Todavía no se ha guardado ninguna copia en la carpeta de la aplicación.';
+    btn.disabled = true;
+    return;
+  }
+  const fecha = ultimoBackupInfo.fecha
+    ? new Date(ultimoBackupInfo.fecha).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '';
+  el.innerHTML = `Última copia: <strong>${esc(ultimoBackupInfo.nombre)}</strong>${fecha ? ' · ' + fecha : ''}`;
+  btn.disabled = false;
+}
+
+async function restaurarUltimoBackup() {
+  if (!ultimoBackupInfo) return;
+  if (!confirm(`Esto reemplazará todos los datos actuales por la copia "${ultimoBackupInfo.nombre}". ¿Continuar?`)) return;
+  const result = await window.api.restaurarUltimoBackup();
+  if (!result.ok) {
+    alert('Error al restaurar: ' + (result.msg || 'Error desconocido.'));
+    return;
+  }
+  alert('Backup restaurado correctamente. A continuación puedes subir estos datos a la nube (la restauración no se sube sola).');
+  await pushAllToCloud();
+  location.reload();
 }
 
 async function restaurarBackup() {
@@ -1106,6 +1487,37 @@ window.api.onSyncStatus((status, reason) => {
 // Obtener estado inicial
 window.api.getSyncStatus().then(s => updateSyncBar(s || 'offline'));
 
+// Conflictos de sync: dos dispositivos editaron el mismo registro entre syncs.
+// La resolución (gana el más reciente) no cambia; esto solo hace visible que
+// pasó, y apunta a Historial para ver qué se descartó. Se muestra en el
+// indicador del sidebar (visible en cualquier página) y se refuerza en Ajustes;
+// visitar Historial lo da por visto.
+function mostrarConflictosSync(n) {
+  if (!n) return;
+  const badge = document.getElementById('sync-conflictos-badge');
+  if (badge) {
+    badge.textContent = n === 1 ? '1 conflicto' : `${n} conflictos`;
+    badge.classList.remove('hidden');
+  }
+  const ajAlert = document.getElementById('ajustes-sync-conflictos');
+  if (ajAlert) {
+    ajAlert.textContent = (n === 1
+      ? 'Se detectó 1 conflicto de sincronización (dos ediciones a la vez del mismo dato).'
+      : `Se detectaron ${n} conflictos de sincronización (dos ediciones a la vez del mismo dato).`)
+      + ' Gana la edición más reciente; pulsa aquí para ver el detalle en Historial.';
+    ajAlert.classList.remove('hidden');
+  }
+}
+
+function ocultarConflictosSync() {
+  const badge = document.getElementById('sync-conflictos-badge');
+  if (badge) badge.classList.add('hidden');
+  const ajAlert = document.getElementById('ajustes-sync-conflictos');
+  if (ajAlert) ajAlert.classList.add('hidden');
+}
+
+window.api.onSyncConflictos((n) => mostrarConflictosSync(n));
+
 // ─── CREDENCIALES DE SINCRONIZACIÓN ───────────────────────────────────────────
 async function refrescarEstadoCredsSync() {
   const el = document.getElementById('sync-creds-estado');
@@ -1160,6 +1572,7 @@ async function loadAjustes() {
   if (el) el.textContent = 'v' + v;
   const s = await window.api.getSyncStatus();
   updateSyncBar(s || 'offline');
+  loadUltimoBackup();
 }
 
 // ─── AUTO-UPDATE ──────────────────────────────────────────────────────────────
@@ -1265,15 +1678,24 @@ function hideToast(elementId) {
 // ─── REGISTRO RÁPIDO ──────────────────────────────────────────────────────────
 let rrVehiculoActual = null;
 let rrFechaActual = null;
+// Recuerda la última selección de profesor mientras la app está abierta
+// (no se persiste en disco: al reabrir la app vuelve a "Sin profesor").
+let rrProfesorActual = null;
+// Recuerda el último tipo de práctica seleccionado mientras la app está abierta
+// (no se persiste en disco: al reabrir la app vuelve a "Circulación").
+let rrTipoActual = 'circulacion';
 
 async function loadRegistroRapidoInit() {
   // Cargar vehículos en el selector
   const vehiculos = await window.api.getVehiculos();
   const sel = document.getElementById('rr-vehiculo');
-  sel.innerHTML = vehiculos.length 
+  sel.innerHTML = vehiculos.length
     ? vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('')
     : '<option value="">— No hay vehículos —</option>';
-  
+
+  // Cargar profesores en el selector, conservando la última selección de la sesión
+  await llenarSelectProfesores('rr-profesor', rrProfesorActual);
+
   // Fecha de hoy por defecto
   const hoy = new Date().toISOString().split('T')[0];
   document.getElementById('rr-fecha').value = hoy;
@@ -1324,12 +1746,12 @@ async function loadRegistroRapido() {
 function renderRRAlumnos(alumnos) {
   const lista = document.getElementById('rr-lista');
   lista.innerHTML = alumnos.map(a => `
-    <div class="rr-item${a.num_practicas > 0 ? ' has-practicas' : ''}" data-id="${a.id}" onclick="ajustarRR(${a.id}, 1)">
+    <div class="rr-item${a.num_practicas > 0 ? ' has-practicas' : ''}" data-id="${a.id}" onclick="ajustarRR(${a.id}, 1)" oncontextmenu="descontarRR(event, ${a.id})">
       <div class="rr-item-info">
         <div class="rr-item-name">${esc(a.nombre)}</div>
         <div class="rr-item-permiso">Permiso ${a.permiso}</div>
       </div>
-      <div class="rr-counter" onclick="event.stopPropagation()">
+      <div class="rr-counter" onclick="event.stopPropagation()" oncontextmenu="event.stopPropagation()">
         <button class="rr-nota-btn${a.nota ? ' has-nota' : ''}" onclick="abrirNotaRR(${a.id})" data-nota="${esc(a.nota || '')}" title="${a.nota ? esc(a.nota) : 'Añadir nota'}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
         <button class="rr-counter-btn minus" onclick="ajustarRR(${a.id}, -1)">−</button>
         <span class="rr-counter-num" data-count="${a.id}">${a.num_practicas}</span>
@@ -1362,7 +1784,7 @@ async function guardarNotaRR() {
   if (_notaAlumnoId === null) return;
   const nota = document.getElementById('modal-nota-texto').value.trim();
   
-  const res = await window.api.guardarNotaAlumno(rrVehiculoActual, rrFechaActual, _notaAlumnoId, nota);
+  const res = await window.api.guardarNotaAlumno(rrVehiculoActual, rrFechaActual, _notaAlumnoId, nota, rrProfesorActual, rrTipoActual);
   
   // Si se creó una práctica nueva, refrescar la lista completa
   if (res && res.created) {
@@ -1389,7 +1811,7 @@ async function guardarNotaRR() {
 async function ajustarRR(alumnoId, delta) {
   if (!rrVehiculoActual || !rrFechaActual) return;
   
-  const res = await window.api.ajustarPracticasAlumno(rrVehiculoActual, rrFechaActual, alumnoId, delta);
+  const res = await window.api.ajustarPracticasAlumno(rrVehiculoActual, rrFechaActual, alumnoId, delta, rrProfesorActual, rrTipoActual);
   
   // Actualizar UI
   const numEl = document.querySelector(`.rr-counter-num[data-count="${alumnoId}"]`);
@@ -1404,6 +1826,38 @@ async function ajustarRR(alumnoId, delta) {
   }
   
   // Actualizar contador global
+  const alumnos = await window.api.getAlumnosPorVehiculo(rrVehiculoActual, rrFechaActual);
+  updateRRContador(alumnos);
+}
+
+// Click derecho sobre la tarjeta de un alumno: descuenta (borra) la práctica
+// más reciente de ese alumno en la fecha seleccionada del Registro Rápido.
+async function descontarRR(event, alumnoId) {
+  event.preventDefault();
+  if (!rrVehiculoActual || !rrFechaActual) return;
+
+  const practicas = await window.api.getPracticas(alumnoId);
+  const delDia = practicas.filter(p => p.vehiculo_id === rrVehiculoActual && p.fecha === rrFechaActual);
+
+  if (!delDia.length) {
+    showToast('rr-alert', 'Este alumno no tiene prácticas registradas en esa fecha.', 'warn');
+    return;
+  }
+
+  // getPracticas devuelve ordenado por fecha/id ascendente: la última es la más reciente.
+  const masReciente = delDia[delDia.length - 1];
+  await window.api.deletePractica(masReciente.id);
+
+  // Refrescar contador/estado visual de la tarjeta igual que hace el click izquierdo
+  const nuevoCount = delDia.length - 1;
+  const numEl = document.querySelector(`.rr-counter-num[data-count="${alumnoId}"]`);
+  const item = document.querySelector(`.rr-item[data-id="${alumnoId}"]`);
+  if (numEl) numEl.textContent = nuevoCount;
+  if (item) {
+    if (nuevoCount > 0) item.classList.add('has-practicas');
+    else item.classList.remove('has-practicas');
+  }
+
   const alumnos = await window.api.getAlumnosPorVehiculo(rrVehiculoActual, rrFechaActual);
   updateRRContador(alumnos);
 }
@@ -1432,14 +1886,29 @@ function hideRRAlert() {
 
 function cambiarFechaRR(delta) {
   const input = document.getElementById('rr-fecha');
-  const fecha = new Date(input.value);
-  fecha.setDate(fecha.getDate() + delta);
-  input.value = fecha.toISOString().split('T')[0];
+  if (!input.value) return;
+  input.value = sumarDiasFecha(input.value, delta);
   loadRegistroRapido();
 }
 
+// Botones laterales del ratón (atrás/adelante) cambian la fecha del Registro
+// Rápido cuando esa página está activa. button 3 = lateral "atrás" (día -1),
+// button 4 = lateral "adelante" (día +1). preventDefault() evita que Electron
+// interprete el evento como navegación de historial (ver también 'app-command'
+// en main.js, que bloquea la navegación a nivel de ventana).
+document.addEventListener('mouseup', (e) => {
+  if (e.button !== 3 && e.button !== 4) return;
+  const pageRR = document.getElementById('page-registro-rapido');
+  if (!pageRR || !pageRR.classList.contains('active')) return;
+  e.preventDefault();
+  cambiarFechaRR(e.button === 3 ? -1 : 1);
+});
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('relleno-vehiculo')?.addEventListener('change', actualizarContadorSinKm);
+document.getElementById('rr-vehiculo')?.addEventListener('change', loadRegistroRapido);
+document.getElementById('rr-profesor')?.addEventListener('change', (e) => { rrProfesorActual = e.target.value || null; });
+document.getElementById('rr-tipo')?.addEventListener('change', (e) => { rrTipoActual = e.target.value || 'circulacion'; });
 loadDashboard();
 window.api.getVersion().then(v => {
   const el = document.getElementById('app-version');

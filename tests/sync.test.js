@@ -46,7 +46,9 @@ beforeEach(() => {
     meta: [{ key: 'ping' }],
     vehiculos: [],
     alumnos: [],
-    practicas: []
+    practicas: [],
+    tarifas: [],
+    pagos: []
   };
 });
 
@@ -358,6 +360,238 @@ describe('los borrados del escritorio no dejan restos en la nube', () => {
   });
 });
 
+describe('profesores', () => {
+  test('sube a la nube los profesores nuevos y vacía la cola de pendientes', async () => {
+    const pid = db.addProfesor('Juan', 'Mañanas');
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.profesores).toHaveLength(1);
+    expect(mockRemote.tables.profesores[0]).toMatchObject({ id: pid, nombre: 'Juan', nota: 'Mañanas', deleted: false });
+    const pending = JSON.parse(fs.readFileSync(pendingFile, 'utf-8'));
+    expect(pending.profesores).toHaveLength(0);
+  });
+
+  test('baja un profesor nuevo registrado desde otro dispositivo', async () => {
+    writeData(baseData());
+    mockRemote.tables.profesores = [{
+      id: 1, nombre: 'Juan', nota: 'Mañanas', deleted: false,
+      updated_at: new Date().toISOString()
+    }];
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.pulled).toBe(1);
+    expect(db.getProfesores()).toHaveLength(1);
+    expect(db.getProfesores()[0]).toMatchObject({ id: 1, nombre: 'Juan', nota: 'Mañanas' });
+  });
+
+  test('borrar un profesor en el escritorio se propaga a la nube como soft delete, sin tocar sus prácticas', async () => {
+    const vid = db.addVehiculo('Coche 1', '', 0);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const pid = db.addProfesor('Juan', '');
+    const practId = db.addPractica(aid, vid, '2026-07-01', 0, 40, pid);
+    await sync.sync(); // todo subido
+
+    db.deleteProfesor(pid);
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.profesores).toHaveLength(1);
+    expect(mockRemote.tables.profesores[0].deleted).toBe(true);
+    // La práctica ya impartida no se toca ni se borra: conserva el profesor_id
+    const practicaNube = mockRemote.tables.practicas.find(p => p.id === practId);
+    expect(practicaNube.deleted).toBe(false);
+    expect(practicaNube.profesor_id).toBe(pid);
+  });
+
+  test('un profesor borrado en otro PC desaparece de este', async () => {
+    writeData(baseData({ profesores: [{ id: 1, nombre: 'Juan', nota: '' }] }));
+    mockRemote.tables.profesores = [{
+      id: 1, nombre: 'Juan', nota: '', deleted: true,
+      updated_at: new Date().toISOString()
+    }];
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(readData().profesores).toHaveLength(0);
+  });
+
+  test('las prácticas suben y bajan el profesor_id asignado', async () => {
+    const vid = db.addVehiculo('Coche 1', '', 0);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const pid = db.addProfesor('Juan', '');
+    const practId = db.addPractica(aid, vid, '2026-07-01', 100, 140, pid);
+
+    await sync.sync();
+
+    const practicaNube = mockRemote.tables.practicas.find(p => p.id === practId);
+    expect(practicaNube.profesor_id).toBe(pid);
+
+    // Otro PC baja esa práctica y conserva el profesor_id
+    resetData(db);
+    writeData(baseData({ profesores: [{ id: pid, nombre: 'Juan', nota: '' }] }));
+    const res = await sync.sync();
+    expect(res.ok).toBe(true);
+    expect(readData().practicas[0].profesor_id).toBe(pid);
+  });
+
+  test('"Subir todo a la nube" incluye a los profesores en el orden vehiculos → profesores → alumnos → practicas', async () => {
+    db.addVehiculo('Coche 1', '', 0);
+    db.addProfesor('Juan', '');
+
+    const res = await sync.pushAll();
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.profesores).toHaveLength(1);
+  });
+});
+
+describe('tarifas, pagos y el tipo de práctica', () => {
+  test('sube a la nube las tarifas nuevas y vacía la cola de pendientes', async () => {
+    const tid = db.setTarifa('B', 'circulacion', 20);
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.tarifas).toHaveLength(1);
+    expect(mockRemote.tables.tarifas[0]).toMatchObject({ id: tid, permiso: 'B', tipo: 'circulacion', precio: 20, deleted: false });
+    const pending = JSON.parse(fs.readFileSync(pendingFile, 'utf-8'));
+    expect(pending.tarifas).toHaveLength(0);
+  });
+
+  test('baja una tarifa nueva registrada desde otro dispositivo', async () => {
+    writeData(baseData());
+    mockRemote.tables.tarifas = [{
+      id: 1, permiso: 'B', tipo: 'circulacion', precio: 20, deleted: false,
+      updated_at: new Date().toISOString()
+    }];
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.pulled).toBe(1);
+    expect(db.getTarifas()).toHaveLength(1);
+    expect(db.getTarifas()[0]).toMatchObject({ id: 1, permiso: 'B', tipo: 'circulacion', precio: 20 });
+  });
+
+  test('borrar una tarifa en el escritorio se propaga a la nube como soft delete', async () => {
+    const tid = db.setTarifa('B', 'circulacion', 20);
+    await sync.sync();
+
+    db.deleteTarifa(tid);
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.tarifas).toHaveLength(1);
+    expect(mockRemote.tables.tarifas[0].deleted).toBe(true);
+  });
+
+  test('una tarifa borrada en otro PC desaparece de este', async () => {
+    writeData(baseData({ tarifas: [{ id: 1, permiso: 'B', tipo: 'circulacion', precio: 20 }] }));
+    mockRemote.tables.tarifas = [{
+      id: 1, permiso: 'B', tipo: 'circulacion', precio: 20, deleted: true,
+      updated_at: new Date().toISOString()
+    }];
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(readData().tarifas).toHaveLength(0);
+  });
+
+  test('sube a la nube los pagos nuevos y vacía la cola de pendientes', async () => {
+    const vid = db.addVehiculo('Coche 1', '', 0);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const pgid = db.addPago(aid, '2026-07-01', 50, 'Pago');
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.pagos).toHaveLength(1);
+    expect(mockRemote.tables.pagos[0]).toMatchObject({ id: pgid, alumno_id: aid, fecha: '2026-07-01', cantidad: 50, deleted: false });
+    const pending = JSON.parse(fs.readFileSync(pendingFile, 'utf-8'));
+    expect(pending.pagos).toHaveLength(0);
+  });
+
+  test('baja un pago nuevo registrado desde otro dispositivo', async () => {
+    writeData(baseData());
+    mockRemote.tables.pagos = [{
+      id: 1, alumno_id: 1, fecha: '2026-07-01', cantidad: 50, nota: '', deleted: false,
+      updated_at: new Date().toISOString()
+    }];
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.pulled).toBe(1);
+    expect(db.getPagosByAlumno(1)).toHaveLength(1);
+    expect(db.getPagosByAlumno(1)[0]).toMatchObject({ id: 1, cantidad: 50 });
+  });
+
+  test('borrar un pago en el escritorio se propaga a la nube como soft delete', async () => {
+    const vid = db.addVehiculo('Coche 1', '', 0);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const pgid = db.addPago(aid, '2026-07-01', 50, '');
+    await sync.sync();
+
+    db.deletePago(pgid);
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.pagos).toHaveLength(1);
+    expect(mockRemote.tables.pagos[0].deleted).toBe(true);
+  });
+
+  test('un pago borrado en otro PC desaparece de este', async () => {
+    writeData(baseData({ pagos: [{ id: 1, alumno_id: 1, fecha: '2026-07-01', cantidad: 50, nota: '' }] }));
+    mockRemote.tables.pagos = [{
+      id: 1, alumno_id: 1, fecha: '2026-07-01', cantidad: 50, nota: '', deleted: true,
+      updated_at: new Date().toISOString()
+    }];
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(readData().pagos).toHaveLength(0);
+  });
+
+  test('el tipo de práctica sube y baja correctamente', async () => {
+    const vid = db.addVehiculo('Coche 1', '', 0);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const pid = db.addPractica(aid, vid, '2026-07-01', 0, 40, null, 'pista');
+
+    await sync.sync();
+
+    const practicaNube = mockRemote.tables.practicas.find(p => p.id === pid);
+    expect(practicaNube.tipo).toBe('pista');
+
+    // Otro PC baja esa práctica y conserva el tipo
+    resetData(db);
+    writeData(baseData());
+    const res = await sync.sync();
+    expect(res.ok).toBe(true);
+    expect(readData().practicas[0].tipo).toBe('pista');
+  });
+
+  test('"Subir todo a la nube" incluye tarifas y pagos en el orden vehiculos → profesores → tarifas → alumnos → practicas → pagos', async () => {
+    db.addVehiculo('Coche 1', '', 0);
+    db.setTarifa('B', 'circulacion', 20);
+    const vid = db.getVehiculos()[0].id;
+    const aid = db.addAlumno('Ana', 'B', vid);
+    db.addPago(aid, '2026-07-01', 30, '');
+
+    const res = await sync.pushAll();
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.tarifas).toHaveLength(1);
+    expect(mockRemote.tables.pagos).toHaveLength(1);
+  });
+});
+
 test('los km generados con "Relleno masivo" se suben a la nube (antes se quedaban solo en el PC)', async () => {
   const vid = db.addVehiculo('Coche 1', '', 100);
   const aid = db.addAlumno('Ana', 'B', vid);
@@ -388,4 +622,170 @@ test('un borrado hecho en el escritorio se propaga a la nube como soft delete', 
 
   expect(res.ok).toBe(true);
   expect(mockRemote.tables.practicas[0].deleted).toBe(true);
+});
+
+describe('sync inmediato tras cambios (debounce)', () => {
+  afterEach(() => {
+    // Desactivar el mecanismo y restaurar el debounce real para no dejar
+    // temporizadores ni activarlo por accidente en otros tests del archivo.
+    sync._configurarSyncInmediatoParaTests({ activo: false, debounceMs: 5000 });
+    jest.restoreAllMocks();
+  });
+
+  test('una ráfaga de cambios seguidos dispara un solo sync, no uno por cambio', async () => {
+    sync._configurarSyncInmediatoParaTests({ activo: true, debounceMs: 30 });
+    const syncSpy = jest.spyOn(sync, 'sync');
+
+    // Ráfaga (como un relleno masivo o una importación CSV): cada mutación
+    // marca dirty y reprograma el debounce, no dispara un sync por cambio.
+    db.addVehiculo('Coche 1', '', 0);
+    db.addVehiculo('Coche 2', '', 0);
+    db.addVehiculo('Coche 3', '', 0);
+
+    expect(syncSpy).not.toHaveBeenCalled(); // aún no ha pasado el debounce
+
+    await new Promise(r => setTimeout(r, 200)); // pasar el debounce y dejar terminar el sync
+
+    expect(syncSpy).toHaveBeenCalledTimes(1);
+    expect(mockRemote.tables.vehiculos).toHaveLength(3); // el único sync subió los 3 cambios
+  });
+
+  test('markDeleted también dispara el debounce', async () => {
+    writeData(baseData());
+    mockRemote.tables.practicas.push({
+      id: 1, alumno_id: 1, vehiculo_id: 1, fecha: '2026-07-01',
+      km_inicial: '100', km_final: '140', deleted: false,
+      updated_at: '2026-07-01T00:00:00.000Z'
+    });
+    sync._configurarSyncInmediatoParaTests({ activo: true, debounceMs: 30 });
+    const syncSpy = jest.spyOn(sync, 'sync');
+
+    sync.markDeleted('practicas', 1);
+
+    await new Promise(r => setTimeout(r, 200));
+
+    expect(syncSpy).toHaveBeenCalledTimes(1);
+    expect(mockRemote.tables.practicas[0].deleted).toBe(true);
+  });
+
+  test('sin activar el mecanismo (auto-sync no arrancado), markDirty no programa ningún sync', async () => {
+    const syncSpy = jest.spyOn(sync, 'sync');
+
+    db.addVehiculo('Coche 1', '', 0); // fuera de la app real, sin startAutoSync/activación
+
+    await new Promise(r => setTimeout(r, 100));
+
+    expect(syncSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('conflictos de sincronización (dos PCs editan el mismo registro entre syncs)', () => {
+  afterEach(() => {
+    delete mockRemote._onUpsert; // no dejar el hook de "otro dispositivo" activo para otros tests
+  });
+
+  test('dos ediciones a la vez, remoto más reciente: el remoto gana Y queda registrado el conflicto con los valores descartados', async () => {
+    const viejo = new Date(Date.now() - 60000).toISOString();
+    writeData(baseData({
+      vehiculos: [{ id: 1, nombre: 'Coche 1', matricula: '', km_actual: 250, updated_at: viejo }]
+    }));
+    sync.markDirty('vehiculos', 1); // este PC editó km_actual a 250 y aún no lo ha subido
+
+    // "Mientras tanto" el otro dispositivo escribe su propio cambio justo
+    // después de que este PC suba el suyo (misma fila, contenido distinto).
+    mockRemote._onUpsert = (table, item) => {
+      if (table === 'vehiculos' && item.id === 1) {
+        mockRemote.tables.vehiculos[0] = {
+          id: 1, nombre: 'Coche 1', matricula: '', km_actual: 300,
+          deleted: false, updated_at: new Date(Date.now() + 5000).toISOString()
+        };
+      }
+    };
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.conflictos).toBe(1);
+    expect(readData().vehiculos[0].km_actual).toBe(300); // gana la edición más reciente (regla sin cambios)
+
+    const logConflicto = readData().logs.find(l => l.tipo === 'conflicto_sync');
+    expect(logConflicto).toBeTruthy();
+    expect(logConflicto.descripcion).toMatch(/vehiculos/);
+    expect(logConflicto.descripcion).toMatch(/#1/);
+    expect(logConflicto.detalles.join(' ')).toMatch(/250/); // el valor descartado de este PC queda anotado
+    expect(logConflicto.detalles.join(' ')).toMatch(/300/); // y el que ganó, para poder comparar
+  });
+
+  test('conflicto en una práctica: se detecta y quedan anotados los km descartados', async () => {
+    const viejo = new Date(Date.now() - 60000).toISOString();
+    writeData(baseData({
+      practicas: [{ id: 1, alumno_id: 1, vehiculo_id: 1, fecha: '2026-07-01', km_inicial: 100, km_final: 145, updated_at: viejo }]
+    }));
+    sync.markDirty('practicas', 1); // este PC ajustó los km y aún no los ha subido
+
+    mockRemote._onUpsert = (table, item) => {
+      if (table === 'practicas' && item.id === 1) {
+        mockRemote.tables.practicas[0] = {
+          id: 1, alumno_id: 1, vehiculo_id: 1, fecha: '2026-07-01',
+          km_inicial: '100', km_final: '160', nota: '', deleted: false,
+          updated_at: new Date(Date.now() + 5000).toISOString()
+        };
+      }
+    };
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.conflictos).toBe(1);
+    expect(readData().practicas[0].km_final).toBe(160);
+
+    const logConflicto = readData().logs.find(l => l.tipo === 'conflicto_sync');
+    expect(logConflicto).toBeTruthy();
+    expect(logConflicto.descripcion).toMatch(/practicas/);
+    expect(logConflicto.detalles.join(' ')).toMatch(/145/);
+  });
+
+  test('edición solo local (sin cambio real del otro dispositivo): no se registra ningún conflicto', async () => {
+    const viejo = new Date(Date.now() - 60000).toISOString();
+    writeData(baseData({
+      vehiculos: [{ id: 1, nombre: 'Coche 1', matricula: '', km_actual: 250, updated_at: viejo }]
+    }));
+    sync.markDirty('vehiculos', 1); // edición de este PC, nadie más tocó el registro
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.conflictos).toBe(0);
+    expect(readData().vehiculos[0].km_actual).toBe(250);
+    expect(readData().logs.find(l => l.tipo === 'conflicto_sync')).toBeUndefined();
+  });
+
+  test('edición solo remota (sin edición local pendiente): no se registra ningún conflicto', async () => {
+    writeData(baseData());
+    mockRemote.tables.vehiculos.push({
+      id: 1, nombre: 'Coche 1', matricula: '', km_actual: 350,
+      deleted: false, updated_at: new Date().toISOString()
+    });
+    // Sin sync.markDirty: este PC no tocó el vehículo, solo baja el cambio ajeno
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.conflictos).toBe(0);
+    expect(readData().vehiculos[0].km_actual).toBe(350);
+    expect(readData().logs.find(l => l.tipo === 'conflicto_sync')).toBeUndefined();
+  });
+
+  test('un sync normal sin colisiones sigue funcionando igual (sube, baja y no marca conflictos)', async () => {
+    const vid = db.addVehiculo('Coche 1', '1234ABC', 100);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const pid = db.addPractica(aid, vid, '2026-07-01', 100, 140);
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.conflictos).toBe(0);
+    expect(mockRemote.tables.practicas.find(p => p.id === pid)).toMatchObject({ km_inicial: 100, km_final: 140 });
+    expect(readData().logs.find(l => l.tipo === 'conflicto_sync')).toBeUndefined();
+  });
 });

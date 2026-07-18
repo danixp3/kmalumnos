@@ -11,6 +11,17 @@ contextBridge.exposeInMainWorld('api', {
   deleteVehiculo:   (id)                     => ipcRenderer.invoke('delete-vehiculo', id),
   updateVehiculoKm: (id, km)                 => ipcRenderer.invoke('update-vehiculo-km', id, km),
 
+  // Profesores
+  getProfesores:    ()                       => ipcRenderer.invoke('get-profesores'),
+  addProfesor:      (n, nota)                => ipcRenderer.invoke('add-profesor', n, nota),
+  deleteProfesor:   (id)                     => ipcRenderer.invoke('delete-profesor', id),
+  updateProfesor:   (id, n, nota)            => ipcRenderer.invoke('update-profesor', id, n, nota),
+
+  // Tarifas
+  getTarifas:        ()                          => ipcRenderer.invoke('get-tarifas'),
+  setTarifa:         (permiso, tipo, precio)      => ipcRenderer.invoke('set-tarifa', permiso, tipo, precio),
+  deleteTarifa:      (id)                         => ipcRenderer.invoke('delete-tarifa', id),
+
   // Alumnos
   getAlumnos:   ()                           => ipcRenderer.invoke('get-alumnos'),
   addAlumno:    (n, p, vid)                  => ipcRenderer.invoke('add-alumno', n, p, vid),
@@ -20,9 +31,16 @@ contextBridge.exposeInMainWorld('api', {
   // Prácticas
   getPracticas:      (alumno_id)             => ipcRenderer.invoke('get-practicas', alumno_id),
   getUltimaPractica: (alumno_id)             => ipcRenderer.invoke('get-ultima-practica', alumno_id),
-  addPractica:       (aid, vid, f, ki, kf)   => ipcRenderer.invoke('add-practica', aid, vid, f, ki, kf),
+  addPractica:       (aid, vid, f, ki, kf, pid, tipo) => ipcRenderer.invoke('add-practica', aid, vid, f, ki, kf, pid, tipo),
   deletePractica:    (id)                    => ipcRenderer.invoke('delete-practica', id),
-  updatePractica:    (id, f, ki, kf)         => ipcRenderer.invoke('update-practica', id, f, ki, kf),
+  updatePractica:    (id, f, ki, kf, pid, tipo) => ipcRenderer.invoke('update-practica', id, f, ki, kf, pid, tipo),
+
+  // Pagos
+  getPagosAlumno:    (alumnoId)                   => ipcRenderer.invoke('get-pagos-alumno', alumnoId),
+  addPago:           (alumnoId, fecha, cantidad, nota) => ipcRenderer.invoke('add-pago', alumnoId, fecha, cantidad, nota),
+  updatePago:        (id, fecha, cantidad, nota)  => ipcRenderer.invoke('update-pago', id, fecha, cantidad, nota),
+  deletePago:        (id)                         => ipcRenderer.invoke('delete-pago', id),
+  getDeudas:         ()                           => ipcRenderer.invoke('get-deudas'),
 
   // Generación y resumen
   generarKm:    (kmInicial, min, max)        => ipcRenderer.invoke('generar-km', kmInicial, min, max),
@@ -35,6 +53,8 @@ contextBridge.exposeInMainWorld('api', {
   clearLogs:             ()                      => ipcRenderer.invoke('clear-logs'),
   crearBackup:           ()                      => ipcRenderer.invoke('crear-backup'),
   restaurarBackup:       ()                      => ipcRenderer.invoke('restaurar-backup'),
+  getUltimoBackup:        ()                      => ipcRenderer.invoke('get-ultimo-backup'),
+  restaurarUltimoBackup:  ()                      => ipcRenderer.invoke('restaurar-ultimo-backup'),
   validarSolapamiento:   (vid, f, ki, kf, exId)  => ipcRenderer.invoke('validar-solapamiento', vid, f, ki, kf, exId),
   getTimelineVehiculo:   (vid)                   => ipcRenderer.invoke('get-timeline-vehiculo', vid),
 
@@ -42,8 +62,8 @@ contextBridge.exposeInMainWorld('api', {
   getAlumnosPorVehiculo:     (vid, fecha)         => ipcRenderer.invoke('get-alumnos-por-vehiculo', vid, fecha),
   registrarPracticasMasivas: (vid, fecha, aids)   => ipcRenderer.invoke('registrar-practicas-masivas', vid, fecha, aids),
   eliminarPracticaPorFecha:  (vid, fecha, aid)    => ipcRenderer.invoke('eliminar-practica-por-fecha', vid, fecha, aid),
-  ajustarPracticasAlumno:    (vid, fecha, aid, d) => ipcRenderer.invoke('ajustar-practicas-alumno', vid, fecha, aid, d),
-  guardarNotaAlumno:         (vid, fecha, aid, n) => ipcRenderer.invoke('guardar-nota-alumno', vid, fecha, aid, n),
+  ajustarPracticasAlumno:    (vid, fecha, aid, d, pid, tipo) => ipcRenderer.invoke('ajustar-practicas-alumno', vid, fecha, aid, d, pid, tipo),
+  guardarNotaAlumno:         (vid, fecha, aid, n, pid, tipo) => ipcRenderer.invoke('guardar-nota-alumno', vid, fecha, aid, n, pid, tipo),
   getAnotacionesAlumno:      (aid) => ipcRenderer.invoke('get-anotaciones-alumno', aid),
 
   // Importación
@@ -60,6 +80,7 @@ contextBridge.exposeInMainWorld('api', {
   syncPushAll:   ()                          => ipcRenderer.invoke('sync-push-all'),
   getSyncStatus: ()                          => ipcRenderer.invoke('sync-status'),
   onSyncStatus:  (cb)                        => ipcRenderer.on('sync-status', (_, status, reason) => cb(status, reason)),
+  onSyncConflictos: (cb)                     => ipcRenderer.on('sync-conflictos', (_, n) => cb(n)),
   saveSyncCreds:      (email, password)      => ipcRenderer.invoke('save-sync-creds', email, password),
   getSyncCredsStatus: ()                     => ipcRenderer.invoke('get-sync-creds-status'),
 
