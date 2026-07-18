@@ -1257,6 +1257,10 @@
               <label>Vehículo asignado</label>
               <select id="a-vehiculo" style="width:165px"><option value="">— Sin asignar —</option></select>
             </div>
+            <div class="form-group">
+              <label>Profesor</label>
+              <select id="a-profesor" style="width:165px"><option value="">— Sin profesor —</option></select>
+            </div>
             <button class="btn btn-primary" onclick="addAlumno()" style="align-self:flex-end">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Añadir alumno
@@ -1283,6 +1287,10 @@
               <label>Permiso</label>
               <select id="f-alumnos-permiso" style="width:150px" onchange="renderAlumnosTabla()"><option value="">Todos los permisos</option></select>
             </div>
+            <div class="form-group">
+              <label>Profesor</label>
+              <select id="f-alumnos-profesor" style="width:180px" onchange="renderAlumnosTabla()"><option value="">Todos los profesores</option></select>
+            </div>
             <button class="btn btn-gray btn-sm" onclick="limpiarFiltrosAlumnos()" style="align-self:flex-end">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               Limpiar filtros
@@ -1296,6 +1304,7 @@
               <th class="sortable" data-sort="nombre" onclick="ordenarAlumnos('nombre')">Nombre<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="permiso" onclick="ordenarAlumnos('permiso')">Permiso<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="vehiculo" onclick="ordenarAlumnos('vehiculo')">Vehículo<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="profesor" onclick="ordenarAlumnos('profesor')">Profesor<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="practicas" onclick="ordenarAlumnos('practicas')">Prácticas<span class="sort-ind"></span></th>
               <th>Acciones</th>
             </tr></thead>
@@ -1935,7 +1944,11 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     <input type="hidden" id="edit-v-id">
     <div class="form-group" style="margin-bottom:14px">
       <label>Nombre</label>
-      <input type="text" id="edit-v-nombre" readonly style="background:var(--gray-light);color:var(--text-muted)">
+      <input type="text" id="edit-v-nombre" style="width:100%">
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Matrícula</label>
+      <input type="text" id="edit-v-matricula" style="width:100%">
     </div>
     <div class="form-group">
       <label>Km actual del odómetro</label>
@@ -1943,7 +1956,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     </div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-vehiculo')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveVehiculoKm()">Guardar cambios</button>
+      <button class="btn btn-primary" onclick="saveVehiculo()">Guardar cambios</button>
     </div>
   </div>
 </div>
@@ -1970,9 +1983,13 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
         <option value="C">C (Camión)</option>
       </select>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="margin-bottom:14px">
       <label>Vehículo</label>
       <select id="edit-a-vehiculo" style="width:100%"><option value="">— Sin asignar —</option></select>
+    </div>
+    <div class="form-group">
+      <label>Profesor</label>
+      <select id="edit-a-profesor" style="width:100%"><option value="">— Sin profesor —</option></select>
     </div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-alumno')">Cancelar</button>

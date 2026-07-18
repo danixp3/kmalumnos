@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('api', {
   addVehiculo:      (n, m, km)               => ipcRenderer.invoke('add-vehiculo', n, m, km),
   deleteVehiculo:   (id)                     => ipcRenderer.invoke('delete-vehiculo', id),
   updateVehiculoKm: (id, km)                 => ipcRenderer.invoke('update-vehiculo-km', id, km),
+  updateVehiculo:   (id, n, m)               => ipcRenderer.invoke('update-vehiculo', id, n, m),
 
   // Profesores
   getProfesores:    ()                       => ipcRenderer.invoke('get-profesores'),
@@ -24,9 +25,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // Alumnos
   getAlumnos:   ()                           => ipcRenderer.invoke('get-alumnos'),
-  addAlumno:    (n, p, vid)                  => ipcRenderer.invoke('add-alumno', n, p, vid),
+  addAlumno:    (n, p, vid, profId)          => ipcRenderer.invoke('add-alumno', n, p, vid, profId),
   deleteAlumno: (id)                         => ipcRenderer.invoke('delete-alumno', id),
-  updateAlumno: (id, n, p, vid)              => ipcRenderer.invoke('update-alumno', id, n, p, vid),
+  updateAlumno: (id, n, p, vid, profId)      => ipcRenderer.invoke('update-alumno', id, n, p, vid, profId),
 
   // Prácticas
   getPracticas:      (alumno_id)             => ipcRenderer.invoke('get-practicas', alumno_id),

@@ -18,16 +18,18 @@ Localizar siempre por **anclas** (cadenas literales) con Grep + Read parcial; lo
 
 **⚠ Acoplamiento con renderer.js:** el contenido dinámico se pinta desde renderer.js con clases Y AHORA TAMBIÉN SVGs en strings (alertas del dashboard, botones de tablas Editar/Borrar/Prácticas/Anotaciones, `LOG_ICONS` del historial, celda ⚡→SVG de solapamientos, botón de nota `.rr-nota-btn`). Si se renombra una clase o se cambia la iconografía, grep en renderer.js.
 
-## Web móvil — web-remote/index.html (~878 líneas, CSS inline)
+## Web móvil — web-remote/index.html (~1110 líneas, CSS inline)
 
-**Identidad:** oscura glassmorphism refinada y contenida (menos ruido que antes): `status-line` estática sutil, orbes a opacidad .35, `grid-bg` casi invisible. Comparte marca con escritorio: `.logo-mark` (52px, degradado índigo con SVG velocímetro) + `h1` + `.version` (chip píldora).
+**Identidad (desde 2026-07-18): panel SaaS claro, mismo lenguaje que el escritorio, adaptado a táctil** — ya no es dark glassmorphism. Fondo `#f6f7f9`, tarjetas blancas con sombra suave, sin orbes/glow/grid-bg (se eliminaron del CSS y del HTML). Fuente `Inter` (mismo `@import` que escritorio). Comparte marca: `.logo-mark` (52px, degradado índigo #4f46e5→#7c3aed con SVG velocímetro) + `h1` (ahora color sólido `--text`, sin degradado de texto) + `.version` (chip píldora estilo `.tag-b` del escritorio).
 
-**Variables:** `--primary:#6366f1` (más claro que escritorio a propósito, por el fondo oscuro) `--primary-dark:#4f46e5` · `--bg:#0b0e17` · `--card:rgba(255,255,255,.055)` `--card-border:rgba(255,255,255,.09)` · `--radius:18px` · resto igual.
+**Variables (`:root`):** calcadas del escritorio — `--primary:#4f46e5` `--primary-dark:#4338ca` `--primary-light:#eef2ff` · `--success:#10b981` `--success-light:#d1fae5` `--danger:#ef4444` `--danger-light:#fee2e2` `--warn:#f59e0b` `--warn-light:#fef3c7` · `--text:#101828` `--text-muted:#667085` · `--border:#e3e6ee` · `--bg:#f6f7f9` `--card:#ffffff` · `--radius:16px` (algo mayor que escritorio por targets táctiles) · `--shadow`/`--shadow-md` iguales de suaves que escritorio.
 
-**Componentes:** `.tabs` es un **control segmentado** (contenedor con borde y padding 4px; `.tab.active` = pastilla con degradado índigo y texto blanco) · `.logo-mark`/`.version` · `.card` glass · `.btn-primary` degradado (glow reducido) · `.result(.ok/.err)` con `.result-icon` en SVG (check-circle verde / x-circle rojo) · `.historial-item` + contador `#historial-count` (se rellena en `cargarHistorial`) · `.pin-input` · `.logout-btn` píldora.
+**El `<style>` está seccionado igual que escritorio:** `TOKENS`, `HEADER / MARCA`, `CARDS`, `FORMS`, `BUTTONS`, `BADGES`, resto de bloques con comentario simple (Tabs, Login screen, Historial, Logout button, Tarjeta de perfil, Indicador de perfil activo).
 
-**Pantallas:** `#login-screen` (logo-mark + PIN) → `#main-app` con secciones practica/alumno/historial vía `switchTab`. El JS vive en el propio archivo (ancla `const API_TOKEN_KEY`); el HTML dinámico del historial se genera ahí.
+**Componentes:** `.tabs` control segmentado (fondo `#eef0f4`, `.tab.active` = píldora `--primary` sólido, sin degradado) · `.card` plana blanca con `--shadow` (sin blur/backdrop-filter) · `.btn-primary` color sólido `--primary` (sin degradado ni brillo barrido), `.btn-secondary` outline blanco, `.btn-danger` variante clara roja tipo badge · `.result(.ok/.err)` fondos `--success-light`/`--danger-light` con icono y título en verde/rojo oscuro (contraste sobre claro) · `.tag` estilo `.tag-b` del escritorio (`#e0e7ff`/`#4338ca`) · `.historial-item`/`.profile-card` tarjetas blancas con `--shadow` · `.perfil-activo`/`.logout-btn` píldoras blancas flotantes con `--shadow` (ya no backdrop-blur). Sparkles de éxito (`createSparkles()` en el JS) recoloreadas a paleta de marca (`#4f46e5,#7c3aed,#059669,#f59e0b`) para verse sobre fondo claro.
+
+**Pantallas:** `#login-screen` (email+contraseña, Auth nativo Supabase) → `#profile-screen` (¿Quién eres? — tarjetas de profesor) → `#main-app` con secciones practica/alumno/historial/detalle-alumno vía `switchTab`/`verPracticasAlumno`. El JS vive en el propio archivo (ancla `const SUPABASE_URL`); el HTML dinámico del historial y de la lista de perfiles se genera ahí.
 
 ## Nota común
 
-Marca compartida: índigo (`#4f46e5` escritorio / `#6366f1` web) y el mismo logo de velocímetro en cuadrado degradado índigo→violeta. Si el usuario quiere cambiar "el color de la app", tocarlo en las dos. Favicon de la web: SVG data-URI con ese mismo logo.
+Marca compartida: mismo índigo `#4f46e5` en ambas interfaces (desde el rediseño de 2026-07-18 la web ya no usa un tono más claro `#6366f1` — al ser ahora fondo claro no hace falta) y el mismo logo de velocímetro en cuadrado degradado índigo→violeta. Si el usuario quiere cambiar "el color de la app", tocarlo en las dos. Favicon de la web: SVG data-URI con ese mismo logo.

@@ -261,6 +261,17 @@ function updateVehiculoKm(id, km) {
   if (v) { v.km_actual = parseFloat(km); save(); const s = _sync(); if (s) s.markDirty('vehiculos', id); }
 }
 
+function updateVehiculo(id, nombre, matricula) {
+  const d = load();
+  const v = d.vehiculos.find(x => x.id === id);
+  if (v) {
+    v.nombre = nombre;
+    v.matricula = matricula || '';
+    save();
+    const s = _sync(); if (s) s.markDirty('vehiculos', id);
+  }
+}
+
 function deleteVehiculo(id) {
   const d = load();
   d.vehiculos = d.vehiculos.filter(x => x.id !== id);
@@ -346,14 +357,18 @@ function getAlumnos() {
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
     .map(a => {
       const v = d.vehiculos.find(x => x.id === a.vehiculo_id);
-      return { ...a, vehiculo_nombre: v ? v.nombre : null };
+      const prof = d.profesores.find(x => x.id === a.profesor_id);
+      return { ...a, vehiculo_nombre: v ? v.nombre : null, profesor_nombre: prof ? prof.nombre : null };
     });
 }
 
-function addAlumno(nombre, permiso, vehiculo_id) {
+function addAlumno(nombre, permiso, vehiculo_id, profesor_id = null) {
   const d = load();
   const id = nextId('a');
-  d.alumnos.push({ id, nombre, permiso: permiso || 'B', vehiculo_id: vehiculo_id ? parseInt(vehiculo_id) : null });
+  d.alumnos.push({
+    id, nombre, permiso: permiso || 'B', vehiculo_id: vehiculo_id ? parseInt(vehiculo_id) : null,
+    profesor_id: profesor_id ? parseInt(profesor_id) : null
+  });
   save();
   const s = _sync(); if (s) s.markDirty('alumnos', id);
   return id;
@@ -374,13 +389,14 @@ function deleteAlumno(id) {
   }
 }
 
-function updateAlumno(id, nombre, permiso, vehiculo_id) {
+function updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id = null) {
   const d = load();
   const a = d.alumnos.find(x => x.id === id);
   if (a) {
     a.nombre = nombre;
     a.permiso = permiso;
     a.vehiculo_id = vehiculo_id ? parseInt(vehiculo_id) : null;
+    a.profesor_id = profesor_id ? parseInt(profesor_id) : null;
     save();
     const s = _sync(); if (s) s.markDirty('alumnos', id);
   }
@@ -1262,7 +1278,7 @@ function getAnotacionesAlumno(alumno_id) {
 }
 
 module.exports = {
-  getVehiculos, addVehiculo, updateVehiculoKm, deleteVehiculo,
+  getVehiculos, addVehiculo, updateVehiculoKm, updateVehiculo, deleteVehiculo,
   getProfesores, addProfesor, updateProfesor, deleteProfesor,
   getTarifas, setTarifa, deleteTarifa,
   getAlumnos, addAlumno, deleteAlumno, updateAlumno,

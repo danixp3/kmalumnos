@@ -90,6 +90,30 @@ test('sube a la nube los cambios hechos en el escritorio y vacía la cola de pen
   expect(pending.practicas).toHaveLength(0);
 });
 
+test('sube el profesor_id de un alumno y descarga el de un alumno nuevo llegado del móvil', async () => {
+  const vid = db.addVehiculo('Coche 1', '', 0);
+  const pid = db.addProfesor('Juan', '');
+  const aid = db.addAlumno('Ana', 'B', vid, pid);
+
+  const res = await sync.sync();
+
+  expect(res.ok).toBe(true);
+  expect(mockRemote.tables.alumnos[0]).toMatchObject({ id: aid, profesor_id: pid });
+
+  // Simular un alumno nuevo registrado desde el móvil, ya con profesor asignado
+  mockRemote.tables.alumnos.push({
+    id: 500, nombre: 'Luis', permiso: 'B', vehiculo_id: vid, profesor_id: pid,
+    deleted: false, updated_at: new Date(Date.now() + 1000).toISOString()
+  });
+
+  const res2 = await sync.sync();
+
+  expect(res2.ok).toBe(true);
+  const nuevo = db.getAlumnos().find(a => a.id === 500);
+  expect(nuevo.profesor_id).toBe(pid);
+  expect(nuevo.profesor_nombre).toBe('Juan');
+});
+
 test('baja una práctica registrada desde el móvil y ajusta el contador de IDs', async () => {
   const vid = db.addVehiculo('Coche 1', '', 0);
   const aid = db.addAlumno('Ana', 'B', vid);
@@ -830,6 +854,69 @@ describe('conflictos de sincronización (dos PCs editan el mismo registro entre 
     expect(logConflicto).toBeTruthy();
     expect(logConflicto.descripcion).toMatch(/practicas/);
     expect(logConflicto.detalles.join(' ')).toMatch(/145/);
+  });
+
+  test('alumno renombrado en la nube (updated_at más reciente): la bajada aplica el nuevo nombre en local', async () => {
+    const viejo = new Date(Date.now() - 60000).toISOString();
+    writeData(baseData({
+      alumnos: [{ id: 1, nombre: 'Ana', permiso: 'B', vehiculo_id: 1, updated_at: viejo }]
+    }));
+    mockRemote.tables.alumnos.push({
+      id: 1, nombre: 'Ana García', permiso: 'B', vehiculo_id: 1,
+      deleted: false, updated_at: new Date().toISOString()
+    });
+    // Sin sync.markDirty: este PC no tocó el alumno, solo baja el cambio ajeno
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.conflictos).toBe(0);
+    expect(readData().alumnos[0].nombre).toBe('Ana García');
+  });
+
+  test('conflicto en un alumno: edición local pendiente y versión remota distinta más reciente, el remoto gana Y queda registrado el conflicto', async () => {
+    const viejo = new Date(Date.now() - 60000).toISOString();
+    writeData(baseData({
+      alumnos: [{ id: 1, nombre: 'Ana Local', permiso: 'B', vehiculo_id: 1, updated_at: viejo }]
+    }));
+    sync.markDirty('alumnos', 1); // este PC renombró y aún no lo ha subido
+
+    mockRemote._onUpsert = (table, item) => {
+      if (table === 'alumnos' && item.id === 1) {
+        mockRemote.tables.alumnos[0] = {
+          id: 1, nombre: 'Ana Remota', permiso: 'B', vehiculo_id: 1,
+          deleted: false, updated_at: new Date(Date.now() + 5000).toISOString()
+        };
+      }
+    };
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.conflictos).toBe(1);
+    expect(readData().alumnos[0].nombre).toBe('Ana Remota');
+
+    const logConflicto = readData().logs.find(l => l.tipo === 'conflicto_sync');
+    expect(logConflicto).toBeTruthy();
+    expect(logConflicto.descripcion).toMatch(/alumnos/);
+    expect(logConflicto.descripcion).toMatch(/#1/);
+    expect(logConflicto.detalles.join(' ')).toMatch(/Ana Local/);
+    expect(logConflicto.detalles.join(' ')).toMatch(/Ana Remota/);
+  });
+
+  test('alumno editado solo localmente (sin cambio real del otro dispositivo): no se pisa ni se registra conflicto', async () => {
+    const viejo = new Date(Date.now() - 60000).toISOString();
+    writeData(baseData({
+      alumnos: [{ id: 1, nombre: 'Ana Editada', permiso: 'B', vehiculo_id: 1, updated_at: viejo }]
+    }));
+    sync.markDirty('alumnos', 1); // edición de este PC, nadie más tocó el registro
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.conflictos).toBe(0);
+    expect(readData().alumnos[0].nombre).toBe('Ana Editada');
+    expect(readData().logs.find(l => l.tipo === 'conflicto_sync')).toBeUndefined();
   });
 
   test('edición solo local (sin cambio real del otro dispositivo): no se registra ningún conflicto', async () => {

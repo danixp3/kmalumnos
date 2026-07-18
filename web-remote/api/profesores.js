@@ -12,13 +12,13 @@ export default async function handler(req, res) {
   const supabase = getSupabase(auth.token);
 
   const { data, error } = await withRetry(() => supabase
-    .from('vehiculos')
-    .select('id, nombre, matricula, km_actual')
+    .from('profesores')
+    .select('id, nombre')
     .eq('deleted', false)
     .eq('empresa_id', auth.empresaId)
     .order('nombre'));
 
-  if (handleSupabaseError(error, res, 'Error al obtener vehículos')) return;
+  if (handleSupabaseError(error, res, 'Error al obtener profesores')) return;
 
   res.json(data || []);
 }

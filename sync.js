@@ -428,7 +428,8 @@ async function sync() {
       if (a) {
         const payload = {
           id: a.id, nombre: a.nombre, permiso: a.permiso,
-          vehiculo_id: a.vehiculo_id, deleted: false, updated_at: new Date().toISOString()
+          vehiculo_id: a.vehiculo_id, profesor_id: a.profesor_id || null,
+          deleted: false, updated_at: new Date().toISOString()
         };
         if (_empresaId) payload.empresa_id = _empresaId;
         await sb.from('alumnos').upsert(payload, { onConflict: 'id' });
@@ -622,7 +623,7 @@ async function sync() {
       }
     }
 
-    // Nuevos alumnos desde el móvil (por si se añaden desde la web)
+    // Alumnos nuevos o modificados desde el móvil / otro PC
     const { data: remoteAlumnos, error: errA } = await conEmpresa(sb
       .from('alumnos')
       .select('*')
@@ -640,8 +641,28 @@ async function sync() {
           }
           continue;
         }
-        if (idx === -1) {
-          data.alumnos.push({ id: ra.id, nombre: ra.nombre, permiso: ra.permiso, vehiculo_id: ra.vehiculo_id });
+        const alumno = {
+          id: ra.id, nombre: ra.nombre, permiso: ra.permiso, vehiculo_id: ra.vehiculo_id,
+          profesor_id: ra.profesor_id != null ? ra.profesor_id : null,
+          updated_at: ra.updated_at
+        };
+        if (idx !== -1) {
+          // Comparar timestamps: solo sobrescribir si el remoto es más reciente
+          const local = data.alumnos[idx];
+          const localUpdated = local.updated_at || '1970-01-01T00:00:00.000Z';
+          const remoteUpdated = ra.updated_at || '1970-01-01T00:00:00.000Z';
+
+          if (remoteUpdated > localUpdated) {
+            _detectarYRegistrarConflicto(data, 'alumnos', pending.alumnos, ra.id,
+              ['nombre', 'permiso', 'vehiculo_id', 'profesor_id'],
+              local, alumno, conflictos);
+            data.alumnos[idx] = alumno;
+            dataChanged = true;
+            pulled++;
+          }
+          // Si local es más reciente, no sobrescribir (el usuario editó localmente)
+        } else {
+          data.alumnos.push(alumno);
           if (ra.id >= data._seq.a) data._seq.a = ra.id + 1;
           dataChanged = true;
           pulled++;

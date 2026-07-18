@@ -181,6 +181,7 @@ ipcMain.handle('add-vehiculo', (_, nombre, matricula, km_actual) => {
 });
 ipcMain.handle('delete-vehiculo', (_, id) => { db.deleteVehiculo(id); return true; });
 ipcMain.handle('update-vehiculo-km', (_, id, km) => { db.updateVehiculoKm(id, km); return true; });
+ipcMain.handle('update-vehiculo', (_, id, nombre, matricula) => { db.updateVehiculo(id, nombre, matricula); return true; });
 
 ipcMain.handle('get-profesores', () => db.getProfesores());
 ipcMain.handle('add-profesor', (_, nombre, nota) => db.addProfesor(nombre, nota));
@@ -192,9 +193,9 @@ ipcMain.handle('set-tarifa', (_, permiso, tipo, precio) => db.setTarifa(permiso,
 ipcMain.handle('delete-tarifa', (_, id) => { db.deleteTarifa(id); return true; });
 
 ipcMain.handle('get-alumnos', () => db.getAlumnos());
-ipcMain.handle('add-alumno', (_, nombre, permiso, vehiculo_id) => db.addAlumno(nombre, permiso, vehiculo_id));
+ipcMain.handle('add-alumno', (_, nombre, permiso, vehiculo_id, profesor_id) => db.addAlumno(nombre, permiso, vehiculo_id, profesor_id));
 ipcMain.handle('delete-alumno', (_, id) => { db.deleteAlumno(id); return true; });
-ipcMain.handle('update-alumno', (_, id, nombre, permiso, vehiculo_id) => { db.updateAlumno(id, nombre, permiso, vehiculo_id); return true; });
+ipcMain.handle('update-alumno', (_, id, nombre, permiso, vehiculo_id, profesor_id) => { db.updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id); return true; });
 
 ipcMain.handle('get-practicas', (_, alumno_id) => db.getPracticasByAlumno(alumno_id));
 ipcMain.handle('get-ultima-practica', (_, alumno_id) => db.getUltimaPractica(alumno_id));

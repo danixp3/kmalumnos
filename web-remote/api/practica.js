@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, validators, getSupabase, getEmpresaId } from './_utils.js';
+import { setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -6,16 +6,12 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
-  // Verificar autenticación
-  if (!requireAuth(req, res)) return;
+  const auth = requireAuth(req, res);
+  if (!auth) return;
 
-  let supabase;
-  try { supabase = await getSupabase(); }
-  catch (e) { return res.status(500).json({ error: e.message }); }
+  const supabase = getSupabase(auth.token);
 
-  const empresaId = await getEmpresaId();
-
-  const { alumno_id, fecha } = req.body || {};
+  const { alumno_id, fecha, profesor_id } = req.body || {};
 
   // Validar alumno_id
   const alumnoIdVal = validators.positiveInt(alumno_id, 'alumno_id');
@@ -29,6 +25,28 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: fechaVal.error });
   }
 
+  // Validar profesor_id (opcional)
+  let profesorIdFinal = null;
+  if (profesor_id !== null && profesor_id !== undefined && profesor_id !== '') {
+    const pidVal = validators.positiveInt(profesor_id, 'profesor_id');
+    if (!pidVal.valid) {
+      return res.status(400).json({ error: pidVal.error });
+    }
+    profesorIdFinal = pidVal.value;
+
+    const { data: profesor, error: errP } = await supabase
+      .from('profesores')
+      .select('id')
+      .eq('id', profesorIdFinal)
+      .eq('deleted', false)
+      .eq('empresa_id', auth.empresaId)
+      .single();
+
+    if (errP || !profesor) {
+      return res.status(400).json({ error: 'El profesor especificado no existe' });
+    }
+  }
+
   // Obtener alumno y su vehículo
   const { data: alumno, error: errAlumno } = await supabase
     .from('alumnos')
@@ -36,6 +54,10 @@ export default async function handler(req, res) {
     .eq('id', alumnoIdVal.value)
     .eq('deleted', false)
     .single();
+
+  if (errAlumno && isAuthError(errAlumno)) {
+    return res.status(401).json({ error: 'Sesión expirada. Inicia sesión de nuevo.' });
+  }
 
   if (errAlumno || !alumno) {
     return res.status(404).json({ error: 'Alumno no encontrado' });
@@ -58,27 +80,38 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Ya existe una práctica para este alumno en esta fecha' });
   }
 
-  // Insertar práctica con km=0,0 (se rellenará desde la app de escritorio)
-  const { data: newPractica, error: errInsert } = await supabase
+  // Insertar práctica con km=0,0 (se rellenará desde la app de escritorio).
+  // Si choca la clave primaria (23505) es que la secuencia de la nube se quedó
+  // atrás (el escritorio sube ids propios): se realinea con el RPC
+  // reparar_secuencias y se reintenta una vez.
+  const nuevaPractica = {
+    alumno_id: alumno.id,
+    vehiculo_id: alumno.vehiculo_id,
+    fecha: fechaVal.value,
+    km_inicial: 0,
+    km_final: 0,
+    deleted: false,
+    source: 'web-remote', // Marcar origen para historial
+    empresa_id: auth.empresaId,
+    profesor_id: profesorIdFinal,
+    updated_at: new Date().toISOString()
+  };
+  let { data: newPractica, error: errInsert } = await supabase
     .from('practicas')
-    .insert({
-      alumno_id: alumno.id,
-      vehiculo_id: alumno.vehiculo_id,
-      fecha: fechaVal.value,
-      km_inicial: 0,
-      km_final: 0,
-      deleted: false,
-      source: 'web-remote', // Marcar origen para historial
-      empresa_id: empresaId,
-      updated_at: new Date().toISOString()
-    })
+    .insert(nuevaPractica)
     .select('id')
     .single();
 
-  if (errInsert) {
-    console.error('Error insertando práctica:', errInsert);
-    return res.status(500).json({ error: 'Error al registrar la práctica: ' + errInsert.message });
+  if (errInsert && errInsert.code === '23505') {
+    await supabase.rpc('reparar_secuencias');
+    ({ data: newPractica, error: errInsert } = await supabase
+      .from('practicas')
+      .insert(nuevaPractica)
+      .select('id')
+      .single());
   }
+
+  if (handleSupabaseError(errInsert, res, 'Error al registrar la práctica')) return;
 
   return res.status(200).json({
     ok: true,
