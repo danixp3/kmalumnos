@@ -717,12 +717,25 @@ async function loadDeudas() {
   const aviso = document.getElementById('pagos-aviso-sin-tarifa');
   aviso.classList.toggle('hidden', !deudas.some(d => d.sin_tarifa));
 
+  const conDeuda = deudas.filter(d => d.saldo > 0);
+  document.getElementById('deudas-resumen-num').textContent = conDeuda.length;
+  document.getElementById('deudas-resumen-total').textContent = fmt(conDeuda.reduce((sum, d) => sum + d.saldo, 0)) + ' €';
+
   if (!deudas.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay alumnos registrados</td></tr>';
     return;
   }
 
-  tbody.innerHTML = deudas.map(d => {
+  const soloConDeuda = document.getElementById('deudas-solo-con-deuda').checked;
+  let filas = deudas.slice().sort((a, b) => b.saldo - a.saldo);
+  if (soloConDeuda) filas = filas.filter(d => d.saldo > 0);
+
+  if (!filas.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay alumnos con deuda pendiente</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filas.map(d => {
     const saldoClase = d.saldo > 0 ? 'saldo-pendiente' : 'saldo-ok';
     const avisoIcon = d.sin_tarifa
       ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warn);vertical-align:-2px;margin-right:4px" title="Alguna práctica no tiene tarifa asignada"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
