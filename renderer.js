@@ -1518,17 +1518,25 @@ function ocultarConflictosSync() {
 
 window.api.onSyncConflictos((n) => mostrarConflictosSync(n));
 
-// ─── CREDENCIALES DE SINCRONIZACIÓN ───────────────────────────────────────────
-async function refrescarEstadoCredsSync() {
-  const el = document.getElementById('sync-creds-estado');
-  if (!el) return;
-  const res = await window.api.getSyncCredsStatus();
-  if (res && res.configured) {
-    el.textContent = '✓ Configurada (' + res.email + ')';
-    el.style.color = 'var(--success, #10b981)';
+// ─── CUENTA DE EMPRESA (antes CREDENCIALES DE SINCRONIZACIÓN) ─────────────────
+// getSyncCredsStatus() (fase 1) sigue vigente para el login (abrirCredsSync);
+// refrescarEstadoCuenta() es la única fuente de verdad para pintar el estado
+// conectado/desconectado en Ajustes, sobre getEstadoCuenta() (fase 2).
+async function refrescarEstadoCuenta() {
+  const estado = await window.api.getEstadoCuenta();
+  const elConectado = document.getElementById('cuenta-empresa-conectado');
+  const elDesconectado = document.getElementById('cuenta-empresa-desconectado');
+  const elEstado = document.getElementById('cuenta-empresa-estado');
+  if (!elEstado || !elConectado || !elDesconectado) return;
+  if (estado && estado.conectado) {
+    elEstado.textContent = '✓ Conectado como ' + esc(estado.email || '');
+    elEstado.style.color = 'var(--success, #10b981)';
+    elConectado.classList.remove('hidden');
+    elDesconectado.classList.add('hidden');
   } else {
-    el.textContent = 'Sin configurar — este equipo aún no usa cuenta de sincronización.';
-    el.style.color = 'var(--warn, #f59e0b)';
+    elEstado.textContent = '';
+    elConectado.classList.add('hidden');
+    elDesconectado.classList.remove('hidden');
   }
 }
 
@@ -1555,18 +1563,74 @@ async function guardarCredsSync() {
   btn.textContent = 'Guardar y probar';
   if (res && res.ok) {
     closeModal('modal-sync-creds');
-    refrescarEstadoCredsSync();
+    closeModal('modal-bienvenida');
+    refrescarEstadoCuenta();
+    syncNow();
+    loadDashboard();
   } else {
     showToast('sync-creds-alert', (res && res.msg) || 'No se pudo conectar con esas credenciales.', 'err');
   }
 }
 
-refrescarEstadoCredsSync();
+function abrirCrearEmpresa() {
+  document.getElementById('crear-empresa-email').value = '';
+  document.getElementById('crear-empresa-password').value = '';
+  document.getElementById('crear-empresa-password2').value = '';
+  hideToast('crear-empresa-alert');
+  openModal('modal-crear-empresa');
+}
+
+async function crearCuentaEmpresa() {
+  const email = document.getElementById('crear-empresa-email').value.trim();
+  const password = document.getElementById('crear-empresa-password').value;
+  const password2 = document.getElementById('crear-empresa-password2').value;
+  if (!email || !password) {
+    showToast('crear-empresa-alert', 'Introduce email y contraseña.', 'err');
+    return;
+  }
+  if (password.length < 8) {
+    showToast('crear-empresa-alert', 'La contraseña debe tener al menos 8 caracteres.', 'err');
+    return;
+  }
+  if (password !== password2) {
+    showToast('crear-empresa-alert', 'Las contraseñas no coinciden.', 'err');
+    return;
+  }
+  const btn = document.getElementById('crear-empresa-btn');
+  btn.disabled = true;
+  btn.textContent = 'Creando...';
+  const res = await window.api.registrarEmpresa(email, password);
+  btn.disabled = false;
+  btn.textContent = 'Crear cuenta';
+  if (res && res.ok && res.estado === 'activa') {
+    closeModal('modal-crear-empresa');
+    closeModal('modal-bienvenida');
+    refrescarEstadoCuenta();
+    syncNow();
+    loadDashboard();
+    showToast('cuenta-empresa-toast', '✓ Cuenta de empresa creada y conectada.', 'ok');
+  } else if (res && res.ok && res.estado === 'pendiente_confirmacion') {
+    const el = document.getElementById('crear-empresa-alert');
+    el.className = 'alert alert-ok';
+    el.textContent = (res.msg || 'Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.') + ' Cuando la confirmes, usa "Iniciar sesión".';
+    el.classList.remove('hidden');
+  } else {
+    showToast('crear-empresa-alert', (res && res.msg) || 'No se pudo crear la cuenta.', 'err');
+  }
+}
+
+async function cerrarSesionEmpresa() {
+  if (!confirm('¿Cerrar sesión de la cuenta de empresa? La app seguirá funcionando en modo local hasta que vuelvas a iniciar sesión.')) return;
+  await window.api.clearSyncCreds();
+  refrescarEstadoCuenta();
+}
+
+refrescarEstadoCuenta();
 
 // ─── AJUSTES ──────────────────────────────────────────────────────────────────
 async function loadAjustes() {
   aplicarRangoPref('pref-km-min', 'pref-km-max');
-  refrescarEstadoCredsSync();
+  refrescarEstadoCuenta();
   const v = await window.api.getVersion();
   const el = document.getElementById('ajustes-version');
   if (el) el.textContent = 'v' + v;
@@ -1904,12 +1968,46 @@ document.addEventListener('mouseup', (e) => {
   cambiarFechaRR(e.button === 3 ? -1 : 1);
 });
 
+// ─── BIENVENIDA (instalación nueva) ────────────────────────────────────────────
+const BIENVENIDA_DESCARTADA_KEY = 'kmalumnos_bienvenida_descartada';
+
+function abrirBienvenida() {
+  openModal('modal-bienvenida');
+}
+
+function bienvenidaCrearEmpresa() {
+  closeModal('modal-bienvenida');
+  abrirCrearEmpresa();
+}
+
+function bienvenidaIniciarSesion() {
+  closeModal('modal-bienvenida');
+  abrirCredsSync();
+}
+
+function continuarSinCuenta() {
+  try { localStorage.setItem(BIENVENIDA_DESCARTADA_KEY, '1'); } catch (e) {}
+  closeModal('modal-bienvenida');
+}
+
+async function comprobarBienvenida() {
+  try {
+    if (localStorage.getItem(BIENVENIDA_DESCARTADA_KEY) === '1') return;
+    const estado = await window.api.getEstadoCuenta();
+    if (estado && estado.conectado) return;
+    const resumen = await window.api.getResumen();
+    if (!resumen || resumen.vehiculos > 0 || resumen.alumnos > 0 || resumen.practicas > 0) return;
+    abrirBienvenida();
+  } catch (e) {}
+}
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('relleno-vehiculo')?.addEventListener('change', actualizarContadorSinKm);
 document.getElementById('rr-vehiculo')?.addEventListener('change', loadRegistroRapido);
 document.getElementById('rr-profesor')?.addEventListener('change', (e) => { rrProfesorActual = e.target.value || null; });
 document.getElementById('rr-tipo')?.addEventListener('change', (e) => { rrTipoActual = e.target.value || 'circulacion'; });
 loadDashboard();
+comprobarBienvenida();
 window.api.getVersion().then(v => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = 'v' + v;

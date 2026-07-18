@@ -42,6 +42,11 @@ let _syncInmediatoDebounceMs = 5000;
 // transición, compatible con la configuración antigua).
 let _creds     = null;
 let _authError = null;
+// uid del usuario autenticado (= empresa/autoescuela dueña de estos datos, fase
+// 1 del sistema multi-empresa). Solo se rellena si hay credenciales y el login
+// tuvo éxito; en modo legado (sin credenciales) se queda a null y todo el sync
+// se comporta exactamente igual que antes (sin estampar ni filtrar).
+let _empresaId = null;
 
 // Callbacks para notificar a la UI el estado de sync
 let _onStatusChange = null;
@@ -118,6 +123,7 @@ function setCredentials(email, password) {
   _creds = (email && password) ? { email, password } : null;
   supabase = null;
   _authError = null;
+  _empresaId = null;
 }
 
 function hasCredentials() {
@@ -126,6 +132,12 @@ function hasCredentials() {
 
 function getAuthError() {
   return _authError;
+}
+
+// uid de la sesión activa (null en modo legado o si aún no se ha sincronizado
+// con credenciales). Expuesto para la fase 2 (UI de cuenta/empresa).
+function getEmpresaId() {
+  return _empresaId;
 }
 
 // Crea el cliente de Supabase y, si hay credenciales, inicia sesión.
@@ -137,19 +149,90 @@ async function ensureClient() {
   });
   if (_creds) {
     try {
-      const { error } = await client.auth.signInWithPassword({
+      const { data: authData, error } = await client.auth.signInWithPassword({
         email: _creds.email,
         password: _creds.password
       });
       if (error) { _authError = error.message; return null; }
+      // El uid identifica la empresa: se usa para estampar empresa_id al subir
+      // y filtrar por él al bajar (ver sync()/pushAll() más abajo).
+      _empresaId = authData && authData.user ? authData.user.id : null;
     } catch (e) {
       _authError = e.message;
       return null;
     }
+  } else {
+    _empresaId = null;
   }
   _authError = null;
   supabase = client;
   return supabase;
+}
+
+// Registra una nueva cuenta de empresa (Supabase Auth signUp). Usa un cliente
+// nuevo e independiente del cacheado en `supabase` (que sigue atado a las
+// credenciales de sesión actuales, si las hay).
+async function registrarEmpresa(email, password) {
+  if (!email || !password) {
+    return { ok: false, msg: 'Faltan email o contraseña.' };
+  }
+  if (password.length < 8) {
+    return { ok: false, msg: 'La contraseña debe tener al menos 8 caracteres.' };
+  }
+  try {
+    const client = createClient(SUPABASE_URL, SUPABASE_ANON, {
+      auth: { persistSession: false }
+    });
+    const { data, error } = await client.auth.signUp({ email, password });
+
+    if (error) {
+      if (/already registered|already exists/i.test(error.message)) {
+        return { ok: false, msg: 'Ese email ya tiene una cuenta de empresa. Inicia sesión en su lugar.' };
+      }
+      return { ok: false, msg: 'No se pudo crear la cuenta: ' + error.message };
+    }
+
+    // Comportamiento real de Supabase Auth: si el email ya existe y las
+    // confirmaciones por email están activas, signUp no devuelve error (para no
+    // filtrar qué emails existen) pero el usuario devuelto tiene identities: []
+    // y no hay sesión.
+    if (data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0 && !data.session) {
+      return { ok: false, msg: 'Ese email ya tiene una cuenta de empresa. Inicia sesión en su lugar.' };
+    }
+
+    if (data && data.session && data.user) {
+      // Alta con sesión directa (confirmaciones desactivadas): queda logueada ya.
+      _creds = { email, password };
+      supabase = client;
+      _empresaId = data.user.id;
+      _authError = null;
+      return { ok: true, estado: 'activa', email, empresaId: data.user.id };
+    }
+
+    if (data && data.user) {
+      // Alta pendiente de confirmación por email: no quedar logueada con una
+      // cuenta sin confirmar.
+      return {
+        ok: true,
+        estado: 'pendiente_confirmacion',
+        email,
+        msg: 'Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.'
+      };
+    }
+
+    return { ok: false, msg: 'No se pudo crear la cuenta: respuesta inesperada del servidor.' };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+}
+
+// Estado de cuenta en memoria, sin tocar la red. Nunca devuelve la contraseña.
+function getEstadoCuenta() {
+  return {
+    conectado: hasCredentials(),
+    email: _creds ? _creds.email : null,
+    empresaId: getEmpresaId()
+  };
 }
 
 // ─── PENDING QUEUE ────────────────────────────────────────────────────────────
@@ -295,15 +378,21 @@ async function sync() {
     // ── 1. SUBIR CAMBIOS LOCALES ──────────────────────────────────────────────
     // OJO (caso inverso, no cubierto — ver nota junto a _detectarYRegistrarConflicto):
     // estos upserts son ciegos, no comprueban el estado remoto antes de escribir.
+    //
+    // empresa_id (fase 1 multi-empresa): con sesión autenticada (_empresaId no
+    // nulo) toda fila subida se estampa con el uid; en modo legado (sin
+    // credenciales) no se añade la clave, comportamiento idéntico al de antes.
 
     // Vehículos dirty
     for (const id of pending.vehiculos) {
       const v = data.vehiculos.find(x => x.id === id);
       if (v) {
-        await sb.from('vehiculos').upsert({
+        const payload = {
           id: v.id, nombre: v.nombre, matricula: v.matricula,
           km_actual: v.km_actual, deleted: false, updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+        };
+        if (_empresaId) payload.empresa_id = _empresaId;
+        await sb.from('vehiculos').upsert(payload, { onConflict: 'id' });
       }
     }
 
@@ -311,10 +400,12 @@ async function sync() {
     for (const id of (pending.profesores || [])) {
       const pr = data.profesores.find(x => x.id === id);
       if (pr) {
-        await sb.from('profesores').upsert({
+        const payload = {
           id: pr.id, nombre: pr.nombre, nota: pr.nota || '',
           deleted: false, updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+        };
+        if (_empresaId) payload.empresa_id = _empresaId;
+        await sb.from('profesores').upsert(payload, { onConflict: 'id' });
       }
     }
 
@@ -322,10 +413,12 @@ async function sync() {
     for (const id of (pending.tarifas || [])) {
       const t = data.tarifas.find(x => x.id === id);
       if (t) {
-        await sb.from('tarifas').upsert({
+        const payload = {
           id: t.id, permiso: t.permiso, tipo: t.tipo, precio: t.precio || 0,
           deleted: false, updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+        };
+        if (_empresaId) payload.empresa_id = _empresaId;
+        await sb.from('tarifas').upsert(payload, { onConflict: 'id' });
       }
     }
 
@@ -333,10 +426,12 @@ async function sync() {
     for (const id of pending.alumnos) {
       const a = data.alumnos.find(x => x.id === id);
       if (a) {
-        await sb.from('alumnos').upsert({
+        const payload = {
           id: a.id, nombre: a.nombre, permiso: a.permiso,
           vehiculo_id: a.vehiculo_id, deleted: false, updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+        };
+        if (_empresaId) payload.empresa_id = _empresaId;
+        await sb.from('alumnos').upsert(payload, { onConflict: 'id' });
       }
     }
 
@@ -344,13 +439,15 @@ async function sync() {
     for (const id of pending.practicas) {
       const p = data.practicas.find(x => x.id === id);
       if (p) {
-        await sb.from('practicas').upsert({
+        const payload = {
           id: p.id, alumno_id: p.alumno_id, vehiculo_id: p.vehiculo_id,
           fecha: p.fecha, km_inicial: p.km_inicial, km_final: p.km_final,
           nota: p.nota || '', profesor_id: p.profesor_id || null,
           tipo: p.tipo || null,
           deleted: false, updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+        };
+        if (_empresaId) payload.empresa_id = _empresaId;
+        await sb.from('practicas').upsert(payload, { onConflict: 'id' });
       }
     }
 
@@ -358,11 +455,13 @@ async function sync() {
     for (const id of (pending.pagos || [])) {
       const pg = data.pagos.find(x => x.id === id);
       if (pg) {
-        await sb.from('pagos').upsert({
+        const payload = {
           id: pg.id, alumno_id: pg.alumno_id, fecha: pg.fecha,
           cantidad: pg.cantidad || 0, nota: pg.nota || '',
           deleted: false, updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+        };
+        if (_empresaId) payload.empresa_id = _empresaId;
+        await sb.from('pagos').upsert(payload, { onConflict: 'id' });
       }
     }
 
@@ -398,11 +497,18 @@ async function sync() {
     let pulled = 0;
     let dataChanged = false;
 
+    // Con sesión autenticada, cada bajada se filtra por empresa_id (uid de la
+    // sesión) para no traer datos de otra empresa. En modo legado (_empresaId
+    // null) no se añade filtro, igual que antes.
+    function conEmpresa(query) {
+      return _empresaId ? query.eq('empresa_id', _empresaId) : query;
+    }
+
     // Vehículos nuevos o modificados
-    const { data: remoteVehiculos, error: errV } = await sb
+    const { data: remoteVehiculos, error: errV } = await conEmpresa(sb
       .from('vehiculos')
       .select('*')
-      .gt('updated_at', lastSync);
+      .gt('updated_at', lastSync));
 
     if (!errV && remoteVehiculos) {
       for (const rv of remoteVehiculos) {
@@ -443,10 +549,10 @@ async function sync() {
     }
 
     // Profesores nuevos o modificados
-    const { data: remoteProfesores, error: errPf } = await sb
+    const { data: remoteProfesores, error: errPf } = await conEmpresa(sb
       .from('profesores')
       .select('*')
-      .gt('updated_at', lastSync);
+      .gt('updated_at', lastSync));
 
     if (!errPf && remoteProfesores) {
       for (const rp of remoteProfesores) {
@@ -481,10 +587,10 @@ async function sync() {
     }
 
     // Tarifas nuevas o modificadas
-    const { data: remoteTarifas, error: errT } = await sb
+    const { data: remoteTarifas, error: errT } = await conEmpresa(sb
       .from('tarifas')
       .select('*')
-      .gt('updated_at', lastSync);
+      .gt('updated_at', lastSync));
 
     if (!errT && remoteTarifas) {
       for (const rt of remoteTarifas) {
@@ -517,10 +623,10 @@ async function sync() {
     }
 
     // Nuevos alumnos desde el móvil (por si se añaden desde la web)
-    const { data: remoteAlumnos, error: errA } = await sb
+    const { data: remoteAlumnos, error: errA } = await conEmpresa(sb
       .from('alumnos')
       .select('*')
-      .gt('updated_at', lastSync);
+      .gt('updated_at', lastSync));
 
     if (!errA && remoteAlumnos) {
       for (const ra of remoteAlumnos) {
@@ -544,11 +650,11 @@ async function sync() {
     }
 
     // Nuevas prácticas desde el móvil
-    const { data: remotePracticas, error: errP } = await sb
+    const { data: remotePracticas, error: errP } = await conEmpresa(sb
       .from('practicas')
       .select('*')
       .gt('updated_at', lastSync)
-      .order('updated_at', { ascending: true });
+      .order('updated_at', { ascending: true }));
 
     if (!errP && remotePracticas) {
           for (const rp of remotePracticas) {
@@ -595,10 +701,10 @@ async function sync() {
         }
 
     // Pagos nuevos o modificados
-    const { data: remotePagos, error: errPg } = await sb
+    const { data: remotePagos, error: errPg } = await conEmpresa(sb
       .from('pagos')
       .select('*')
-      .gt('updated_at', lastSync);
+      .gt('updated_at', lastSync));
 
     if (!errPg && remotePagos) {
       for (const rpg of remotePagos) {
@@ -726,40 +832,45 @@ async function pushAll() {
     if (!sb) { _lastError = _authError || 'Credenciales de sincronización inválidas'; setStatus(STATUS.ERROR); return { ok: false, reason: _lastError }; }
     const now  = new Date().toISOString();
 
+    // empresa_id (fase 1 multi-empresa): con sesión autenticada se estampa el
+    // uid en cada fila subida; en modo legado no se añade la clave (igual que
+    // antes de esta fase).
+    const conEmpresaTag = _empresaId ? { empresa_id: _empresaId } : {};
+
     // Subir en orden: vehiculos → profesores → tarifas → alumnos → practicas → pagos
     if (data.vehiculos.length) {
       await sb.from('vehiculos').upsert(
-        data.vehiculos.map(v => ({ ...v, deleted: false, updated_at: now })),
+        data.vehiculos.map(v => ({ ...v, ...conEmpresaTag, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
     if (data.profesores.length) {
       await sb.from('profesores').upsert(
-        data.profesores.map(p => ({ ...p, deleted: false, updated_at: now })),
+        data.profesores.map(p => ({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
     if (data.tarifas.length) {
       await sb.from('tarifas').upsert(
-        data.tarifas.map(t => ({ ...t, deleted: false, updated_at: now })),
+        data.tarifas.map(t => ({ ...t, ...conEmpresaTag, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
     if (data.alumnos.length) {
       await sb.from('alumnos').upsert(
-        data.alumnos.map(a => ({ ...a, deleted: false, updated_at: now })),
+        data.alumnos.map(a => ({ ...a, ...conEmpresaTag, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
     if (data.practicas.length) {
       await sb.from('practicas').upsert(
-        data.practicas.map(p => ({ ...p, deleted: false, updated_at: now })),
+        data.practicas.map(p => ({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
     if (data.pagos.length) {
       await sb.from('pagos').upsert(
-        data.pagos.map(pg => ({ ...pg, deleted: false, updated_at: now })),
+        data.pagos.map(pg => ({ ...pg, ...conEmpresaTag, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
@@ -844,7 +955,10 @@ module.exports = {
   setCredentials,
   hasCredentials,
   getAuthError,
+  getEmpresaId,
   getLastError,
   programarSyncInmediato,
-  _configurarSyncInmediatoParaTests
+  _configurarSyncInmediatoParaTests,
+  registrarEmpresa,
+  getEstadoCuenta
 };

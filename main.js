@@ -363,3 +363,23 @@ ipcMain.handle('get-sync-creds-status', () => {
   const creds = loadSyncCreds();
   return { configured: !!creds, email: creds ? creds.email : null };
 });
+ipcMain.handle('registrar-empresa', async (_, email, password) => {
+  const res = await sync.registrarEmpresa(email, password);
+  if (res.ok && res.estado === 'activa') {
+    // Alta con sesión directa: persistir credenciales igual que hace 'save-sync-creds',
+    // para que sigan disponibles en el próximo arranque.
+    saveSyncCreds(email, password);
+  }
+  return res; // nunca incluye la contraseña
+});
+ipcMain.handle('get-estado-cuenta', () => sync.getEstadoCuenta());
+ipcMain.handle('clear-sync-creds', () => {
+  try {
+    const p = getCredsPath();
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  } catch (e) {
+    console.error('Error borrando credenciales:', e.message);
+  }
+  sync.setCredentials(null, null);
+  return { ok: true };
+});

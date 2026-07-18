@@ -70,7 +70,23 @@ module.exports = function makeFakeSupabase(remote) {
       if (!remote.online) return { data: null, error: { message: 'Fallo de red (simulado)' } };
       if (remote.authOk === false) return { data: null, error: { message: 'Invalid login credentials' } };
       remote.lastLogin = { email, password };
-      return { data: { user: { email } }, error: null };
+      // remote.authUserId simula el uid de la cuenta (empresa) que inicia sesión;
+      // los tests que no lo necesitan usan un valor por defecto estable.
+      return { data: { user: { id: remote.authUserId || 'uid-test', email } }, error: null };
+    },
+    async signUp({ email, password }) {
+      if (!remote.online) return { data: null, error: { message: 'Fallo de red (simulado)' } };
+      if (remote.signUpError) return { data: null, error: { message: remote.signUpError } };
+      const uid = remote.authUserId || 'uid-nueva-empresa';
+      if (remote.signUpExists) {
+        // Simula el comportamiento real de Supabase: email ya registrado + confirmaciones
+        // activas → usuario con identities vacío, sin error (no filtra qué emails existen).
+        return { data: { user: { id: uid, email, identities: [] }, session: null }, error: null };
+      }
+      if (remote.signUpPending) {
+        return { data: { user: { id: uid, email, identities: [{}] }, session: null }, error: null };
+      }
+      return { data: { user: { id: uid, email, identities: [{}] }, session: { access_token: 'tok-test' } }, error: null };
     }
   };
 

@@ -679,6 +679,93 @@ describe('sync inmediato tras cambios (debounce)', () => {
   });
 });
 
+describe('empresa_id (fase 1 multi-empresa)', () => {
+  afterEach(() => {
+    mockRemote.authUserId = undefined; // no dejar fijado el uid para otros tests
+  });
+
+  test('con sesión autenticada, la subida estampa empresa_id con el uid de la sesión', async () => {
+    mockRemote.authUserId = 'empresa-aaa';
+    sync.setCredentials('sync@kmalumnos.app', 'secreta');
+    const vid = db.addVehiculo('Coche 1', '', 0);
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.vehiculos[0]).toMatchObject({ id: vid, empresa_id: 'empresa-aaa' });
+  });
+
+  test('con sesión autenticada, "Subir todo a la nube" también estampa empresa_id', async () => {
+    mockRemote.authUserId = 'empresa-aaa';
+    sync.setCredentials('sync@kmalumnos.app', 'secreta');
+    db.addVehiculo('Coche 1', '', 0);
+
+    const res = await sync.pushAll();
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.vehiculos[0].empresa_id).toBe('empresa-aaa');
+  });
+
+  test('con sesión autenticada, la bajada filtra por empresa_id: un registro de otra empresa no baja', async () => {
+    mockRemote.authUserId = 'empresa-aaa';
+    sync.setCredentials('sync@kmalumnos.app', 'secreta');
+    mockRemote.tables.vehiculos.push(
+      { id: 1, nombre: 'Coche empresa A', matricula: '', km_actual: 100, empresa_id: 'empresa-aaa', deleted: false, updated_at: new Date().toISOString() },
+      { id: 2, nombre: 'Coche empresa B', matricula: '', km_actual: 200, empresa_id: 'empresa-bbb', deleted: false, updated_at: new Date().toISOString() }
+    );
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    const d = readData();
+    expect(d.vehiculos).toHaveLength(1);
+    expect(d.vehiculos[0].id).toBe(1);
+  });
+
+  test('sin sesión (modo legado), la subida NO estampa empresa_id y la bajada no filtra', async () => {
+    const vid = db.addVehiculo('Coche 1', '', 0);
+    mockRemote.tables.vehiculos.push({
+      id: 999, nombre: 'De otra empresa (o sin empresa)', matricula: '', km_actual: 50,
+      deleted: false, updated_at: new Date().toISOString()
+    });
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.tables.vehiculos.find(v => v.id === vid).empresa_id).toBeUndefined();
+    // sin sesión no hay filtro: el otro vehículo también baja (comportamiento igual que hoy)
+    expect(readData().vehiculos.find(v => v.id === 999)).toBeTruthy();
+  });
+
+  test('empresa_id no se guarda en los datos locales (data.json)', async () => {
+    mockRemote.authUserId = 'empresa-aaa';
+    sync.setCredentials('sync@kmalumnos.app', 'secreta');
+    mockRemote.tables.vehiculos.push({
+      id: 1, nombre: 'Coche 1', matricula: '', km_actual: 100, empresa_id: 'empresa-aaa',
+      deleted: false, updated_at: new Date().toISOString()
+    });
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(readData().vehiculos[0]).not.toHaveProperty('empresa_id');
+  });
+
+  test('getEmpresaId() expone el uid de la sesión activa, y null en modo legado', async () => {
+    expect(sync.getEmpresaId()).toBeNull();
+
+    mockRemote.authUserId = 'empresa-aaa';
+    sync.setCredentials('sync@kmalumnos.app', 'secreta');
+    await sync.sync();
+    expect(sync.getEmpresaId()).toBe('empresa-aaa');
+
+    sync.setCredentials(null, null); // vuelve a modo legado
+    expect(sync.getEmpresaId()).toBeNull();
+    await sync.sync();
+    expect(sync.getEmpresaId()).toBeNull();
+  });
+});
+
 describe('conflictos de sincronización (dos PCs editan el mismo registro entre syncs)', () => {
   afterEach(() => {
     delete mockRemote._onUpsert; // no dejar el hook de "otro dispositivo" activo para otros tests
@@ -787,5 +874,70 @@ describe('conflictos de sincronización (dos PCs editan el mismo registro entre 
     expect(res.conflictos).toBe(0);
     expect(mockRemote.tables.practicas.find(p => p.id === pid)).toMatchObject({ km_inicial: 100, km_final: 140 });
     expect(readData().logs.find(l => l.tipo === 'conflicto_sync')).toBeUndefined();
+  });
+});
+
+describe('registrarEmpresa / getEstadoCuenta (fase 2 multi-empresa)', () => {
+  afterEach(() => {
+    delete mockRemote.signUpError;
+    delete mockRemote.signUpExists;
+    delete mockRemote.signUpPending;
+    mockRemote.authUserId = undefined;
+  });
+
+  test('alta con sesión directa: queda logueada y devuelve estado "activa"', async () => {
+    mockRemote.authUserId = 'uid-nueva-empresa';
+
+    const res = await sync.registrarEmpresa('nueva@empresa.com', 'contraseña123');
+
+    expect(res.ok).toBe(true);
+    expect(res.estado).toBe('activa');
+    expect(res.email).toBe('nueva@empresa.com');
+    expect(res.empresaId).toBe('uid-nueva-empresa');
+    expect(sync.hasCredentials()).toBe(true);
+    expect(sync.getEmpresaId()).toBe('uid-nueva-empresa');
+  });
+
+  test('alta pendiente de confirmación por email: no queda logueada', async () => {
+    mockRemote.signUpPending = true;
+
+    const res = await sync.registrarEmpresa('pendiente@empresa.com', 'contraseña123');
+
+    expect(res.ok).toBe(true);
+    expect(res.estado).toBe('pendiente_confirmacion');
+    expect(sync.hasCredentials()).toBe(false);
+    expect(sync.getEmpresaId()).toBeNull();
+  });
+
+  test('email ya registrado (identities vacío, sin error): mensaje en español pidiendo iniciar sesión', async () => {
+    mockRemote.signUpExists = true;
+
+    const res = await sync.registrarEmpresa('existe@empresa.com', 'contraseña123');
+
+    expect(res.ok).toBe(false);
+    expect(res.msg).toMatch(/ya tiene una cuenta|inicia sesión/i);
+    expect(sync.hasCredentials()).toBe(false);
+  });
+
+  test('contraseña corta: falla sin llamar a la red', async () => {
+    const res = await sync.registrarEmpresa('a@b.com', '123');
+
+    expect(res.ok).toBe(false);
+    expect(mockRemote.lastLogin).toBeNull();
+  });
+
+  test('getEstadoCuenta(): sin credenciales, y luego con sesión activa', async () => {
+    expect(sync.getEstadoCuenta()).toEqual({ conectado: false, email: null, empresaId: null });
+
+    mockRemote.authUserId = 'empresa-aaa';
+    sync.setCredentials('sync@kmalumnos.app', 'secreta');
+    const res = await sync.sync();
+    expect(res.ok).toBe(true);
+
+    expect(sync.getEstadoCuenta()).toEqual({
+      conectado: true,
+      email: 'sync@kmalumnos.app',
+      empresaId: 'empresa-aaa'
+    });
   });
 });

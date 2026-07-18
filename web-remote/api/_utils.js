@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 // invocaciones del mismo contenedor y se renueva antes de caducar.
 let _client = null;
 let _sessionExpiry = 0; // epoch en segundos
+let _userId = null;
 
 export async function getSupabase() {
   const now = Math.floor(Date.now() / 1000);
@@ -28,12 +29,19 @@ export async function getSupabase() {
       throw new Error('Error de autenticación del servidor: ' + error.message);
     }
     _sessionExpiry = (data.session && data.session.expires_at) || (now + 3000);
+    _userId = (data.user && data.user.id) || (data.session && data.session.user && data.session.user.id) || null;
   } else {
     _sessionExpiry = now + 100 * 365 * 24 * 3600; // cliente anon: no caduca
+    _userId = null;
   }
 
   _client = client;
   return client;
+}
+
+export async function getEmpresaId() {
+  await getSupabase();
+  return _userId;
 }
 
 // Validar variables de entorno

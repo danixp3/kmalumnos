@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, validators, getSupabase } from './_utils.js';
+import { setCorsHeaders, requireAuth, validators, getSupabase, getEmpresaId } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -12,6 +12,8 @@ export default async function handler(req, res) {
   let supabase;
   try { supabase = await getSupabase(); }
   catch (e) { return res.status(500).json({ error: e.message }); }
+
+  const empresaId = await getEmpresaId();
 
   const { nombre, permiso, vehiculo_id } = req.body || {};
 
@@ -60,6 +62,7 @@ export default async function handler(req, res) {
       nombre: nombreVal.value,
       permiso: permisoFinal,
       vehiculo_id: vehiculoIdFinal,
+      empresa_id: empresaId,
       updated_at: new Date().toISOString()
     })
     .select('id')
