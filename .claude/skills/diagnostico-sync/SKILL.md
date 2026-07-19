@@ -14,16 +14,18 @@ powershell -File .claude/skills/diagnostico-sync/scripts/estado_local.ps1
 ```
 Da contadores e ids de `data.json`, y de `pending_sync.json` el `lastSync` y las colas pendientes.
 
-## Paso 2 — Estado de la nube (MCP de Supabase, `execute_sql`)
+## Paso 2 — Estado de la nube (`node .claude/scripts/sql.js`)
 
-```sql
-select 'vehiculos' t, count(*) filter (where not deleted)::int activos, count(*) filter (where deleted)::int borrados from vehiculos
-union all select 'alumnos', count(*) filter (where not deleted), count(*) filter (where deleted) from alumnos
-union all select 'practicas', count(*) filter (where not deleted), count(*) filter (where deleted) from practicas;
 ```
-Más consultas útiles (diff exacto por ids, prácticas sin km, retocar tombstones) en `references/consultas.sql` — leerlo solo si el paso 2 muestra discrepancia.
+node .claude/scripts/sql.js "select 'vehiculos' t, count(*) filter (where not deleted)::int activos, count(*) filter (where deleted)::int borrados from vehiculos union all select 'alumnos', count(*) filter (where not deleted), count(*) filter (where deleted) from alumnos union all select 'practicas', count(*) filter (where not deleted), count(*) filter (where deleted) from practicas;"
+```
+Fallback: si el script falla (token o red), usar el MCP de Supabase (`execute_sql`) con la misma consulta.
+
+Más consultas útiles (diff exacto por ids, prácticas sin km, retocar tombstones) en `references/consultas.sql` — leerlo solo si el paso 2 muestra discrepancia. Ejecutarlas también con `node .claude/scripts/sql.js` (fallback: MCP `execute_sql`).
 
 ## Paso 3 — Logs de la API (MCP de Supabase, `get_logs` servicio `api`)
+
+Único paso que aún usa el MCP de Supabase; cargarlo solo si se llega aquí (no hace falta para los pasos 1 y 2).
 
 Patrones conocidos:
 - **Solo pings a `/rest/v1/meta` cada 2 min, sin GETs de alumnos/prácticas** → ese cliente revienta en local justo tras el ping (histórico: `data.json` dañado/ausente). Desde v1.3.10 se auto-recupera; el motivo exacto se ve pasando el ratón por "Error de sync".

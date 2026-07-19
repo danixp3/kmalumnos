@@ -5,7 +5,7 @@ description: Guía de desarrollo de la app de escritorio de KMAlumnos (Electron)
 
 # Cambiar la app de escritorio
 
-Objetivo: implementar cambios sin cargar archivos enteros (renderer.js + db.js + sync.js suman ~2.600 líneas) y sin olvidar los pasos que ya costaron bugs en producción.
+Objetivo: implementar cambios sin cargar archivos enteros (renderer.js + db.js + sync.js suman ~4.900 líneas) y sin olvidar los pasos que ya costaron bugs en producción.
 
 ## Flujo
 

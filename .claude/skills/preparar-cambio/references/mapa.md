@@ -33,12 +33,18 @@ Supabase (proyecto `dmwoqugdnwgkcqtixhyw`): tablas `vehiculos`, `alumnos`, `prac
 
 - **CRUD**: `getVehiculos/addVehiculo/updateVehiculoKm/deleteVehiculo`, `getAlumnos/addAlumno/updateAlumno/deleteAlumno` (borra también sus prácticas), `getPracticasByAlumno/getUltimaPractica/addPractica/updatePractica/deletePractica`.
 - **Km**: `rellenarKmMasivo(vid,min,max,inicio?,final?)`, `getPracticasSinKm`, `corregirSolapamientos`, `getSolapamientos`, `validarSolapamiento`, `getResumen`, `getTimelineVehiculo`.
+- **Pagos**: `getTarifas/setTarifa/deleteTarifa`, `getPagosByAlumno/addPago/updatePago/deletePago`, `getDeudas` (deuda por alumno) y `getDesglosePagosAlumno(alumno_id)` (desglose práctica a práctica, FIFO en céntimos) — estas dos últimas **solo lectura, no marcan sync**.
+- **Dashboard**: `getStatsDashboard(hoy?)` — solo lectura, `{ practicasHoy, kmMes, totalAdeudado, alumnosConDeuda }` para las tarjetas opcionales del dashboard (dinero en euros con decimales, no céntimos).
 - **CSV**: `importarCSV(rows,min,max)`, `exportarCSV`, `compararCSVs`.
 - **Backup**: `crearBackup`, `restaurarBackup` (⚠ no marca pendientes de subir), `getLastSaveError`.
 
 ## sync.js
 
 Auto-sync cada 2 min: sube pendientes de `pending_sync.json` → baja de la nube todo con `updated_at > lastSync`, en orden vehículos → alumnos → prácticas. Conflictos por `updated_at` (gana el más reciente; local más nuevo no se pisa). Funciones: `sync()`, `pushAll()` (sube todo, no adelanta `lastSync`), `markDirty(tabla,id)`, `markDeleted(tabla,id)`, `getStatus()` (`offline|syncing|ok|error|pending`), `startAutoSync/stopAutoSync/onStatusChange`. URL y anon key hardcodeadas; si hay credenciales de cuenta de sync (cifradas con `safeStorage` en `sync_creds.json`) autentica antes.
+
+## Ventana y preferencias de UI (localStorage)
+
+La ventana de escritorio es `frame: false` (sin marco nativo): la barra de título la pinta `index.html`/`renderer.js` (`#titlebar`), con los canales IPC `ventana-minimizar/-maximizar/-cerrar/-esta-maximizada` y el evento push `ventana-maximizada`. Varias preferencias de usuario viven en `localStorage`, no en `data.json` (no sincronizan entre PCs): rango km por defecto (`kmalumnos_rango_km`), tarjetas visibles del dashboard (`kmalumnos_dashboard_stats`), tutorial visto por página (`kmalumnos_tutorial_visto`), bienvenida descartada (`kmalumnos_bienvenida_descartada`).
 
 ## web-remote/ (Vercel, ES modules — la app usa `require`)
 
@@ -55,4 +61,4 @@ Auto-sync cada 2 min: sube pendientes de `pending_sync.json` → baja de la nube
 
 ## Tests
 
-`npm test` (Jest, 38 en verde). `tests/` con mock de Electron en `tests/mocks/`; los de `db.js` corren contra un directorio temporal (nunca datos reales) y los de `sync.js` contra un Supabase simulado en memoria (`tests/sync.test.js`). **Toda tarea de código añade o ajusta tests de su criterio de aceptación.**
+`npm test` (Jest, 119 en verde). `tests/` con mock de Electron en `tests/mocks/`; los de `db.js` corren contra un directorio temporal (nunca datos reales) y los de `sync.js` contra un Supabase simulado en memoria (`tests/sync.test.js`). **Toda tarea de código añade o ajusta tests de su criterio de aceptación.**
