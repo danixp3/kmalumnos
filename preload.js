@@ -5,6 +5,13 @@ contextBridge.exposeInMainWorld('api', {
   refocus: () => ipcRenderer.invoke('ui:refocus'),
   getVersion: () => ipcRenderer.invoke('app:version'),
 
+  // Ventana (barra de título)
+  minimizarVentana:       () => ipcRenderer.invoke('ventana-minimizar'),
+  maximizarVentana:       () => ipcRenderer.invoke('ventana-maximizar'),
+  cerrarVentana:          () => ipcRenderer.invoke('ventana-cerrar'),
+  ventanaEstaMaximizada:  () => ipcRenderer.invoke('ventana-esta-maximizada'),
+  onVentanaMaximizada:    (cb) => ipcRenderer.on('ventana-maximizada', (_, max) => cb(max)),
+
   // Vehículos
   getVehiculos:     ()                        => ipcRenderer.invoke('get-vehiculos'),
   addVehiculo:      (n, m, km)               => ipcRenderer.invoke('add-vehiculo', n, m, km),
@@ -42,10 +49,12 @@ contextBridge.exposeInMainWorld('api', {
   updatePago:        (id, fecha, cantidad, nota)  => ipcRenderer.invoke('update-pago', id, fecha, cantidad, nota),
   deletePago:        (id)                         => ipcRenderer.invoke('delete-pago', id),
   getDeudas:         ()                           => ipcRenderer.invoke('get-deudas'),
+  getDesglosePagosAlumno: (alumnoId)               => ipcRenderer.invoke('get-desglose-pagos-alumno', alumnoId),
 
   // Generación y resumen
   generarKm:    (kmInicial, min, max)        => ipcRenderer.invoke('generar-km', kmInicial, min, max),
   getResumen:        ()                      => ipcRenderer.invoke('get-resumen'),
+  getStatsDashboard: ()                      => ipcRenderer.invoke('get-stats-dashboard'),
   getSolapamientos:    ()                        => ipcRenderer.invoke('get-solapamientos'),
   rellenarKmMasivo:    (vid, min, max, inicio, final) => ipcRenderer.invoke('rellenar-km-masivo', vid, min, max, inicio, final),
   getPracticasSinKm:   (vid)                     => ipcRenderer.invoke('get-practicas-sin-km', vid),

@@ -15,13 +15,13 @@ powershell -File .claude/skills/diagnostico-sync/scripts/estado_local.ps1
 
 (script compartido con /diagnostico-sync: contadores de `data.json`, colas pendientes y `lastSync`)
 
-## Paso 2 — Nube (MCP de Supabase, `execute_sql`)
+## Paso 2 — Nube (`node .claude/scripts/sql.js`)
 
-```sql
-select 'vehiculos' tabla, count(*) filter (where not deleted)::int activos, count(*) filter (where deleted)::int borrados, max(updated_at)::text ultimo_cambio from vehiculos
-union all select 'alumnos', count(*) filter (where not deleted), count(*) filter (where deleted), max(updated_at)::text from alumnos
-union all select 'practicas', count(*) filter (where not deleted), count(*) filter (where deleted), max(updated_at)::text from practicas;
 ```
+node .claude/scripts/sql.js "select 'vehiculos' tabla, count(*) filter (where not deleted)::int activos, count(*) filter (where deleted)::int borrados, max(updated_at)::text ultimo_cambio from vehiculos union all select 'alumnos', count(*) filter (where not deleted), count(*) filter (where deleted), max(updated_at)::text from alumnos union all select 'practicas', count(*) filter (where not deleted), count(*) filter (where deleted), max(updated_at)::text from practicas;"
+```
+
+Fallback: si el script falla (token o red), usar el MCP de Supabase (`execute_sql`) con la misma consulta.
 
 ## Veredicto
 

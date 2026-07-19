@@ -57,6 +57,7 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
+    frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -73,6 +74,15 @@ function createWindow() {
   // cambiar de fecha (ver 'mouseup' en renderer.js).
   mainWin.on('app-command', (event, cmd) => {
     if (cmd === 'browser-backward' || cmd === 'browser-forward') event.preventDefault();
+  });
+
+  // Sin marco nativo: la barra de título propia (renderer) necesita saber
+  // cuándo la ventana se maximiza/restaura para cambiar el icono del botón.
+  mainWin.on('maximize', () => {
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('ventana-maximizada', true);
+  });
+  mainWin.on('unmaximize', () => {
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('ventana-maximizada', false);
   });
 }
 
@@ -174,6 +184,24 @@ ipcMain.handle('ui:refocus', () => {
 
 ipcMain.handle('app:version', () => app.getVersion());
 
+// Ventana (barra de título propia, sin marco nativo: frame: false)
+ipcMain.handle('ventana-minimizar', () => {
+  if (mainWin && !mainWin.isDestroyed()) mainWin.minimize();
+});
+ipcMain.handle('ventana-maximizar', () => {
+  if (mainWin && !mainWin.isDestroyed()) {
+    if (mainWin.isMaximized()) mainWin.unmaximize();
+    else mainWin.maximize();
+  }
+});
+ipcMain.handle('ventana-cerrar', () => {
+  if (mainWin && !mainWin.isDestroyed()) mainWin.close();
+});
+ipcMain.handle('ventana-esta-maximizada', () => {
+  if (mainWin && !mainWin.isDestroyed()) return mainWin.isMaximized();
+  return false;
+});
+
 ipcMain.handle('get-vehiculos', () => db.getVehiculos());
 ipcMain.handle('add-vehiculo', (_, nombre, matricula, km_actual) => {
   const id = db.addVehiculo(nombre, matricula, km_actual);
@@ -210,8 +238,10 @@ ipcMain.handle('add-pago', (_, alumno_id, fecha, cantidad, nota) => db.addPago(a
 ipcMain.handle('update-pago', (_, id, fecha, cantidad, nota) => { db.updatePago(id, fecha, cantidad, nota); return true; });
 ipcMain.handle('delete-pago', (_, id) => { db.deletePago(id); return true; });
 ipcMain.handle('get-deudas', () => db.getDeudas());
+ipcMain.handle('get-desglose-pagos-alumno', (_, alumno_id) => db.getDesglosePagosAlumno(alumno_id));
 
 ipcMain.handle('get-resumen', () => db.getResumen());
+ipcMain.handle('get-stats-dashboard', () => db.getStatsDashboard());
 ipcMain.handle('get-solapamientos', () => db.getSolapamientos());
 ipcMain.handle('rellenar-km-masivo', (_, vehiculo_id, kmMin, kmMax, kmInicio, kmFinal) => db.rellenarKmMasivo(vehiculo_id, kmMin, kmMax, kmInicio, kmFinal));
 ipcMain.handle('get-practicas-sin-km', (_, vehiculo_id) => db.getPracticasSinKm(vehiculo_id));

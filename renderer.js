@@ -14,6 +14,8 @@ let vehiculosCache = [];
 let profesoresCache = [];
 let alumnosCache = [];
 let alumnosSort = { col: null, dir: 1 };
+let deudasCache = [];
+let deudasSort = { col: null, dir: 1 };
 
 // ─── NAVEGACIÓN ──────────────────────────────────────────────────────────────
 document.querySelectorAll('#sidebar nav a').forEach(link => {
@@ -42,6 +44,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     if (page === 'logs') loadLogs();
     if (page === 'registro-rapido') loadRegistroRapidoInit();
     if (page === 'ajustes') loadAjustes();
+    comprobarTutorial(page);
   });
 });
 
@@ -51,6 +54,23 @@ async function loadDashboard() {
   document.getElementById('stat-vehiculos').textContent = r.vehiculos;
   document.getElementById('stat-alumnos').textContent = r.alumnos;
   document.getElementById('stat-practicas').textContent = r.practicas;
+
+  const pref = getDashboardPref();
+  document.getElementById('stat-card-vehiculos').classList.toggle('hidden', !pref.vehiculos);
+  document.getElementById('stat-card-alumnos').classList.toggle('hidden', !pref.alumnos);
+  document.getElementById('stat-card-practicas').classList.toggle('hidden', !pref.practicas);
+  document.getElementById('stat-card-practicas-hoy').classList.toggle('hidden', !pref.practicasHoy);
+  document.getElementById('stat-card-km-mes').classList.toggle('hidden', !pref.kmMes);
+  document.getElementById('stat-card-total-adeudado').classList.toggle('hidden', !pref.totalAdeudado);
+  document.getElementById('stat-card-alumnos-deuda').classList.toggle('hidden', !pref.alumnosConDeuda);
+
+  if (pref.practicasHoy || pref.kmMes || pref.totalAdeudado || pref.alumnosConDeuda) {
+    const stats = await window.api.getStatsDashboard();
+    document.getElementById('stat-practicas-hoy').textContent = stats.practicasHoy;
+    document.getElementById('stat-km-mes').textContent = stats.kmMes + ' km';
+    document.getElementById('stat-total-adeudado').textContent = fmt(stats.totalAdeudado) + ' €';
+    document.getElementById('stat-alumnos-deuda').textContent = stats.alumnosConDeuda;
+  }
 
   const alertas = document.getElementById('dash-alertas');
   const partes = [];
@@ -712,30 +732,110 @@ function cambiarTabPagos(tab) {
 }
 
 async function loadDeudas() {
-  const deudas = await window.api.getDeudas();
-  const tbody = document.querySelector('#tabla-deudas tbody');
+  deudasCache = await window.api.getDeudas();
   const aviso = document.getElementById('pagos-aviso-sin-tarifa');
-  aviso.classList.toggle('hidden', !deudas.some(d => d.sin_tarifa));
+  aviso.classList.toggle('hidden', !deudasCache.some(d => d.sin_tarifa));
 
-  const conDeuda = deudas.filter(d => d.saldo > 0);
+  // Las stat-cards se calculan siempre sobre el dataset completo, no el filtrado
+  const conDeuda = deudasCache.filter(d => d.saldo > 0);
   document.getElementById('deudas-resumen-num').textContent = conDeuda.length;
   document.getElementById('deudas-resumen-total').textContent = fmt(conDeuda.reduce((sum, d) => sum + d.saldo, 0)) + ' €';
 
-  if (!deudas.length) {
+  poblarFiltroPermisosDeudas();
+  renderDeudasTabla();
+}
+
+// ─── Filtros y ordenación de la tabla de deudas (en memoria, sobre deudasCache) ───
+function poblarFiltroPermisosDeudas() {
+  const selPermiso = document.getElementById('f-deudas-permiso');
+  if (!selPermiso) return;
+  const permisoActual = selPermiso.value;
+  const permisosOpts = [...new Set(deudasCache.map(d => d.permiso).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+  selPermiso.innerHTML = '<option value="">Todos los permisos</option>' +
+    permisosOpts.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+  if ([...selPermiso.options].some(o => o.value === permisoActual)) selPermiso.value = permisoActual;
+}
+
+function limpiarFiltrosDeudas() {
+  const nombre = document.getElementById('f-deudas-nombre');
+  const estado = document.getElementById('f-deudas-estado');
+  const permiso = document.getElementById('f-deudas-permiso');
+  if (nombre) nombre.value = '';
+  if (estado) estado.value = 'con-deuda';
+  if (permiso) permiso.value = '';
+  renderDeudasTabla();
+}
+
+function ordenarDeudas(col) {
+  if (deudasSort.col === col) {
+    deudasSort.dir *= -1;
+  } else {
+    deudasSort.col = col;
+    deudasSort.dir = 1;
+  }
+  renderDeudasTabla();
+}
+
+function actualizarIndicadoresOrdenDeudas() {
+  document.querySelectorAll('#tabla-deudas thead th[data-sort]').forEach(th => {
+    const ind = th.querySelector('.sort-ind');
+    if (!ind) return;
+    if (th.dataset.sort === deudasSort.col) {
+      ind.innerHTML = deudasSort.dir === 1 ? SVG_SORT_ASC : SVG_SORT_DESC;
+      th.classList.add('sort-active');
+    } else {
+      ind.innerHTML = '';
+      th.classList.remove('sort-active');
+    }
+  });
+}
+
+function renderDeudasTabla() {
+  const tbody = document.querySelector('#tabla-deudas tbody');
+  if (!deudasCache.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay alumnos registrados</td></tr>';
+    actualizarIndicadoresOrdenDeudas();
     return;
   }
 
-  const soloConDeuda = document.getElementById('deudas-solo-con-deuda').checked;
-  let filas = deudas.slice().sort((a, b) => b.saldo - a.saldo);
-  if (soloConDeuda) filas = filas.filter(d => d.saldo > 0);
+  const nombreFiltro = (document.getElementById('f-deudas-nombre')?.value || '').trim().toLowerCase();
+  const estadoFiltro = document.getElementById('f-deudas-estado')?.value || '';
+  const permisoFiltro = document.getElementById('f-deudas-permiso')?.value || '';
 
-  if (!filas.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay alumnos con deuda pendiente</td></tr>';
+  let filtrados = deudasCache.filter(d => {
+    if (nombreFiltro && !d.alumno_nombre.toLowerCase().includes(nombreFiltro)) return false;
+    if (estadoFiltro === 'con-deuda' && !(d.saldo > 0)) return false;
+    if (estadoFiltro === 'al-dia' && !(d.saldo <= 0)) return false;
+    if (estadoFiltro === 'sin-tarifa' && !d.sin_tarifa) return false;
+    if (permisoFiltro && d.permiso !== permisoFiltro) return false;
+    return true;
+  });
+
+  const { col, dir } = deudasSort;
+  if (col) {
+    filtrados = [...filtrados].sort((a, b) => {
+      if (col === 'practicas') return (a.num_practicas - b.num_practicas) * dir;
+      if (col === 'generado') return (a.total_generado - b.total_generado) * dir;
+      if (col === 'pagado') return (a.total_pagado - b.total_pagado) * dir;
+      if (col === 'saldo') return (a.saldo - b.saldo) * dir;
+      let va = '', vb = '';
+      if (col === 'nombre') { va = a.alumno_nombre || ''; vb = b.alumno_nombre || ''; }
+      else if (col === 'permiso') { va = a.permiso || ''; vb = b.permiso || ''; }
+      return va.localeCompare(vb, 'es', { numeric: true }) * dir;
+    });
+  } else {
+    // Sin columna activa: orden por defecto, saldo descendente
+    filtrados = [...filtrados].sort((a, b) => b.saldo - a.saldo);
+  }
+  actualizarIndicadoresOrdenDeudas();
+
+  if (!filtrados.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Ningún alumno coincide con los filtros</td></tr>';
     return;
   }
 
-  tbody.innerHTML = filas.map(d => {
+  tbody.innerHTML = filtrados.map(d => {
     const saldoClase = d.saldo > 0 ? 'saldo-pendiente' : 'saldo-ok';
     const avisoIcon = d.sin_tarifa
       ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warn);vertical-align:-2px;margin-right:4px" title="Alguna práctica no tiene tarifa asignada"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
@@ -750,6 +850,7 @@ async function loadDeudas() {
       <td>
         <button class="btn btn-primary btn-sm" onclick="abrirModalPago(${d.alumno_id},'${esc(d.alumno_nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Anotar pago</button>
         <button class="btn btn-gray btn-sm" onclick="abrirHistorialPagos(${d.alumno_id},'${esc(d.alumno_nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Historial</button>
+        <button class="btn btn-gray btn-sm" onclick="abrirDesglosePagos(${d.alumno_id},'${esc(d.alumno_nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg> Desglose</button>
       </td>
     </tr>`;
   }).join('');
@@ -830,6 +931,41 @@ async function deletePagoUI(id) {
   const alumnoNombre = modal.dataset.alumnoNombre;
   await abrirHistorialPagos(alumnoId, alumnoNombre);
   loadDeudas();
+}
+
+async function abrirDesglosePagos(alumnoId, alumnoNombre) {
+  const desglose = await window.api.getDesglosePagosAlumno(alumnoId);
+  document.getElementById('modal-desglose-titulo').textContent = `Desglose de pagos — ${alumnoNombre}`;
+  const tbody = document.querySelector('#tabla-desglose-pagos tbody');
+
+  const ESTADO_BADGE = {
+    pagada: () => '<span class="badge-pagada">Pagada</span>',
+    parcial: (p) => `<span class="badge-parcial">${fmt(p.cubierto)} € de ${fmt(p.precio)} €</span>`,
+    pendiente: () => '<span class="badge-pendiente-pago">Pendiente</span>',
+    sin_tarifa: () => '<span class="badge-sin-tarifa">Sin tarifa</span>'
+  };
+  const TIPO_LABEL = { circulacion: 'Circulación', pista: 'Pista' };
+
+  if (!desglose || !desglose.practicas.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">No hay prácticas registradas</td></tr>';
+  } else {
+    tbody.innerHTML = desglose.practicas.map(p => `<tr>
+      <td>${fmtFecha(p.fecha)}</td>
+      <td>${esc(TIPO_LABEL[p.tipo] || p.tipo)}</td>
+      <td>${p.precio != null ? fmt(p.precio) + ' €' : '<span style="color:#bbb">—</span>'}</td>
+      <td>${ESTADO_BADGE[p.estado](p)}</td>
+    </tr>`).join('');
+  }
+
+  const resumen = document.getElementById('desglose-resumen');
+  if (desglose) {
+    const saldoClase = desglose.saldo > 0 ? 'saldo-pendiente' : 'saldo-ok';
+    resumen.innerHTML = `Generado: <strong>${fmt(desglose.total_generado)} €</strong> &nbsp;·&nbsp; Pagado: <strong>${fmt(desglose.total_pagado)} €</strong> &nbsp;·&nbsp; Saldo: <span class="${saldoClase}">${fmt(desglose.saldo)} €</span>`;
+  } else {
+    resumen.innerHTML = '';
+  }
+
+  openModal('modal-desglose-pagos');
 }
 
 async function loadTarifas() {
@@ -1112,6 +1248,40 @@ function guardarRangoPrefDesdeAjustes() {
   const min = parseFloat(document.getElementById('pref-km-min').value) || 40;
   const max = parseFloat(document.getElementById('pref-km-max').value) || 45;
   guardarRangoPref(min, max);
+}
+
+const PREF_DASHBOARD_KEY = 'kmalumnos_dashboard_stats';
+const PREF_DASHBOARD_DEFAULT = {
+  vehiculos: true, alumnos: true, practicas: true,
+  practicasHoy: false, kmMes: false, totalAdeudado: false, alumnosConDeuda: false
+};
+
+function getDashboardPref() {
+  try {
+    const raw = localStorage.getItem(PREF_DASHBOARD_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === 'object') return { ...PREF_DASHBOARD_DEFAULT, ...p };
+    }
+  } catch (e) {}
+  return { ...PREF_DASHBOARD_DEFAULT };
+}
+
+function guardarDashboardPref(p) {
+  try { localStorage.setItem(PREF_DASHBOARD_KEY, JSON.stringify(p)); } catch (e) {}
+}
+
+function guardarDashboardPrefDesdeAjustes() {
+  const p = {
+    vehiculos: document.getElementById('pref-dash-vehiculos').checked,
+    alumnos: document.getElementById('pref-dash-alumnos').checked,
+    practicas: document.getElementById('pref-dash-practicas').checked,
+    practicasHoy: document.getElementById('pref-dash-practicas-hoy').checked,
+    kmMes: document.getElementById('pref-dash-km-mes').checked,
+    totalAdeudado: document.getElementById('pref-dash-total-adeudado').checked,
+    alumnosConDeuda: document.getElementById('pref-dash-alumnos-deuda').checked
+  };
+  guardarDashboardPref(p);
 }
 
 // ─── SOLAPAMIENTOS ───────────────────────────────────────────────────────────
@@ -1683,6 +1853,14 @@ refrescarEstadoCuenta();
 // ─── AJUSTES ──────────────────────────────────────────────────────────────────
 async function loadAjustes() {
   aplicarRangoPref('pref-km-min', 'pref-km-max');
+  const dashPref = getDashboardPref();
+  document.getElementById('pref-dash-vehiculos').checked = dashPref.vehiculos;
+  document.getElementById('pref-dash-alumnos').checked = dashPref.alumnos;
+  document.getElementById('pref-dash-practicas').checked = dashPref.practicas;
+  document.getElementById('pref-dash-practicas-hoy').checked = dashPref.practicasHoy;
+  document.getElementById('pref-dash-km-mes').checked = dashPref.kmMes;
+  document.getElementById('pref-dash-total-adeudado').checked = dashPref.totalAdeudado;
+  document.getElementById('pref-dash-alumnos-deuda').checked = dashPref.alumnosConDeuda;
   refrescarEstadoCuenta();
   const v = await window.api.getVersion();
   const el = document.getElementById('ajustes-version');
@@ -2021,6 +2199,274 @@ document.addEventListener('mouseup', (e) => {
   cambiarFechaRR(e.button === 3 ? -1 : 1);
 });
 
+// ─── TUTORIAL ───────────────────────────────────────────────────────────────
+const TUTORIAL_VISTO_KEY = 'kmalumnos_tutorial_visto';
+
+function getTutorialVisto() {
+  try {
+    const raw = localStorage.getItem(TUTORIAL_VISTO_KEY);
+    if (raw) {
+      const v = JSON.parse(raw);
+      if (v && typeof v === 'object') return v;
+    }
+  } catch (e) {}
+  return {};
+}
+
+function marcarTutorialVisto(page) {
+  try {
+    const v = getTutorialVisto();
+    v[page] = true;
+    localStorage.setItem(TUTORIAL_VISTO_KEY, JSON.stringify(v));
+  } catch (e) {}
+}
+
+const TUTORIAL_PASOS = {
+  dashboard: [
+    { sel: '#page-dashboard .stats', pos: 'bottom',
+      titulo: 'Tus estadísticas de un vistazo',
+      texto: 'Estas tarjetas resumen vehículos, alumnos y prácticas. En Ajustes → Preferencias puedes elegir cuáles ver aquí.' },
+    { sel: '#dash-alertas', pos: 'bottom',
+      titulo: 'Alertas que puedes seguir',
+      texto: 'Si aparece un aviso de km sin rellenar o de solapamientos, haz clic en él: te lleva directo a la pantalla donde resolverlo.' },
+    { sel: '.quick-card-primary', pos: 'right',
+      titulo: 'Registro Rápido',
+      texto: 'Es el acceso al día a día: apunta en segundos las prácticas de todos los alumnos de un vehículo en una fecha.' },
+    { sel: '#sync-bar', pos: 'right',
+      titulo: 'Estado de la nube',
+      texto: 'Aquí ves si tus datos están sincronizados. Haz clic para forzar una sincronización manual.' }
+  ],
+  alumnos: [
+    { sel: '#a-permiso', pos: 'bottom',
+      titulo: 'El permiso importa',
+      texto: 'El permiso que elijas aquí determina la tarifa que se aplica y, por tanto, la deuda que genera cada práctica del alumno.' },
+    { sel: '#f-alumnos-nombre', pos: 'bottom',
+      titulo: 'Filtra la lista',
+      texto: 'Busca por nombre o combina los filtros de vehículo, permiso y profesor para encontrar a un alumno al momento.' },
+    { sel: '#tabla-alumnos tbody .btn-primary', pos: 'top',
+      titulo: 'Prácticas y anotaciones',
+      texto: 'El botón Prácticas abre su historial de km; Anotaciones guarda notas sueltas del alumno sin crear una práctica.' }
+  ],
+  vehiculos: [
+    { sel: '#tabla-vehiculos', pos: 'top',
+      titulo: 'El odómetro real',
+      texto: 'La columna Km actual es el odómetro del vehículo: se actualiza solo con cada práctica y puedes corregirlo a mano con Editar.' },
+    { sel: '.card-banner', pos: 'bottom',
+      titulo: 'Relleno masivo de km',
+      texto: 'Para las prácticas que se quedaron sin kilómetros, esto los genera automáticamente respetando el rango por defecto de Ajustes.' }
+  ],
+  'registro-rapido': [
+    { sel: '#rr-vehiculo', pos: 'bottom',
+      titulo: 'Elige vehículo y fecha',
+      texto: 'Selecciona el vehículo y la fecha del día; los botones de flecha cambian de día sin tocar el teclado.' },
+    { sel: '#rr-lista', pos: 'top',
+      titulo: 'Un clic, una práctica',
+      texto: 'Haz clic en un alumno para crear al instante su práctica del día. Los botones laterales del ratón también cambian de fecha.' },
+    { sel: '#rr-profesor', pos: 'bottom',
+      titulo: 'Profesor y tipo',
+      texto: 'Elige aquí el profesor y si la práctica es de circulación o de pista antes de registrar; se aplican a las que anotes.' }
+  ],
+  pagos: [
+    { sel: '#tabla-tarifas', pos: 'top', antes: () => cambiarTabPagos('tarifas'),
+      titulo: 'Sin tarifa, sin deuda',
+      texto: 'Define aquí el precio de circulación y pista por cada permiso. Si un permiso no tiene tarifa, sus prácticas no generan deuda.' },
+    { sel: '#tabla-deudas', pos: 'top', antes: () => cambiarTabPagos('deudas'),
+      titulo: 'Cómo se calcula el saldo',
+      texto: 'Saldo pendiente = total generado − total pagado. El generado sale de sumar el precio de cada práctica según su tarifa.' },
+    { sel: '#f-deudas-estado', pos: 'bottom',
+      titulo: 'Filtra por estado',
+      texto: 'Puedes ver solo quién tiene deuda, quién está al día o quién tiene prácticas sin tarifa asignada.' },
+    { sel: '#tabla-deudas tbody .btn-primary', pos: 'top',
+      titulo: 'Anotar pago y Desglose',
+      texto: 'Anotar pago registra un ingreso del alumno. Desglose marca como pagadas primero las prácticas más antiguas, así ves qué queda pendiente.' }
+  ],
+  kilometros: [
+    { sel: '#tab-kilometros-mapa', pos: 'bottom', antes: () => cambiarTabKilometros('mapa'),
+      titulo: 'Mapa del vehículo',
+      texto: 'Visualiza la línea de tiempo de kilómetros del vehículo elegido: cada tramo es una práctica.' },
+    { sel: '#tab-kilometros-conflictos', pos: 'top', antes: () => cambiarTabKilometros('conflictos'),
+      titulo: '¿Qué es un solapamiento?',
+      texto: 'Ocurre cuando dos prácticas del mismo vehículo comparten el mismo tramo de km. "Corregir todo automáticamente" los reordena respetando la duración de cada una.' }
+  ],
+  datos: [
+    { sel: '#tab-datos-importar', pos: 'bottom', antes: () => cambiarTabDatos('importar'),
+      titulo: 'Importar desde CSV',
+      texto: 'Carga un archivo con el formato indicado; si dejas los km en blanco, se generan solos con el rango por defecto.' },
+    { sel: '#tab-datos-exportar', pos: 'bottom', antes: () => cambiarTabDatos('exportar'),
+      titulo: 'Exportar y comparar',
+      texto: 'Exporta tus prácticas a CSV o compara dos archivos para detectar diferencias antes de importar.' }
+  ],
+  profesores: [
+    { sel: '#pf-nombre', pos: 'bottom',
+      titulo: 'Asigna profesores',
+      texto: 'Una vez creado, podrás asignarlo a un alumno o a una práctica concreta desde Alumnos o Registro Rápido.' },
+    { sel: '#tabla-profesores', pos: 'top',
+      titulo: 'Borrar es seguro',
+      texto: 'Si borras un profesor, las prácticas que ya impartió conservan su nombre; no se pierde ningún dato histórico.' }
+  ],
+  logs: [
+    { sel: '#logs-result', pos: 'top',
+      titulo: 'Historial de la app',
+      texto: 'Aquí quedan registradas las operaciones automáticas (rellenos masivos, correcciones) y los conflictos de sincronización entre dispositivos.' }
+  ],
+  ajustes: [
+    { sel: '#ajustes-sync-estado', pos: 'bottom',
+      titulo: 'Cuenta de empresa',
+      texto: 'Inicia sesión para que tus datos viajen solo entre tus dispositivos, protegidos de otras autoescuelas que usen la app.' },
+    { sel: '.card-banner-success', pos: 'top',
+      titulo: 'Copias de seguridad',
+      texto: 'Guarda una copia cuando quieras; las tarjetas de al lado te dejan restaurar la última automática o elegir un archivo antiguo.' },
+    { sel: '#pref-km-min', pos: 'bottom',
+      titulo: 'Tus preferencias',
+      texto: 'Aquí fijas el rango de km por defecto, qué tarjetas ver en el panel principal, y puedes volver a lanzar estos tutoriales cuando quieras.' }
+  ]
+};
+
+let tutorialFocoEl = null;
+let tutorialBocadilloEl = null;
+let tutorialActivo = false;
+let tutorialPage = null;
+let tutorialPasoIdx = 0;
+
+function crearDomTutorial() {
+  if (tutorialFocoEl) return;
+  tutorialFocoEl = document.createElement('div');
+  tutorialFocoEl.id = 'tutorial-foco';
+  document.body.appendChild(tutorialFocoEl);
+
+  tutorialBocadilloEl = document.createElement('div');
+  tutorialBocadilloEl.id = 'tutorial-bocadillo';
+  document.body.appendChild(tutorialBocadilloEl);
+}
+
+function comprobarTutorial(page) {
+  if (!page) return;
+  const pasos = TUTORIAL_PASOS[page];
+  if (!pasos || !pasos.length) return;
+  if (tutorialActivo) return;
+  if (getTutorialVisto()[page]) return;
+  if (document.querySelector('.overlay.open')) return;
+
+  tutorialActivo = true;
+  tutorialPage = page;
+  tutorialPasoIdx = 0;
+  crearDomTutorial();
+  window.addEventListener('resize', tutorialAlRedimensionar);
+  mostrarPasoTutorial(0);
+}
+
+function mostrarPasoTutorial(i) {
+  const pasos = TUTORIAL_PASOS[tutorialPage] || [];
+  if (!tutorialActivo || i >= pasos.length) { cerrarTutorial(true); return; }
+  tutorialPasoIdx = i;
+  const paso = pasos[i];
+  if (typeof paso.antes === 'function') { try { paso.antes(); } catch (e) {} }
+  const el = document.querySelector(paso.sel);
+  if (!el || el.offsetParent === null) { mostrarPasoTutorial(i + 1); return; }
+  el.scrollIntoView({ block: 'center', behavior: 'instant' });
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (!tutorialActivo || tutorialPasoIdx !== i) return;
+      const rect = el.getBoundingClientRect();
+      tutorialFocoEl.style.display = 'block';
+      tutorialBocadilloEl.style.display = 'block';
+      pintarFocoTutorial(rect);
+      pintarBocadilloTutorial(rect, paso, i, pasos.length);
+    });
+  });
+}
+
+function siguientePasoTutorial() {
+  mostrarPasoTutorial(tutorialPasoIdx + 1);
+}
+
+function pintarFocoTutorial(rect) {
+  const m = 6;
+  tutorialFocoEl.style.top = (rect.top - m) + 'px';
+  tutorialFocoEl.style.left = (rect.left - m) + 'px';
+  tutorialFocoEl.style.width = (rect.width + m * 2) + 'px';
+  tutorialFocoEl.style.height = (rect.height + m * 2) + 'px';
+}
+
+function pintarBocadilloTutorial(rect, paso, i, total) {
+  const ultimo = i === total - 1;
+  tutorialBocadilloEl.innerHTML =
+    `<strong>${paso.titulo}</strong>` +
+    `<p>${paso.texto}</p>` +
+    `<div class="tutorial-footer">` +
+      `<span class="tutorial-contador">Paso ${i + 1} de ${total}</span>` +
+      `<div class="tutorial-botones">` +
+        `<button class="btn btn-gray btn-sm" onclick="cerrarTutorial(true)">Saltar</button>` +
+        `<button class="btn btn-primary btn-sm" onclick="siguientePasoTutorial()">${ultimo ? 'Entendido' : 'Siguiente'}</button>` +
+      `</div>` +
+    `</div>`;
+  posicionarBocadillo(rect, paso.pos);
+}
+
+function posicionarBocadillo(rect, posPref) {
+  const margen = 14;
+  const bw = tutorialBocadilloEl.offsetWidth || 300;
+  const bh = tutorialBocadilloEl.offsetHeight || 120;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  const opciones = {
+    top: { top: rect.top - bh - margen, left: rect.left + rect.width / 2 - bw / 2 },
+    bottom: { top: rect.bottom + margen, left: rect.left + rect.width / 2 - bw / 2 },
+    left: { top: rect.top + rect.height / 2 - bh / 2, left: rect.left - bw - margen },
+    right: { top: rect.top + rect.height / 2 - bh / 2, left: rect.right + margen }
+  };
+  const opuesto = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
+  const cabe = (o) => o.top >= 40 && o.top + bh <= vh - 8 && o.left >= 8 && o.left + bw <= vw - 8;
+
+  const orden = [posPref, opuesto[posPref], 'bottom', 'top', 'right', 'left'];
+  let lado = posPref;
+  let elegido = opciones[posPref];
+  for (const o of orden) {
+    if (o && opciones[o] && cabe(opciones[o])) { elegido = opciones[o]; lado = o; break; }
+  }
+
+  const left = Math.max(8, Math.min(elegido.left, vw - bw - 8));
+  const top = Math.max(40, elegido.top);
+
+  tutorialBocadilloEl.style.top = top + 'px';
+  tutorialBocadilloEl.style.left = left + 'px';
+  tutorialBocadilloEl.className = 'tutorial-lado-' + lado;
+
+  const centroX = rect.left + rect.width / 2 - left;
+  const centroY = rect.top + rect.height / 2 - top;
+  tutorialBocadilloEl.style.setProperty('--tutorial-flecha-x', Math.max(16, Math.min(centroX, bw - 16)) + 'px');
+  tutorialBocadilloEl.style.setProperty('--tutorial-flecha-y', Math.max(16, Math.min(centroY, bh - 16)) + 'px');
+}
+
+function tutorialAlRedimensionar() {
+  if (!tutorialActivo) return;
+  const pasos = TUTORIAL_PASOS[tutorialPage] || [];
+  const paso = pasos[tutorialPasoIdx];
+  if (!paso) return;
+  const el = document.querySelector(paso.sel);
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  pintarFocoTutorial(rect);
+  posicionarBocadillo(rect, paso.pos);
+}
+
+function cerrarTutorial(marcarVisto) {
+  if (marcarVisto && tutorialPage) marcarTutorialVisto(tutorialPage);
+  if (tutorialFocoEl) tutorialFocoEl.style.display = 'none';
+  if (tutorialBocadilloEl) tutorialBocadilloEl.style.display = 'none';
+  window.removeEventListener('resize', tutorialAlRedimensionar);
+  tutorialActivo = false;
+  tutorialPage = null;
+  tutorialPasoIdx = 0;
+}
+
+function reiniciarTutorialesUI() {
+  try { localStorage.removeItem(TUTORIAL_VISTO_KEY); } catch (e) {}
+  showToast('tutorial-reset-toast', 'Los tutoriales volverán a aparecer al entrar en cada sección.', 'ok');
+  comprobarTutorial('ajustes');
+}
+
 // ─── BIENVENIDA (instalación nueva) ────────────────────────────────────────────
 const BIENVENIDA_DESCARTADA_KEY = 'kmalumnos_bienvenida_descartada';
 
@@ -2041,6 +2487,7 @@ function bienvenidaIniciarSesion() {
 function continuarSinCuenta() {
   try { localStorage.setItem(BIENVENIDA_DESCARTADA_KEY, '1'); } catch (e) {}
   closeModal('modal-bienvenida');
+  comprobarTutorial('dashboard');
 }
 
 async function comprobarBienvenida() {
@@ -2054,14 +2501,36 @@ async function comprobarBienvenida() {
   } catch (e) {}
 }
 
+// ─── BARRA DE TÍTULO ────────────────────────────────────────────────────────────
+const ICONO_TB_MAXIMIZAR = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="9" height="9"/></svg>';
+const ICONO_TB_RESTAURAR = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.5" y="0.5" width="7" height="7"/><rect x="0.5" y="2.5" width="7" height="7" fill="var(--sidebar-bg)"/></svg>';
+
+function actualizarIconoMaximizar(max) {
+  const btn = document.getElementById('tb-max');
+  if (!btn) return;
+  if (max) {
+    btn.innerHTML = ICONO_TB_RESTAURAR;
+    btn.title = 'Restaurar';
+  } else {
+    btn.innerHTML = ICONO_TB_MAXIMIZAR;
+    btn.title = 'Maximizar';
+  }
+}
+
+document.getElementById('tb-min')?.addEventListener('click', () => window.api.minimizarVentana());
+document.getElementById('tb-max')?.addEventListener('click', () => window.api.maximizarVentana());
+document.getElementById('tb-close')?.addEventListener('click', () => window.api.cerrarVentana());
+window.api.onVentanaMaximizada(actualizarIconoMaximizar);
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.getElementById('relleno-vehiculo')?.addEventListener('change', actualizarContadorSinKm);
 document.getElementById('rr-vehiculo')?.addEventListener('change', loadRegistroRapido);
 document.getElementById('rr-profesor')?.addEventListener('change', (e) => { rrProfesorActual = e.target.value || null; });
 document.getElementById('rr-tipo')?.addEventListener('change', (e) => { rrTipoActual = e.target.value || 'circulacion'; });
 loadDashboard();
-comprobarBienvenida();
+comprobarBienvenida().then(() => comprobarTutorial('dashboard')).catch(() => {});
 window.api.getVersion().then(v => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = 'v' + v;
 });
+window.api.ventanaEstaMaximizada().then(actualizarIconoMaximizar).catch(() => {});

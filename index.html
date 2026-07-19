@@ -51,8 +51,49 @@
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
   ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
+  /* ── TITLEBAR ───────────────────────────────── */
+  /* z-index: 300 la deja por encima de .overlay (z-index: 100) a propósito:
+     con un modal abierto se debe poder seguir minimizando/maximizando/cerrando. */
+  #titlebar {
+    height: 32px;
+    display: flex;
+    align-items: stretch;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--sidebar-border);
+    -webkit-app-region: drag;
+    user-select: none;
+    position: relative;
+    z-index: 300;
+  }
+
+  .tb-app {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sidebar-text);
+  }
+
+  .tb-drag { flex: 1; }
+
+  .tb-btn {
+    -webkit-app-region: no-drag;
+    width: 46px;
+    border: none;
+    background: transparent;
+    color: var(--sidebar-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+  }
+  .tb-btn:hover { background: var(--sidebar-hover); }
+  .tb-btn.tb-close:hover { background: #e81123; color: #fff; }
+
   /* ── LAYOUT ─────────────────────────────────── */
-  #app { display: flex; height: 100vh; overflow: hidden; }
+  #app { display: flex; height: calc(100vh - 32px); overflow: hidden; }
 
   /* ── SIDEBAR ────────────────────────────────── */
   #sidebar {
@@ -229,7 +270,7 @@
   /* ── STATS ──────────────────────────────────── */
   .stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 14px;
     margin-bottom: 20px;
   }
@@ -422,6 +463,19 @@
   }
   .saldo-pendiente { background: var(--danger-light); color: #b91c1c; }
   .saldo-ok        { background: var(--success-light); color: #15803d; }
+
+  .badge-pagada, .badge-parcial, .badge-pendiente-pago, .badge-sin-tarifa {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .badge-pagada        { background: var(--success-light); color: #15803d; }
+  .badge-parcial        { background: var(--warn-light); color: #92400e; }
+  .badge-pendiente-pago { background: var(--danger-light); color: #b91c1c; }
+  .badge-sin-tarifa     { background: #f1f5f9; color: #64748b; }
 
   /* ── REGISTRO RÁPIDO ITEMS ──────────────────── */
   .rr-item {
@@ -862,9 +916,75 @@
     cursor: pointer;
   }
   #sync-conflictos-badge:hover { background: #dc2626; }
+
+  /* ── TUTORIAL ───────────────────────────────── */
+  #tutorial-foco {
+    display: none;
+    position: fixed;
+    box-shadow: 0 0 0 9999px rgba(15,23,42,.55);
+    border-radius: 10px;
+    pointer-events: none;
+    z-index: 400;
+    transition: top .25s ease, left .25s ease, width .25s ease, height .25s ease;
+  }
+
+  #tutorial-bocadillo {
+    display: none;
+    position: fixed;
+    z-index: 401;
+    width: 300px;
+    max-width: calc(100vw - 16px);
+    background: var(--card);
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 64px rgba(16,24,40,.18), 0 4px 12px rgba(16,24,40,.08);
+    border-radius: 14px;
+    padding: 16px 18px;
+    transition: top .25s ease, left .25s ease;
+  }
+
+  #tutorial-bocadillo strong { display: block; font-size: 14px; margin-bottom: 6px; color: var(--text); }
+  #tutorial-bocadillo p { font-size: 12.5px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5; }
+
+  .tutorial-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .tutorial-contador { font-size: 11px; color: #98a2b3; white-space: nowrap; }
+  .tutorial-botones { display: flex; gap: 8px; }
+
+  #tutorial-bocadillo::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    transform: rotate(45deg);
+  }
+  .tutorial-lado-bottom { border-top-left-radius: 4px; }
+  .tutorial-lado-bottom::after { top: -8px; left: var(--tutorial-flecha-x, 24px); margin-left: -7px; border-right: none; border-bottom: none; }
+  .tutorial-lado-top { border-bottom-left-radius: 4px; }
+  .tutorial-lado-top::after { bottom: -8px; left: var(--tutorial-flecha-x, 24px); margin-left: -7px; border-left: none; border-top: none; }
+  .tutorial-lado-right { border-top-left-radius: 4px; }
+  .tutorial-lado-right::after { left: -8px; top: var(--tutorial-flecha-y, 24px); margin-top: -7px; border-right: none; border-top: none; }
+  .tutorial-lado-left { border-top-right-radius: 4px; }
+  .tutorial-lado-left::after { right: -8px; top: var(--tutorial-flecha-y, 24px); margin-top: -7px; border-left: none; border-bottom: none; }
 </style>
 </head>
 <body>
+<div id="titlebar">
+  <div class="tb-app">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 12l3.5-3.5"/><path d="M7.5 14.5a5 5 0 0 1 9 0"/></svg>
+    <span>KMAlumnos</span>
+  </div>
+  <div class="tb-drag"></div>
+  <button class="tb-btn" id="tb-min" title="Minimizar">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><line x1="0" y1="5" x2="10" y2="5"/></svg>
+  </button>
+  <button class="tb-btn" id="tb-max" title="Maximizar">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="9" height="9"/></svg>
+  </button>
+  <button class="tb-btn tb-close" id="tb-close" title="Cerrar">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><line x1="0" y1="0" x2="10" y2="10"/><line x1="10" y1="0" x2="0" y2="10"/></svg>
+  </button>
+</div>
 <div id="app">
 
   <!-- ═══ SIDEBAR ═══════════════════════════════════════════ -->
@@ -975,7 +1095,7 @@
       </div>
 
       <div class="stats">
-        <div class="stat">
+        <div class="stat" id="stat-card-vehiculos">
           <div class="stat-head">
             <span class="lbl">Vehículos</span>
             <div class="stat-icon stat-icon-blue">
@@ -984,7 +1104,7 @@
           </div>
           <div class="num" id="stat-vehiculos">0</div>
         </div>
-        <div class="stat">
+        <div class="stat" id="stat-card-alumnos">
           <div class="stat-head">
             <span class="lbl">Alumnos</span>
             <div class="stat-icon stat-icon-green">
@@ -993,7 +1113,7 @@
           </div>
           <div class="num" id="stat-alumnos">0</div>
         </div>
-        <div class="stat">
+        <div class="stat" id="stat-card-practicas">
           <div class="stat-head">
             <span class="lbl">Prácticas registradas</span>
             <div class="stat-icon stat-icon-orange">
@@ -1001,6 +1121,42 @@
             </div>
           </div>
           <div class="num" id="stat-practicas">0</div>
+        </div>
+        <div class="stat hidden" id="stat-card-practicas-hoy">
+          <div class="stat-head">
+            <span class="lbl">Prácticas hoy</span>
+            <div class="stat-icon stat-icon-orange">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+          </div>
+          <div class="num" id="stat-practicas-hoy">0</div>
+        </div>
+        <div class="stat hidden" id="stat-card-km-mes">
+          <div class="stat-head">
+            <span class="lbl">Km este mes</span>
+            <div class="stat-icon stat-icon-blue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
+          </div>
+          <div class="num" id="stat-km-mes">0</div>
+        </div>
+        <div class="stat hidden" id="stat-card-total-adeudado">
+          <div class="stat-head">
+            <span class="lbl">Total adeudado</span>
+            <div class="stat-icon" style="background:var(--danger-light);color:var(--danger)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+          </div>
+          <div class="num" id="stat-total-adeudado">0 €</div>
+        </div>
+        <div class="stat hidden" id="stat-card-alumnos-deuda">
+          <div class="stat-head">
+            <span class="lbl">Alumnos con deuda</span>
+            <div class="stat-icon stat-icon-orange">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+          </div>
+          <div class="num" id="stat-alumnos-deuda">0</div>
         </div>
       </div>
 
@@ -1212,17 +1368,51 @@
           </div>
         </div>
 
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;margin-bottom:14px">
-          <input type="checkbox" id="deudas-solo-con-deuda" style="width:auto" onchange="loadDeudas()"> Solo con deuda
-        </label>
-
         <div id="pagos-aviso-sin-tarifa" class="hidden alert alert-warn" style="margin-bottom:14px">
           Hay alumnos con prácticas de un tipo sin tarifa definida — su deuda puede estar incompleta. Revisa la pestaña Tarifas.
         </div>
 
+        <div class="card">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></div>
+            Filtros
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Buscar por nombre</label>
+              <input type="text" id="f-deudas-nombre" placeholder="Nombre del alumno..." style="width:200px" oninput="renderDeudasTabla()">
+            </div>
+            <div class="form-group">
+              <label>Estado</label>
+              <select id="f-deudas-estado" style="width:150px" onchange="renderDeudasTabla()">
+                <option value="con-deuda" selected>Con deuda</option>
+                <option value="">Todos</option>
+                <option value="al-dia">Al día</option>
+                <option value="sin-tarifa">Sin tarifa</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Permiso</label>
+              <select id="f-deudas-permiso" style="width:150px" onchange="renderDeudasTabla()"><option value="">Todos los permisos</option></select>
+            </div>
+            <button class="btn btn-gray btn-sm" onclick="limpiarFiltrosDeudas()" style="align-self:flex-end">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Limpiar filtros
+            </button>
+          </div>
+        </div>
+
         <div class="table-wrap">
           <table id="tabla-deudas">
-            <thead><tr><th>Alumno</th><th>Permiso</th><th>Prácticas</th><th>Generado</th><th>Pagado</th><th>Saldo pendiente</th><th>Acciones</th></tr></thead>
+            <thead><tr>
+              <th class="sortable" data-sort="nombre" onclick="ordenarDeudas('nombre')">Alumno<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="permiso" onclick="ordenarDeudas('permiso')">Permiso<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="practicas" onclick="ordenarDeudas('practicas')">Prácticas<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="generado" onclick="ordenarDeudas('generado')">Generado<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="pagado" onclick="ordenarDeudas('pagado')">Pagado<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="saldo" onclick="ordenarDeudas('saldo')">Saldo pendiente<span class="sort-ind"></span></th>
+              <th>Acciones</th>
+            </tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -1622,6 +1812,39 @@
             <span class="range-sep">—</span>
             <input type="number" id="pref-km-max" min="1" max="999" title="Máximo km por práctica" onchange="guardarRangoPrefDesdeAjustes()">
           </div>
+        </div>
+        <div class="form-group">
+          <label>Tarjetas del panel principal</label>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+            <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">
+              <input type="checkbox" id="pref-dash-vehiculos" onchange="guardarDashboardPrefDesdeAjustes()"> Vehículos
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">
+              <input type="checkbox" id="pref-dash-alumnos" onchange="guardarDashboardPrefDesdeAjustes()"> Alumnos
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">
+              <input type="checkbox" id="pref-dash-practicas" onchange="guardarDashboardPrefDesdeAjustes()"> Prácticas registradas
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">
+              <input type="checkbox" id="pref-dash-practicas-hoy" onchange="guardarDashboardPrefDesdeAjustes()"> Prácticas de hoy
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">
+              <input type="checkbox" id="pref-dash-km-mes" onchange="guardarDashboardPrefDesdeAjustes()"> Kilómetros de este mes
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">
+              <input type="checkbox" id="pref-dash-total-adeudado" onchange="guardarDashboardPrefDesdeAjustes()"> Total adeudado
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">
+              <input type="checkbox" id="pref-dash-alumnos-deuda" onchange="guardarDashboardPrefDesdeAjustes()"> Alumnos con deuda
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <button class="btn btn-outline" onclick="reiniciarTutorialesUI()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            Volver a ver el tutorial
+          </button>
+          <div id="tutorial-reset-toast" class="hidden alert" style="margin-top:12px"></div>
         </div>
       </div>
     </div>
@@ -2158,6 +2381,26 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     </div>
     <div class="form-row" style="justify-content:flex-end;margin-top:16px">
       <button class="btn btn-gray" onclick="closeModal('modal-historial-pagos')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL DESGLOSE DE PAGOS ═══════════════════════════════ -->
+<div class="overlay" id="modal-desglose-pagos">
+  <div class="modal" style="width:560px;max-height:80vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></div>
+      <h3 id="modal-desglose-titulo">Desglose de pagos</h3>
+    </div>
+    <div class="table-wrap" style="overflow-y:auto;max-height:50vh">
+      <table id="tabla-desglose-pagos">
+        <thead><tr><th>Fecha</th><th>Tipo</th><th>Precio</th><th>Estado</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="desglose-resumen" style="margin-top:14px;font-size:13px;color:var(--text-muted)"></div>
+    <div class="form-row" style="justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-gray" onclick="closeModal('modal-desglose-pagos')">Cerrar</button>
     </div>
   </div>
 </div>

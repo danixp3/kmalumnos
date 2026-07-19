@@ -535,6 +535,52 @@ function getDeudas() {
     });
 }
 
+// Solo lectura: desglose práctica a práctica de lo generado/cubierto por los pagos (FIFO en céntimos).
+function getDesglosePagosAlumno(alumno_id) {
+  const d = load();
+  const aid = parseInt(alumno_id);
+  const alumno = d.alumnos.find(a => a.id === aid);
+  if (!alumno) return null;
+
+  const practicasAlumno = getPracticasByAlumno(aid);
+  const total_pagado = getPagosByAlumno(aid).reduce((sum, p) => sum + p.cantidad, 0);
+  let total_generado = 0;
+  let restanteCts = Math.round(total_pagado * 100);
+
+  const practicas = practicasAlumno.map(p => {
+    const tipo = p.tipo || 'circulacion';
+    const tarifa = d.tarifas.find(t => t.permiso === alumno.permiso && t.tipo === tipo);
+    if (!tarifa) {
+      return { id: p.id, fecha: p.fecha, tipo, precio: null, estado: 'sin_tarifa', cubierto: 0 };
+    }
+    total_generado += tarifa.precio;
+    const precioCts = Math.round(tarifa.precio * 100);
+    let estado, cubiertoCts;
+    if (restanteCts >= precioCts) {
+      estado = 'pagada';
+      cubiertoCts = precioCts;
+    } else if (restanteCts > 0) {
+      estado = 'parcial';
+      cubiertoCts = restanteCts;
+    } else {
+      estado = 'pendiente';
+      cubiertoCts = 0;
+    }
+    restanteCts -= cubiertoCts;
+    return { id: p.id, fecha: p.fecha, tipo, precio: tarifa.precio, estado, cubierto: cubiertoCts / 100 };
+  });
+
+  return {
+    alumno_id: aid,
+    alumno_nombre: alumno.nombre,
+    permiso: alumno.permiso,
+    practicas,
+    total_generado,
+    total_pagado,
+    saldo: total_generado - total_pagado
+  };
+}
+
 // ─── IMPORTACIÓN CSV ─────────────────────────────────────────────────────────
 function _randomKm(min, max) {
   return Math.round((Math.random() * (max - min) + min) * 10) / 10;
@@ -1018,6 +1064,36 @@ function getResumen() {
   };
 }
 
+/**
+ * Estadísticas opcionales del dashboard (tarjetas activables por el usuario).
+ * `hoy` es opcional 'YYYY-MM-DD'; por defecto la fecha local de hoy.
+ */
+function getStatsDashboard(hoy) {
+  const d = load();
+  if (!hoy) {
+    const pad = n => String(n).padStart(2, '0');
+    const now = new Date();
+    hoy = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+  const mesActual = hoy.slice(0, 7);
+
+  const practicasHoy = d.practicas.filter(p => p.fecha === hoy).length;
+
+  const kmMesRaw = d.practicas
+    .filter(p => p.fecha && p.fecha.slice(0, 7) === mesActual)
+    .reduce((sum, p) => sum + Math.max(0, (p.km_final || 0) - (p.km_inicial || 0)), 0);
+  const kmMes = Math.round(kmMesRaw * 10) / 10;
+
+  // El dinero en este proyecto se guarda en euros con decimales (no céntimos
+  // enteros): getDeudas().saldo ya viene en euros, igual que fmt() lo pinta
+  // en loadDeudas() sin dividir entre 100.
+  const deudas = getDeudas().filter(dd => dd.saldo > 0);
+  const totalAdeudado = deudas.reduce((sum, dd) => sum + dd.saldo, 0);
+  const alumnosConDeuda = deudas.length;
+
+  return { practicasHoy, kmMes, totalAdeudado, alumnosConDeuda };
+}
+
 // ─── ALUMNOS POR VEHÍCULO (para registro rápido) ─────────────────────────────
 /**
  * Devuelve todos los alumnos asignados a un vehículo específico,
@@ -1283,8 +1359,8 @@ module.exports = {
   getTarifas, setTarifa, deleteTarifa,
   getAlumnos, addAlumno, deleteAlumno, updateAlumno,
   getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica,
-  getPagosByAlumno, addPago, updatePago, deletePago, getDeudas,
-  importarCSV, exportarCSV, compararCSVs, getResumen, getSolapamientos,
+  getPagosByAlumno, addPago, updatePago, deletePago, getDeudas, getDesglosePagosAlumno,
+  importarCSV, exportarCSV, compararCSVs, getResumen, getStatsDashboard, getSolapamientos,
   rellenarKmMasivo, getPracticasSinKm,
   corregirSolapamientos,
   getLogs, clearLogs, registrarLogEnData,

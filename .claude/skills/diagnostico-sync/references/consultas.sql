@@ -1,5 +1,6 @@
 -- Consultas de diagnóstico/reparación para Supabase (proyecto dmwoqugdnwgkcqtixhyw)
--- Ejecutar con el MCP de Supabase (execute_sql). Los borrados SIEMPRE son soft delete.
+-- Ejecutar con `node .claude/scripts/sql.js` (lee el token de .mcp.json). Fallback: MCP execute_sql.
+-- Los borrados SIEMPRE son soft delete.
 
 -- ── Diff exacto nube vs PC ──────────────────────────────────────────────────
 -- Sustituir las listas por los ids que da estado_local.ps1
