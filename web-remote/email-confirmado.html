@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta property="og:title" content="KMAlumnos — Cuenta verificada">
+<meta property="og:description" content="Tu cuenta de empresa ha quedado verificada">
+<meta name="theme-color" content="#f6f7f9">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%234f46e5'/><g fill='none' stroke='white' stroke-width='7' stroke-linecap='round'><circle cx='50' cy='50' r='26'/><path d='M50 50l11-11'/><path d='M39 61a15 15 0 0 1 22 0'/></g></svg>">
+<title>KMAlumnos — Cuenta verificada</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  /* ── TOKENS (mismo sistema que index.html / reset-password.html) ── */
+  :root {
+    --primary: #4f46e5;
+    --primary-dark: #4338ca;
+    --primary-light: #eef2ff;
+    --success: #10b981;
+    --success-light: #d1fae5;
+    --danger: #ef4444;
+    --danger-light: #fee2e2;
+    --text: #101828;
+    --text-muted: #667085;
+    --border: #e3e6ee;
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(16,24,40,.05);
+    --shadow-md: 0 6px 20px rgba(16,24,40,.09), 0 1px 2px rgba(16,24,40,.05);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Inter', -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 16px);
+    padding-top: max(env(safe-area-inset-top), 24px);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+
+  .header { text-align: center; margin-bottom: 26px; padding-top: 12px; animation: slideDown 0.5s ease-out; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
+
+  .logo-mark {
+    width: 52px; height: 52px; margin: 0 auto 12px; border-radius: 14px;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    display: flex; align-items: center; justify-content: center; color: #fff;
+    box-shadow: 0 4px 14px rgba(79,70,229,.32);
+  }
+
+  h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); }
+  .subtitle { font-size: 13px; color: var(--text-muted); margin-top: 5px; font-weight: 500; }
+
+  .wrap { width: 100%; max-width: 340px; }
+
+  .card {
+    background: var(--card);
+    border-radius: var(--radius); padding: 22px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    animation: slideUp 0.4s ease-out 0.05s both; position: relative;
+  }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+  .btn {
+    width: 100%; padding: 15px; border: none; border-radius: 13px; font-size: 16px; font-weight: 700;
+    font-family: inherit; cursor: pointer; transition: all .15s ease;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    letter-spacing: -0.2px; margin-top: 20px;
+  }
+  .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(79,70,229,.3); }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-primary:active { transform: scale(0.98); filter: brightness(.95); }
+
+  .result-icon { margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 50%; animation: bounceIn 0.4s ease 0.1s both; }
+  @keyframes bounceIn { 0% { transform: scale(0); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+  .result-icon.ok { background: var(--success-light); color: #059669; }
+  .result-icon.err { background: var(--danger-light); color: #dc2626; }
+
+  .result-title { font-size: 17px; font-weight: 700; margin-bottom: 8px; text-align: center; }
+  .result-msg { font-size: 14px; color: var(--text-muted); line-height: 1.6; text-align: center; }
+
+  .loading-dots { text-align: center; }
+  .loading-dots span { display: inline-block; animation: bounce .6s infinite; font-size: 26px; color: var(--primary); }
+  .loading-dots span:nth-child(2) { animation-delay: .1s; }
+  .loading-dots span:nth-child(3) { animation-delay: .2s; }
+  @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+
+  .estado { display: none; }
+  .estado.active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-mark">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 12l3.5-3.5"/><path d="M7.5 14.5a5 5 0 0 1 9 0"/></svg>
+  </div>
+  <h1>KMAlumnos</h1>
+  <p class="subtitle">Verificación de cuenta</p>
+</div>
+
+<div class="wrap">
+
+  <!-- ESTADO: comprobando el enlace -->
+  <div class="card estado active" id="estado-cargando">
+    <div class="loading-dots"><span>·</span><span>·</span><span>·</span></div>
+    <p class="result-msg" style="margin-top:10px">Comprobando el enlace...</p>
+  </div>
+
+  <!-- ESTADO: éxito -->
+  <div class="card estado" id="estado-exito">
+    <div class="result-icon ok"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.27"/></svg></div>
+    <div class="result-title">✓ Cuenta verificada</div>
+    <div class="result-msg">Ya puedes volver a KMAlumnos e iniciar sesión con tu email y contraseña, tanto en la aplicación de escritorio como en esta web.</div>
+  </div>
+
+  <!-- ESTADO: enlace inválido / caducado / error -->
+  <div class="card estado" id="estado-error">
+    <div class="result-icon err"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+    <div class="result-title">Enlace no válido</div>
+    <div class="result-msg" id="error-msg">Este enlace de verificación no es válido o ha caducado. Vuelve a la app de escritorio e inicia sesión: si tu cuenta aún no está confirmada, podrás pedir que te reenviemos el correo.</div>
+  </div>
+
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://dmwoqugdnwgkcqtixhyw.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtd29xdWdkbndna2NxdGl4aHl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjA5NjYsImV4cCI6MjA5OTU5Njk2Nn0.8XhWdS0ohrCbZcKpHWKsJz22rY8ASA4IkgpbtE_pHkc';
+
+  function mostrarEstado(id) {
+    document.querySelectorAll('.estado').forEach(el => el.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function mostrarError(msg) {
+    if (msg) document.getElementById('error-msg').textContent = msg;
+    mostrarEstado('estado-error');
+  }
+
+  // Cierra la sesión que Supabase acaba de crear al confirmar el email: esta
+  // página es de un solo uso (avisar y mandar de vuelta a la app), no debe
+  // dejar una sesión abierta en el navegador del móvil.
+  async function cerrarSesionYMostrarExito() {
+    try { await window.supabaseClient.auth.signOut(); } catch (e) {}
+    mostrarEstado('estado-exito');
+  }
+
+  async function init() {
+    // Supabase redirige con un error en el hash si el enlace ya no es válido
+    // (usado, caducado...): #error=access_denied&error_code=otp_expired&error_description=...
+    const hashParams = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+    const errorDescription = hashParams.get('error_description');
+    if (hashParams.get('error')) {
+      mostrarError(errorDescription ? decodeURIComponent(errorDescription.replace(/\+/g, ' ')) : null);
+      return;
+    }
+
+    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+    // Sin overrides: detectSessionInUrl (activo por defecto) procesa el token
+    // de confirmación de la URL y deja la sesión creada; a diferencia de
+    // reset-password.html no hay evento PASSWORD_RECOVERY propio, así que se
+    // detecta por el evento SIGNED_IN (o, como red de seguridad, por el
+    // fallback de getSession() de más abajo).
+    window.supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let resuelto = false;
+    window.supabaseClient.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' && !resuelto) {
+        resuelto = true;
+        cerrarSesionYMostrarExito();
+      }
+    });
+
+    // Fallback: si el evento no llega a tiempo pero sí hay sesión activa
+    // (el navegador ya procesó el hash al cargar), damos igualmente por
+    // confirmada la cuenta — esta página no tiene otro uso que avisarlo.
+    setTimeout(async () => {
+      if (resuelto) return;
+      const { data: { session } } = await window.supabaseClient.auth.getSession();
+      if (session) {
+        resuelto = true;
+        cerrarSesionYMostrarExito();
+      } else {
+        mostrarError();
+      }
+    }, 2500);
+  }
+
+  init();
+</script>
+</body>
+</html>

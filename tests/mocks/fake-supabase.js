@@ -74,7 +74,8 @@ module.exports = function makeFakeSupabase(remote) {
       // los tests que no lo necesitan usan un valor por defecto estable.
       return { data: { user: { id: remote.authUserId || 'uid-test', email } }, error: null };
     },
-    async signUp({ email, password }) {
+    async signUp({ email, password, options }) {
+      remote.lastSignUpRedirectTo = options && options.emailRedirectTo;
       if (!remote.online) return { data: null, error: { message: 'Fallo de red (simulado)' } };
       if (remote.signUpError) return { data: null, error: { message: remote.signUpError } };
       const uid = remote.authUserId || 'uid-nueva-empresa';
@@ -87,6 +88,15 @@ module.exports = function makeFakeSupabase(remote) {
         return { data: { user: { id: uid, email, identities: [{}] }, session: null }, error: null };
       }
       return { data: { user: { id: uid, email, identities: [{}] }, session: { access_token: 'tok-test' } }, error: null };
+    },
+    async resetPasswordForEmail(email, options) {
+      if (!remote.online) return { data: null, error: { message: 'Fallo de red (simulado)' } };
+      if (remote.resetPasswordError) return { data: null, error: { message: remote.resetPasswordError } };
+      // No se distingue email existente/inexistente (igual que Supabase real):
+      // el mock solo registra la llamada para que el test compruebe el redirectTo.
+      remote.lastResetPasswordEmail = email;
+      remote.lastResetPasswordRedirectTo = options && options.redirectTo;
+      return { data: {}, error: null };
     }
   };
 
