@@ -138,11 +138,11 @@ async function loadVehiculos() {
   const rows = await Promise.all(vehiculosCache.map(async v => {
     const sinKm = await window.api.getPracticasSinKm(v.id);
     const sinKmBadge = sinKm > 0
-      ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700">${sinKm}</span>`
-      : `<span style="color:#bbb">—</span>`;
+      ? `<span style="background:var(--warn-bg);color:var(--warn-fg);padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700">${sinKm}</span>`
+      : `<span style="color:var(--placeholder)">—</span>`;
     return `<tr>
       <td><strong>${esc(v.nombre)}</strong></td>
-      <td>${esc(v.matricula) || '<span style="color:#bbb">—</span>'}</td>
+      <td>${esc(v.matricula) || '<span style="color:var(--placeholder)">—</span>'}</td>
       <td><span class="km-badge">${fmt(v.km_actual)} km</span></td>
       <td>${sinKmBadge}</td>
       <td>
@@ -162,7 +162,7 @@ async function actualizarContadorSinKm() {
   if (!vid) { info.textContent = ''; return; }
   const n = await window.api.getPracticasSinKm(vid);
   info.textContent = n > 0 ? `${n} práctica(s) sin km` : '✓ Todo relleno';
-  info.style.color = n > 0 ? '#d97706' : '#15803d';
+  info.style.color = n > 0 ? 'var(--warn-fg-soft)' : 'var(--success-fg)';
 }
 
 async function rellenarMasivo() {
@@ -254,7 +254,7 @@ async function loadProfesores() {
   }
   tbody.innerHTML = profesoresCache.map(p => `<tr>
       <td><strong>${esc(p.nombre)}</strong></td>
-      <td>${esc(p.nota) || '<span style="color:#bbb">—</span>'}</td>
+      <td>${esc(p.nota) || '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${p.num_practicas}</td>
       <td>
         <button class="btn btn-warn btn-sm" onclick="openEditProfesor(${p.id},'${esc(p.nombre)}','${esc(p.nota || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
@@ -482,12 +482,12 @@ function renderAlumnosTabla() {
     return `<tr>
       <td><strong>${esc(a.nombre)}</strong></td>
       <td>${tag}</td>
-      <td>${a.vehiculo_nombre ? esc(a.vehiculo_nombre) : '<span style="color:#bbb">Sin asignar</span>'}</td>
-      <td>${a.profesor_nombre ? esc(a.profesor_nombre) : '<span style="color:#bbb">Sin asignar</span>'}</td>
+      <td>${a.vehiculo_nombre ? esc(a.vehiculo_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
+      <td>${a.profesor_nombre ? esc(a.profesor_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
       <td><span style="font-weight:700">${a.num_practicas}</span></td>
       <td>
         <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Prácticas</button>
-        <button class="btn btn-sm" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Anotaciones</button>
+        <button class="btn btn-sm" style="background:var(--warn-bg);color:var(--warn-fg);border:1px solid var(--warn-border)" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Anotaciones</button>
         <button class="btn btn-warn btn-sm" onclick="openEditAlumno(${a.id},'${esc(a.nombre)}','${a.permiso}',${a.vehiculo_id || 'null'},${a.profesor_id || 'null'})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteAlumno(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
       </td>
@@ -594,14 +594,14 @@ async function loadPracticas() {
   tbody.innerHTML = practicas.map((p, i) => {
     const sinKm = p.km_inicial === 0 && p.km_final === 0;
     const diff = Math.round((p.km_final - p.km_inicial) * 10) / 10;
-    const kmICell = sinKm ? '<span style="color:#d97706;font-style:italic">Sin km</span>' : fmt(p.km_inicial);
-    const kmFCell = sinKm ? '<span style="color:#d97706;font-style:italic">Sin km</span>' : fmt(p.km_final);
-    const diffCell = sinKm ? '<span style="color:#d97706;font-style:italic">—</span>' : `<span class="km-badge">+${diff} km</span>`;
-    const profesorCell = p.profesor_nombre ? esc(p.profesor_nombre) : '<span style="color:#bbb">—</span>';
+    const kmICell = sinKm ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : fmt(p.km_inicial);
+    const kmFCell = sinKm ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : fmt(p.km_final);
+    const diffCell = sinKm ? '<span style="color:var(--warn-fg-soft);font-style:italic">—</span>' : `<span class="km-badge">+${diff} km</span>`;
+    const profesorCell = p.profesor_nombre ? esc(p.profesor_nombre) : '<span style="color:var(--placeholder)">—</span>';
     const profesorIdArg = p.profesor_id != null ? p.profesor_id : 'null';
     const tipo = p.tipo || 'circulacion';
     const tipoCell = tipo === 'pista' ? 'Pista' : 'Circulación';
-    return `<tr${sinKm ? ' style="background:#fffbeb"' : ''}>
+    return `<tr${sinKm ? ' style="background:var(--warn-bg-soft)"' : ''}>
       <td>${i + 1}</td>
       <td>${fmtFecha(p.fecha)}</td>
       <td>${kmICell}</td>
@@ -913,7 +913,7 @@ async function abrirHistorialPagos(alumnoId, alumnoNombre) {
     tbody.innerHTML = pagos.map(p => `<tr>
       <td>${fmtFecha(p.fecha)}</td>
       <td>${fmt(p.cantidad)} €</td>
-      <td>${p.nota ? esc(p.nota) : '<span style="color:#bbb">—</span>'}</td>
+      <td>${p.nota ? esc(p.nota) : '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>
         <button class="btn btn-warn btn-sm" onclick="openEditPago(${p.id},${alumnoId},'${esc(alumnoNombre)}','${p.fecha}',${p.cantidad},'${esc(p.nota || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
         <button class="btn btn-danger btn-sm" onclick="deletePagoUI(${p.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
@@ -952,7 +952,7 @@ async function abrirDesglosePagos(alumnoId, alumnoNombre) {
     tbody.innerHTML = desglose.practicas.map(p => `<tr>
       <td>${fmtFecha(p.fecha)}</td>
       <td>${esc(TIPO_LABEL[p.tipo] || p.tipo)}</td>
-      <td>${p.precio != null ? fmt(p.precio) + ' €' : '<span style="color:#bbb">—</span>'}</td>
+      <td>${p.precio != null ? fmt(p.precio) + ' €' : '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${ESTADO_BADGE[p.estado](p)}</td>
     </tr>`).join('');
   }
@@ -1128,8 +1128,8 @@ async function compararCSVs() {
   if (res.alumnosSoloEnA.length || res.alumnosSoloEnB.length) {
     alumnosCard.style.display = '';
     document.getElementById('cmp-alumnos').innerHTML = `
-      ${res.alumnosSoloEnA.length ? `<div style="margin-bottom:8px"><strong style="color:#d97706">Solo en A:</strong> ${res.alumnosSoloEnA.map(a => esc(a)).join(', ')}</div>` : ''}
-      ${res.alumnosSoloEnB.length ? `<div><strong style="color:#2563eb">Solo en B:</strong> ${res.alumnosSoloEnB.map(a => esc(a)).join(', ')}</div>` : ''}
+      ${res.alumnosSoloEnA.length ? `<div style="margin-bottom:8px"><strong style="color:var(--warn-fg-soft)">Solo en A:</strong> ${res.alumnosSoloEnA.map(a => esc(a)).join(', ')}</div>` : ''}
+      ${res.alumnosSoloEnB.length ? `<div><strong style="color:var(--info-fg)">Solo en B:</strong> ${res.alumnosSoloEnB.map(a => esc(a)).join(', ')}</div>` : ''}
     `;
   } else {
     alumnosCard.style.display = 'none';
@@ -1161,12 +1161,12 @@ async function compararCSVs() {
       }
       
       if (a.soloEnA.length > 0) {
-        html += `<div style="margin-bottom:6px"><span style="color:#d97706;font-weight:500">Solo en A (${a.soloEnA.length}):</span> 
+        html += `<div style="margin-bottom:6px"><span style="color:var(--warn-fg-soft);font-weight:500">Solo en A (${a.soloEnA.length}):</span>
           <span style="font-size:12px">${a.soloEnA.map(d => `<span style="background:#fef3c7;padding:2px 6px;border-radius:4px;margin:2px">${d.fecha} (${d.cant})</span>`).join(' ')}</span></div>`;
       }
       
       if (a.soloEnB.length > 0) {
-        html += `<div><span style="color:#2563eb;font-weight:500">Solo en B (${a.soloEnB.length}):</span> 
+        html += `<div><span style="color:var(--info-fg);font-weight:500">Solo en B (${a.soloEnB.length}):</span>
           <span style="font-size:12px">${a.soloEnB.map(d => `<span style="background:#dbeafe;padding:2px 6px;border-radius:4px;margin:2px">${d.fecha} (${d.cant})</span>`).join(' ')}</span></div>`;
       }
       
@@ -1217,6 +1217,54 @@ function tagPermiso(p) {
   const cls = p === 'B' ? 'tag-b' : p === 'C' ? 'tag-c' : 'tag-a';
   return `<span class="tag ${cls}">${p}</span>`;
 }
+
+// ─── TEMA ─────────────────────────────────────────────────────────────────────
+const TEMA_KEY = 'kmalumnos_tema';
+const ICONO_TEMA_SOL = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+const ICONO_TEMA_LUNA = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+
+function getTema() {
+  try {
+    const t = localStorage.getItem(TEMA_KEY);
+    if (t === 'claro' || t === 'oscuro' || t === 'negro') return t;
+  } catch (e) {}
+  return 'claro';
+}
+
+function aplicarTema(t) {
+  if (t === 'claro') document.body.removeAttribute('data-theme');
+  else document.body.setAttribute('data-theme', t);
+
+  const btn = document.getElementById('tb-tema');
+  if (btn) btn.innerHTML = t === 'claro' ? ICONO_TEMA_SOL : ICONO_TEMA_LUNA;
+
+  document.querySelectorAll('#tema-menu .tema-menu-item').forEach(el => {
+    el.classList.toggle('activa', el.dataset.tema === t);
+  });
+}
+
+function guardarTema(t) {
+  try { localStorage.setItem(TEMA_KEY, t); } catch (e) {}
+  const color = t === 'negro' ? '#000000' : t === 'oscuro' ? '#0f172a' : '#f6f7f9';
+  if (window.api && window.api.guardarTemaFondo) window.api.guardarTemaFondo(color).catch(() => {});
+}
+
+function elegirTema(t) {
+  aplicarTema(t);
+  guardarTema(t);
+  document.getElementById('tema-menu')?.classList.add('hidden');
+}
+
+function toggleMenuTema() {
+  document.getElementById('tema-menu')?.classList.toggle('hidden');
+}
+
+document.getElementById('tb-tema')?.addEventListener('click', (e) => { e.stopPropagation(); toggleMenuTema(); });
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('tema-menu');
+  if (!menu || menu.classList.contains('hidden')) return;
+  if (!menu.contains(e.target)) menu.classList.add('hidden');
+});
 
 // ─── PREFERENCIAS (rango de km por defecto) ──────────────────────────────────
 const PREF_RANGO_KEY = 'kmalumnos_rango_km';
@@ -1291,7 +1339,7 @@ async function loadSolapamientos() {
   const btnCorregir = document.getElementById('btn-corregir-todo');
 
   if (!conflictos.length) {
-    el.innerHTML = '<div class="card"><p class="empty" style="color:#15803d;font-weight:600">✓ No se detectaron solapamientos de kilómetros.</p></div>';
+    el.innerHTML = '<div class="card"><p class="empty" style="color:var(--success-fg);font-weight:600">✓ No se detectaron solapamientos de kilómetros.</p></div>';
     if (btnCorregir) btnCorregir.style.display = 'none';
     return;
   }
@@ -1310,7 +1358,7 @@ async function loadSolapamientos() {
 
   for (const [vehiculo, lista] of Object.entries(porVehiculo)) {
     html += `<div class="card" style="padding:0 0 1px;margin-bottom:16px">
-      <div style="padding:12px 16px;background:#fef3c7;border-radius:10px 10px 0 0;font-weight:700;font-size:13px;color:#92400e">
+      <div style="padding:12px 16px;background:var(--warn-bg);border-radius:10px 10px 0 0;font-weight:700;font-size:13px;color:var(--warn-fg)">
         ${esc(vehiculo)} — ${lista.length} conflicto(s)
       </div>
       <table>
@@ -1505,25 +1553,25 @@ async function loadTimeline() {
 
     // Color de fila según estado
     let rowStyle = '';
-    let estadoCell = '<span style="color:#15803d;font-size:12px">✓ OK</span>';
+    let estadoCell = '<span style="color:var(--success-fg);font-size:12px">✓ OK</span>';
 
     if (p.sin_km) {
-      rowStyle = ' style="background:#fffbeb"';
-      estadoCell = '<span style="color:#d97706;font-size:12px;font-weight:600">⏳ Sin km</span>';
+      rowStyle = ' style="background:var(--warn-bg-soft)"';
+      estadoCell = '<span style="color:var(--warn-fg-soft);font-size:12px;font-weight:600">⏳ Sin km</span>';
     } else if (p.gap !== null && p.gap < 0) {
-      rowStyle = ' style="background:#fef2f2"';
-      estadoCell = `<span style="color:#dc2626;font-size:12px;font-weight:600">Solapa ${fmt(p.gap)} km</span>`;
+      rowStyle = ' style="background:var(--danger-bg-soft)"';
+      estadoCell = `<span style="color:var(--danger-fg-soft);font-size:12px;font-weight:600">Solapa ${fmt(p.gap)} km</span>`;
     } else if (p.gap !== null && p.gap > 0) {
-      rowStyle = ' style="background:#fffbeb"';
-      estadoCell = `<span style="color:#d97706;font-size:12px;font-weight:600">Hueco +${fmt(p.gap)} km</span>`;
+      rowStyle = ' style="background:var(--warn-bg-soft)"';
+      estadoCell = `<span style="color:var(--warn-fg-soft);font-size:12px;font-weight:600">Hueco +${fmt(p.gap)} km</span>`;
     }
 
-    const kmI = p.sin_km ? '<span style="color:#d97706;font-style:italic">—</span>' : `<strong>${fmt(p.km_inicial)}</strong>`;
-    const kmF = p.sin_km ? '<span style="color:#d97706;font-style:italic">—</span>' : fmt(p.km_final);
+    const kmI = p.sin_km ? '<span style="color:var(--warn-fg-soft);font-style:italic">—</span>' : `<strong>${fmt(p.km_inicial)}</strong>`;
+    const kmF = p.sin_km ? '<span style="color:var(--warn-fg-soft);font-style:italic">—</span>' : fmt(p.km_final);
     const rec = p.sin_km ? '—' : `<span class="km-badge">+${diff} km</span>`;
 
     html += `<tr${rowStyle}>
-      <td style="color:#94a3b8;font-size:12px">${i + 1}</td>
+      <td style="color:var(--text-faint);font-size:12px">${i + 1}</td>
       <td><strong>${esc(p.alumno_nombre)}</strong></td>
       <td>${fmtFecha(p.fecha)}</td>
       <td>${kmI}</td>
@@ -1568,7 +1616,7 @@ function renderTimelineChart(practicas) {
 
   // Leyenda
   legendEl.innerHTML = alumnos.map(a =>
-    `<span style="display:inline-flex;align-items:center;gap:5px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:3px 9px">
+    `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:3px 9px">
       <span style="width:10px;height:10px;border-radius:3px;background:${colorMap[a]};flex-shrink:0"></span>
       ${esc(a)}
     </span>`
@@ -2164,7 +2212,7 @@ function updateRRContador(alumnos) {
   const cont = document.getElementById('rr-contador');
   if (cont) {
     cont.innerHTML = `<strong>${totalPracticas}</strong> práctica(s) · ${conPracticas} de ${total} alumnos`;
-    cont.style.color = totalPracticas > 0 ? '#15803d' : 'var(--text-muted)';
+    cont.style.color = totalPracticas > 0 ? 'var(--success-fg)' : 'var(--text-muted)';
   }
 }
 
@@ -2352,32 +2400,81 @@ function comprobarTutorial(page) {
   tutorialPasoIdx = 0;
   crearDomTutorial();
   window.addEventListener('resize', tutorialAlRedimensionar);
+  window.addEventListener('scroll', tutorialOnScroll, true);
   mostrarPasoTutorial(0);
+}
+
+let tutorialRafPending = false;
+let tutorialScrollEndTimer = null;
+
+// Throttlea el reposicionamiento durante el scroll con requestAnimationFrame para no
+// saturar de cálculos de layout, y quita momentáneamente la transición CSS del foco y
+// el bocadillo (si no, dan sensación de "arrastre" persiguiendo al elemento).
+function tutorialOnScroll() {
+  if (!tutorialActivo) return;
+
+  if (tutorialFocoEl) tutorialFocoEl.classList.add('tutorial-sin-transicion');
+  if (tutorialBocadilloEl) tutorialBocadilloEl.classList.add('tutorial-sin-transicion');
+  clearTimeout(tutorialScrollEndTimer);
+  tutorialScrollEndTimer = setTimeout(() => {
+    if (tutorialFocoEl) tutorialFocoEl.classList.remove('tutorial-sin-transicion');
+    if (tutorialBocadilloEl) tutorialBocadilloEl.classList.remove('tutorial-sin-transicion');
+  }, 150);
+
+  if (tutorialRafPending) return;
+  tutorialRafPending = true;
+  requestAnimationFrame(() => {
+    tutorialRafPending = false;
+    if (tutorialActivo) tutorialAlRedimensionar();
+  });
+}
+
+// Busca desde `desde`, avanzando en pasos de `dir` (+1 adelante, -1 atrás), el primer
+// índice cuyo paso exista y cuyo elemento esté realmente visible. Ejecuta el `antes()`
+// de cada paso que va probando (algunos pasos solo son visibles tras cambiar de pestaña).
+// Devuelve -1 si se sale del rango sin encontrar ninguno mostrable.
+function buscarPasoMostrable(desde, dir) {
+  const pasos = TUTORIAL_PASOS[tutorialPage] || [];
+  let i = desde;
+  while (i >= 0 && i < pasos.length) {
+    const paso = pasos[i];
+    if (typeof paso.antes === 'function') { try { paso.antes(); } catch (e) {} }
+    const el = document.querySelector(paso.sel);
+    if (el && el.offsetParent !== null) return i;
+    i += dir;
+  }
+  return -1;
 }
 
 function mostrarPasoTutorial(i) {
   const pasos = TUTORIAL_PASOS[tutorialPage] || [];
-  if (!tutorialActivo || i >= pasos.length) { cerrarTutorial(true); return; }
-  tutorialPasoIdx = i;
-  const paso = pasos[i];
-  if (typeof paso.antes === 'function') { try { paso.antes(); } catch (e) {} }
+  if (!tutorialActivo) return;
+  const idx = buscarPasoMostrable(i, +1);
+  if (idx < 0) { cerrarTutorial(true); return; }
+  tutorialPasoIdx = idx;
+  const paso = pasos[idx];
   const el = document.querySelector(paso.sel);
-  if (!el || el.offsetParent === null) { mostrarPasoTutorial(i + 1); return; }
   el.scrollIntoView({ block: 'center', behavior: 'instant' });
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      if (!tutorialActivo || tutorialPasoIdx !== i) return;
+      if (!tutorialActivo || tutorialPasoIdx !== idx) return;
       const rect = el.getBoundingClientRect();
       tutorialFocoEl.style.display = 'block';
       tutorialBocadilloEl.style.display = 'block';
       pintarFocoTutorial(rect);
-      pintarBocadilloTutorial(rect, paso, i, pasos.length);
+      pintarBocadilloTutorial(rect, paso, idx, pasos.length);
+      setTimeout(() => { if (tutorialActivo && tutorialPasoIdx === idx) tutorialAlRedimensionar(); }, 320);
     });
   });
 }
 
 function siguientePasoTutorial() {
   mostrarPasoTutorial(tutorialPasoIdx + 1);
+}
+
+function anteriorPasoTutorial() {
+  const prev = buscarPasoMostrable(tutorialPasoIdx - 1, -1);
+  if (prev >= 0) mostrarPasoTutorial(prev);
 }
 
 function pintarFocoTutorial(rect) {
@@ -2397,6 +2494,7 @@ function pintarBocadilloTutorial(rect, paso, i, total) {
       `<span class="tutorial-contador">Paso ${i + 1} de ${total}</span>` +
       `<div class="tutorial-botones">` +
         `<button class="btn btn-gray btn-sm" onclick="cerrarTutorial(true)">Saltar</button>` +
+        (i > 0 ? `<button class="btn btn-gray btn-sm" onclick="anteriorPasoTutorial()">Atrás</button>` : '') +
         `<button class="btn btn-primary btn-sm" onclick="siguientePasoTutorial()">${ultimo ? 'Entendido' : 'Siguiente'}</button>` +
       `</div>` +
     `</div>`;
@@ -2427,7 +2525,7 @@ function posicionarBocadillo(rect, posPref) {
   }
 
   const left = Math.max(8, Math.min(elegido.left, vw - bw - 8));
-  const top = Math.max(40, elegido.top);
+  const top = Math.max(40, Math.min(elegido.top, vh - bh - 8));
 
   tutorialBocadilloEl.style.top = top + 'px';
   tutorialBocadilloEl.style.left = left + 'px';
@@ -2456,6 +2554,8 @@ function cerrarTutorial(marcarVisto) {
   if (tutorialFocoEl) tutorialFocoEl.style.display = 'none';
   if (tutorialBocadilloEl) tutorialBocadilloEl.style.display = 'none';
   window.removeEventListener('resize', tutorialAlRedimensionar);
+  window.removeEventListener('scroll', tutorialOnScroll, true);
+  clearTimeout(tutorialScrollEndTimer);
   tutorialActivo = false;
   tutorialPage = null;
   tutorialPasoIdx = 0;
@@ -2464,7 +2564,8 @@ function cerrarTutorial(marcarVisto) {
 function reiniciarTutorialesUI() {
   try { localStorage.removeItem(TUTORIAL_VISTO_KEY); } catch (e) {}
   showToast('tutorial-reset-toast', 'Los tutoriales volverán a aparecer al entrar en cada sección.', 'ok');
-  comprobarTutorial('ajustes');
+  navegarA('dashboard');
+  comprobarTutorial('dashboard');
 }
 
 // ─── BIENVENIDA (instalación nueva) ────────────────────────────────────────────
@@ -2523,6 +2624,7 @@ document.getElementById('tb-close')?.addEventListener('click', () => window.api.
 window.api.onVentanaMaximizada(actualizarIconoMaximizar);
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
+aplicarTema(getTema());
 document.getElementById('relleno-vehiculo')?.addEventListener('change', actualizarContadorSinKm);
 document.getElementById('rr-vehiculo')?.addEventListener('change', loadRegistroRapido);
 document.getElementById('rr-profesor')?.addEventListener('change', (e) => { rrProfesorActual = e.target.value || null; });
