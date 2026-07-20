@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('api', {
   cerrarVentana:          () => ipcRenderer.invoke('ventana-cerrar'),
   ventanaEstaMaximizada:  () => ipcRenderer.invoke('ventana-esta-maximizada'),
   onVentanaMaximizada:    (cb) => ipcRenderer.on('ventana-maximizada', (_, max) => cb(max)),
+  guardarTemaFondo:       (color) => ipcRenderer.invoke('guardar-tema-fondo', color),
 
   // Vehículos
   getVehiculos:     ()                        => ipcRenderer.invoke('get-vehiculos'),

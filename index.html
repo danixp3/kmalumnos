@@ -32,6 +32,180 @@
     --radius: 12px;
     --shadow: 0 1px 2px rgba(16,24,40,.05);
     --shadow-md: 0 4px 14px rgba(16,24,40,.08), 0 1px 2px rgba(16,24,40,.05);
+
+    /* ── TEMA: superficies y bordes auxiliares ── */
+    --surface-2: #f8fafc;
+    --input-bg: #ffffff;
+    --border-strong: #d3d9f0;
+    --overlay: rgba(15,23,42,.5);
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: #cbd5e1;
+    --scrollbar-thumb-hover: #94a3b8;
+    --placeholder: #bbb;
+    --tutorial-overlay: rgba(15,23,42,.55);
+    --text-faint: #98a2b3;
+    --text-faint-2: #c0c7d2;
+
+    /* ── TEMA: pares de estado (fondo + texto) ── */
+    --warn-bg: #fef3c7;
+    --warn-bg-soft: #fffbeb;
+    --warn-fg: #92400e;
+    --warn-fg-soft: #d97706;
+    --warn-border: #fcd34d;
+    --success-bg: #d1fae5;
+    --success-bg-soft: #f0fdf4;
+    --success-bg-selected: #ecfdf5;
+    --success-fg: #15803d;
+    --success-fg-soft: #059669;
+    --success-border: #86efac;
+    --danger-bg: #fee2e2;
+    --danger-bg-soft: #fef2f2;
+    --danger-fg: #b91c1c;
+    --danger-fg-soft: #dc2626;
+    --danger-border: #fca5a5;
+    --info-bg: #eff6ff;
+    --info-fg: #1d4ed8;
+    --info-border: #93c5fd;
+    --tag-b-bg: #e0e7ff;
+    --tag-b-fg: #4338ca;
+    --tag-c-bg: #f3e8ff;
+    --tag-c-fg: #6b21a8;
+    --btn-gray-bg: #eef0f4;
+    --btn-gray-bg-hover: #e3e6ec;
+    --btn-gray-fg: #475467;
+    --banner-primary-from: #f8f9ff;
+    --banner-success-from: #f4fdf8;
+    --banner-warn-from: #fffcf2;
+  }
+
+  /* ── TEMA OSCURO (suave) ────────────────────── */
+  body[data-theme="oscuro"] {
+    --sidebar-bg: #1e293b;
+    --sidebar-border: #334155;
+    --sidebar-text: #cbd5e1;
+    --sidebar-hover: #243244;
+    --sidebar-active: #312e81;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --border: #334155;
+    --bg: #0f172a;
+    --card: #1e293b;
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-md: 0 4px 14px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.4);
+
+    --surface-2: #243244;
+    --input-bg: #0f172a;
+    --border-strong: #475569;
+    --overlay: rgba(0,0,0,.6);
+    --scrollbar-track: #1e293b;
+    --scrollbar-thumb: #475569;
+    --scrollbar-thumb-hover: #64748b;
+    --placeholder: #64748b;
+    --tutorial-overlay: rgba(0,0,0,.7);
+    --text-faint: #64748b;
+    --text-faint-2: #475569;
+
+    --primary-light: #1e2758;
+    --success-light: #0f2e1f;
+    --danger-light: #3a1518;
+    --warn-light: #3a2e12;
+    --gray: #94a3b8;
+    --gray-light: #243244;
+
+    --warn-bg: #3a2e12;
+    --warn-bg-soft: #3a2e12;
+    --warn-fg: #fcd34d;
+    --warn-fg-soft: #fbbf24;
+    --warn-border: #78500c;
+    --success-bg: #0f2e1f;
+    --success-bg-soft: #0f2e1f;
+    --success-bg-selected: #0f2e1f;
+    --success-fg: #6ee7b7;
+    --success-fg-soft: #34d399;
+    --success-border: #15803d;
+    --danger-bg: #3a1518;
+    --danger-bg-soft: #3a1518;
+    --danger-fg: #fca5a5;
+    --danger-fg-soft: #f87171;
+    --danger-border: #7f1d1d;
+    --info-bg: #1e1b4b;
+    --info-fg: #c7d2fe;
+    --info-border: #4338ca;
+    --tag-b-bg: #1e2758;
+    --tag-b-fg: #c7d2fe;
+    --tag-c-bg: #2e1065;
+    --tag-c-fg: #e9d5ff;
+    --btn-gray-bg: #243244;
+    --btn-gray-bg-hover: #334155;
+    --btn-gray-fg: #cbd5e1;
+    --banner-primary-from: #1a2140;
+    --banner-success-from: #132a1e;
+    --banner-warn-from: #2e2712;
+  }
+
+  /* ── TEMA OSCURO PURO (negro) ───────────────── */
+  body[data-theme="negro"] {
+    --sidebar-bg: #0a0a0a;
+    --sidebar-border: #262626;
+    --sidebar-text: #d4d4d4;
+    --sidebar-hover: #161616;
+    --sidebar-active: #1e1b4b;
+    --text: #f5f5f5;
+    --text-muted: #a3a3a3;
+    --border: #262626;
+    --bg: #000000;
+    --card: #0d0d0d;
+    --shadow: 0 0 0 1px #1a1a1a;
+    --shadow-md: 0 0 0 1px #262626;
+
+    --surface-2: #161616;
+    --input-bg: #0a0a0a;
+    --border-strong: #333333;
+    --overlay: rgba(0,0,0,.78);
+    --scrollbar-track: #0d0d0d;
+    --scrollbar-thumb: #333333;
+    --scrollbar-thumb-hover: #4d4d4d;
+    --placeholder: #525252;
+    --tutorial-overlay: rgba(0,0,0,.82);
+    --text-faint: #525252;
+    --text-faint-2: #404040;
+
+    --primary-light: #14132e;
+    --success-light: #0a2318;
+    --danger-light: #2a0f12;
+    --warn-light: #2a2109;
+    --gray: #a3a3a3;
+    --gray-light: #161616;
+
+    --warn-bg: #2a2109;
+    --warn-bg-soft: #2a2109;
+    --warn-fg: #fbbf24;
+    --warn-fg-soft: #f59e0b;
+    --warn-border: #5c3d09;
+    --success-bg: #0a2318;
+    --success-bg-soft: #0a2318;
+    --success-bg-selected: #0a2318;
+    --success-fg: #4ade80;
+    --success-fg-soft: #22c55e;
+    --success-border: #166534;
+    --danger-bg: #2a0f12;
+    --danger-bg-soft: #2a0f12;
+    --danger-fg: #f87171;
+    --danger-fg-soft: #ef4444;
+    --danger-border: #7f1d1d;
+    --info-bg: #14132e;
+    --info-fg: #a5b4fc;
+    --info-border: #312e81;
+    --tag-b-bg: #14132e;
+    --tag-b-fg: #a5b4fc;
+    --tag-c-bg: #1a0a33;
+    --tag-c-fg: #d8b4fe;
+    --btn-gray-bg: #161616;
+    --btn-gray-bg-hover: #222222;
+    --btn-gray-fg: #d4d4d4;
+    --banner-primary-from: #0f0f24;
+    --banner-success-from: #081a10;
+    --banner-warn-from: #1f1a08;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -47,9 +221,9 @@
 
   /* ── SCROLLBAR ──────────────────────────────── */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
-  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
   /* ── TITLEBAR ───────────────────────────────── */
   /* z-index: 300 la deja por encima de .overlay (z-index: 100) a propósito:
@@ -70,10 +244,23 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0 12px;
-    font-size: 12px;
-    font-weight: 600;
+    padding: 0 10px 0 14px;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .2px;
     color: var(--sidebar-text);
+  }
+
+  .tb-brand-icon {
+    width: 19px;
+    height: 19px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
   }
 
   .tb-drag { flex: 1; }
@@ -91,6 +278,50 @@
   }
   .tb-btn:hover { background: var(--sidebar-hover); }
   .tb-btn.tb-close:hover { background: #e81123; color: #fff; }
+
+  .tb-sep {
+    align-self: center;
+    width: 1px;
+    height: 16px;
+    margin: 0 2px;
+    background: var(--sidebar-border);
+    flex-shrink: 0;
+  }
+
+  #tema-menu {
+    position: absolute;
+    top: 32px;
+    right: 143px;
+    z-index: 350;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow-md);
+    padding: 6px;
+    width: 168px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .tema-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+    transition: background .12s ease;
+  }
+  .tema-menu-item:hover { background: var(--sidebar-hover); }
+  .tema-menu-item span { flex: 1; }
+  .tema-menu-check { opacity: 0; flex-shrink: 0; color: var(--primary); }
+  .tema-menu-item.activa { background: var(--sidebar-active); color: var(--primary); font-weight: 600; }
+  .tema-menu-item.activa .tema-menu-check { opacity: 1; }
 
   /* ── LAYOUT ─────────────────────────────────── */
   #app { display: flex; height: calc(100vh - 32px); overflow: hidden; }
@@ -159,7 +390,7 @@
   .nav-section {
     font-size: 10.5px;
     font-weight: 600;
-    color: #98a2b3;
+    color: var(--text-faint);
     letter-spacing: .8px;
     text-transform: uppercase;
     padding: 12px 8px 6px;
@@ -308,9 +539,9 @@
     flex-shrink: 0;
   }
 
-  .stat-icon-blue  { background: #eef2ff; color: #4f46e5; }
-  .stat-icon-green { background: #ecfdf5; color: #059669; }
-  .stat-icon-orange{ background: #fffbeb; color: #d97706; }
+  .stat-icon-blue  { background: var(--primary-light); color: var(--primary); }
+  .stat-icon-green { background: var(--success-bg-selected); color: var(--success-fg-soft); }
+  .stat-icon-orange{ background: var(--warn-bg-soft); color: var(--warn-fg-soft); }
 
   .stat .num { font-size: 30px; font-weight: 700; color: var(--text); letter-spacing: -1px; line-height: 1; }
 
@@ -327,12 +558,12 @@
 
   input, select {
     padding: 8px 11px;
-    border: 1px solid #d6dae3;
+    border: 1px solid var(--border-strong);
     border-radius: 8px;
     font-size: 13px;
     font-family: inherit;
     outline: none;
-    background: #fff;
+    background: var(--input-bg);
     color: var(--text);
     box-shadow: 0 1px 2px rgba(16,24,40,.04);
     transition: border-color .15s, box-shadow .15s;
@@ -343,7 +574,7 @@
     box-shadow: 0 0 0 3px rgba(79,70,229,.13);
   }
 
-  input::placeholder { color: #cbd5e1; }
+  input::placeholder { color: var(--placeholder); }
   input[type=number] { width: 130px; }
 
   /* ── BUTTONS ────────────────────────────────── */
@@ -370,9 +601,9 @@
   .btn-success { background: var(--success); color: #fff; box-shadow: 0 1px 3px rgba(16,185,129,.3); }
   .btn-danger  { background: var(--danger);  color: #fff; box-shadow: 0 1px 3px rgba(239,68,68,.3); }
   .btn-warn    { background: var(--warn);    color: #fff; box-shadow: 0 1px 3px rgba(245,158,11,.3); }
-  .btn-gray    { background: #eef0f4; color: #475467; box-shadow: none; }
-  .btn-gray:hover { background: #e3e6ec; filter: none; box-shadow: none; }
-  .btn-outline { background: #fff; color: var(--primary); border: 1px solid #d3d9f0; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+  .btn-gray    { background: var(--btn-gray-bg); color: var(--btn-gray-fg); box-shadow: none; }
+  .btn-gray:hover { background: var(--btn-gray-bg-hover); filter: none; box-shadow: none; }
+  .btn-outline { background: var(--input-bg); color: var(--primary); border: 1px solid var(--border-strong); box-shadow: 0 1px 2px rgba(16,24,40,.04); }
   .btn-outline:hover { background: var(--primary-light); border-color: var(--primary); filter: none; }
 
   .btn-sm { padding: 6px 11px; font-size: 12px; border-radius: 6px; }
@@ -383,13 +614,13 @@
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
-  thead { background: #f9fafc; }
+  thead { background: var(--surface-2); }
   th {
     padding: 10px 14px;
     text-align: left;
     font-weight: 600;
     font-size: 11px;
-    color: #667085;
+    color: var(--text-muted);
     letter-spacing: .5px;
     text-transform: uppercase;
     border-bottom: 1px solid var(--border);
@@ -407,14 +638,14 @@
 
   td {
     padding: 10.5px 14px;
-    border-bottom: 1px solid #f2f4f7;
+    border-bottom: 1px solid var(--border);
     vertical-align: middle;
   }
 
-  tbody { background: #fff; }
+  tbody { background: var(--input-bg); }
   tbody tr:last-child td { border-bottom: none; }
   tbody tr { transition: background .1s; }
-  tbody tr:hover td { background: #f8f9fc; }
+  tbody tr:hover td { background: var(--surface-2); }
 
   /* ── BADGES ─────────────────────────────────── */
   .tag {
@@ -427,17 +658,17 @@
     letter-spacing: .3px;
   }
 
-  .tag-b { background: #e0e7ff; color: #4338ca; }
-  .tag-a { background: var(--warn-light); color: #92400e; }
-  .tag-c { background: #f3e8ff; color: #6b21a8; }
+  .tag-b { background: var(--tag-b-bg); color: var(--tag-b-fg); }
+  .tag-a { background: var(--warn-light); color: var(--warn-fg); }
+  .tag-c { background: var(--tag-c-bg); color: var(--tag-c-fg); }
 
   .km-badge {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    background: #f0fdf4;
-    border: 1px solid #86efac;
-    color: #15803d;
+    background: var(--success-bg-soft);
+    border: 1px solid var(--success-border);
+    color: var(--success-fg);
     padding: 3px 10px;
     border-radius: 20px;
     font-size: 12px;
@@ -446,7 +677,7 @@
 
   .badge-warn {
     background: var(--warn-light);
-    color: #92400e;
+    color: var(--warn-fg);
     padding: 3px 9px;
     border-radius: 6px;
     font-size: 11.5px;
@@ -461,8 +692,8 @@
     font-size: 12px;
     font-weight: 700;
   }
-  .saldo-pendiente { background: var(--danger-light); color: #b91c1c; }
-  .saldo-ok        { background: var(--success-light); color: #15803d; }
+  .saldo-pendiente { background: var(--danger-light); color: var(--danger-fg); }
+  .saldo-ok        { background: var(--success-light); color: var(--success-fg); }
 
   .badge-pagada, .badge-parcial, .badge-pendiente-pago, .badge-sin-tarifa {
     display: inline-flex;
@@ -472,10 +703,10 @@
     font-size: 12px;
     font-weight: 700;
   }
-  .badge-pagada        { background: var(--success-light); color: #15803d; }
-  .badge-parcial        { background: var(--warn-light); color: #92400e; }
-  .badge-pendiente-pago { background: var(--danger-light); color: #b91c1c; }
-  .badge-sin-tarifa     { background: #f1f5f9; color: #64748b; }
+  .badge-pagada        { background: var(--success-light); color: var(--success-fg); }
+  .badge-parcial        { background: var(--warn-light); color: var(--warn-fg); }
+  .badge-pendiente-pago { background: var(--danger-light); color: var(--danger-fg); }
+  .badge-sin-tarifa     { background: var(--gray-light); color: var(--gray); }
 
   /* ── REGISTRO RÁPIDO ITEMS ──────────────────── */
   .rr-item {
@@ -485,25 +716,25 @@
     padding: 12px 16px;
     border-radius: 10px;
     border: 2px solid var(--border);
-    background: #fff;
+    background: var(--input-bg);
     cursor: pointer;
     transition: all .15s ease;
     user-select: none;
   }
 
   .rr-item:hover {
-    border-color: #cbd5e1;
-    background: #fafbff;
+    border-color: var(--border-strong);
+    background: var(--surface-2);
   }
 
   .rr-item.selected {
-    border-color: #10b981;
-    background: #ecfdf5;
+    border-color: var(--success);
+    background: var(--success-bg-selected);
   }
 
   .rr-item.selected .rr-check {
-    background: #10b981;
-    border-color: #10b981;
+    background: var(--success);
+    border-color: var(--success);
   }
 
   .rr-item.selected .rr-check svg {
@@ -514,8 +745,8 @@
     width: 22px;
     height: 22px;
     border-radius: 6px;
-    border: 2px solid #d1d5db;
-    background: #fff;
+    border: 2px solid var(--border-strong);
+    background: var(--input-bg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -578,8 +809,8 @@
     transform: scale(0.95);
   }
 
-  .rr-counter-btn.minus:hover { background: #fee2e2; color: #dc2626; }
-  .rr-counter-btn.plus:hover { background: #d1fae5; color: #059669; }
+  .rr-counter-btn.minus:hover { background: var(--danger-bg); color: var(--danger-fg-soft); }
+  .rr-counter-btn.plus:hover { background: var(--success-bg); color: var(--success-fg-soft); }
 
   .rr-nota-btn {
     width: 26px;
@@ -587,7 +818,7 @@
     border: none;
     border-radius: 6px;
     background: transparent;
-    color: #9ca3af;
+    color: var(--text-faint);
     font-size: 14px;
     cursor: pointer;
     display: flex;
@@ -596,8 +827,8 @@
     transition: all .12s ease;
     margin-right: 6px;
   }
-  .rr-nota-btn:hover { background: #fef3c7; color: #d97706; }
-  .rr-nota-btn.has-nota { background: #fef3c7; color: #dc2626; }
+  .rr-nota-btn:hover { background: var(--warn-bg); color: var(--warn-fg-soft); }
+  .rr-nota-btn.has-nota { background: var(--warn-bg); color: var(--danger-fg-soft); }
 
   .rr-counter-num {
     min-width: 28px;
@@ -608,8 +839,8 @@
   }
 
   .rr-item.has-practicas {
-    border-color: #10b981;
-    background: #ecfdf5;
+    border-color: var(--success);
+    background: var(--success-bg-selected);
   }
 
   /* ── MODAL ──────────────────────────────────── */
@@ -617,7 +848,7 @@
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(15,23,42,.5);
+    background: var(--overlay);
     backdrop-filter: blur(4px);
     z-index: 100;
     align-items: center;
@@ -690,15 +921,15 @@
     line-height: 1.5;
   }
 
-  .alert-ok   { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
-  .alert-err  { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
-  .alert-info { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
-  .alert-warn { background: #fffbeb; color: #92400e; border: 1px solid #fcd34d; }
+  .alert-ok   { background: var(--success-bg-soft); color: var(--success-fg); border: 1px solid var(--success-border); }
+  .alert-err  { background: var(--danger-bg-soft); color: var(--danger-fg-soft); border: 1px solid var(--danger-border); }
+  .alert-info { background: var(--info-bg); color: var(--info-fg); border: 1px solid var(--info-border); }
+  .alert-warn { background: var(--warn-bg-soft); color: var(--warn-fg); border: 1px solid var(--warn-border); }
   .hidden { display: none !important; }
 
   /* ── MISC ───────────────────────────────────── */
   .empty {
-    color: #94a3b8;
+    color: var(--text-faint);
     font-size: 13px;
     padding: 30px;
     text-align: center;
@@ -730,17 +961,17 @@
   /* ── BANNER CARD ────────────────────────────── */
   .card-banner {
     border-left: 3px solid var(--primary);
-    background: linear-gradient(to right, #f8f9ff, #fff 45%);
+    background: linear-gradient(to right, var(--banner-primary-from), var(--card) 45%);
   }
 
   .card-banner-success {
     border-left: 3px solid var(--success);
-    background: linear-gradient(to right, #f4fdf8, #fff 45%);
+    background: linear-gradient(to right, var(--banner-success-from), var(--card) 45%);
   }
 
   .card-banner-warn {
     border-left: 3px solid var(--warn);
-    background: linear-gradient(to right, #fffcf2, #fff 45%);
+    background: linear-gradient(to right, var(--banner-warn-from), var(--card) 45%);
   }
 
   /* ── DIVIDER ────────────────────────────────── */
@@ -779,14 +1010,14 @@
   .quick-card:hover {
     box-shadow: var(--shadow-md);
     transform: translateY(-1px);
-    border-color: #d3d9f0;
+    border-color: var(--border-strong);
   }
 
   .quick-icon {
     width: 40px; height: 40px;
     border-radius: 10px;
-    background: #eef2ff;
-    color: #4f46e5;
+    background: var(--primary-light);
+    color: var(--primary);
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
@@ -806,7 +1037,7 @@
     color: var(--text-muted);
   }
 
-  .quick-arrow { color: #c0c7d2; transition: transform .18s, color .18s; flex-shrink: 0; }
+  .quick-arrow { color: var(--text-faint-2); transition: transform .18s, color .18s; flex-shrink: 0; }
   .quick-card:hover .quick-arrow { transform: translateX(2px); color: var(--primary); }
 
   .quick-card-primary { background: linear-gradient(135deg, #4f46e5, #7c3aed); border-color: transparent; }
@@ -829,7 +1060,7 @@
   /* ── PAGE TABS ──────────────────────────────── */
   .page-tabs {
     display: inline-flex;
-    background: #eef0f4;
+    background: var(--btn-gray-bg);
     border-radius: 10px;
     padding: 4px;
     gap: 2px;
@@ -850,7 +1081,7 @@
   }
 
   .page-tab:hover { color: var(--text); }
-  .page-tab.active { background: #fff; color: var(--primary); box-shadow: 0 1px 3px rgba(16,24,40,.12); }
+  .page-tab.active { background: var(--input-bg); color: var(--primary); box-shadow: 0 1px 3px rgba(16,24,40,.12); }
 
   .tab-content { display: none; }
   .tab-content.active { display: block; }
@@ -859,7 +1090,7 @@
   .sidebar-footer-version {
     padding: 6px 14px 14px;
     font-size: 11px;
-    color: #c0c7d2;
+    color: var(--text-faint-2);
     text-align: center;
   }
 
@@ -893,7 +1124,7 @@
 
   #sync-label {
     font-size: 11px;
-    color: #98a2b3;
+    color: var(--text-faint);
     flex: 1;
     white-space: nowrap;
     overflow: hidden;
@@ -921,7 +1152,7 @@
   #tutorial-foco {
     display: none;
     position: fixed;
-    box-shadow: 0 0 0 9999px rgba(15,23,42,.55);
+    box-shadow: 0 0 0 9999px var(--tutorial-overlay);
     border-radius: 10px;
     pointer-events: none;
     z-index: 400;
@@ -942,11 +1173,17 @@
     transition: top .25s ease, left .25s ease;
   }
 
+  /* Durante el scroll se quita la transición para que el foco/bocadillo no "arrastren" */
+  #tutorial-foco.tutorial-sin-transicion,
+  #tutorial-bocadillo.tutorial-sin-transicion {
+    transition: none !important;
+  }
+
   #tutorial-bocadillo strong { display: block; font-size: 14px; margin-bottom: 6px; color: var(--text); }
   #tutorial-bocadillo p { font-size: 12.5px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5; }
 
   .tutorial-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .tutorial-contador { font-size: 11px; color: #98a2b3; white-space: nowrap; }
+  .tutorial-contador { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
   .tutorial-botones { display: flex; gap: 8px; }
 
   #tutorial-bocadillo::after {
@@ -969,12 +1206,19 @@
 </style>
 </head>
 <body>
+<script>try{var __t=localStorage.getItem('kmalumnos_tema');if(__t&&__t!=='claro')document.body.setAttribute('data-theme',__t);}catch(e){}</script>
 <div id="titlebar">
   <div class="tb-app">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 12l3.5-3.5"/><path d="M7.5 14.5a5 5 0 0 1 9 0"/></svg>
+    <div class="tb-brand-icon">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 12l3.5-3.5"/><path d="M7.5 14.5a5 5 0 0 1 9 0"/></svg>
+    </div>
     <span>KMAlumnos</span>
   </div>
   <div class="tb-drag"></div>
+  <button class="tb-btn" id="tb-tema" title="Tema">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+  </button>
+  <span class="tb-sep"></span>
   <button class="tb-btn" id="tb-min" title="Minimizar">
     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><line x1="0" y1="5" x2="10" y2="5"/></svg>
   </button>
@@ -984,6 +1228,23 @@
   <button class="tb-btn tb-close" id="tb-close" title="Cerrar">
     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><line x1="0" y1="0" x2="10" y2="10"/><line x1="10" y1="0" x2="0" y2="10"/></svg>
   </button>
+</div>
+<div id="tema-menu" class="hidden">
+  <div class="tema-menu-item" data-tema="claro" onclick="elegirTema('claro')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    <span>Claro</span>
+    <svg class="tema-menu-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
+  <div class="tema-menu-item" data-tema="oscuro" onclick="elegirTema('oscuro')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    <span>Oscuro</span>
+    <svg class="tema-menu-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
+  <div class="tema-menu-item" data-tema="negro" onclick="elegirTema('negro')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+    <span>Oscuro puro</span>
+    <svg class="tema-menu-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
 </div>
 <div id="app">
 
@@ -1076,7 +1337,7 @@
       <div id="sync-dot"></div>
       <span id="sync-label">Sin conexión</span>
       <span id="sync-conflictos-badge" class="hidden" title="Conflictos de sincronización — ver detalle en Historial" onclick="event.stopPropagation(); navegarA('logs')"></span>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#c0c7d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-faint-2)"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     </div>
     <!-- Versión instalada -->
     <div class="sidebar-footer-version" id="app-version"></div>
@@ -1629,10 +1890,10 @@
               Mapa visual de kilómetros
             </div>
             <div id="timeline-chart-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;font-size:12px"></div>
-            <div style="position:relative;height:56px;background:#f1f5f9;border-radius:10px;overflow:visible" id="timeline-chart-track">
+            <div style="position:relative;height:56px;background:var(--gray-light);border-radius:10px;overflow:visible" id="timeline-chart-track">
               <div id="timeline-chart-bars" style="position:absolute;inset:8px"></div>
             </div>
-            <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#94a3b8" id="timeline-chart-axis"></div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--text-faint)" id="timeline-chart-axis"></div>
           </div>
         </div>
 
@@ -1706,7 +1967,7 @@
           Sincronización
         </div>
         <div id="ajustes-sync-estado" style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--gray-light);border-radius:10px;margin-bottom:16px">
-          <div id="ajustes-sync-dot" style="width:10px;height:10px;border-radius:50%;background:#64748b;flex-shrink:0"></div>
+          <div id="ajustes-sync-dot" style="width:10px;height:10px;border-radius:50%;background:var(--gray);flex-shrink:0"></div>
           <span id="ajustes-sync-label" style="font-size:14px;font-weight:600;color:var(--text)">Comprobando estado…</span>
         </div>
         <div id="ajustes-sync-conflictos" class="hidden alert alert-warn" style="margin-bottom:16px;cursor:pointer" onclick="navegarA('logs')"></div>
@@ -1767,7 +2028,7 @@
           Restaurar último backup
         </div>
         <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:4px">Restaura la copia más reciente guardada automáticamente en la carpeta de la aplicación. <strong style="color:var(--danger)">Esto reemplazará todos los datos actuales.</strong></p>
-        <p id="ultimo-backup-info" style="font-size:12px;color:#94a3b8;margin-bottom:16px">Comprobando...</p>
+        <p id="ultimo-backup-info" style="font-size:12px;color:var(--text-faint);margin-bottom:16px">Comprobando...</p>
         <button class="btn btn-warn" id="btn-restaurar-ultimo" onclick="restaurarUltimoBackup()" disabled>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Restaurar último backup
         </button>
@@ -1779,7 +2040,7 @@
           Restaurar copia de seguridad
         </div>
         <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:4px">Carga un backup anterior. <strong style="color:var(--danger)">Esto reemplazará todos los datos actuales.</strong></p>
-        <p style="font-size:12px;color:#94a3b8;margin-bottom:16px">La aplicación se recargará automáticamente tras restaurar.</p>
+        <p style="font-size:12px;color:var(--text-faint);margin-bottom:16px">La aplicación se recargará automáticamente tras restaurar.</p>
         <button class="btn btn-warn" onclick="restaurarBackup()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Seleccionar backup y restaurar...
         </button>
@@ -1839,6 +2100,7 @@
             </label>
           </div>
         </div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
         <div class="form-group">
           <button class="btn btn-outline" onclick="reiniciarTutorialesUI()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
@@ -1876,7 +2138,7 @@
 Juan García,Coche 1,2026-01-15,45230,45274
 Ana López,Coche 1,2026-01-16,45274,45312
 Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
-          <p style="font-size:12px;color:#94a3b8;margin-top:10px">• <code>fecha</code> en formato AAAA-MM-DD &nbsp;|&nbsp; <code>km_inicial</code> y <code>km_final</code> pueden dejarse <strong>vacíos</strong> para generarlos automáticamente</p>
+          <p style="font-size:12px;color:var(--text-faint);margin-top:10px">• <code>fecha</code> en formato AAAA-MM-DD &nbsp;|&nbsp; <code>km_inicial</code> y <code>km_final</code> pueden dejarse <strong>vacíos</strong> para generarlos automáticamente</p>
         </div>
 
         <div class="card">
