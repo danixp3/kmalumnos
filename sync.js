@@ -48,6 +48,22 @@ let _authError = null;
 // se comporta exactamente igual que antes (sin estampar ni filtrar).
 let _empresaId = null;
 
+// Autenticación CONFIRMADA (fase 2, gate obligatorio): a diferencia de
+// hasCredentials() (solo dice si hay credenciales guardadas en memoria),
+// _authOk solo es true tras un login real y exitoso contra Supabase Auth. Se
+// pone a false ante cualquier rechazo real de credenciales (contraseña
+// incorrecta, email sin confirmar...). Un fallo de RED (sin conexión) no lo
+// toca: no es un rechazo de la cuenta, y el gate debe poder seguir abierto
+// sin internet si ya se confirmó antes (ver getAuthStatusPath).
+let _authOk = false;
+
+// Conflicto de "datos locales de otra cuenta" (ver sección PROPIETARIO DE LOS
+// DATOS LOCALES más abajo): null si no hay ninguno; { emailAnterior } si el
+// login/registro que acaba de tener éxito es de una empresa distinta a la
+// dueña de los datos que ya hay en data.json en este PC. Se recalcula en cada
+// login/registro con éxito (ver _comprobarConflictoEmpresaLocal).
+let _conflictoEmpresa = null;
+
 // Callbacks para notificar a la UI el estado de sync
 let _onStatusChange = null;
 // Callback para notificar a la UI cuántos conflictos reales hubo en el último
@@ -73,6 +89,37 @@ function getPendingPath() {
 function getDataPath() {
   if (!_dataPath) _dataPath = path.join(app.getPath('userData'), 'data.json');
   return _dataPath;
+}
+
+// Persistencia de "¿la última vez que se probó, esta cuenta funcionaba?"
+// (auth_status.json en userData, propio de sync.js). Permite que al reabrir
+// la app (restaurarCredenciales) el gate no se cierre en falso: si la cuenta
+// ya se confirmó una vez y ahora no hay internet, se deja pasar igual, y el
+// primer sync real (automático o manual) corrige el estado si ya no valiera.
+function getAuthStatusPath() {
+  return path.join(app.getPath('userData'), 'auth_status.json');
+}
+
+function _cargarAuthOkPersistido() {
+  try {
+    const p = getAuthStatusPath();
+    if (fs.existsSync(p)) return !!JSON.parse(fs.readFileSync(p, 'utf-8')).ok;
+  } catch { /* si no se puede leer, más vale pedir confirmación de nuevo */ }
+  return false;
+}
+
+function _guardarAuthOk(ok) {
+  try { fs.writeFileSync(getAuthStatusPath(), JSON.stringify({ ok }), 'utf-8'); } catch { /* no crítico */ }
+}
+
+// Distingue un rechazo real de credenciales (contraseña incorrecta, email sin
+// confirmar...) de un fallo de red disfrazado de error de auth: supabase-js
+// devuelve ambos como `{ error }` resuelto, nunca como excepción, así que hay
+// que mirar el mensaje. Si no reconoce el mensaje, se trata como fallo de red
+// (no se penaliza una cuenta ya confirmada solo por un mensaje nuevo/rarro).
+function _esErrorDeCredenciales(msg) {
+  if (!msg) return false;
+  return /invalid login credentials|invalid email or password|email not confirmed|user not found|email logins are disabled/i.test(msg);
 }
 
 // Carga data.json de forma defensiva (igual que db.js): si el archivo no existe
@@ -124,6 +171,33 @@ function setCredentials(email, password) {
   supabase = null;
   _authError = null;
   _empresaId = null;
+  // Entrada fresca de credenciales (login manual, registro, o logout): nunca
+  // se da por buena hasta que un login real lo confirme. Distinto de
+  // restaurarCredenciales(), pensada para el arranque de la app.
+  _authOk = false;
+  _guardarAuthOk(false);
+  // Un conflicto detectado en la sesión anterior no debe sobrevivir a un
+  // logout o a credenciales nuevas: se recalcula desde cero en el próximo
+  // login/registro con éxito.
+  _conflictoEmpresa = null;
+}
+
+// Restaura las credenciales guardadas en disco al arrancar la app (llamarla
+// solo desde ahí, no desde el login/registro manual). A diferencia de
+// setCredentials(), parte del último estado de autenticación confirmada
+// persistido en auth_status.json: si esta cuenta ya se validó en una sesión
+// anterior, el gate no se cierra en falso solo porque ahora mismo no haya
+// internet. El siguiente sync real (automático a los 3s, o uno manual)
+// corrige _authOk si las credenciales ya no fueran válidas.
+function restaurarCredenciales(email, password) {
+  _creds = (email && password) ? { email, password } : null;
+  supabase = null;
+  _authError = null;
+  _empresaId = null;
+  _authOk = _creds ? _cargarAuthOkPersistido() : false;
+  // Igual que en setCredentials(): se recalcula en el próximo login real
+  // (el primer ensureClient() que corra, automático o manual).
+  _conflictoEmpresa = null;
 }
 
 function hasCredentials() {
@@ -153,11 +227,26 @@ async function ensureClient() {
         email: _creds.email,
         password: _creds.password
       });
-      if (error) { _authError = error.message; return null; }
+      if (error) {
+        _authError = error.message;
+        // Solo un rechazo real de credenciales invalida la sesión confirmada
+        // (y se persiste): un fallo de red no debe desloguear una cuenta que
+        // ya se validó antes (ver _esErrorDeCredenciales).
+        if (_esErrorDeCredenciales(error.message)) {
+          _authOk = false;
+          _guardarAuthOk(false);
+        }
+        return null;
+      }
       // El uid identifica la empresa: se usa para estampar empresa_id al subir
       // y filtrar por él al bajar (ver sync()/pushAll() más abajo).
       _empresaId = authData && authData.user ? authData.user.id : null;
+      _authOk = true;
+      _guardarAuthOk(true);
+      _comprobarConflictoEmpresaLocal(_empresaId, _creds.email);
     } catch (e) {
+      // Excepción de red (offline de verdad): no es un rechazo de credenciales,
+      // no se toca _authOk.
       _authError = e.message;
       return null;
     }
@@ -183,7 +272,10 @@ async function registrarEmpresa(email, password) {
     const client = createClient(SUPABASE_URL, SUPABASE_ANON, {
       auth: { persistSession: false }
     });
-    const { data, error } = await client.auth.signUp({ email, password });
+    const { data, error } = await client.auth.signUp({
+      email, password,
+      options: { emailRedirectTo: 'https://kmalumnos-remote.vercel.app/email-confirmado.html' }
+    });
 
     if (error) {
       if (/already registered|already exists/i.test(error.message)) {
@@ -206,6 +298,9 @@ async function registrarEmpresa(email, password) {
       supabase = client;
       _empresaId = data.user.id;
       _authError = null;
+      _authOk = true;
+      _guardarAuthOk(true);
+      _comprobarConflictoEmpresaLocal(_empresaId, email);
       return { ok: true, estado: 'activa', email, empresaId: data.user.id };
     }
 
@@ -226,13 +321,120 @@ async function registrarEmpresa(email, password) {
   }
 }
 
+// Solicita a Supabase Auth el envío de un correo de recuperación de contraseña.
+// Se hace SIN sesión activa (el usuario la ha olvidado): cliente nuevo e
+// independiente del cacheado en `supabase`, igual que registrarEmpresa.
+// Supabase no revela si el email existe o no (devuelve éxito genérico en
+// ambos casos), así que no hay que añadir lógica propia para ocultarlo: basta
+// con repetir tal cual la respuesta de la librería.
+async function solicitarResetPassword(email) {
+  if (!email || typeof email !== 'string' || !email.trim()) {
+    return { ok: false, msg: 'Introduce tu email.' };
+  }
+  try {
+    const client = createClient(SUPABASE_URL, SUPABASE_ANON, {
+      auth: { persistSession: false }
+    });
+    const { error } = await client.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: 'https://kmalumnos-remote.vercel.app/reset-password.html'
+    });
+    if (error) {
+      return { ok: false, msg: 'No se pudo enviar el correo de recuperación. Inténtalo de nuevo más tarde.' };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, msg: 'No se pudo enviar el correo de recuperación. Inténtalo de nuevo más tarde.' };
+  }
+}
+
 // Estado de cuenta en memoria, sin tocar la red. Nunca devuelve la contraseña.
 function getEstadoCuenta() {
   return {
-    conectado: hasCredentials(),
+    conectado: _authOk,
     email: _creds ? _creds.email : null,
-    empresaId: getEmpresaId()
+    empresaId: getEmpresaId(),
+    conflictoEmpresa: _conflictoEmpresa
   };
+}
+
+// ─── PROPIETARIO DE LOS DATOS LOCALES (aislamiento entre cuentas en el mismo PC) ──
+// data.json no está vinculado a ninguna cuenta: son "los datos de este PC" a
+// secas, pensado en su día para una instalación de un solo negocio. Si en el
+// mismo PC se crea una cuenta de empresa de prueba y luego una real (o al
+// revés), data.json sigue teniendo los datos de la primera y la UI los
+// seguiría mostrando bajo la sesión de la segunda — y "Subir todo a la nube"
+// los re-subiría estampados con el empresa_id equivocado (ver pushAll()).
+//
+// local_empresa.json guarda { empresaId, email } de la cuenta a la que
+// "pertenecen" los datos locales actuales. Se compara tras cada login o
+// registro con éxito (ensureClient()/registrarEmpresa()):
+//   - Sin marcador todavía (instalación existente de un solo negocio, o
+//     data.json recién creado/vacío): se adopta la empresa actual en
+//     SILENCIO, sin ningún aviso. Es imprescindible para no romper las
+//     instalaciones reales que ya existen hoy.
+//   - Marcador presente y coincide: todo normal.
+//   - Marcador presente y NO coincide: conflicto real, expuesto en
+//     getEstadoCuenta().conflictoEmpresa para que la UI lo resuelva (ver
+//     resolverConflictoEmpresa()).
+function getLocalEmpresaPath() {
+  return path.join(app.getPath('userData'), 'local_empresa.json');
+}
+
+function getLocalEmpresaOwner() {
+  try {
+    const p = getLocalEmpresaPath();
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch { /* marcador dañado: tratar como si no existiera */ }
+  return null;
+}
+
+function _guardarLocalEmpresaOwner(empresaId, email) {
+  try {
+    fs.writeFileSync(getLocalEmpresaPath(), JSON.stringify({ empresaId, email: email || null }), 'utf-8');
+  } catch { /* no crítico */ }
+}
+
+function _comprobarConflictoEmpresaLocal(empresaId, email) {
+  if (!empresaId) return;
+  const owner = getLocalEmpresaOwner();
+  if (!owner || !owner.empresaId) {
+    _guardarLocalEmpresaOwner(empresaId, email);
+    _conflictoEmpresa = null;
+    return;
+  }
+  _conflictoEmpresa = (owner.empresaId === empresaId) ? null : { emailAnterior: owner.email || null };
+}
+
+// Resuelve un conflicto ya detectado ("Vaciar datos locales y empezar
+// limpio"): vacía las tablas de data.json (conserva _seq tal cual) y la cola
+// de pending_sync.json, adopta la empresa actual como dueña de los datos
+// locales, y dispara una sincronización NORMAL (nunca pushAll — eso subiría
+// datos de la cuenta anterior a la nube con el empresa_id equivocado) para
+// descargar los datos reales de esta cuenta, ya filtrados por empresa_id en
+// la bajada como siempre.
+async function resolverConflictoEmpresa() {
+  if (!_empresaId) return { ok: false, reason: 'No hay sesión activa.' };
+  const { data } = loadDataSafe();
+  data.vehiculos  = [];
+  data.profesores = [];
+  data.alumnos    = [];
+  data.practicas  = [];
+  data.tarifas    = [];
+  data.pagos      = [];
+  data.logs       = [];
+  saveData(data);
+  try { require('./db')._clearCache(); } catch {}
+
+  savePending({
+    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [],
+    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [] },
+    lastSync: '1970-01-01T00:00:00.000Z'
+  });
+
+  _guardarLocalEmpresaOwner(_empresaId, _creds ? _creds.email : null);
+  _conflictoEmpresa = null;
+
+  return sync();
 }
 
 // ─── PENDING QUEUE ────────────────────────────────────────────────────────────
@@ -369,6 +571,21 @@ async function sync() {
     if (regenerado) pending.lastSync = '1970-01-01T00:00:00.000Z';
     const sb = await ensureClient();
     if (!sb) { _lastError = _authError || 'Credenciales de sincronización inválidas'; setStatus(STATUS.ERROR); return { ok: false, reason: _lastError }; }
+
+    // Conflicto de empresa sin resolver (ver sección "PROPIETARIO DE LOS DATOS
+    // LOCALES"): el login de ensureClient() acaba de revelar que data.json
+    // pertenece a otra cuenta. No tocar nada — ni subir lo que hay en local
+    // (sería de la cuenta anterior) ni bajar los datos reales de esta cuenta
+    // por encima (los mezclaría con los de la anterior) — hasta que el
+    // usuario resuelva el conflicto (ver resolverConflictoEmpresa()). Se
+    // informa como una conexión correcta (las credenciales SÍ son válidas,
+    // que es lo que "Guardar y probar" necesita para no mostrar un error de
+    // login), simplemente sin sincronizar datos todavía.
+    if (_conflictoEmpresa) {
+      _lastError = null;
+      setStatus(STATUS.OK);
+      return { ok: true, pulled: 0, conflictos: 0 };
+    }
 
     // Conflictos reales detectados en la bajada de este sync (ver "DETECCIÓN DE
     // CONFLICTOS" más arriba): edición local sin subir todavía que la nube
@@ -843,6 +1060,15 @@ function _configurarSyncInmediatoParaTests({ activo, debounceMs } = {}) {
 // ─── FULL PUSH (subida completa inicial) ─────────────────────────────────────
 
 async function pushAll() {
+  // Salvaguarda de la fase 3 (aislamiento de datos entre cuentas en el mismo
+  // PC): con un conflicto de empresa sin resolver, data.json todavía tiene
+  // datos de la cuenta anterior — subirlos "a ciegas" los reasignaría de
+  // verdad en la nube a la cuenta actual. Hay que resolver el conflicto
+  // (vaciar y sincronizar, ver resolverConflictoEmpresa()) antes de poder
+  // usar este botón otra vez.
+  if (_conflictoEmpresa) {
+    return { ok: false, reason: 'Los datos locales de este PC pertenecen a otra cuenta. Resuelve el conflicto (vaciar y sincronizar) antes de subir nada a la nube.' };
+  }
   const online = await checkOnline();
   if (!online) return { ok: false, reason: 'Sin conexión' };
 
@@ -974,6 +1200,7 @@ module.exports = {
   onStatusChange,
   onConflictos,
   setCredentials,
+  restaurarCredenciales,
   hasCredentials,
   getAuthError,
   getEmpresaId,
@@ -981,5 +1208,8 @@ module.exports = {
   programarSyncInmediato,
   _configurarSyncInmediatoParaTests,
   registrarEmpresa,
-  getEstadoCuenta
+  getEstadoCuenta,
+  solicitarResetPassword,
+  getLocalEmpresaOwner,
+  resolverConflictoEmpresa
 };

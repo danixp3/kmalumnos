@@ -325,6 +325,11 @@
 
   /* ── LAYOUT ─────────────────────────────────── */
   #app { display: flex; height: calc(100vh - 32px); overflow: hidden; }
+  /* Gate de cuenta obligatoria (modal-bienvenida y sus hijos login/registro):
+     mientras la cuenta no está conectada, el dashboard debe quedar totalmente
+     oculto (no solo difuminado por .overlay) para no filtrar datos reales
+     detrás del modal. Ver ocultarAppPorGate()/mostrarAppPorGate() en renderer.js. */
+  #app.gate-hidden { display: none; }
 
   /* ── SIDEBAR ────────────────────────────────── */
   #sidebar {
@@ -576,6 +581,28 @@
 
   input::placeholder { color: var(--placeholder); }
   input[type=number] { width: 130px; }
+
+  /* ── CAMPO DE CONTRASEÑA (mostrar/ocultar) ──── */
+  .pw-wrap { position: relative; width: 100%; }
+  .pw-wrap input { width: 100%; padding-right: 34px; }
+  .pw-toggle {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .pw-toggle:hover { background: var(--sidebar-hover); color: var(--text); }
 
   /* ── BUTTONS ────────────────────────────────── */
   .btn {
@@ -2385,13 +2412,19 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <label>Email de sincronización</label>
       <input type="email" id="sync-creds-email" autocomplete="off" style="width:100%">
     </div>
-    <div class="form-group" style="margin-bottom:14px">
+    <div class="form-group" style="margin-bottom:8px">
       <label>Contraseña</label>
-      <input type="password" id="sync-creds-password" autocomplete="off" style="width:100%">
+      <div class="pw-wrap">
+        <input type="password" id="sync-creds-password" autocomplete="off">
+        <button type="button" class="pw-toggle" tabindex="-1" title="Mostrar contraseña" onclick="toggleVerPassword('sync-creds-password', this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+    </div>
+    <div style="margin-bottom:14px;text-align:right">
+      <a href="#" id="link-reset-password" onclick="solicitarResetPasswordUI(); return false;" style="font-size:12.5px;color:var(--primary);text-decoration:none">¿Olvidaste tu contraseña?</a>
     </div>
     <div id="sync-creds-alert" class="hidden alert alert-err" style="margin-bottom:8px"></div>
     <div class="modal-actions">
-      <button class="btn btn-gray" onclick="closeModal('modal-sync-creds')">Cancelar</button>
+      <button class="btn btn-gray" onclick="cancelarLoginCuenta()">Cancelar</button>
       <button class="btn btn-primary" id="sync-creds-guardar" onclick="guardarCredsSync()">Guardar y probar</button>
     </div>
   </div>
@@ -2404,22 +2437,36 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/></svg></div>
       <h3>Crear cuenta de empresa</h3>
     </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Email</label>
-      <input type="email" id="crear-empresa-email" autocomplete="off" style="width:100%">
+    <div id="crear-empresa-form">
+      <div class="form-group" style="margin-bottom:14px">
+        <label>Email</label>
+        <input type="email" id="crear-empresa-email" autocomplete="off" style="width:100%">
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label>Contraseña</label>
+        <div class="pw-wrap">
+          <input type="password" id="crear-empresa-password" autocomplete="off">
+          <button type="button" class="pw-toggle" tabindex="-1" title="Mostrar contraseña" onclick="toggleVerPassword('crear-empresa-password', this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label>Confirmar contraseña</label>
+        <div class="pw-wrap">
+          <input type="password" id="crear-empresa-password2" autocomplete="off">
+          <button type="button" class="pw-toggle" tabindex="-1" title="Mostrar contraseña" onclick="toggleVerPassword('crear-empresa-password2', this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+      </div>
+      <div id="crear-empresa-alert" class="hidden alert alert-err" style="margin-bottom:8px"></div>
+      <div class="modal-actions">
+        <button class="btn btn-gray" onclick="cancelarCrearEmpresa()">Cancelar</button>
+        <button class="btn btn-primary" id="crear-empresa-btn" onclick="crearCuentaEmpresa()">Crear cuenta</button>
+      </div>
     </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Contraseña</label>
-      <input type="password" id="crear-empresa-password" autocomplete="off" style="width:100%">
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Confirmar contraseña</label>
-      <input type="password" id="crear-empresa-password2" autocomplete="off" style="width:100%">
-    </div>
-    <div id="crear-empresa-alert" class="hidden alert alert-err" style="margin-bottom:8px"></div>
-    <div class="modal-actions">
-      <button class="btn btn-gray" onclick="closeModal('modal-crear-empresa')">Cancelar</button>
-      <button class="btn btn-primary" id="crear-empresa-btn" onclick="crearCuentaEmpresa()">Crear cuenta</button>
+    <div id="crear-empresa-pendiente" class="hidden">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px" id="crear-empresa-pendiente-msg"></p>
+      <div class="modal-actions" style="margin-top:0">
+        <button class="btn btn-primary" style="width:100%" onclick="irAIniciarSesionDesdeRegistro()">Ir a iniciar sesión</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2431,7 +2478,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.42 4.58a5.4 5.4 0 0 0-7.65 0l-.77.78-.77-.78a5.4 5.4 0 0 0-7.65 0C1.46 6.7 1.33 10.28 4 13l8 8 8-8c2.67-2.72 2.54-6.3.42-8.42z"/></svg></div>
       <h3>Bienvenido a KM Alumnos</h3>
     </div>
-    <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px">Puedes crear una cuenta de empresa para sincronizar tus datos en la nube entre varios ordenadores de forma segura, o seguir usando la app en modo local en este equipo.</p>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px">KM Alumnos requiere una cuenta de empresa para funcionar. Crea una cuenta nueva o inicia sesión con la de tu autoescuela para sincronizar y proteger tus datos.</p>
     <div style="display:flex;flex-direction:column;gap:10px">
       <button class="btn btn-primary" style="width:100%" onclick="bienvenidaCrearEmpresa()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/></svg> Crear cuenta de empresa
@@ -2439,7 +2486,22 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <button class="btn btn-outline" style="width:100%" onclick="bienvenidaIniciarSesion()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Ya tengo cuenta — iniciar sesión
       </button>
-      <button class="btn btn-gray" style="width:100%" onclick="continuarSinCuenta()">Continuar sin cuenta</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL CONFLICTO DE DATOS LOCALES (otra cuenta ya usó este PC) ═══════ -->
+<div class="overlay" id="modal-conflicto-empresa">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+      <h3>Datos locales de otra cuenta</h3>
+    </div>
+    <p id="conflicto-empresa-msg" style="font-size:13px;color:var(--text-muted);margin-bottom:18px"></p>
+    <div id="conflicto-empresa-toast" class="hidden alert alert-err" style="margin-bottom:8px"></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-primary" style="width:100%" id="conflicto-empresa-vaciar-btn" onclick="vaciarYEmpezarLimpio()">Vaciar datos locales y empezar limpio</button>
+      <button class="btn btn-outline" style="width:100%" onclick="cancelarConflictoEmpresa()">Cancelar y volver a la otra cuenta</button>
     </div>
   </div>
 </div>

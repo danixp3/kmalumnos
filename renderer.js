@@ -1191,13 +1191,51 @@ function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 // Cerrar modal al hacer click fuera
+// Excepción: 'modal-bienvenida' es el gate de cuenta obligatoria (ver sección
+// BIENVENIDA) — sin cuenta conectada no tiene vía de escape, ni siquiera
+// haciendo click fuera. 'modal-conflicto-empresa' es igual de bloqueante (ver
+// CONFLICTO DE DATOS LOCALES): solo se sale de él con uno de sus dos botones.
+// Los modales de login/registro que abre modal-bienvenida sí se pueden
+// cerrar, pero al hacerlo se reevalúa el gate y reaparece si sigue sin cuenta.
 document.querySelectorAll('.overlay').forEach(overlay => {
   overlay.addEventListener('click', e => {
-    if (e.target === overlay) overlay.classList.remove('open');
+    if (e.target !== overlay) return;
+    if (overlay.id === 'modal-bienvenida' || overlay.id === 'modal-conflicto-empresa') return;
+    overlay.classList.remove('open');
+    if (overlay.id === 'modal-sync-creds' || overlay.id === 'modal-crear-empresa') {
+      detenerReintentoLogin();
+      comprobarBienvenida();
+    }
   });
 });
 
 // ─── UTILS ───────────────────────────────────────────────────────────────────
+// Mostrar/ocultar contraseña (login y registro de cuenta de empresa): alterna
+// el type del input entre password/text y el icono del botón .pw-toggle entre
+// ojo abierto (oculta, "pulsa para ver") y ojo tachado (visible, "pulsa para
+// ocultar"). btn recibe el propio <button> vía this en el onclick del HTML.
+const ICONO_OJO_ABIERTO = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICONO_OJO_CERRADO = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a20.3 20.3 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a20.3 20.3 0 0 1-3.22 4.44M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+function toggleVerPassword(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const vaAMostrar = input.type === 'password';
+  input.type = vaAMostrar ? 'text' : 'password';
+  btn.innerHTML = vaAMostrar ? ICONO_OJO_CERRADO : ICONO_OJO_ABIERTO;
+  btn.title = vaAMostrar ? 'Ocultar contraseña' : 'Mostrar contraseña';
+}
+
+// Al reabrir un modal de login/registro, vuelve el campo a oculto (por si
+// quedó en texto plano de una apertura anterior de la misma sesión).
+function resetVerPassword(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.type = 'password';
+  const btn = input.parentElement?.querySelector('.pw-toggle');
+  if (btn) { btn.innerHTML = ICONO_OJO_ABIERTO; btn.title = 'Mostrar contraseña'; }
+}
+
 function fmt(num) {
   return new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(num);
 }
@@ -1811,10 +1849,35 @@ async function refrescarEstadoCuenta() {
   }
 }
 
+// Punto único de salida tras un login/registro con éxito (guardarCredsSync,
+// crearCuentaEmpresa, el reintento en segundo plano de iniciarReintentoLogin):
+// antes de dejar pasar a la app hay que comprobar si los datos locales de
+// este PC pertenecen a otra cuenta (ver getEstadoCuenta().conflictoEmpresa,
+// sección CONFLICTO DE DATOS LOCALES). Si hay conflicto, interpone ese modal
+// en vez de mostrar la app. Devuelve true si no hubo conflicto (para que el
+// caller decida si toca mostrar su propio toast de éxito).
+async function finalizarLoginConCuenta() {
+  refrescarEstadoCuenta();
+  const estado = await window.api.getEstadoCuenta();
+  if (estado && estado.conectado && estado.conflictoEmpresa) {
+    abrirConflictoEmpresa(estado.conflictoEmpresa, estado.email);
+    return false;
+  }
+  mostrarAppPorGate();
+  syncNow();
+  loadDashboard();
+  return true;
+}
+
 async function abrirCredsSync() {
+  // Entrada "limpia" al login (desde bienvenida o Ajustes): si quedara un
+  // reintento de fondo de una pantalla de registro pendiente anterior, no
+  // debe seguir corriendo sobre estos campos recién reseteados.
+  detenerReintentoLogin();
   const res = await window.api.getSyncCredsStatus();
   document.getElementById('sync-creds-email').value = (res && res.email) || '';
   document.getElementById('sync-creds-password').value = '';
+  resetVerPassword('sync-creds-password');
   hideToast('sync-creds-alert');
   openModal('modal-sync-creds');
 }
@@ -1833,13 +1896,34 @@ async function guardarCredsSync() {
   btn.disabled = false;
   btn.textContent = 'Guardar y probar';
   if (res && res.ok) {
+    detenerReintentoLogin();
     closeModal('modal-sync-creds');
     closeModal('modal-bienvenida');
-    refrescarEstadoCuenta();
-    syncNow();
-    loadDashboard();
+    await finalizarLoginConCuenta();
   } else {
     showToast('sync-creds-alert', (res && res.msg) || 'No se pudo conectar con esas credenciales.', 'err');
+  }
+}
+
+// "¿Olvidaste tu contraseña?" (dentro del modal de login, reutiliza el campo
+// de email ya visible ahí). Mensaje siempre genérico tanto en éxito como en
+// error real de Supabase (nunca revela si el email existe o no; ese
+// comportamiento ya lo da Supabase, ver sync.solicitarResetPassword).
+async function solicitarResetPasswordUI() {
+  const email = document.getElementById('sync-creds-email').value.trim();
+  if (!email) {
+    showToast('sync-creds-alert', 'Escribe primero tu email arriba.', 'err');
+    return;
+  }
+  const link = document.getElementById('link-reset-password');
+  const textoOriginal = link.textContent;
+  link.textContent = 'Enviando...';
+  const res = await window.api.solicitarResetPassword(email);
+  link.textContent = textoOriginal;
+  if (res && res.ok) {
+    showToast('sync-creds-alert', 'Si el email existe, te hemos enviado un correo para restablecer la contraseña. Sigue el enlace desde el móvil o el navegador para fijar una nueva.', 'ok');
+  } else {
+    showToast('sync-creds-alert', (res && res.msg) || 'No se pudo enviar el correo de recuperación.', 'err');
   }
 }
 
@@ -1847,7 +1931,14 @@ function abrirCrearEmpresa() {
   document.getElementById('crear-empresa-email').value = '';
   document.getElementById('crear-empresa-password').value = '';
   document.getElementById('crear-empresa-password2').value = '';
+  resetVerPassword('crear-empresa-password');
+  resetVerPassword('crear-empresa-password2');
   hideToast('crear-empresa-alert');
+  // Por si se reabre tras un registro anterior que se quedó en la pantalla de
+  // "revisa tu correo": volver siempre al formulario.
+  detenerReintentoLogin();
+  document.getElementById('crear-empresa-form').classList.remove('hidden');
+  document.getElementById('crear-empresa-pendiente').classList.add('hidden');
   openModal('modal-crear-empresa');
 }
 
@@ -1874,26 +1965,83 @@ async function crearCuentaEmpresa() {
   btn.disabled = false;
   btn.textContent = 'Crear cuenta';
   if (res && res.ok && res.estado === 'activa') {
+    detenerReintentoLogin();
     closeModal('modal-crear-empresa');
     closeModal('modal-bienvenida');
-    refrescarEstadoCuenta();
-    syncNow();
-    loadDashboard();
-    showToast('cuenta-empresa-toast', '✓ Cuenta de empresa creada y conectada.', 'ok');
+    if (await finalizarLoginConCuenta()) {
+      showToast('cuenta-empresa-toast', '✓ Cuenta de empresa creada y conectada.', 'ok');
+    }
   } else if (res && res.ok && res.estado === 'pendiente_confirmacion') {
-    const el = document.getElementById('crear-empresa-alert');
-    el.className = 'alert alert-ok';
-    el.textContent = (res.msg || 'Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.') + ' Cuando la confirmes, usa "Iniciar sesión".';
-    el.classList.remove('hidden');
+    // Sustituir el formulario por un mensaje de acción claro: no hay nada más
+    // que rellenar aquí, solo confirmar el correo e iniciar sesión.
+    document.getElementById('crear-empresa-form').classList.add('hidden');
+    document.getElementById('crear-empresa-pendiente-msg').innerHTML =
+      `Te hemos enviado un correo a <strong>${esc(email)}</strong> para verificar tu cuenta. Confírmalo y después inicia sesión aquí.`;
+    document.getElementById('crear-empresa-pendiente').classList.remove('hidden');
+    // Mientras esta pantalla siga abierta, reintentar el login solo en segundo
+    // plano: en cuanto el usuario confirme el correo desde su email, la app
+    // entra sola sin que tenga que volver a escribir nada.
+    iniciarReintentoLogin(email, password);
   } else {
     showToast('crear-empresa-alert', (res && res.msg) || 'No se pudo crear la cuenta.', 'err');
   }
 }
 
+// ─── Reintento automático de login (tras registro pendiente de confirmar) ──
+// Mientras el usuario esté en la pantalla de "revisa tu correo" (o en el
+// login pre-rellenado al que lleva "Ir a iniciar sesión"), se prueba el login
+// en segundo plano cada pocos segundos con el mismo IPC de guardar/probar
+// credenciales. En cuanto el email quede confirmado, el intento tiene éxito,
+// getEstadoCuenta().conectado pasa a true y se cierra el gate solo, sin que
+// el usuario tenga que pulsar nada. Se detiene si cancela/cierra la pantalla
+// (cancelarCrearEmpresa/cancelarLoginCuenta, click fuera, o si ya conectó).
+let _reintentoLoginTimer = null;
+const REINTENTO_LOGIN_MS = 6000;
+
+function detenerReintentoLogin() {
+  if (_reintentoLoginTimer) { clearTimeout(_reintentoLoginTimer); _reintentoLoginTimer = null; }
+}
+
+function iniciarReintentoLogin(email, password) {
+  detenerReintentoLogin();
+  const intentar = async () => {
+    const res = await window.api.saveSyncCreds(email, password);
+    if (res && res.ok) {
+      detenerReintentoLogin();
+      closeModal('modal-crear-empresa');
+      closeModal('modal-sync-creds');
+      closeModal('modal-bienvenida');
+      if (await finalizarLoginConCuenta()) {
+        showToast('cuenta-empresa-toast', '✓ Cuenta verificada y conectada.', 'ok');
+      }
+      return;
+    }
+    _reintentoLoginTimer = setTimeout(intentar, REINTENTO_LOGIN_MS);
+  };
+  _reintentoLoginTimer = setTimeout(intentar, REINTENTO_LOGIN_MS);
+}
+
+// Desde la pantalla de "revisa tu correo": lleva al login con el email (y la
+// contraseña, ya que el usuario acaba de escribirla y esta es una app de
+// escritorio de un único negocio, no hay problema de seguridad relevante en
+// precargarla) pre-rellenados, para que solo haga falta confirmar el correo y
+// pulsar "Iniciar sesión". El reintento en segundo plano sigue activo.
+function irAIniciarSesionDesdeRegistro() {
+  const email = document.getElementById('crear-empresa-email').value.trim();
+  const password = document.getElementById('crear-empresa-password').value;
+  closeModal('modal-crear-empresa');
+  document.getElementById('sync-creds-email').value = email;
+  document.getElementById('sync-creds-password').value = password;
+  resetVerPassword('sync-creds-password');
+  hideToast('sync-creds-alert');
+  openModal('modal-sync-creds');
+}
+
 async function cerrarSesionEmpresa() {
-  if (!confirm('¿Cerrar sesión de la cuenta de empresa? La app seguirá funcionando en modo local hasta que vuelvas a iniciar sesión.')) return;
+  if (!confirm('¿Cerrar sesión de la cuenta de empresa? Necesitarás iniciar sesión o crear una cuenta para seguir usando la aplicación.')) return;
   await window.api.clearSyncCreds();
   refrescarEstadoCuenta();
+  comprobarBienvenida();
 }
 
 refrescarEstadoCuenta();
@@ -2568,10 +2716,28 @@ function reiniciarTutorialesUI() {
   comprobarTutorial('dashboard');
 }
 
-// ─── BIENVENIDA (instalación nueva) ────────────────────────────────────────────
-const BIENVENIDA_DESCARTADA_KEY = 'kmalumnos_bienvenida_descartada';
+// ─── BIENVENIDA (acceso obligatorio: cuenta de empresa) ────────────────────────
+// KM Alumnos es SaaS puro: toda instalación exige una cuenta de empresa
+// conectada (credenciales guardadas y válidas, con o sin internet en ese
+// momento) antes de dejar pasar a la app. Ya no existe un "continuar sin
+// cuenta" ni se exime a instalaciones con datos locales previos: si no hay
+// cuenta conectada, se abre este modal y se queda abierto sin vía de escape
+// (ver el handler de click-fuera-cierra en la sección MODALES) hasta que el
+// login o el registro tengan éxito.
+// El gate cubre bienvenida y sus modales hijos (login/registro): mientras
+// cualquiera de ellos esté resolviendo la cuenta, #app debe quedar oculto del
+// todo (no solo difuminado). ocultarAppPorGate()/mostrarAppPorGate() son el
+// único punto de entrada para esto — no tocar #app.gate-hidden en otro sitio.
+function ocultarAppPorGate() {
+  document.getElementById('app')?.classList.add('gate-hidden');
+}
+
+function mostrarAppPorGate() {
+  document.getElementById('app')?.classList.remove('gate-hidden');
+}
 
 function abrirBienvenida() {
+  ocultarAppPorGate();
   openModal('modal-bienvenida');
 }
 
@@ -2585,21 +2751,85 @@ function bienvenidaIniciarSesion() {
   abrirCredsSync();
 }
 
-function continuarSinCuenta() {
-  try { localStorage.setItem(BIENVENIDA_DESCARTADA_KEY, '1'); } catch (e) {}
-  closeModal('modal-bienvenida');
-  comprobarTutorial('dashboard');
+// Cancelar el login/registro abierto desde el gate: si la cuenta sigue sin
+// conectar, `comprobarBienvenida()` vuelve a abrir el modal de bienvenida.
+function cancelarLoginCuenta() {
+  detenerReintentoLogin();
+  closeModal('modal-sync-creds');
+  comprobarBienvenida();
 }
 
+function cancelarCrearEmpresa() {
+  detenerReintentoLogin();
+  closeModal('modal-crear-empresa');
+  comprobarBienvenida();
+}
+
+// Única fuente de verdad del gate: se llama en INIT, tras cerrar sesión y al
+// cancelar login/registro. Abre (o reabre) el modal de bienvenida siempre que
+// no haya cuenta conectada, sin mirar si ya hay datos locales. Si hay cuenta
+// conectada pero los datos locales de este PC pertenecen a otra cuenta
+// (conflictoEmpresa, ver sync.js), no deja pasar a la app: abre el modal de
+// conflicto en su lugar (ver sección "CONFLICTO DE DATOS LOCALES" más abajo).
 async function comprobarBienvenida() {
   try {
-    if (localStorage.getItem(BIENVENIDA_DESCARTADA_KEY) === '1') return;
     const estado = await window.api.getEstadoCuenta();
-    if (estado && estado.conectado) return;
-    const resumen = await window.api.getResumen();
-    if (!resumen || resumen.vehiculos > 0 || resumen.alumnos > 0 || resumen.practicas > 0) return;
+    if (estado && estado.conectado) {
+      if (estado.conflictoEmpresa) { abrirConflictoEmpresa(estado.conflictoEmpresa, estado.email); return; }
+      mostrarAppPorGate();
+      return;
+    }
     abrirBienvenida();
   } catch (e) {}
+}
+
+// ─── CONFLICTO DE DATOS LOCALES (otra cuenta ya usó este PC) ───────────────────
+// Bug real que motivó esto: el dueño creó una cuenta de empresa de prueba en
+// este PC (con alumnos/profesores de prueba) y luego, en el mismo PC, una
+// segunda cuenta real — que veía los datos de prueba, porque data.json no
+// está vinculado a ninguna cuenta (ver sync.js, sección "PROPIETARIO DE LOS
+// DATOS LOCALES"). Este modal, bloqueante como el resto del gate (excluido
+// del cierre por click-fuera, ver MODALES), se interpone entre el login y la
+// app cuando getEstadoCuenta().conflictoEmpresa no es null.
+function abrirConflictoEmpresa(conflicto, emailActual) {
+  ocultarAppPorGate();
+  const msgEl = document.getElementById('conflicto-empresa-msg');
+  if (msgEl) {
+    msgEl.textContent = `Los datos de este ordenador pertenecen a otra cuenta (${(conflicto && conflicto.emailAnterior) || 'desconocida'}). Para usar la cuenta ${emailActual || ''} aquí, hay que empezar de cero con datos limpios.`;
+  }
+  hideToast('conflicto-empresa-toast');
+  openModal('modal-conflicto-empresa');
+}
+
+// "Vaciar datos locales y empezar limpio": vacía data.json/pending_sync.json,
+// adopta esta cuenta como dueña de los datos locales y descarga de la nube
+// los datos reales de esta cuenta (sync.resolverConflictoEmpresa(), NUNCA
+// pushAll — no hay que re-subir nada de la cuenta anterior). Tras esto, deja
+// pasar a la app con normalidad.
+async function vaciarYEmpezarLimpio() {
+  const btn = document.getElementById('conflicto-empresa-vaciar-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Vaciando...'; }
+  const res = await window.api.resolverConflictoEmpresa();
+  if (btn) { btn.disabled = false; btn.textContent = 'Vaciar datos locales y empezar limpio'; }
+  if (res && res.ok) {
+    closeModal('modal-conflicto-empresa');
+    mostrarAppPorGate();
+    refrescarEstadoCuenta();
+    loadDashboard();
+  } else {
+    showToast('conflicto-empresa-toast', 'No se pudo limpiar y sincronizar (' + (res?.reason || 'sin conexión') + '). Inténtalo de nuevo.', 'err');
+  }
+}
+
+// "Cancelar y volver a la otra cuenta": cierra esta sesión (igual que
+// cerrarSesionEmpresa(), sin el confirm() adicional — el usuario ya está
+// decidiendo esto de forma explícita en este modal) y vuelve al gate de
+// login/registro para poder entrar con la cuenta correcta.
+async function cancelarConflictoEmpresa() {
+  await window.api.clearSyncCreds();
+  closeModal('modal-conflicto-empresa');
+  refrescarEstadoCuenta();
+  comprobarBienvenida();
 }
 
 // ─── BARRA DE TÍTULO ────────────────────────────────────────────────────────────

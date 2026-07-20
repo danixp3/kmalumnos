@@ -123,7 +123,7 @@ app.whenReady().then(() => {
 
   // Cargar credenciales de sincronización (si el usuario ya las configuró)
   const creds = loadSyncCreds();
-  if (creds) sync.setCredentials(creds.email, creds.password);
+  if (creds) sync.restaurarCredenciales(creds.email, creds.password);
 
   // Arrancar sync automático (cada 2 min)
   sync.startAutoSync(2 * 60 * 1000);
@@ -435,6 +435,12 @@ ipcMain.handle('registrar-empresa', async (_, email, password) => {
   return res; // nunca incluye la contraseña
 });
 ipcMain.handle('get-estado-cuenta', () => sync.getEstadoCuenta());
+ipcMain.handle('solicitar-reset-password', async (_, email) => sync.solicitarResetPassword(email));
+// Resuelve un conflicto de "datos locales de otra cuenta" detectado tras un
+// login/registro (ver getEstadoCuenta().conflictoEmpresa): vacía data.json y
+// pending_sync.json, adopta la cuenta actual y sincroniza para bajar sus
+// datos reales.
+ipcMain.handle('resolver-conflicto-empresa', async () => sync.resolverConflictoEmpresa());
 ipcMain.handle('clear-sync-creds', () => {
   try {
     const p = getCredsPath();

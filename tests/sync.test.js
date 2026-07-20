@@ -15,6 +15,7 @@ const { resetData, userDataDir } = require('./helpers');
 
 const dataFile = path.join(userDataDir, 'data.json');
 const pendingFile = path.join(userDataDir, 'pending_sync.json');
+const localEmpresaFile = path.join(userDataDir, 'local_empresa.json');
 
 function writeData(data) {
   fs.writeFileSync(dataFile, JSON.stringify(data, null, 2), 'utf-8');
@@ -969,6 +970,7 @@ describe('registrarEmpresa / getEstadoCuenta (fase 2 multi-empresa)', () => {
     delete mockRemote.signUpError;
     delete mockRemote.signUpExists;
     delete mockRemote.signUpPending;
+    delete mockRemote.lastSignUpRedirectTo;
     mockRemote.authUserId = undefined;
   });
 
@@ -983,6 +985,15 @@ describe('registrarEmpresa / getEstadoCuenta (fase 2 multi-empresa)', () => {
     expect(res.empresaId).toBe('uid-nueva-empresa');
     expect(sync.hasCredentials()).toBe(true);
     expect(sync.getEmpresaId()).toBe('uid-nueva-empresa');
+    expect(sync.getEstadoCuenta().conectado).toBe(true); // sesión directa ya es una autenticación confirmada
+  });
+
+  test('el email de confirmación del alta apunta a la página que avisa de volver a la app, no a la web logueada', async () => {
+    mockRemote.authUserId = 'uid-nueva-empresa';
+
+    await sync.registrarEmpresa('nueva@empresa.com', 'contraseña123');
+
+    expect(mockRemote.lastSignUpRedirectTo).toBe('https://kmalumnos-remote.vercel.app/email-confirmado.html');
   });
 
   test('alta pendiente de confirmación por email: no queda logueada', async () => {
@@ -1014,7 +1025,7 @@ describe('registrarEmpresa / getEstadoCuenta (fase 2 multi-empresa)', () => {
   });
 
   test('getEstadoCuenta(): sin credenciales, y luego con sesión activa', async () => {
-    expect(sync.getEstadoCuenta()).toEqual({ conectado: false, email: null, empresaId: null });
+    expect(sync.getEstadoCuenta()).toEqual({ conectado: false, email: null, empresaId: null, conflictoEmpresa: null });
 
     mockRemote.authUserId = 'empresa-aaa';
     sync.setCredentials('sync@kmalumnos.app', 'secreta');
@@ -1024,7 +1035,316 @@ describe('registrarEmpresa / getEstadoCuenta (fase 2 multi-empresa)', () => {
     expect(sync.getEstadoCuenta()).toEqual({
       conectado: true,
       email: 'sync@kmalumnos.app',
-      empresaId: 'empresa-aaa'
+      empresaId: 'empresa-aaa',
+      conflictoEmpresa: null
     });
+  });
+
+  // Bug real: antes getEstadoCuenta().conectado se basaba solo en
+  // hasCredentials() (¿hay credenciales guardadas en memoria?), así que daba
+  // true aunque el login nunca hubiera funcionado (contraseña incorrecta,
+  // email sin confirmar...) y el gate podía no reabrirse cuando debía.
+  test('login con credenciales que fallan: las credenciales quedan guardadas pero "conectado" es false, no solo "hay credenciales"', async () => {
+    mockRemote.authOk = false;
+    sync.setCredentials('sync@kmalumnos.app', 'mal');
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(false);
+    expect(res.reason).toMatch(/credenciales/i);
+    // Las credenciales SÍ deben quedar en memoria: el reintento de fondo
+    // (ensureClient/auto-sync) tiene que poder seguir probando más tarde.
+    expect(sync.hasCredentials()).toBe(true);
+    // Pero no se considera una sesión válida: el gate no debe dejar pasar.
+    expect(sync.getEstadoCuenta().conectado).toBe(false);
+  });
+
+  test('login que tiene éxito: "conectado" pasa a true', async () => {
+    mockRemote.authUserId = 'empresa-ok';
+    sync.setCredentials('sync@kmalumnos.app', 'buena');
+
+    expect(sync.getEstadoCuenta().conectado).toBe(false); // aún no se ha probado
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(sync.getEstadoCuenta().conectado).toBe(true);
+  });
+
+  test('tras un login fallido, uno posterior que sí funciona corrige "conectado" a true (reintento de fondo)', async () => {
+    mockRemote.authOk = false;
+    sync.setCredentials('sync@kmalumnos.app', 'mal-de-momento');
+    await sync.sync();
+    expect(sync.getEstadoCuenta().conectado).toBe(false);
+
+    // El email se confirma / la contraseña se corrige: el siguiente intento
+    // (el auto-sync de fondo cada 2 min, en la app real) ya funciona.
+    mockRemote.authOk = true;
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(sync.getEstadoCuenta().conectado).toBe(true);
+  });
+});
+
+describe('restaurarCredenciales() — arranque de la app con credenciales guardadas en disco', () => {
+  test('sin ningún login confirmado antes, restaurarCredenciales() no da conectado=true solo por tener credenciales', () => {
+    sync.restaurarCredenciales('nuevo@empresa.com', 'algo');
+
+    expect(sync.hasCredentials()).toBe(true);
+    expect(sync.getEstadoCuenta().conectado).toBe(false);
+  });
+
+  test('tras un login exitoso, restaurarCredenciales() (como al reabrir la app) recupera conectado=true sin tocar la red', async () => {
+    mockRemote.authUserId = 'empresa-aaa';
+    sync.setCredentials('sync@kmalumnos.app', 'secreta');
+    await sync.sync(); // login exitoso: queda persistido en auth_status.json
+
+    // Simula un reinicio de la app: nuevas credenciales cargadas desde disco
+    sync.restaurarCredenciales('sync@kmalumnos.app', 'secreta');
+
+    expect(sync.getEstadoCuenta().conectado).toBe(true);
+  });
+
+  test('un rechazo real de credenciales invalida el estado persistido: restaurarCredenciales() ya no da conectado=true', async () => {
+    mockRemote.authUserId = 'empresa-bbb';
+    sync.setCredentials('otra@empresa.com', 'buena');
+    await sync.sync();
+    expect(sync.getEstadoCuenta().conectado).toBe(true);
+
+    // La contraseña deja de valer (se cambió en otro sitio, etc.) y se vuelve
+    // a intentar el login — como hace el reintento de fondo tras "revisa tu
+    // correo", que llama a setCredentials()+sync() en cada intento (por eso se
+    // repite aquí: un client ya cacheado no repetiría el login por sí solo).
+    mockRemote.authOk = false;
+    sync.setCredentials('otra@empresa.com', 'ya-no-vale');
+    await sync.sync();
+    expect(sync.getEstadoCuenta().conectado).toBe(false);
+
+    sync.restaurarCredenciales('otra@empresa.com', 'ya-no-vale');
+    expect(sync.getEstadoCuenta().conectado).toBe(false);
+  });
+
+  test('un fallo de red (sin internet) no borra el estado de autenticación ya confirmado', async () => {
+    mockRemote.authUserId = 'empresa-ccc';
+    sync.setCredentials('ok@empresa.com', 'buena');
+    await sync.sync();
+    expect(sync.getEstadoCuenta().conectado).toBe(true);
+
+    mockRemote.online = false;
+    const res = await sync.sync(); // sin conexión: no es un rechazo de credenciales
+    expect(res.ok).toBe(false);
+    expect(sync.getEstadoCuenta().conectado).toBe(true); // la sesión ya confirmada no se invalida por estar offline
+
+    mockRemote.online = true;
+    sync.restaurarCredenciales('ok@empresa.com', 'buena'); // como al reabrir la app sin internet
+    expect(sync.getEstadoCuenta().conectado).toBe(true);
+  });
+});
+
+// Bug real que motivó esto: el dueño creó una cuenta de empresa de prueba en
+// un PC (con alumnos/profesores de prueba) y luego, EN EL MISMO PC, una
+// segunda cuenta real — que veía los datos de prueba, porque data.json no
+// está vinculado a ninguna cuenta. local_empresa.json guarda a qué cuenta
+// pertenecen los datos locales actuales; ver sync.js sección "PROPIETARIO DE
+// LOS DATOS LOCALES".
+describe('conflicto de datos locales con otra cuenta (local_empresa.json)', () => {
+  afterEach(() => {
+    mockRemote.authUserId = undefined;
+  });
+
+  test('instalación existente SIN marcador (el caso de todos los PCs reales hoy): el login no muestra ningún conflicto y adopta la cuenta en silencio', async () => {
+    // Simula un PC ya en uso, con datos reales, que nunca tuvo local_empresa.json
+    writeData(baseData());
+    expect(fs.existsSync(localEmpresaFile)).toBe(false);
+
+    mockRemote.authUserId = 'empresa-real';
+    sync.setCredentials('real@empresa.com', 'buena');
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toBeNull(); // ningún diálogo nuevo
+    // Los datos locales NO se tocan: esto no es un vaciado, solo se adopta el marcador
+    expect(readData().vehiculos).toHaveLength(1);
+    expect(readData().alumnos).toHaveLength(1);
+    // El marcador queda creado, adoptando esta cuenta como dueña de los datos
+    const owner = JSON.parse(fs.readFileSync(localEmpresaFile, 'utf-8'));
+    expect(owner).toEqual({ empresaId: 'empresa-real', email: 'real@empresa.com' });
+  });
+
+  test('marcador presente y coincide con la sesión: todo normal, sin conflicto', async () => {
+    fs.writeFileSync(localEmpresaFile, JSON.stringify({ empresaId: 'empresa-real', email: 'real@empresa.com' }), 'utf-8');
+    writeData(baseData());
+
+    mockRemote.authUserId = 'empresa-real';
+    sync.setCredentials('real@empresa.com', 'buena');
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toBeNull();
+  });
+
+  test('marcador presente y NO coincide: login con una cuenta distinta dispara un conflicto real', async () => {
+    fs.writeFileSync(localEmpresaFile, JSON.stringify({ empresaId: 'empresa-prueba', email: 'prueba@empresa.com' }), 'utf-8');
+    writeData(baseData()); // datos de prueba que quedaron en este PC
+
+    mockRemote.authUserId = 'empresa-nueva';
+    sync.setCredentials('nueva@empresa.com', 'buena');
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true); // el sync en sí no falla, solo se marca el conflicto
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toEqual({ emailAnterior: 'prueba@empresa.com' });
+    // El marcador NO se sobrescribe hasta que se resuelva el conflicto
+    expect(JSON.parse(fs.readFileSync(localEmpresaFile, 'utf-8')).empresaId).toBe('empresa-prueba');
+  });
+
+  test('registrarEmpresa() (crear una segunda cuenta en el mismo PC) también dispara el conflicto', async () => {
+    fs.writeFileSync(localEmpresaFile, JSON.stringify({ empresaId: 'empresa-prueba', email: 'prueba@empresa.com' }), 'utf-8');
+    writeData(baseData());
+    mockRemote.authUserId = 'empresa-nueva-2';
+
+    const res = await sync.registrarEmpresa('nueva2@empresa.com', 'contraseña123');
+
+    expect(res.ok).toBe(true);
+    expect(res.estado).toBe('activa');
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toEqual({ emailAnterior: 'prueba@empresa.com' });
+  });
+
+  test('cerrar sesión (setCredentials(null,null)) limpia el conflicto detectado, no lo deja colgado', async () => {
+    fs.writeFileSync(localEmpresaFile, JSON.stringify({ empresaId: 'empresa-prueba', email: 'prueba@empresa.com' }), 'utf-8');
+    mockRemote.authUserId = 'empresa-nueva';
+    sync.setCredentials('nueva@empresa.com', 'buena');
+    await sync.sync();
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toBeTruthy();
+
+    sync.setCredentials(null, null);
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toBeNull();
+  });
+
+  test('mientras el conflicto está sin resolver, sync() no toca los datos locales (no mezcla las dos cuentas ni sube nada de la anterior)', async () => {
+    fs.writeFileSync(localEmpresaFile, JSON.stringify({ empresaId: 'empresa-prueba', email: 'prueba@empresa.com' }), 'utf-8');
+    writeData(baseData());
+    mockRemote.authUserId = 'empresa-nueva';
+    mockRemote.tables.vehiculos.push({
+      id: 50, nombre: 'Coche real', matricula: '', km_actual: 500,
+      empresa_id: 'empresa-nueva', deleted: false, updated_at: new Date().toISOString()
+    });
+    sync.setCredentials('nueva@empresa.com', 'buena');
+
+    const res = await sync.sync(); // esto es lo que hace "Guardar y probar" (save-sync-creds)
+
+    expect(res.ok).toBe(true); // las credenciales SÍ son válidas: no debe verse como fallo de login
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toBeTruthy();
+    const d = readData();
+    expect(d.vehiculos).toHaveLength(1);
+    expect(d.vehiculos[0].id).toBe(1); // sigue siendo el de la cuenta de prueba, no se mezcló
+    expect(mockRemote.tables.vehiculos.find(v => v.id === 1)).toBeUndefined(); // nada se subió a la nube
+  });
+
+  test('resolverConflictoEmpresa(): vacía data.json y pending_sync.json, adopta la cuenta actual y baja solo los datos reales de esta cuenta', async () => {
+    // Datos de la cuenta de prueba, todavía en este PC
+    fs.writeFileSync(localEmpresaFile, JSON.stringify({ empresaId: 'empresa-prueba', email: 'prueba@empresa.com' }), 'utf-8');
+    writeData(baseData({ logs: [{ tipo: 'info', descripcion: 'Alumno de prueba creado' }] }));
+
+    // La nube tiene datos reales de la cuenta nueva
+    mockRemote.authUserId = 'empresa-nueva';
+    mockRemote.tables.vehiculos.push({
+      id: 50, nombre: 'Coche real', matricula: '', km_actual: 500,
+      empresa_id: 'empresa-nueva', deleted: false, updated_at: new Date().toISOString()
+    });
+    mockRemote.tables.alumnos.push({
+      id: 60, nombre: 'Alumno real', permiso: 'B', vehiculo_id: 50,
+      empresa_id: 'empresa-nueva', deleted: false, updated_at: new Date().toISOString()
+    });
+
+    sync.setCredentials('nueva@empresa.com', 'buena');
+    const loginRes = await sync.sync();
+    expect(loginRes.ok).toBe(true);
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toBeTruthy(); // conflicto detectado, no se ha resuelto aún
+
+    const res = await sync.resolverConflictoEmpresa();
+
+    expect(res.ok).toBe(true);
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toBeNull();
+    const d = readData();
+    // Los datos de la cuenta de prueba ya no están; solo quedan los de la cuenta nueva, descargados de la nube
+    expect(d.vehiculos).toHaveLength(1);
+    expect(d.vehiculos[0]).toMatchObject({ id: 50, nombre: 'Coche real' });
+    expect(d.alumnos).toHaveLength(1);
+    expect(d.alumnos[0]).toMatchObject({ id: 60, nombre: 'Alumno real' });
+    expect(d.logs.find(l => l.descripcion === 'Alumno de prueba creado')).toBeUndefined();
+    // El marcador ahora es de la cuenta nueva
+    const owner = JSON.parse(fs.readFileSync(localEmpresaFile, 'utf-8'));
+    expect(owner.empresaId).toBe('empresa-nueva');
+    // La cola de pendientes también quedó limpia
+    const pending = JSON.parse(fs.readFileSync(pendingFile, 'utf-8'));
+    expect(pending.vehiculos).toHaveLength(0);
+    expect(pending.deleted.alumnos).toHaveLength(0);
+  });
+
+  test('pushAll() rechaza la operación mientras haya un conflicto de empresa sin resolver', async () => {
+    fs.writeFileSync(localEmpresaFile, JSON.stringify({ empresaId: 'empresa-prueba', email: 'prueba@empresa.com' }), 'utf-8');
+    writeData(baseData()); // datos de la cuenta de prueba, todavía locales
+    mockRemote.authUserId = 'empresa-nueva';
+    sync.setCredentials('nueva@empresa.com', 'buena');
+    await sync.sync(); // detecta el conflicto
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toBeTruthy();
+
+    const res = await sync.pushAll();
+
+    expect(res.ok).toBe(false);
+    expect(res.reason).toMatch(/otra cuenta/i);
+    // Nada de los datos de prueba se subió a la nube con el empresa_id de la cuenta nueva
+    expect(mockRemote.tables.vehiculos.find(v => v.empresa_id === 'empresa-nueva')).toBeUndefined();
+  });
+
+  test('tras resolverConflictoEmpresa(), "Subir todo a la nube" vuelve a funcionar con normalidad', async () => {
+    fs.writeFileSync(localEmpresaFile, JSON.stringify({ empresaId: 'empresa-prueba', email: 'prueba@empresa.com' }), 'utf-8');
+    writeData(baseData());
+    mockRemote.authUserId = 'empresa-nueva';
+    sync.setCredentials('nueva@empresa.com', 'buena');
+    await sync.sync();
+    await sync.resolverConflictoEmpresa();
+
+    db.addVehiculo('Coche nuevo', '', 0);
+    const res = await sync.pushAll();
+
+    expect(res.ok).toBe(true);
+  });
+});
+
+describe('solicitarResetPassword ("olvidé mi contraseña")', () => {
+  afterEach(() => {
+    delete mockRemote.resetPasswordError;
+    delete mockRemote.lastResetPasswordEmail;
+    delete mockRemote.lastResetPasswordRedirectTo;
+  });
+
+  test('sin credenciales previas: pide el reset y apunta al redirectTo de reset-password.html', async () => {
+    const res = await sync.solicitarResetPassword('alumno@empresa.com');
+
+    expect(res.ok).toBe(true);
+    expect(mockRemote.lastResetPasswordEmail).toBe('alumno@empresa.com');
+    expect(mockRemote.lastResetPasswordRedirectTo).toBe('https://kmalumnos-remote.vercel.app/reset-password.html');
+  });
+
+  test('no requiere sesión activa: funciona igual si no hay credenciales guardadas', async () => {
+    expect(sync.hasCredentials()).toBe(false);
+    const res = await sync.solicitarResetPassword('otra@empresa.com');
+    expect(res.ok).toBe(true);
+    expect(sync.hasCredentials()).toBe(false); // sigue sin dejar sesión abierta
+  });
+
+  test('email vacío: falla sin llamar a la red', async () => {
+    const res = await sync.solicitarResetPassword('');
+    expect(res.ok).toBe(false);
+    expect(mockRemote.lastResetPasswordEmail).toBeUndefined();
+  });
+
+  test('error real de Supabase (red, rate limit...): mensaje genérico, no revela si el email existe', async () => {
+    mockRemote.resetPasswordError = 'Email rate limit exceeded';
+    const res = await sync.solicitarResetPassword('cualquiera@empresa.com');
+    expect(res.ok).toBe(false);
+    expect(res.msg).not.toMatch(/rate limit/i); // no se filtra el detalle interno de Supabase
   });
 });
