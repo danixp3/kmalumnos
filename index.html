@@ -391,6 +391,37 @@
           <tbody></tbody>
         </table>
       </div>
+
+      <div class="card" style="margin-top:20px">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></div>
+          Estadísticas
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Desde</label>
+            <input type="date" id="stats-prof-desde" onchange="loadStatsProfesores()">
+          </div>
+          <div class="form-group">
+            <label>Hasta</label>
+            <input type="date" id="stats-prof-hasta" onchange="loadStatsProfesores()">
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="tabla-stats-profesores">
+            <thead><tr>
+              <th class="sortable" data-sort="nombre" onclick="ordenarStatsProfesores('nombre')">Profesor<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="num_practicas" onclick="ordenarStatsProfesores('num_practicas')">Nº prácticas<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="km_totales" onclick="ordenarStatsProfesores('km_totales')">Km totales<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="num_alumnos" onclick="ordenarStatsProfesores('num_alumnos')">Nº alumnos<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="practicas_pista" onclick="ordenarStatsProfesores('practicas_pista')">Prácticas pista<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="practicas_circulacion" onclick="ordenarStatsProfesores('practicas_circulacion')">Prácticas circulación<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="ultima_practica" onclick="ordenarStatsProfesores('ultima_practica')">Última práctica<span class="sort-ind"></span></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- ── PAGOS ──────────────────────────────── -->

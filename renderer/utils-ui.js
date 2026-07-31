@@ -7,10 +7,20 @@
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-// Cerrar modal al hacer click fuera
+// Cerrar modal al hacer click fuera.
+// Se exige que el clic EMPIECE y TERMINE en el fondo: si se pulsa dentro del
+// cuadro y se suelta fuera (al arrastrar o seleccionar texto), el evento click
+// se dispara sobre el overlay por ser el ancestro común, y no debe cerrar.
 document.querySelectorAll('.overlay').forEach(overlay => {
+  let pulsadoEnElFondo = false;
+
+  overlay.addEventListener('mousedown', e => {
+    pulsadoEnElFondo = (e.target === overlay);
+  });
+
   overlay.addEventListener('click', e => {
-    if (e.target === overlay) overlay.classList.remove('open');
+    if (e.target === overlay && pulsadoEnElFondo) overlay.classList.remove('open');
+    pulsadoEnElFondo = false;
   });
 });
 

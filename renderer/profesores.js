@@ -64,3 +64,69 @@ async function llenarSelectProfesores(selectId, selectedId) {
   sel.value = (selectedId !== undefined && selectedId !== null) ? String(selectedId) : '';
 }
 
+// ─── ESTADÍSTICAS DE PROFESORES ─────────────────────────────────────────────
+// Tabla de estadísticas por profesor, con filtro de fechas (desde/hasta) y
+// orden clicable en cabeceras, sobre statsProfesoresCache (mismo patrón que
+// deudasCache/renderDeudasTabla en pagos.js).
+async function loadStatsProfesores() {
+  const desde = document.getElementById('stats-prof-desde').value || undefined;
+  const hasta = document.getElementById('stats-prof-hasta').value || undefined;
+  statsProfesoresCache = await window.api.getStatsProfesores(desde, hasta);
+  renderStatsProfesoresTabla();
+}
+
+function ordenarStatsProfesores(col) {
+  if (statsProfesoresSort.col === col) {
+    statsProfesoresSort.dir *= -1;
+  } else {
+    statsProfesoresSort.col = col;
+    statsProfesoresSort.dir = 1;
+  }
+  renderStatsProfesoresTabla();
+}
+
+function actualizarIndicadoresOrdenStatsProfesores() {
+  document.querySelectorAll('#tabla-stats-profesores thead th[data-sort]').forEach(th => {
+    const ind = th.querySelector('.sort-ind');
+    if (!ind) return;
+    if (th.dataset.sort === statsProfesoresSort.col) {
+      ind.innerHTML = statsProfesoresSort.dir === 1 ? SVG_SORT_ASC : SVG_SORT_DESC;
+      th.classList.add('sort-active');
+    } else {
+      ind.innerHTML = '';
+      th.classList.remove('sort-active');
+    }
+  });
+}
+
+function renderStatsProfesoresTabla() {
+  const tbody = document.querySelector('#tabla-stats-profesores tbody');
+  if (!statsProfesoresCache.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay profesores registrados</td></tr>';
+    actualizarIndicadoresOrdenStatsProfesores();
+    return;
+  }
+
+  const { col, dir } = statsProfesoresSort;
+  const filas = [...statsProfesoresCache].sort((a, b) => {
+    if (col === 'nombre') return a.nombre.localeCompare(b.nombre, 'es', { numeric: true }) * dir;
+    if (col === 'ultima_practica') {
+      const va = a.ultima_practica || '';
+      const vb = b.ultima_practica || '';
+      return va.localeCompare(vb) * dir;
+    }
+    return ((a[col] || 0) - (b[col] || 0)) * dir;
+  });
+  actualizarIndicadoresOrdenStatsProfesores();
+
+  tbody.innerHTML = filas.map(s => `<tr>
+      <td><strong>${esc(s.nombre)}</strong></td>
+      <td>${s.num_practicas}</td>
+      <td><span class="km-badge">${fmt(s.km_totales)} km</span></td>
+      <td>${s.num_alumnos}</td>
+      <td>${s.practicas_pista}</td>
+      <td>${s.practicas_circulacion}</td>
+      <td>${s.ultima_practica ? fmtFecha(s.ultima_practica) : '<span style="color:var(--placeholder)">—</span>'}</td>
+    </tr>`).join('');
+}
+

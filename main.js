@@ -273,6 +273,7 @@ ipcMain.handle('get-desglose-pagos-alumno', (_, alumno_id) => db.getDesglosePago
 
 ipcMain.handle('get-resumen', () => db.getResumen());
 ipcMain.handle('get-stats-dashboard', () => db.getStatsDashboard());
+ipcMain.handle('get-stats-profesores', (_, desde, hasta) => db.getStatsProfesores(desde, hasta));
 ipcMain.handle('get-solapamientos', () => db.getSolapamientos());
 ipcMain.handle('rellenar-km-masivo', (_, vehiculo_id, kmMin, kmMax, kmInicio, kmFinal) => db.rellenarKmMasivo(vehiculo_id, kmMin, kmMax, kmInicio, kmFinal));
 ipcMain.handle('get-practicas-sin-km', (_, vehiculo_id) => db.getPracticasSinKm(vehiculo_id));
