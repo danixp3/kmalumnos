@@ -9,14 +9,14 @@ Diseñar es iterar: habrá varias rondas de "un poco más grande / otro tono / a
 
 ## Preparación (una vez por sesión de diseño)
 
-1. **Leer `references/estilo-ui.md`** — variables, componentes, secciones con anclas y la identidad visual de cada interfaz. No leer los index.html enteros jamás: localizar con Grep sobre las anclas y leer solo ese bloque.
+1. **Leer `references/estilo-ui.md`** — variables, componentes, secciones con anclas y la identidad visual de cada interfaz. El CSS de escritorio vive en `styles.css` (no inline en `index.html`); el de la web sigue inline en `web-remote/index.html`. No leer esos archivos enteros jamás: localizar con Grep sobre las anclas y leer solo ese bloque.
 2. **Acotar con el usuario** si no está claro: ¿escritorio, web del móvil o ambas? ¿retoque o rediseño completo? Enseñarle en una frase la identidad actual de cada una (escritorio = panel SaaS claro; móvil = oscura glassmorphism) por si quiere conservarla o romperla.
 
 ## Reglas de edición (aquí está el ahorro)
 
-- **Cambios globales primero por variables**: tema, paleta, radios y sombras viven en `:root`. Cambiar `--primary` son 2 ediciones de una línea (una por interfaz), no cientos. Colores nuevos → crear variable, nunca hardcodear.
-- **Ediciones quirúrgicas por sección**: el CSS de escritorio está seccionado con comentarios `/* ── NOMBRE ─── */` greppables. Un rediseño total se hace sección a sección (LAYOUT → SIDEBAR → CARDS → ...), no reescribiendo el archivo, que además mezclaría diseño con lógica y dificultaría revisar.
-- **Clases renombradas o rediseñadas** → grep de esa clase en `renderer.js` (escritorio) o en el `<script>` de la propia web: el contenido dinámico se pinta desde JS con las clases en strings.
+- **Cambios globales primero por variables**: tema, paleta, radios y sombras viven en `:root` (más los overrides `[data-theme="oscuro"]`/`[data-theme="negro"]` para los otros dos temas). Cambiar `--primary` son 2-3 ediciones de una línea (una por interfaz/tema), no cientos. Colores nuevos → crear variable, nunca hardcodear.
+- **Ediciones quirúrgicas por sección**: el CSS de escritorio vive en `styles.css` (extraído de index.html, 1198 líneas), seccionado con comentarios `/* ── NOMBRE ─── */` greppables. Un rediseño total se hace sección a sección (LAYOUT → SIDEBAR → CARDS → ...), no reescribiendo el archivo, que además mezclaría diseño con lógica y dificultaría revisar.
+- **Clases renombradas o rediseñadas** → grep de esa clase en `renderer/` (escritorio, el módulo del dominio que corresponda) o en el `<script>` de la propia web: el contenido dinámico se pinta desde JS con las clases en strings.
 - **Rondas en lote**: recoger TODOS los comentarios del usuario de una ronda y aplicarlos en una sola pasada de ediciones, en vez de un ciclo completo por retoque.
 
 ## Ver el resultado

@@ -1,20 +1,41 @@
 # Mapa del código de escritorio
 
-Localizar siempre por **anclas** (cadenas literales, greppables); nunca por números de línea ni leyendo archivos enteros. Los 4 archivos de app usan secciones comentadas `// ─── NOMBRE`.
+Localizar siempre por **anclas** (cadenas literales, greppables); nunca por números de línea ni leyendo archivos enteros. Todos los módulos de `renderer/` y `db/` llevan al inicio una ancla de sección `// ─── NOMBRE ───`.
 
 ## Receta: operación nueva de punta a punta
 
-1. **db.js** — función en su sección: `load()` → mutar el array cacheado → `save()` → `const s = _sync(); if (s) s.markDirty('<tabla>', id)` (o `markDeleted`). Operaciones masivas: además `addLog(tipo, descripcion, detalles)`.
-2. **main.js** — handler en `// ─── IPC HANDLERS`: `ipcMain.handle('canal-kebab', (_, ...args) => db.funcionCamel(...args));`
+1. **db/<modulo>.js** — función en el módulo del dominio que toca (ver tabla abajo): `load()` (de `./core`) → mutar el array cacheado → `save()` → `const s = _sync(); if (s) s.markDirty('<tabla>', id)` (o `markDeleted`). Operaciones masivas: además `addLog(tipo, descripcion, detalles)` (en `core.js`). `db.js` en la raíz es solo el índice que re-exporta `db/`: no editar ahí la lógica, solo si hay que añadir un export nuevo al índice.
+2. **main.js** — handler en `// ─── IPC HANDLERS`: `ipcMain.handle('canal-kebab', (_, ...args) => db.funcionCamel(...args));` (sigue haciendo `require('./db')` sin cambios).
 3. **preload.js** — entrada en `exposeInMainWorld('api', {...})`: `funcionCamel: (...a) => ipcRenderer.invoke('canal-kebab', ...a),` (eventos push desde main: `ipcRenderer.on`).
-4. **renderer.js** — función en su sección + refresco con su `loadX()` al final.
+4. **renderer/<modulo>.js** — función en el módulo del dominio que toca (ver tabla abajo) + refresco con su `loadX()` al final. Son `<script>` clásicos (no módulos ES): funciones y `const`/`let` de nivel superior son globales entre archivos. **Si el módulo es nuevo, insertar su `<script>` en `index.html` antes de `arranque.js`** (que debe cargar siempre el último: contiene todo el código que se ejecuta al arrancar, evita temporal-dead-zone).
 5. **test** del criterio de aceptación (recetas abajo) → `npm test`.
 
-## renderer.js (~2540 líneas)
+## renderer/ — 18 `<script>`, orden fijo en index.html, ~2540 líneas repartidas
 
-**Secciones (anclas):** `DIÁLOGOS NATIVOS (fix de foco)`, `ESTADO`, `NAVEGACIÓN`, `DASHBOARD`, `PESTAÑAS DE PÁGINA (Kilómetros / Datos)`, `VEHÍCULOS`, `PROFESORES`, `ALUMNOS`, `PRÁCTICAS`, `PAGOS`, `IMPORTAR CSV`, `EXPORTAR / COMPARAR CSV`, `MODALES`, `UTILS`, `PREFERENCIAS (rango de km por defecto)`, `SOLAPAMIENTOS`, `LOGS`, `BACKUP`, `TIMELINE DEL VEHÍCULO`, `SYNC UI`, `CUENTA DE EMPRESA (antes CREDENCIALES DE SINCRONIZACIÓN)`, `AJUSTES`, `AUTO-UPDATE`, `TOASTS (mensajes no bloqueantes)`, `REGISTRO RÁPIDO`, `BIENVENIDA (instalación nueva)`, `TUTORIAL`, `BARRA DE TÍTULO`, `INIT` (todas con prefijo `// ─── `).
+| Archivo | Líneas | Contenido |
+|---|---|---|
+| `estado.js` | 56 | Estado global, caches, navegación |
+| `utils-ui.js` | 107 | Modales, `esc`/`fmt`/`fmtFecha`/`tagPermiso`, TEMA, toasts |
+| `dashboard.js` | 75 | Dashboard, tarjetas personalizables |
+| `vehiculos.js` | 130 | CRUD vehículos, relleno masivo |
+| `profesores.js` | 67 | CRUD profesores |
+| `alumnos.js` | 256 | CRUD alumnos, anotaciones, filtros |
+| `practicas.js` | 168 | CRUD prácticas |
+| `pagos.js` | 285 | Tarifas, deudas, pagos, desglose FIFO |
+| `csv.js` | 188 | Importar/exportar/comparar CSV |
+| `solapamientos.js` | 86 | Detección y corrección de solapamientos |
+| `logs-backups.js` | 104 | Historial de logs y backups |
+| `timeline.js` | 177 | Timeline del vehículo |
+| `sync-ui.js` | 217 | Sync, cuenta de empresa |
+| `ajustes.js` | 172 | Página Ajustes, preferencias |
+| `registro-rapido.js` | 234 | Registro rápido |
+| `tutorial.js` | 326 | Tutorial interactivo (26 pasos) |
+| `ventana.js` | 26 | Barra de título propia (`frame: false`) |
+| `arranque.js` | 54 | Bienvenida + todo el código de arranque — **siempre el último `<script>`** |
 
-El sidebar quedó en 4 grupos — Gestión (dashboard, registro-rapido, alumnos, vehiculos, profesores), Análisis (kilometros, logs), Datos (datos, pagos), Sistema (ajustes) — pero las secciones internas de renderer.js casi no cambiaron de nombre: `IMPORTAR CSV`/`EXPORTAR / COMPARAR CSV` (antes página propia) ahora se renderizan dentro de `page-datos` como pestañas Importar/Exportar/Comparar; `SOLAPAMIENTOS` y `TIMELINE DEL VEHÍCULO` (antes páginas propias) ahora son las pestañas "Conflictos" y "Mapa del vehículo" de `page-kilometros`; `BACKUP` (antes página propia) ahora vive dentro de `page-ajustes` junto con sync, updates y preferencias. Las funciones internas (`loadSolapamientos`, `loadTimelineSelect`, `hacerBackup`, etc.) siguen igual bajo el capó — solo cambió cómo se llega a ellas.
+**Secciones (anclas) por dominio, dentro de cada módulo:** `DIÁLOGOS NATIVOS (fix de foco)`, `ESTADO`, `NAVEGACIÓN`, `DASHBOARD`, `PESTAÑAS DE PÁGINA (Kilómetros / Datos)`, `VEHÍCULOS`, `PROFESORES`, `ALUMNOS`, `PRÁCTICAS`, `PAGOS`, `IMPORTAR CSV`, `EXPORTAR / COMPARAR CSV`, `MODALES`, `UTILS`, `PREFERENCIAS (rango de km por defecto)`, `SOLAPAMIENTOS`, `LOGS`, `BACKUP`, `TIMELINE DEL VEHÍCULO`, `SYNC UI`, `CUENTA DE EMPRESA (antes CREDENCIALES DE SINCRONIZACIÓN)`, `AJUSTES`, `AUTO-UPDATE`, `TOASTS (mensajes no bloqueantes)`, `REGISTRO RÁPIDO`, `BIENVENIDA (instalación nueva)`, `TUTORIAL`, `BARRA DE TÍTULO`, `INIT` (todas con prefijo `// ─── `).
+
+El sidebar quedó en 4 grupos — Gestión (dashboard, registro-rapido, alumnos, vehiculos, profesores), Análisis (kilometros, logs), Datos (datos, pagos), Sistema (ajustes) — pero las secciones internas de renderer/ casi no cambiaron de nombre: `IMPORTAR CSV`/`EXPORTAR / COMPARAR CSV` (antes página propia) ahora se renderizan dentro de `page-datos` como pestañas Importar/Exportar/Comparar; `SOLAPAMIENTOS` y `TIMELINE DEL VEHÍCULO` (antes páginas propias) ahora son las pestañas "Conflictos" y "Mapa del vehículo" de `page-kilometros`; `BACKUP` (antes página propia) ahora vive dentro de `page-ajustes` junto con sync, updates y preferencias. Las funciones internas (`loadSolapamientos`, `loadTimelineSelect`, `hacerBackup`, etc.) siguen igual bajo el capó — solo cambió cómo se llega a ellas.
 
 **Funciones por área** (cada una llama a su `window.api.*` homónimo salvo nota):
 - Dashboard: `loadDashboard` (getResumen + alertas, y ahora también `getStatsDashboard()` para las 4 tarjetas ocultables), `navegarA(page, tab?)` (el 2º argumento opcional selecciona pestaña interna, p.ej. `navegarA('kilometros','conflictos')` para ir directo a Conflictos desde una alerta). Personalización: 7 tarjetas `#stat-card-vehiculos`/`#stat-card-alumnos`/`#stat-card-practicas` (siempre visibles) + `#stat-card-practicas-hoy`/`#stat-card-km-mes`/`#stat-card-total-adeudado`/`#stat-card-alumnos-deuda` (ocultables); `loadDashboard` aplica la preferencia con `.classList.toggle('hidden', !pref.<campo>)` por cada una. Preferencia en `PREF_DASHBOARD_KEY = 'kmalumnos_dashboard_stats'` (localStorage, sección `AJUSTES`): checkboxes `#pref-dash-vehiculos`/`#pref-dash-alumnos`/`#pref-dash-practicas`/`#pref-dash-practicas-hoy`/`#pref-dash-km-mes`/`#pref-dash-total-adeudado`/`#pref-dash-alumnos-deuda` en Ajustes → Preferencias, guardados/leídos con el mismo patrón que `getRangoPref`/`guardarRangoPref`.
@@ -44,13 +65,28 @@ El sidebar quedó en 4 grupos — Gestión (dashboard, registro-rapido, alumnos,
 
 ## main.js (~420 líneas)
 
-Secciones `// ─── IPC HANDLERS` y `// ─── SYNC IPC HANDLERS`; ventana en `function createWindow() {` (`frame: false` — sin marco nativo, la barra de título la pinta index.html/renderer.js); auto-updater desde `// NO descargar automáticamente - preguntar primero` (listeners `autoUpdater.on(...)`).
+Secciones `// ─── IPC HANDLERS` y `// ─── SYNC IPC HANDLERS`; ventana en `function createWindow() {` (`frame: false` — sin marco nativo, la barra de título la pinta index.html/renderer/ventana.js); auto-updater desde `// NO descargar automáticamente - preguntar primero` (listeners `autoUpdater.on(...)`).
 
-Handlers: mecánicos en su mayoría — canal kebab-case → misma función camelCase de db.js (`get-vehiculos`→`db.getVehiculos`, `add-practica`→`db.addPractica`, `get-desglose-pagos-alumno`→`db.getDesglosePagosAlumno`, `get-stats-dashboard`→`db.getStatsDashboard`...). Excepciones con lógica propia: `importar-csv`/`comparar-csvs` (parsean el CSV en main), `exportar-csv` y `crear-backup`/`restaurar-backup` (diálogos de archivo), `generar-km` (cálculo inline), `save-sync-creds`/`get-sync-creds-status` (safeStorage local + `sync.setCredentials`), `sync-now`/`sync-push-all`/`sync-status` → `sync.*`. Handler mecánico sin argumentos: `ipcMain.handle('app:version', () => app.getVersion())`, justo tras el handler de fix de foco `ui:refocus`; expuesto en preload.js como `getVersion: () => ipcRenderer.invoke('app:version')` y pintado en `#app-version` (footer del sidebar) y `#ajustes-version` (página Ajustes). Justo después (comentario `// Ventana (barra de título propia, sin marco nativo: frame: false)`): 4 handlers sin lógica de datos que solo tocan `mainWin` — `ventana-minimizar`/`ventana-maximizar`/`ventana-cerrar`/`ventana-esta-maximizada`; el evento push `ventana-maximizada` (true/false) se emite desde los listeners `mainWin.on('maximize'/'unmaximize', ...)` cerca de `createWindow()`, no desde un handler.
+Handlers: mecánicos en su mayoría — canal kebab-case → misma función camelCase de `db.js` (índice, re-exporta `db/`) (`get-vehiculos`→`db.getVehiculos`, `add-practica`→`db.addPractica`, `get-desglose-pagos-alumno`→`db.getDesglosePagosAlumno`, `get-stats-dashboard`→`db.getStatsDashboard`...). Excepciones con lógica propia: `importar-csv`/`comparar-csvs` (parsean el CSV en main), `exportar-csv` y `crear-backup`/`restaurar-backup` (diálogos de archivo), `generar-km` (cálculo inline), `save-sync-creds`/`get-sync-creds-status` (safeStorage local + `sync.setCredentials`), `sync-now`/`sync-push-all`/`sync-status` → `sync.*`. Handler mecánico sin argumentos: `ipcMain.handle('app:version', () => app.getVersion())`, justo tras el handler de fix de foco `ui:refocus`; expuesto en preload.js como `getVersion: () => ipcRenderer.invoke('app:version')` y pintado en `#app-version` (footer del sidebar) y `#ajustes-version` (página Ajustes). Justo después (comentario `// Ventana (barra de título propia, sin marco nativo: frame: false)`): 4 handlers sin lógica de datos que solo tocan `mainWin` — `ventana-minimizar`/`ventana-maximizar`/`ventana-cerrar`/`ventana-esta-maximizada`; el evento push `ventana-maximizada` (true/false) se emite desde los listeners `mainWin.on('maximize'/'unmaximize', ...)` cerca de `createWindow()`, no desde un handler.
 
-## db.js (~1375 líneas)
+## db/ (10 módulos, ~1375 líneas repartidas) + db.js (índice de 40 líneas)
 
-**Secciones:** `BACKUP`, `VALIDACIÓN CRUZADA DE KM`, `VEHÍCULOS`, `PROFESORES`, `TARIFAS`, `ALUMNOS`, `PRÁCTICAS`, `PAGOS`, `IMPORTACIÓN CSV`, `EXPORTACIÓN CSV`, `COMPARADOR DE CSV`, `RELLENO MASIVO DE KM`, `CORRECCIÓN QUIRÚRGICA DE SOLAPAMIENTOS`, `SOLAPAMIENTOS`, `ALUMNOS POR VEHÍCULO (para registro rápido)`, `TIMELINE DE VEHÍCULO`. Logs: `addLog(tipo, ...)` arriba del archivo (unshift + recorte a 500).
+`db.js` en la raíz solo hace `require`+re-export de los 10 módulos de `db/`; `main.js` sigue haciendo `require('./db')` sin cambios (51 exports, superficie pública idéntica a antes del refactor). Todos requieren `./core`; `pagos.js` → `practicas.js`; `estadisticas.js` → `km-algoritmos.js` y `pagos.js`. Sin ciclos.
+
+| Módulo | Líneas | Contenido |
+|---|---|---|
+| `core.js` | 221 | Rutas, caché de `data.json`, save/nextId, logs, backups |
+| `vehiculos.js` | 46 | CRUD vehículos |
+| `profesores.js` | 45 | CRUD profesores |
+| `tarifas.js` | 38 | CRUD tarifas |
+| `alumnos.js` | 82 | CRUD alumnos + anotaciones |
+| `practicas.js` | 260 | CRUD prácticas + registro rápido/masivo |
+| `pagos.js` | 130 | Tarifas por permiso×tipo, deudas, pagos |
+| `csv.js` | 251 | Importar/exportar/comparar CSV |
+| `km-algoritmos.js` | 267 | Solapamientos, relleno masivo, corrección |
+| `estadisticas.js` | 98 | Resumen, dashboard, timeline |
+
+**Secciones** (repartidas entre los módulos de arriba): `BACKUP`, `VALIDACIÓN CRUZADA DE KM`, `VEHÍCULOS`, `PROFESORES`, `TARIFAS`, `ALUMNOS`, `PRÁCTICAS`, `PAGOS`, `IMPORTACIÓN CSV`, `EXPORTACIÓN CSV`, `COMPARADOR DE CSV`, `RELLENO MASIVO DE KM`, `CORRECCIÓN QUIRÚRGICA DE SOLAPAMIENTOS`, `SOLAPAMIENTOS`, `ALUMNOS POR VEHÍCULO (para registro rápido)`, `TIMELINE DE VEHÍCULO`. Logs: `addLog(tipo, ...)` en `core.js` (unshift + recorte a 500).
 
 **Profesores** (`getProfesores/addProfesor/updateProfesor/deleteProfesor`): mismo patrón que Vehículos. `getProfesores()` añade `num_practicas` calculado (cuenta `practicas` con ese `profesor_id`). `deleteProfesor` NUNCA toca `practicas` ni `alumnos`: las prácticas ya impartidas y los alumnos que tenía asignados conservan su `profesor_id` aunque el profesor ya no exista (igual invariante que un alumno borrado con sus prácticas de km). `addPractica`/`updatePractica`/`ajustarPracticasAlumno`/`guardarNotaAlumno` aceptan `profesor_id` opcional (`null` = sin profesor); `getPracticasByAlumno` resuelve `profesor_nombre` igual que `vehiculo_nombre`. `addAlumno`/`updateAlumno` también aceptan `profesor_id` opcional (columna `alumnos.profesor_id integer NULL` en Supabase, sin FK, igual que `practicas.profesor_id`); `getAlumnos()` resuelve `profesor_nombre` igual que `vehiculo_nombre`.
 
@@ -60,11 +96,11 @@ Handlers: mecánicos en su mayoría — canal kebab-case → misma función came
 - `getPagosByAlumno(alumno_id)/addPago/updatePago/deletePago` — mismo patrón CRUD que el resto, con soft delete en `deletePago`.
 - `getDeudas()` recorre alumnos y, por cada práctica no borrada, busca `tarifa(permiso del alumno, tipo de la práctica)`: si existe suma `precio` a `total_generado`; si no, marca `sin_tarifa = true` y no suma nada (la práctica cuenta 0, no rompe el resto del cálculo). `saldo = total_generado - Σ getPagosByAlumno(alumno_id).cantidad`.
 - **Toda mutación de tarifas/pagos marca sync igual que el resto** (`markDirty('tarifas'|'pagos', id)` / `markDeleted`) — misma trampa nº 1 de abajo, no es una excepción.
-- `getDesglosePagosAlumno(alumno_id)` (dentro de la sección `PAGOS`, justo después de `getDeudas`): **solo lectura, no marca sync** — reparte `total_pagado` entre las prácticas del alumno en orden FIFO trabajando en céntimos enteros (`Math.round(x * 100)`, evita errores de coma flotante) para clasificar cada práctica como `pagada`/`parcial`/`pendiente`/`sin_tarifa`; usada por el modal de desglose de Pagos en renderer.js.
+- `getDesglosePagosAlumno(alumno_id)` (dentro de la sección `PAGOS`, justo después de `getDeudas`): **solo lectura, no marca sync** — reparte `total_pagado` entre las prácticas del alumno en orden FIFO trabajando en céntimos enteros (`Math.round(x * 100)`, evita errores de coma flotante) para clasificar cada práctica como `pagada`/`parcial`/`pendiente`/`sin_tarifa`; usada por el modal de desglose de Pagos en `renderer/pagos.js`.
 
 **Dashboard:** `getStatsDashboard(hoy?)` (sección `SOLAPAMIENTOS`, justo después de `getResumen`): **solo lectura, no marca sync** — `hoy` opcional `'YYYY-MM-DD'` (por defecto la fecha local de hoy); devuelve `{ practicasHoy, kmMes, totalAdeudado, alumnosConDeuda }` para las 4 tarjetas ocultables del dashboard. El dinero sigue el mismo criterio que el resto del proyecto: euros con decimales, no céntimos (reutiliza `getDeudas().saldo` tal cual).
 
-**El mecanismo de sync — la trampa nº 1 del proyecto:** es `db.js` quien marca, nunca `main.js`. Tras `save()`, cada mutadora hace `const s = _sync(); if (s) s.markDirty('<tabla>', id)` (`_sync()` es un require lazy de `./sync` que evita la dependencia circular). Ejemplo canónico, `addPractica`: `load()` → push a `d.practicas` → si `kf > v.km_actual` actualiza el odómetro del vehículo → `save()` → `markDirty('practicas', id)`. **Si tu función muta prácticas Y vehículo, marca los dos.** La validación de negocio (fechas, solapamientos) vive en renderer/IPC, no en db.js.
+**El mecanismo de sync — la trampa nº 1 del proyecto:** es `db/` quien marca, nunca `main.js`. Tras `save()`, cada mutadora hace `const s = _sync(); if (s) s.markDirty('<tabla>', id)` (`_sync()` es un require lazy de `./sync` que evita la dependencia circular). Ejemplo canónico, `addPractica` (en `db/practicas.js`): `load()` → push a `d.practicas` → si `kf > v.km_actual` actualiza el odómetro del vehículo → `save()` → `markDirty('practicas', id)`. **Si tu función muta prácticas Y vehículo, marca los dos.** La validación de negocio (fechas, solapamientos) vive en renderer/IPC, no en `db/`.
 
 ## sync.js (~450 líneas)
 
