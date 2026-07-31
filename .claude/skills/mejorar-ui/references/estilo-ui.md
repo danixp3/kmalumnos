@@ -4,11 +4,11 @@ Localizar siempre por **anclas** (cadenas literales) con Grep + Read parcial; lo
 
 **Regla de identidad global: NADA de emojis en la UI.** Toda la iconografía es SVG inline estilo Lucide (stroke="currentColor", stroke-width 2, tamaños 12–19px). Solo se permiten los glifos tipográficos ✓ y ✕ en textos de estado.
 
-## Escritorio — index.html (~2410 líneas, CSS inline)
+## Escritorio — index.html (~1491 líneas, solo HTML) + styles.css (1198 líneas)
 
 **Identidad:** panel SaaS claro estilo Linear/Stripe. Fuente `Inter`, fondo `#f6f7f9`, **sidebar claro** (`#fff` con borde derecho `--sidebar-border`), acento índigo `#4f46e5`. Marca: `.sidebar-logo-icon` (cuadrado degradado índigo→violeta con SVG de velocímetro) + "KMAlumnos / Gestión de autoescuela".
 
-**El `<style>` sigue organizado por secciones comentadas** `/* ── NOMBRE ─── */`: `SCROLLBAR`, `TITLEBAR`, `LAYOUT`, `SIDEBAR`, `CONTENT`, `PAGES`, `PAGE HEADER`, `CARDS`, `STATS`, `FORMS`, `BUTTONS`, `TABLES`, `BADGES`, `REGISTRO RÁPIDO ITEMS`, `MODAL`, `ALERTS`, `MISC`, `BANNER CARD`, `DIVIDER`, `DASH QUICK ACTIONS`, `RANGE INPUT`, `PAGE TABS`, `SIDEBAR FOOTER`, `SYNC STATUS`, `TUTORIAL`.
+**El CSS vive en `styles.css`** (enlazado con `<link rel="stylesheet">`, ya no inline en index.html), organizado por secciones comentadas `/* ── NOMBRE ─── */`: `SCROLLBAR`, `TITLEBAR`, `LAYOUT`, `SIDEBAR`, `CONTENT`, `PAGES`, `PAGE HEADER`, `CARDS`, `STATS`, `FORMS`, `BUTTONS`, `TABLES`, `BADGES`, `REGISTRO RÁPIDO ITEMS`, `MODAL`, `ALERTS`, `MISC`, `BANNER CARD`, `DIVIDER`, `DASH QUICK ACTIONS`, `RANGE INPUT`, `PAGE TABS`, `SIDEBAR FOOTER`, `SYNC STATUS`, `TUTORIAL`. Incluye también los overrides de tema `[data-theme="oscuro"]`/`[data-theme="negro"]` (selector de tema con persistencia en `ui-prefs.json`, ver `renderer/utils-ui.js`/`ajustes.js`).
 
 **Barra de título propia (`TITLEBAR`, ventana `frame: false` sin marco nativo):** `#titlebar` (32px de alto, `-webkit-app-region: drag` para arrastrar, `z-index: 300` — a propósito por encima de `.overlay` (`z-index: 100`) para poder minimizar/maximizar/cerrar con un modal abierto); dentro, `.tb-app` (marca compacta), `.tb-drag` (zona de arrastre que rellena el hueco) y los 3 botones `.tb-btn` (`#tb-min`/`#tb-max`/`#tb-close`, `-webkit-app-region: no-drag`). `#app` pasa a `height: calc(100vh - 32px)` para dejarle sitio encima.
 
@@ -18,7 +18,7 @@ Localizar siempre por **anclas** (cadenas literales) con Grep + Read parcial; lo
 
 **Pantallas / orden del nav (4 grupos):** **Gestión** → dashboard, registro-rapido, alumnos, vehiculos · **Análisis** → kilometros (con pestañas internas `#tab-kilometros-mapa` "Mapa del vehículo" y `#tab-kilometros-conflictos` "Conflictos"), logs · **Datos** → datos (con pestañas `#tab-datos-importar`/`#tab-datos-exportar`/`#tab-datos-comparar`) · **Sistema** → ajustes (fusiona lo que antes era backup: sync, copia de seguridad, actualizaciones, preferencias de rango km). Las páginas antiguas `page-timeline`+`page-solapamientos` se fusionaron en `page-kilometros`; `page-importar`+`page-csv-tools` en `page-datos`; `page-backup` en `page-ajustes`. Cada vista es `<div id="page-XXX" class="page">`; `.page` tiene `max-width:1180px` centrado.
 
-**⚠ Acoplamiento con renderer.js:** el contenido dinámico se pinta desde renderer.js con clases Y AHORA TAMBIÉN SVGs en strings (alertas del dashboard, botones de tablas Editar/Borrar/Prácticas/Anotaciones, `LOG_ICONS` del historial, celda ⚡→SVG de solapamientos, botón de nota `.rr-nota-btn`). Si se renombra una clase o se cambia la iconografía, grep en renderer.js.
+**⚠ Acoplamiento con renderer/:** el contenido dinámico se pinta desde los módulos de `renderer/` con clases Y AHORA TAMBIÉN SVGs en strings (alertas del dashboard en `dashboard.js`, botones de tablas Editar/Borrar/Prácticas/Anotaciones en cada módulo de dominio, `LOG_ICONS` del historial en `logs-backups.js`, celda ⚡→SVG de solapamientos en `solapamientos.js`, botón de nota `.rr-nota-btn` en `registro-rapido.js`). Si se renombra una clase o se cambia la iconografía, grep en `renderer/`.
 
 ## Web móvil — web-remote/index.html (~1110 líneas, CSS inline)
 

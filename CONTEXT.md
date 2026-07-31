@@ -14,10 +14,11 @@
 ├─────────────────────────────────────────────────────────────────┤
 │ main.js      → proceso principal, IPC handlers, auto-updater    │
 │ preload.js   → puente contextBridge, expone window.api          │
-│ renderer.js  → lógica UI (vanilla JS)                           │
-│ db.js        → CRUD + algoritmos, guarda en data.json           │
+│ renderer/    → lógica UI (vanilla JS), 18 <script> por dominio  │
+│ db.js        → índice de 40 líneas, re-exporta db/ (51 exports) │
+│ db/          → CRUD + algoritmos, 10 módulos, guarda data.json  │
 │ sync.js      → sincronización bidireccional con Supabase        │
-│ index.html   → SPA con CSS inline                               │
+│ index.html   → SPA (solo HTML) + styles.css                     │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               │ sync cada 2 min
@@ -104,7 +105,7 @@ STATUS = {
 
 ---
 
-## db.js — Mejoras de robustez
+## db/core.js — Mejoras de robustez
 
 ### save() — Guardado atómico
 ```js
@@ -182,7 +183,7 @@ API_PIN=2004
 
 ---
 
-## db.js — Funciones exportadas
+## db/ — Funciones exportadas (vía índice db.js)
 
 ### Vehículos
 | Función | Firma | Descripción |

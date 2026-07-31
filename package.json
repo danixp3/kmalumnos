@@ -14,10 +14,12 @@
     "files": [
       "main.js",
       "preload.js",
-      "renderer.js",
+      "renderer/**/*",
       "db.js",
+      "db/**/*",
       "sync.js",
       "index.html",
+      "styles.css",
       "package.json"
     ],
     "win": {

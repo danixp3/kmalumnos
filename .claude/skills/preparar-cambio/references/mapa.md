@@ -5,13 +5,13 @@ Versión comprimida de CONTEXT.md para orientarse sin leerlo. Si algo de aquí c
 ## Flujo de una operación de UI (escritorio)
 
 ```
-index.html (SPA, CSS inline) → renderer.js (toda la UI, vanilla JS)
+index.html (SPA, enlaza styles.css) → renderer/<modulo>.js (18 <script> clásicos, orden fijo)
   → window.api.<metodo>()        [preload.js: contextBridge]
   → ipcMain.handle('<canal>')    [main.js]
-  → db.js (datos locales) y/o sync.js (nube)
+  → db/<modulo>.js (datos locales, vía db.js índice) y/o sync.js (nube)
 ```
 
-**Una operación nueva de UI toca los 4 archivos**: función en `db.js`/`sync.js` → handler en `main.js` → exposición en `preload.js` → llamada y pintado en `renderer.js`. El renderer está aislado (`contextIsolation: true`, `nodeIntegration: false`): nada de `require` ni acceso directo a datos desde la UI.
+**Una operación nueva de UI toca 4 capas**: función en `db/<modulo>.js`/`sync.js` → handler en `main.js` → exposición en `preload.js` → llamada y pintado en `renderer/<modulo>.js`. El renderer está aislado (`contextIsolation: true`, `nodeIntegration: false`): nada de `require` ni acceso directo a datos desde la UI. Detalle de módulos y anclas en `/cambiar-app`.
 
 ## Datos
 
@@ -29,7 +29,7 @@ index.html (SPA, CSS inline) → renderer.js (toda la UI, vanilla JS)
 
 Supabase (proyecto `dmwoqugdnwgkcqtixhyw`): tablas `vehiculos`, `alumnos`, `practicas` con columnas extra `updated_at` (motor del sync), `deleted` (soft delete) y `source` (`'desktop'`|`'web-remote'`), más `meta` para el ping. IDs: `_seq` en local, SERIAL en la nube; al sincronizar se respeta el id de quien creó el registro.
 
-## db.js — funciones por bloque (firmas completas en CONTEXT.md si hacen falta)
+## db/ — funciones por bloque (firmas completas en CONTEXT.md si hacen falta)
 
 - **CRUD**: `getVehiculos/addVehiculo/updateVehiculoKm/deleteVehiculo`, `getAlumnos/addAlumno/updateAlumno/deleteAlumno` (borra también sus prácticas), `getPracticasByAlumno/getUltimaPractica/addPractica/updatePractica/deletePractica`.
 - **Km**: `rellenarKmMasivo(vid,min,max,inicio?,final?)`, `getPracticasSinKm`, `corregirSolapamientos`, `getSolapamientos`, `validarSolapamiento`, `getResumen`, `getTimelineVehiculo`.
@@ -44,7 +44,7 @@ Auto-sync cada 2 min: sube pendientes de `pending_sync.json` → baja de la nube
 
 ## Ventana y preferencias de UI (localStorage)
 
-La ventana de escritorio es `frame: false` (sin marco nativo): la barra de título la pinta `index.html`/`renderer.js` (`#titlebar`), con los canales IPC `ventana-minimizar/-maximizar/-cerrar/-esta-maximizada` y el evento push `ventana-maximizada`. Varias preferencias de usuario viven en `localStorage`, no en `data.json` (no sincronizan entre PCs): rango km por defecto (`kmalumnos_rango_km`), tarjetas visibles del dashboard (`kmalumnos_dashboard_stats`), tutorial visto por página (`kmalumnos_tutorial_visto`), bienvenida descartada (`kmalumnos_bienvenida_descartada`).
+La ventana de escritorio es `frame: false` (sin marco nativo): la barra de título la pinta `index.html`/`renderer/ventana.js` (`#titlebar`), con los canales IPC `ventana-minimizar/-maximizar/-cerrar/-esta-maximizada` y el evento push `ventana-maximizada`. Varias preferencias de usuario viven en `localStorage`, no en `data.json` (no sincronizan entre PCs): rango km por defecto (`kmalumnos_rango_km`), tarjetas visibles del dashboard (`kmalumnos_dashboard_stats`), tutorial visto por página (`kmalumnos_tutorial_visto`), bienvenida descartada (`kmalumnos_bienvenida_descartada`).
 
 ## web-remote/ (Vercel, ES modules — la app usa `require`)
 
@@ -52,7 +52,7 @@ La ventana de escritorio es `frame: false` (sin marco nativo): la barra de títu
 
 ## Checklist de invariantes (repasar SIEMPRE antes de codificar)
 
-1. **Toda mutación de datos en `db.js` debe llamar a `markDirty`/`markDeleted`** — incluidas las masivas e indirectas. Olvidarlo dejó 113 prácticas con km=0 en la nube (v1.3.12).
+1. **Toda mutación de datos en `db/` debe llamar a `markDirty`/`markDeleted`** — incluidas las masivas e indirectas. Olvidarlo dejó 113 prácticas con km=0 en la nube (v1.3.12).
 2. **Borrados = soft delete siempre** (`deleted=true` + `updated_at`), nunca DELETE real en Supabase: la FK de prácticas lo impide para alumnos y sin tombstone los otros dispositivos no se enteran (v1.3.11).
 3. **Fechas como strings `YYYY-MM-DD`** sin zona horaria; Supabase/Vercel van en UTC (por eso el historial web filtra "últimas 24 h", no "hoy").
 4. **Español en todo**: funciones de dominio, mensajes de UI, commits.
@@ -61,4 +61,4 @@ La ventana de escritorio es `frame: false` (sin marco nativo): la barra de títu
 
 ## Tests
 
-`npm test` (Jest, 119 en verde). `tests/` con mock de Electron en `tests/mocks/`; los de `db.js` corren contra un directorio temporal (nunca datos reales) y los de `sync.js` contra un Supabase simulado en memoria (`tests/sync.test.js`). **Toda tarea de código añade o ajusta tests de su criterio de aceptación.**
+`npm test` (Jest, 119 en verde). `tests/` con mock de Electron en `tests/mocks/`; los de `db/` corren contra un directorio temporal (nunca datos reales) y los de `sync.js` contra un Supabase simulado en memoria (`tests/sync.test.js`). **Toda tarea de código añade o ajusta tests de su criterio de aceptación.**
