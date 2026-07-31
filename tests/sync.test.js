@@ -1028,3 +1028,107 @@ describe('registrarEmpresa / getEstadoCuenta (fase 2 multi-empresa)', () => {
     });
   });
 });
+
+describe('protección de datos locales al vincular una cuenta (colisiones de id)', () => {
+  afterEach(() => {
+    mockRemote.authUserId = undefined;
+  });
+
+  test('A) usuario sin cuenta con datos locales crea una cuenta nueva (vacía): los datos locales se conservan Y suben con empresa_id', async () => {
+    const vid = db.addVehiculo('Coche local', 'AAA111', 50);
+    const aid = db.addAlumno('Alumno Local', 'B', vid);
+    const pid = db.addPractica(aid, vid, '2026-07-20', 50, 90);
+
+    mockRemote.authUserId = 'empresa-nueva';
+    sync.setCredentials('nueva@empresa.com', 'secreta1');
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    // Los datos siguen en local
+    expect(db.getAlumnos().find(a => a.id === aid).nombre).toBe('Alumno Local');
+    // Y se han subido, estampados con el empresa_id de la cuenta nueva
+    expect(mockRemote.tables.vehiculos.find(v => v.id === vid)).toMatchObject({ empresa_id: 'empresa-nueva' });
+    expect(mockRemote.tables.alumnos.find(a => a.id === aid)).toMatchObject({ empresa_id: 'empresa-nueva' });
+    expect(mockRemote.tables.practicas.find(p => p.id === pid)).toMatchObject({ empresa_id: 'empresa-nueva' });
+  });
+
+  test('B) usuario sin cuenta con datos locales inicia sesión en una cuenta EXISTENTE con datos DISTINTOS que colisionan por id: no se pierde nada, se reasignan los ids locales', async () => {
+    // Datos ya en la nube, creados desde otro dispositivo bajo la MISMA cuenta
+    mockRemote.authUserId = 'empresa-vieja';
+    const ahora = new Date().toISOString();
+    mockRemote.tables.vehiculos.push({
+      id: 1, nombre: 'Coche Remoto', matricula: 'REM001', km_actual: 500,
+      empresa_id: 'empresa-vieja', deleted: false, updated_at: ahora
+    });
+    mockRemote.tables.alumnos.push({
+      id: 1, nombre: 'Alumno Remoto', permiso: 'B', vehiculo_id: 1, profesor_id: null,
+      empresa_id: 'empresa-vieja', deleted: false, updated_at: ahora
+    });
+
+    // Datos locales creados SIN cuenta, con los MISMOS ids por casualidad
+    // (los ids son un contador secuencial por dispositivo, empiezan en 1)
+    const vidLocal = db.addVehiculo('Coche Local', 'LOC001', 10); // id 1
+    const aidLocal = db.addAlumno('Alumno Local', 'B', vidLocal); // id 1
+    const pidLocal = db.addPractica(aidLocal, vidLocal, '2026-07-25', 10, 40); // id 1
+
+    sync.setCredentials('vieja@empresa.com', 'secreta1');
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.colisionesResueltas).toBeGreaterThan(0);
+
+    // El registro remoto original NO se ha perdido ni se ha sobrescrito
+    const vehiculoRemoto = mockRemote.tables.vehiculos.find(v => v.nombre === 'Coche Remoto');
+    expect(vehiculoRemoto).toBeTruthy();
+    expect(vehiculoRemoto.matricula).toBe('REM001');
+    const alumnoRemoto = mockRemote.tables.alumnos.find(a => a.nombre === 'Alumno Remoto');
+    expect(alumnoRemoto).toBeTruthy();
+
+    // El registro local se ha subido bajo OTRO id, sin pisar al remoto
+    const vehiculoLocalSubido = mockRemote.tables.vehiculos.find(v => v.nombre === 'Coche Local');
+    expect(vehiculoLocalSubido).toBeTruthy();
+    expect(vehiculoLocalSubido.id).not.toBe(1);
+    expect(vehiculoLocalSubido.empresa_id).toBe('empresa-vieja');
+
+    // Ninguno de los dos registros de cada tabla ha desaparecido
+    expect(mockRemote.tables.vehiculos).toHaveLength(2);
+    expect(mockRemote.tables.alumnos).toHaveLength(2);
+
+    // En local también están los dos (el propio, reasignado, y el bajado del otro dispositivo)
+    const dataLocal = readData();
+    expect(dataLocal.vehiculos).toHaveLength(2);
+    expect(dataLocal.alumnos).toHaveLength(2);
+    expect(dataLocal.vehiculos.find(v => v.nombre === 'Coche Remoto')).toBeTruthy();
+    expect(dataLocal.alumnos.find(a => a.nombre === 'Alumno Remoto')).toBeTruthy();
+
+    // La práctica local sigue existiendo, con las referencias corregidas tras la reasignación
+    const vehiculoLocalTrasSync = dataLocal.vehiculos.find(v => v.nombre === 'Coche Local');
+    const alumnoLocalTrasSync = dataLocal.alumnos.find(a => a.nombre === 'Alumno Local');
+    expect(alumnoLocalTrasSync.vehiculo_id).toBe(vehiculoLocalTrasSync.id);
+    const practicaLocal = dataLocal.practicas.find(p => p.alumno_id === alumnoLocalTrasSync.id);
+    expect(practicaLocal).toMatchObject({ km_inicial: 10, km_final: 40 });
+
+    // Sincronizar otra vez no duplica ni vuelve a reasignar nada
+    const res2 = await sync.sync();
+    expect(res2.ok).toBe(true);
+    expect(res2.colisionesResueltas).toBe(0);
+    expect(mockRemote.tables.vehiculos).toHaveLength(2);
+    expect(mockRemote.tables.alumnos).toHaveLength(2);
+    expect(readData().vehiculos).toHaveLength(2);
+    expect(readData().alumnos).toHaveLength(2);
+  });
+
+  test('C) usuario sin cuenta con datos locales inicia sesión en una cuenta EXISTENTE pero VACÍA: se comporta como una cuenta nueva, sin pérdidas', async () => {
+    mockRemote.authUserId = 'empresa-vacia';
+    const vid = db.addVehiculo('Coche local', '', 20);
+    const aid = db.addAlumno('Alumno local', 'B', vid);
+
+    sync.setCredentials('vacia@empresa.com', 'secreta1');
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    expect(res.colisionesResueltas || 0).toBe(0);
+    expect(mockRemote.tables.vehiculos.find(v => v.id === vid)).toMatchObject({ empresa_id: 'empresa-vacia' });
+    expect(readData().alumnos.find(a => a.id === aid).nombre).toBe('Alumno local');
+  });
+});

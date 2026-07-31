@@ -51,6 +51,49 @@ function getStatsDashboard(hoy) {
 }
 
 /**
+ * Estadísticas por profesor (pantalla Profesores). `desde`/`hasta` opcionales
+ * 'YYYY-MM-DD': si se pasan, filtran por fecha de la práctica (inclusive,
+ * comparación de strings ISO). Devuelve una entrada por CADA profesor no
+ * borrado (incluidos los que no tienen prácticas en el rango, con todo a
+ * 0/null), ordenadas por num_practicas descendente. Solo lectura, no marca sync.
+ */
+function getStatsProfesores(desde, hasta) {
+  const d = load();
+  const alumnosBorrados = new Set(d.alumnos.filter(a => a.deleted).map(a => a.id));
+
+  const practicasValidas = d.practicas.filter(p =>
+    !p.deleted &&
+    !alumnosBorrados.has(p.alumno_id) &&
+    (!desde || p.fecha >= desde) &&
+    (!hasta || p.fecha <= hasta)
+  );
+
+  return d.profesores
+    .filter(p => !p.deleted)
+    .map(p => {
+      const propias = practicasValidas.filter(x => x.profesor_id === p.id);
+      const kmTotales = propias
+        .filter(x => !(x.km_inicial === 0 && x.km_final === 0))
+        .reduce((sum, x) => sum + (x.km_final - x.km_inicial), 0);
+      const numAlumnos = new Set(propias.map(x => x.alumno_id)).size;
+      const practicasPista = propias.filter(x => x.tipo === 'pista').length;
+      const practicasCirculacion = propias.filter(x => x.tipo !== 'pista').length;
+      const ultimaPractica = propias.reduce((max, x) => (!max || x.fecha > max) ? x.fecha : max, null);
+      return {
+        id: p.id,
+        nombre: p.nombre,
+        num_practicas: propias.length,
+        km_totales: Math.round(kmTotales * 10) / 10,
+        num_alumnos: numAlumnos,
+        practicas_pista: practicasPista,
+        practicas_circulacion: practicasCirculacion,
+        ultima_practica: ultimaPractica,
+      };
+    })
+    .sort((a, b) => b.num_practicas - a.num_practicas);
+}
+
+/**
  * Devuelve todas las prácticas de un vehículo ordenadas por km_inicial,
  * con datos de alumno y flag de solapamiento con la anterior.
  */
@@ -94,5 +137,5 @@ function getTimelineVehiculo(vehiculo_id) {
 }
 
 module.exports = {
-  getResumen, getStatsDashboard, getTimelineVehiculo,
+  getResumen, getStatsDashboard, getStatsProfesores, getTimelineVehiculo,
 };

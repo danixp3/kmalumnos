@@ -21,6 +21,8 @@ let alumnosCache = [];
 let alumnosSort = { col: null, dir: 1 };
 let deudasCache = [];
 let deudasSort = { col: null, dir: 1 };
+let statsProfesoresCache = [];
+let statsProfesoresSort = { col: 'num_practicas', dir: -1 };
 
 // ─── NAVEGACIÓN ──────────────────────────────────────────────────────────────
 document.querySelectorAll('#sidebar nav a').forEach(link => {
@@ -32,7 +34,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     document.getElementById('page-' + page).classList.add('active');
     if (page === 'dashboard') loadDashboard();
     if (page === 'vehiculos') { loadVehiculos(); aplicarRangoPref('relleno-min', 'relleno-max'); }
-    if (page === 'profesores') loadProfesores();
+    if (page === 'profesores') { loadProfesores(); loadStatsProfesores(); }
     if (page === 'pagos') {
       const activeTab = document.querySelector('#page-pagos .page-tab.active')?.dataset.tab || 'deudas';
       cambiarTabPagos(activeTab);

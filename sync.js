@@ -140,6 +140,14 @@ function getEmpresaId() {
   return _empresaId;
 }
 
+// Añade el filtro por empresa_id si hay sesión activa; en modo legado (sin
+// credenciales) no se añade filtro, igual que siempre. Usado tanto en la
+// resolución de colisiones de la primera vinculación (ver más abajo) como en
+// la bajada normal de sync().
+function _conEmpresa(query) {
+  return _empresaId ? query.eq('empresa_id', _empresaId) : query;
+}
+
 // Crea el cliente de Supabase y, si hay credenciales, inicia sesión.
 // Devuelve el cliente listo, o null si el inicio de sesión falló.
 async function ensureClient() {
@@ -333,6 +341,114 @@ function _detectarYRegistrarConflicto(data, tabla, pendingIds, id, campos, local
   } catch { /* no interrumpir el sync por un fallo al loguear */ }
 }
 
+// ─── PRIMERA VINCULACIÓN CON UNA CUENTA: colisiones de id ────────────────────
+// Los ids de vehiculos/alumnos/practicas/etc. son contadores secuenciales por
+// DISPOSITIVO (1, 2, 3...), no UUIDs globales. Si este PC llevaba tiempo
+// trabajando SIN cuenta (todo en data.json local) y ahora se vincula a una
+// cuenta de empresa que ya tiene datos — creados desde otro dispositivo —, sus
+// ids pueden coincidir por pura casualidad con ids remotos que son REGISTROS
+// DISTINTOS. Sin esto, el paso "SUBIR CAMBIOS LOCALES" de sync() (más abajo)
+// haría un upsert ciego por id que sobrescribiría en la nube el registro ajeno
+// con el contenido de este PC, perdiéndolo sin avisar.
+//
+// Se ejecuta una sola vez por cuenta y dispositivo — antes de subir nada — y
+// queda marcada en pending.colisionesResueltas para no repetirse en reintentos
+// tras un fallo a mitad de sync (evitar reasignar dos veces el mismo registro).
+// Cualquier colisión encontrada aquí se trata como dos registros distintos:
+// se reasigna el id LOCAL a uno libre, se actualizan las referencias cruzadas
+// (vehiculo_id, profesor_id, alumno_id) y las colas de pendientes (dirty y
+// borrados) para que sigan apuntando al registro correcto.
+//
+// LIMITACIÓN CONOCIDA (fuera del alcance de esta protección): una vez vinculado
+// el dispositivo, colisiones puntuales entre creaciones simultáneas de dos
+// dispositivos ya vinculados siguen siendo posibles (mismo problema de fondo
+// que el "caso inverso" documentado junto a _detectarYRegistrarConflicto). Esta
+// función solo cubre el momento crítico: la primera vez que este PC sube datos
+// a una cuenta que puede llevar tiempo usándose desde otro sitio.
+const _TABLAS_COLISION = [
+  { tabla: 'vehiculos',  seq: 'v'  },
+  { tabla: 'profesores', seq: 'pf' },
+  { tabla: 'tarifas',    seq: 't'  },
+  { tabla: 'alumnos',    seq: 'a'  },
+  { tabla: 'practicas',  seq: 'p'  },
+  { tabla: 'pagos',      seq: 'pg' }
+];
+
+async function _resolverColisionesPrimeraVinculacion(data, pending, sb) {
+  if (!_empresaId) return { ejecutado: false, huboColisiones: false, resumen: {} };
+  if (!pending.colisionesResueltas) pending.colisionesResueltas = {};
+  if (pending.colisionesResueltas[_empresaId]) return { ejecutado: false, huboColisiones: false, resumen: {} };
+
+  const remaps = {};
+  const resumen = {};
+  let huboColisiones = false;
+
+  for (const { tabla, seq } of _TABLAS_COLISION) {
+    const map = new Map();
+    remaps[tabla] = map;
+    const { data: remotos, error } = await _conEmpresa(sb.from(tabla).select('id'));
+    if (error || !remotos || !remotos.length) continue;
+
+    const remoteIds = new Set(remotos.map(r => r.id));
+    const maxRemoto = remotos.reduce((m, r) => Math.max(m, r.id || 0), 0);
+    if (!data._seq[seq] || data._seq[seq] <= maxRemoto) data._seq[seq] = maxRemoto + 1;
+
+    for (const registro of data[tabla]) {
+      if (remoteIds.has(registro.id)) {
+        const nuevoId = data._seq[seq]++;
+        map.set(registro.id, nuevoId);
+        registro.id = nuevoId;
+        huboColisiones = true;
+      }
+    }
+    if (map.size) resumen[tabla] = map.size;
+  }
+
+  // Referencias cruzadas: un registro que no colisionó puede apuntar a otro
+  // que sí (p.ej. un alumno que conserva su id pero cuyo vehículo cambió).
+  if (remaps.vehiculos.size) {
+    data.alumnos.forEach(a => { if (remaps.vehiculos.has(a.vehiculo_id)) a.vehiculo_id = remaps.vehiculos.get(a.vehiculo_id); });
+    data.practicas.forEach(p => { if (remaps.vehiculos.has(p.vehiculo_id)) p.vehiculo_id = remaps.vehiculos.get(p.vehiculo_id); });
+  }
+  if (remaps.profesores.size) {
+    data.alumnos.forEach(a => { if (a.profesor_id != null && remaps.profesores.has(a.profesor_id)) a.profesor_id = remaps.profesores.get(a.profesor_id); });
+    data.practicas.forEach(p => { if (p.profesor_id != null && remaps.profesores.has(p.profesor_id)) p.profesor_id = remaps.profesores.get(p.profesor_id); });
+  }
+  if (remaps.alumnos.size) {
+    data.practicas.forEach(p => { if (remaps.alumnos.has(p.alumno_id)) p.alumno_id = remaps.alumnos.get(p.alumno_id); });
+    data.pagos.forEach(pg => { if (remaps.alumnos.has(pg.alumno_id)) pg.alumno_id = remaps.alumnos.get(pg.alumno_id); });
+  }
+
+  // Colas de pendientes: que sigan apuntando al id correcto tras la reasignación.
+  const remapLista = (arr, map) => (arr || []).map(id => (map && map.has(id)) ? map.get(id) : id);
+  if (!pending.deleted) pending.deleted = {};
+  for (const { tabla } of _TABLAS_COLISION) {
+    pending[tabla] = remapLista(pending[tabla], remaps[tabla]);
+    pending.deleted[tabla] = remapLista(pending.deleted[tabla], remaps[tabla]);
+    // Un registro reasignado que aún no estuviera en la cola de subida (no
+    // debería pasar en una instalación normal, pero por seguridad) se añade:
+    // si no se sube ahora, se queda huérfano en local sin subir nunca.
+    for (const nuevoId of remaps[tabla].values()) {
+      if (!pending[tabla].includes(nuevoId)) pending[tabla].push(nuevoId);
+    }
+  }
+
+  pending.colisionesResueltas[_empresaId] = true;
+
+  if (huboColisiones) {
+    const detalle = _TABLAS_COLISION
+      .map(({ tabla }) => resumen[tabla] ? `${resumen[tabla]} ${tabla}` : null)
+      .filter(Boolean)
+      .join(', ');
+    try {
+      require('./db').registrarLogEnData(data, 'vinculacion_cuenta',
+        `Vinculación con la cuenta: se reasignaron los ids de ${detalle} de este equipo por coincidir con registros ya existentes en la cuenta (se conservan ambos).`, []);
+    } catch { /* no interrumpir el sync por un fallo al loguear */ }
+  }
+
+  return { ejecutado: true, huboColisiones, resumen };
+}
+
 // ─── SYNC ────────────────────────────────────────────────────────────────────
 
 async function checkOnline() {
@@ -374,6 +490,19 @@ async function sync() {
     // CONFLICTOS" más arriba): edición local sin subir todavía que la nube
     // acaba de sustituir con un contenido distinto.
     const conflictos = [];
+
+    // Primera vinculación con esta cuenta (ver comentario junto a la función):
+    // si este dispositivo tenía datos locales sin sincronizar, resuelve antes
+    // de subir nada las colisiones de id con lo que ya hubiera en la cuenta.
+    const resColisiones = await _resolverColisionesPrimeraVinculacion(data, pending, sb);
+    if (resColisiones.ejecutado) {
+      // Persistir ya mismo data.json y pending_sync.json: si algo falla más
+      // abajo (p.ej. un push que lanza una excepción de red), la reasignación
+      // ya hecha no debe perderse ni repetirse en el reintento.
+      saveData(data);
+      savePending(pending);
+      try { require('./db')._clearCache(); } catch {}
+    }
 
     // ── 1. SUBIR CAMBIOS LOCALES ──────────────────────────────────────────────
     // OJO (caso inverso, no cubierto — ver nota junto a _detectarYRegistrarConflicto):
@@ -501,9 +630,7 @@ async function sync() {
     // Con sesión autenticada, cada bajada se filtra por empresa_id (uid de la
     // sesión) para no traer datos de otra empresa. En modo legado (_empresaId
     // null) no se añade filtro, igual que antes.
-    function conEmpresa(query) {
-      return _empresaId ? query.eq('empresa_id', _empresaId) : query;
-    }
+    const conEmpresa = _conEmpresa;
 
     // Vehículos nuevos o modificados
     const { data: remoteVehiculos, error: errV } = await conEmpresa(sb
@@ -789,7 +916,8 @@ async function sync() {
     _lastError = null;
     setStatus(STATUS.OK);
     if (conflictos.length && _onConflictos) _onConflictos(conflictos);
-    return { ok: true, pulled, conflictos: conflictos.length };
+    const totalColisiones = Object.values(resColisiones.resumen || {}).reduce((a, b) => a + b, 0);
+    return { ok: true, pulled, conflictos: conflictos.length, colisionesResueltas: totalColisiones };
 
   } catch (e) {
     _lastError = e.message;
