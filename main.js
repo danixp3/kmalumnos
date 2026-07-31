@@ -43,6 +43,35 @@ function loadSyncCreds() {
   }
 }
 
+// ─── PREFERENCIAS DE UI (tema) ─────────────────────────────────────────────────
+// Color de fondo de la ventana según el tema elegido, para que al abrir no haya
+// parpadeo claro→oscuro mientras carga index.html (backgroundColor se aplica
+// antes de que exista ningún DOM).
+function getUiPrefsPath() {
+  return path.join(app.getPath('userData'), 'ui-prefs.json');
+}
+
+function guardarTemaFondo(color) {
+  try {
+    let prefs = {};
+    try { prefs = JSON.parse(fs.readFileSync(getUiPrefsPath(), 'utf-8')); } catch (e) {}
+    prefs.fondo = color;
+    fs.writeFileSync(getUiPrefsPath(), JSON.stringify(prefs), 'utf-8');
+    return true;
+  } catch (e) {
+    console.error('Error guardando preferencia de tema:', e.message);
+    return false;
+  }
+}
+
+function leerFondoGuardado() {
+  try {
+    const prefs = JSON.parse(fs.readFileSync(getUiPrefsPath(), 'utf-8'));
+    if (prefs && typeof prefs.fondo === 'string') return prefs.fondo;
+  } catch (e) {}
+  return '#f6f7f9';
+}
+
 // NO descargar automáticamente - preguntar primero
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
@@ -58,6 +87,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     frame: false,
+    backgroundColor: leerFondoGuardado(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -201,6 +231,7 @@ ipcMain.handle('ventana-esta-maximizada', () => {
   if (mainWin && !mainWin.isDestroyed()) return mainWin.isMaximized();
   return false;
 });
+ipcMain.handle('guardar-tema-fondo', (_, color) => guardarTemaFondo(color));
 
 ipcMain.handle('get-vehiculos', () => db.getVehiculos());
 ipcMain.handle('add-vehiculo', (_, nombre, matricula, km_actual) => {
