@@ -41,6 +41,7 @@ Patrones conocidos:
 | Km a 0 en la nube/otro PC | relleno masivo, solapamientos y CSV no marcaban `markDirty` | v1.3.12 |
 | Tras "Subir todo a la nube" no baja lo antiguo | pushAll adelantaba `lastSync` | v1.3.10 |
 | Tras restaurar un backup no se sube nada | `restaurarBackup` no marca pendientes | **sin arreglar**: usar "Subir todo a la nube" |
+| Pérdida de datos masiva al vincular 2º PC a una cuenta con datos | colisión ciega de ids (ambos PCs empiezan en id=1) — upsert sin validar | v1.6.0: `_resolverColisionesPrimeraVinculacion()` resuelve automaticamente |
 
 ## Reglas de oro al reparar datos
 

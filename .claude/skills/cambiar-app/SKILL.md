@@ -1,6 +1,6 @@
 ---
 name: cambiar-app
-description: Guía de desarrollo de la app de escritorio de KMAlumnos (Electron) — mapa del código con anclas greppables, receta del cambio de punta a punta (db/<modulo>.js → IPC → preload → renderer/<modulo>.js) y validación con tests. Usar SIEMPRE que haya que tocar renderer/, main.js, db/, sync.js o preload.js, o cuando el usuario pida una funcionalidad o arreglo de la app de escritorio ("añade a la app...", "que la app haga...", "arregla el botón/la pantalla de..."). Si el cambio es de la web del móvil → /cambiar-web; si es puramente de aspecto/diseño → /mejorar-ui.
+description: Guía de desarrollo de la app de escritorio de KMAlumnos (Electron) — mapa del código con anclas greppables, receta del cambio de punta a punta (db/<modulo>.js → IPC → preload → renderer/<modulo>.js) y validación con tests. Usar SIEMPRE que haya que tocar renderer/, main.js, db/, sync.js o preload.js, o cuando el usuario pida una funcionalidad o arreglo de la app de escritorio ("añade a la app...", "que la app haga...", "arregla el botón/la pantalla de..."). **IMPORTANTE (2026-08-01):** cambios en roles/sucursales deben funcionar sin la migración de `migraciones/` aplicada — detección en runtime y comportamiento idéntico al modo clásico. Si el cambio es de la web del móvil → /cambiar-web; si es puramente de aspecto/diseño → /mejorar-ui.
 ---
 
 # Cambiar la app de escritorio

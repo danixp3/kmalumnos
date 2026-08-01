@@ -10,7 +10,7 @@ Localizar siempre por **anclas** (cadenas literales, greppables); nunca por núm
 4. **renderer/<modulo>.js** — función en el módulo del dominio que toca (ver tabla abajo) + refresco con su `loadX()` al final. Son `<script>` clásicos (no módulos ES): funciones y `const`/`let` de nivel superior son globales entre archivos. **Si el módulo es nuevo, insertar su `<script>` en `index.html` antes de `arranque.js`** (que debe cargar siempre el último: contiene todo el código que se ejecuta al arrancar, evita temporal-dead-zone).
 5. **test** del criterio de aceptación (recetas abajo) → `npm test`.
 
-## renderer/ — 18 `<script>`, orden fijo en index.html, ~2540 líneas repartidas
+## renderer/ — 21 `<script>`, orden fijo en index.html, ~2850 líneas repartidas
 
 | Archivo | Líneas | Contenido |
 |---|---|---|
@@ -31,6 +31,10 @@ Localizar siempre por **anclas** (cadenas literales, greppables); nunca por núm
 | `registro-rapido.js` | 234 | Registro rápido |
 | `tutorial.js` | 326 | Tutorial interactivo (26 pasos) |
 | `ventana.js` | 26 | Barra de título propia (`frame: false`) |
+| `graficos.js` | 250 | 5 gráficos SVG hechos a mano (offline-first), sin librerías ni CDN |
+| `practicas-global.js` | 180 | Todas las prácticas de todos los alumnos, filtros/búsqueda |
+| `roles.js` | 85 | Gestión de roles jefe/empleado (compatible sin migración aplicada) |
+| `sucursales.js` | 95 | Selector de sucursal en barra, filtrado por sede |
 | `arranque.js` | 54 | Bienvenida + todo el código de arranque — **siempre el último `<script>`** |
 
 **Secciones (anclas) por dominio, dentro de cada módulo:** `DIÁLOGOS NATIVOS (fix de foco)`, `ESTADO`, `NAVEGACIÓN`, `DASHBOARD`, `PESTAÑAS DE PÁGINA (Kilómetros / Datos)`, `VEHÍCULOS`, `PROFESORES`, `ALUMNOS`, `PRÁCTICAS`, `PAGOS`, `IMPORTAR CSV`, `EXPORTAR / COMPARAR CSV`, `MODALES`, `UTILS`, `PREFERENCIAS (rango de km por defecto)`, `SOLAPAMIENTOS`, `LOGS`, `BACKUP`, `TIMELINE DEL VEHÍCULO`, `SYNC UI`, `CUENTA DE EMPRESA (antes CREDENCIALES DE SINCRONIZACIÓN)`, `AJUSTES`, `AUTO-UPDATE`, `TOASTS (mensajes no bloqueantes)`, `REGISTRO RÁPIDO`, `BIENVENIDA (instalación nueva)`, `TUTORIAL`, `BARRA DE TÍTULO`, `INIT` (todas con prefijo `// ─── `).
@@ -69,9 +73,9 @@ Secciones `// ─── IPC HANDLERS` y `// ─── SYNC IPC HANDLERS`; ventan
 
 Handlers: mecánicos en su mayoría — canal kebab-case → misma función camelCase de `db.js` (índice, re-exporta `db/`) (`get-vehiculos`→`db.getVehiculos`, `add-practica`→`db.addPractica`, `get-desglose-pagos-alumno`→`db.getDesglosePagosAlumno`, `get-stats-dashboard`→`db.getStatsDashboard`...). Excepciones con lógica propia: `importar-csv`/`comparar-csvs` (parsean el CSV en main), `exportar-csv` y `crear-backup`/`restaurar-backup` (diálogos de archivo), `generar-km` (cálculo inline), `save-sync-creds`/`get-sync-creds-status` (safeStorage local + `sync.setCredentials`), `sync-now`/`sync-push-all`/`sync-status` → `sync.*`. Handler mecánico sin argumentos: `ipcMain.handle('app:version', () => app.getVersion())`, justo tras el handler de fix de foco `ui:refocus`; expuesto en preload.js como `getVersion: () => ipcRenderer.invoke('app:version')` y pintado en `#app-version` (footer del sidebar) y `#ajustes-version` (página Ajustes). Justo después (comentario `// Ventana (barra de título propia, sin marco nativo: frame: false)`): 4 handlers sin lógica de datos que solo tocan `mainWin` — `ventana-minimizar`/`ventana-maximizar`/`ventana-cerrar`/`ventana-esta-maximizada`; el evento push `ventana-maximizada` (true/false) se emite desde los listeners `mainWin.on('maximize'/'unmaximize', ...)` cerca de `createWindow()`, no desde un handler.
 
-## db/ (10 módulos, ~1375 líneas repartidas) + db.js (índice de 40 líneas)
+## db/ (11 módulos, ~1500 líneas repartidas) + db.js (índice de 40 líneas)
 
-`db.js` en la raíz solo hace `require`+re-export de los 10 módulos de `db/`; `main.js` sigue haciendo `require('./db')` sin cambios (51 exports, superficie pública idéntica a antes del refactor). Todos requieren `./core`; `pagos.js` → `practicas.js`; `estadisticas.js` → `km-algoritmos.js` y `pagos.js`. Sin ciclos.
+`db.js` en la raíz solo hace `require`+re-export de los 11 módulos de `db/`; `main.js` sigue haciendo `require('./db')` sin cambios (55 exports, superficie pública idéntica). Todos requieren `./core`; `pagos.js` → `practicas.js`; `estadisticas.js` → `km-algoritmos.js` y `pagos.js`. Sin ciclos. Nota: `sucursales.js` funciona en modo clásico sin tablas de BD (devuelve arrays vacíos), compatible hacia atrás.
 
 | Módulo | Líneas | Contenido |
 |---|---|---|
@@ -84,7 +88,8 @@ Handlers: mecánicos en su mayoría — canal kebab-case → misma función came
 | `pagos.js` | 130 | Tarifas por permiso×tipo, deudas, pagos |
 | `csv.js` | 251 | Importar/exportar/comparar CSV |
 | `km-algoritmos.js` | 267 | Solapamientos, relleno masivo, corrección |
-| `estadisticas.js` | 98 | Resumen, dashboard, timeline |
+| `estadisticas.js` | 125 | Resumen, dashboard, timeline, stats profesores, todas prácticas, datos gráficos |
+| `sucursales.js` | 60 | CRUD sucursales (compatibilidad: sin tablas = modo clásico) |
 
 **Secciones** (repartidas entre los módulos de arriba): `BACKUP`, `VALIDACIÓN CRUZADA DE KM`, `VEHÍCULOS`, `PROFESORES`, `TARIFAS`, `ALUMNOS`, `PRÁCTICAS`, `PAGOS`, `IMPORTACIÓN CSV`, `EXPORTACIÓN CSV`, `COMPARADOR DE CSV`, `RELLENO MASIVO DE KM`, `CORRECCIÓN QUIRÚRGICA DE SOLAPAMIENTOS`, `SOLAPAMIENTOS`, `ALUMNOS POR VEHÍCULO (para registro rápido)`, `TIMELINE DE VEHÍCULO`. Logs: `addLog(tipo, ...)` en `core.js` (unshift + recorte a 500).
 
