@@ -262,6 +262,95 @@ install-update    → autoUpdater.quitAndInstall()
 
 ---
 
+## Estadísticas avanzadas — db/estadisticas.js
+
+### getStatsProfesores()
+Análisis por profesor (solo lectura, no marca sync). Devuelve array de objetos:
+```js
+{
+  profesor_id: integer,
+  profesor_nombre: string,
+  num_practicas: integer,        // prácticas impartidas (no borradas)
+  km_totales: number,            // sum(km_final - km_inicial)
+  alumnos_distintos: integer,    // count(distinct alumno_id)
+  practicas_pista: integer,      // where tipo='pista'
+  practicas_circulacion: integer,// where tipo='circulacion' o null
+  ultima_practica: 'YYYY-MM-DD'  // max(fecha)
+}
+```
+Soporta filtro opcional de rango de fechas (parámetros `inicio`/`final` como strings `YYYY-MM-DD`).
+
+### getTodasPracticas()
+Todas las prácticas de todos los alumnos (solo lectura). Devuelve array ordenado por fecha descendente:
+```js
+{
+  id, fecha, alumno_id, alumno_nombre, permiso, vehiculo_id, vehiculo_nombre,
+  km_inicial, km_final, profesor_id, profesor_nombre, nota, tipo, updated_at
+}
+```
+Soporta filtros (alumno, vehículo, profesor, permiso, tipo) y búsqueda de texto libre (alumno/profesor).
+
+### getDatosGraficos()
+Datos para 5 gráficos SVG renderizados en `renderer/graficos.js` (solo lectura). Estructura:
+```js
+{
+  practicas_por_mes: { mes: 'YYYY-MM', cantidad: int }[],          // últimos 12 meses
+  km_por_mes: { mes: 'YYYY-MM', km: number }[],                    // últimos 12 meses
+  alumnos_por_permiso: { permiso: string, cantidad: int }[],        // distribución
+  practicas_por_tipo: { tipo: 'pista'|'circulacion', cantidad: int }[], // T/C
+  deuda_por_alumno_top: { alumno_nombre: string, deuda: number }[] // top 5 deudores
+}
+```
+Se renderiza en `renderer/graficos.js` con JavaScript puro (SVG a mano, sin librerías ni CDN, offline-first). Los colores se toman de las variables CSS `--chart-series-1` a `--chart-series-8` definidas en `styles.css` con valores distintos por tema (`data-theme`).
+
+---
+
+## Roles y sucursales (multi-empresa, migración pendiente)
+
+### Estado actual: modo clásico
+La app funciona como siempre hasta que se aplique la migración de `migraciones/`. La detección es en runtime: si las tablas no existen, la app se comporta exactamente igual que hoy (sin roles, sin sucursales).
+
+### Modelo implementado (lado app, funcional cuando la migración se aplique)
+- **Jefe:** usuario que inició sesión con credenciales email+contraseña en Ajustes → Cuenta de empresa. Control total: ve Pagos, estadísticas de profesores, gestión de empleados.
+- **Empleado:** usuario asignado por el jefe a una sucursal. Acceso limitado: registra prácticas, ve alumnos/vehículos; **no ve Pagos ni estadísticas de profesores** (barrera de UI, no de BD — ya tiene los datos en su `data.json` local). La seguridad real está en RLS de la nube: jefe solo ve sus sucursales, empleado solo su sucursal.
+- **Sucursales:** carpetas lógicas dentro de una empresa. Cada vehículo/alumno/práctica tiene `sucursal_id`. El sync filtra por sucursal del dispositivo.
+
+### Funciones en renderer/roles.js
+- `getPerfilActual()` → objeto `{ rol: 'jefe'|'empleado', sucursal_id?: int }` (sincronizado con `sync.js`). Usada para ocultar UI: si `rol==='empleado'`, esconder Pagos + estadísticas de profesores.
+- `puedeVer(permiso)` → boolean (p.ej. `puedeVer('pagos')` devuelve false si empleado).
+
+### Función en db/sucursales.js
+- `getSucursales()` → lista de sucursales de la empresa.
+- `addSucursal(nombre)` → crea sucursal (solo jefe).
+- `getSucursalActiva()` → `sucursal_id` del dispositivo (guardado en `sync.creds.sucursal_id` tras login del jefe y selección de empleado).
+- (Más funciones de CRUD si el jefe gestiona empleados desde la app.)
+
+### Sincronización con Supabase (con migración aplicada)
+- `sync.js` detecta en `ensureClient()` si el usuario autenticado es jefe o empleado (columna `role` en `auth.users`).
+- Jefe: subidas no filtran por sucursal (sube todo lo suyo), bajadas filtran `where empresa_id = auth.uid()`.
+- Empleado: subidas estampan `sucursal_id`, bajadas filtran `where empresa_id = (SELECT empresa_id FROM empleados WHERE uid = auth.uid()) AND sucursal_id = (SELECT sucursal_id FROM empleados WHERE uid = auth.uid())`.
+
+---
+
+## Resolución de colisiones de IDs — sync.js
+
+### Problema: colisión al vincular dos PCs
+Dos PCs creados independientemente comienzan con `_seq.id = 1` (contador local). Cuando el segundo vincula su cuenta, hace una subida inicial (`pushAll`) e intenta insertar registros con ids locales 1, 2, 3... que ya existen en la nube del primer PC → sobrescribe sin aviso, pérdida de datos.
+
+### Solución: _resolverColisionesPrimeraVinculacion()
+Función en `sync.js`, llamada una sola vez por cuenta+dispositivo (marcada con flag `_colisiones_resueltas = true`). Pasos:
+1. Detecta ids locales que ya existen en la nube pero con datos distintos (colisión real).
+2. Reasigna los ids locales colisionantes a valores nuevos (incrementa `_seq.id` hasta encontrar uno libre).
+3. Corrige todas las referencias cruzadas en `data.json` (prácticas que refieren alumno/vehículo con id viejo, etc.).
+4. Limpia la cola de `pending_sync.json` de los ids viejos y encolada los nuevos.
+5. Registra el evento en logs (`addLog('resolucion_colisiones', ...)`) con id_viejo → id_nuevo.
+6. **Idempotente:** si se llama de nuevo, no hace nada (flag ya marcado).
+
+### Limitación conocida
+Dos PCs YA vinculados que crean registros simultáneamente (en la ventana de 2 minutos entre syncs) pueden colisionar si el sync del PC A sube el id 100 mientras el PC B también está creando el id 100 en local. Solución de fondo: migrar a UUID globales (no SERIAL locales). Documentado en `sync.js` y CLAUDE.md.
+
+---
+
 ## Despliegue
 
 ### App Electron
