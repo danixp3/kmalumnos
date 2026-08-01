@@ -69,6 +69,19 @@
     --banner-primary-from: #f8f9ff;
     --banner-success-from: #f4fdf8;
     --banner-warn-from: #fffcf2;
+
+    /* ── TEMA: gráficos (paleta categórica validada, gráficos.js) ── */
+    --chart-series-1: #2a78d6; /* azul */
+    --chart-series-2: #eb6834; /* naranja */
+    --chart-series-3: #1baf7a; /* aguamarina */
+    --chart-series-4: #eda100; /* amarillo */
+    --chart-series-5: #e87ba4; /* magenta */
+    --chart-series-6: #008300; /* verde */
+    --chart-series-7: #4a3aa7; /* violeta */
+    --chart-series-8: #e34948; /* rojo */
+    --chart-grid: var(--border);
+    --chart-axis: var(--text-faint-2);
+    --chart-label: var(--text-muted);
   }
 
   /* ── TEMA OSCURO (suave) ────────────────────── */
@@ -134,6 +147,19 @@
     --banner-primary-from: #1a2140;
     --banner-success-from: #132a1e;
     --banner-warn-from: #2e2712;
+
+    /* ── TEMA: gráficos (paso oscuro de la misma paleta) ── */
+    --chart-series-1: #3987e5;
+    --chart-series-2: #d95926;
+    --chart-series-3: #199e70;
+    --chart-series-4: #c98500;
+    --chart-series-5: #d55181;
+    --chart-series-6: #008300;
+    --chart-series-7: #9085e9;
+    --chart-series-8: #e66767;
+    --chart-grid: var(--border);
+    --chart-axis: var(--text-faint-2);
+    --chart-label: var(--text-muted);
   }
 
   /* ── TEMA OSCURO PURO (negro) ───────────────── */
@@ -199,6 +225,19 @@
     --banner-primary-from: #0f0f24;
     --banner-success-from: #081a10;
     --banner-warn-from: #1f1a08;
+
+    /* ── TEMA: gráficos (paso oscuro de la misma paleta) ── */
+    --chart-series-1: #3987e5;
+    --chart-series-2: #d95926;
+    --chart-series-3: #199e70;
+    --chart-series-4: #c98500;
+    --chart-series-5: #d55181;
+    --chart-series-6: #008300;
+    --chart-series-7: #9085e9;
+    --chart-series-8: #e66767;
+    --chart-grid: var(--border);
+    --chart-axis: var(--text-faint-2);
+    --chart-label: var(--text-muted);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1195,4 +1234,57 @@
   .tutorial-lado-right { border-top-left-radius: 4px; }
   .tutorial-lado-right::after { left: -8px; top: var(--tutorial-flecha-y, 24px); margin-top: -7px; border-right: none; border-top: none; }
   .tutorial-lado-left { border-top-right-radius: 4px; }
+
+  /* ── GRÁFICOS DEL DASHBOARD (renderer/graficos.js) ─────────────── */
+  .graficos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .grafico-card { display: flex; flex-direction: column; }
+
+  .grafico-svg-wrap { width: 100%; }
+  .grafico-svg-wrap svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+  .grafico-barra {
+    transition: opacity .12s;
+    cursor: pointer;
+  }
+  .grafico-barra:hover, .grafico-barra.hover { opacity: .82; }
+
+  .grafico-eje-linea { stroke: var(--chart-axis); stroke-width: 1; }
+  .grafico-rejilla { stroke: var(--chart-grid); stroke-width: 1; }
+  .grafico-eje-texto { fill: var(--chart-label); font-size: 10.5px; font-family: inherit; }
+
+  .grafico-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .grafico-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+  .grafico-legend-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+  .grafico-tooltip {
+    position: fixed;
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    font-size: 12px;
+    padding: 8px 11px;
+    border-radius: 8px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .1s;
+    z-index: 999;
+    line-height: 1.6;
+    max-width: 220px;
+  }
+  .grafico-tooltip strong { color: var(--text); font-size: 13px; }
+  .grafico-tooltip .lbl { color: var(--text-muted); }
   .tutorial-lado-left::after { right: -8px; top: var(--tutorial-flecha-y, 24px); margin-top: -7px; border-left: none; border-bottom: none; }

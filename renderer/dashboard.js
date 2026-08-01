@@ -26,6 +26,8 @@ async function loadDashboard() {
     document.getElementById('stat-alumnos-deuda').textContent = stats.alumnosConDeuda;
   }
 
+  loadGraficos();
+
   const alertas = document.getElementById('dash-alertas');
   const partes = [];
 

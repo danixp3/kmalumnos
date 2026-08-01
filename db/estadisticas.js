@@ -94,6 +94,71 @@ function getStatsProfesores(desde, hasta) {
 }
 
 /**
+ * Datos agregados para los gráficos configurables del dashboard, en una sola
+ * llamada. `meses` (por defecto 12) es el nº de meses hacia atrás desde el
+ * mes actual (incluido), en formato 'YYYY-MM'; los meses sin actividad
+ * aparecen igualmente, con los valores a 0. Solo lectura, no marca sync.
+ */
+function getDatosGraficos(meses) {
+  const n = meses || 12;
+  const d = load();
+
+  const pad = x => String(x).padStart(2, '0');
+  const hoyDate = new Date();
+  const listaMeses = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const dt = new Date(hoyDate.getFullYear(), hoyDate.getMonth() - i, 1);
+    listaMeses.push(`${dt.getFullYear()}-${pad(dt.getMonth() + 1)}`);
+  }
+
+  const practicasValidas = d.practicas.filter(p => !p.deleted);
+  const pagosValidos = d.pagos.filter(p => !p.deleted);
+  // Las prácticas sin km (ambos a 0) no aportan kilómetros al total.
+  const conKm = p => !(p.km_inicial === 0 && p.km_final === 0);
+
+  const kmPorMes = listaMeses.map(mes => {
+    const km = practicasValidas
+      .filter(p => p.fecha && p.fecha.slice(0, 7) === mes && conKm(p))
+      .reduce((sum, p) => sum + Math.max(0, (p.km_final || 0) - (p.km_inicial || 0)), 0);
+    return { mes, km: Math.round(km * 10) / 10 };
+  });
+
+  const practicasPorMes = listaMeses.map(mes => {
+    const delMes = practicasValidas.filter(p => p.fecha && p.fecha.slice(0, 7) === mes);
+    const pista = delMes.filter(p => p.tipo === 'pista').length;
+    const circulacion = delMes.length - pista;
+    return { mes, total: delMes.length, pista, circulacion };
+  });
+
+  const ingresosPorMes = listaMeses.map(mes => {
+    const cobrado = pagosValidos
+      .filter(p => p.fecha && p.fecha.slice(0, 7) === mes)
+      .reduce((sum, p) => sum + p.cantidad, 0);
+    return { mes, cobrado: Math.round(cobrado * 100) / 100 };
+  });
+
+  const porProfesor = d.profesores
+    .filter(p => !p.deleted)
+    .map(p => {
+      const propias = practicasValidas.filter(x => x.profesor_id === p.id);
+      const km = propias.filter(conKm).reduce((sum, x) => sum + (x.km_final - x.km_inicial), 0);
+      return { nombre: p.nombre, num_practicas: propias.length, km: Math.round(km * 10) / 10 };
+    })
+    .sort((a, b) => b.num_practicas - a.num_practicas);
+
+  const porVehiculo = d.vehiculos
+    .filter(v => !v.deleted)
+    .map(v => {
+      const propias = practicasValidas.filter(x => x.vehiculo_id === v.id);
+      const km = propias.filter(conKm).reduce((sum, x) => sum + (x.km_final - x.km_inicial), 0);
+      return { nombre: v.nombre, num_practicas: propias.length, km: Math.round(km * 10) / 10 };
+    })
+    .sort((a, b) => b.num_practicas - a.num_practicas);
+
+  return { kmPorMes, practicasPorMes, porProfesor, porVehiculo, ingresosPorMes };
+}
+
+/**
  * Devuelve todas las prácticas de un vehículo ordenadas por km_inicial,
  * con datos de alumno y flag de solapamiento con la anterior.
  */
@@ -137,5 +202,5 @@ function getTimelineVehiculo(vehiculo_id) {
 }
 
 module.exports = {
-  getResumen, getStatsDashboard, getStatsProfesores, getTimelineVehiculo,
+  getResumen, getStatsDashboard, getStatsProfesores, getDatosGraficos, getTimelineVehiculo,
 };
