@@ -30,16 +30,29 @@ function load() {
   if (fs.existsSync(p)) {
     try { _data = JSON.parse(fs.readFileSync(p, 'utf-8')); } catch { _data = null; }
   }
-  if (!_data) _data = { vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], logs: [], _seq: { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1 } };
+  if (!_data) _data = { vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], logs: [], _seq: { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1 } };
   if (!_data._seq) _data._seq = { v: 1, pf: 1, a: 1, p: 1 };
   if (!_data._seq.pf) _data._seq.pf = 1;
   if (!_data._seq.t) _data._seq.t = 1;
   if (!_data._seq.pg) _data._seq.pg = 1;
+  if (!_data._seq.suc) _data._seq.suc = 1;
   if (!_data.logs) _data.logs = [];
   if (!_data.profesores) _data.profesores = [];
   if (!_data.tarifas) _data.tarifas = [];
   if (!_data.pagos) _data.pagos = [];
+  if (!_data.sucursales) _data.sucursales = [];
   return _data;
+}
+
+// Filtro compartido por sucursal: sucursalId vacío/null/undefined = sin
+// filtro (comportamiento de "Todas las sucursales", idéntico al modo clásico
+// sin la migración aplicada). Los registros sin sucursal_id (NULL = sede
+// principal, o instalaciones sin migrar) nunca coinciden con un filtro
+// concreto, solo aparecen con "Todas" — ver CLAUDE.md.
+function filtrarPorSucursal(arr, sucursalId) {
+  if (sucursalId === undefined || sucursalId === null || sucursalId === '') return arr;
+  const sid = parseInt(sucursalId);
+  return arr.filter(x => x.sucursal_id === sid);
 }
 
 function fmtFechaLog(str) {
@@ -210,6 +223,7 @@ module.exports = {
   fmtFechaLog,
   addLog,
   getLastSaveError,
+  filtrarPorSucursal,
   // Superficie pública (re-exportada tal cual por db.js)
   _clearCache,
   getLogs,

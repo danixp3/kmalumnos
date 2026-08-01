@@ -105,7 +105,7 @@ async function addPractica() {
   if (sinKm) { ki = 0; kf = 0; }
 
   const tipo = document.getElementById('p-tipo')?.value || 'circulacion';
-  await window.api.addPractica(currentAlumnoId, vid, fecha, ki, kf, null, tipo);
+  await window.api.addPractica(currentAlumnoId, vid, fecha, ki, kf, null, tipo, getSucursalActual());
   document.getElementById('p-ki').value = '';
   document.getElementById('p-kf').value = '';
   document.getElementById('km-preview').classList.add('hidden');

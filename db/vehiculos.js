@@ -1,16 +1,21 @@
 // ─── VEHÍCULOS ───────────────────────────────────────────────────────────────
 // CRUD de vehículos (alta, edición, km actual y borrado con soft delete remoto).
 
-const { load, save, nextId, _sync } = require('./core');
+const { load, save, nextId, _sync, filtrarPorSucursal } = require('./core');
 
-function getVehiculos() {
-  return load().vehiculos.slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
+// sucursalId opcional: sin argumento (o null/'') devuelve todos los vehículos,
+// igual que antes de sucursales — ver filtrarPorSucursal en core.js.
+function getVehiculos(sucursalId) {
+  return filtrarPorSucursal(load().vehiculos, sucursalId).slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
 
-function addVehiculo(nombre, matricula, km_actual) {
+function addVehiculo(nombre, matricula, km_actual, sucursal_id = null) {
   const d = load();
   const id = nextId('v');
-  d.vehiculos.push({ id, nombre, matricula: matricula || '', km_actual: parseFloat(km_actual) || 0 });
+  d.vehiculos.push({
+    id, nombre, matricula: matricula || '', km_actual: parseFloat(km_actual) || 0,
+    sucursal_id: sucursal_id ? parseInt(sucursal_id) : null
+  });
   save();
   const s = _sync(); if (s) s.markDirty('vehiculos', id);
   return id;

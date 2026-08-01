@@ -4,7 +4,7 @@
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 async function loadDashboard() {
-  const r = await window.api.getResumen();
+  const r = await window.api.getResumen(getSucursalActual());
   document.getElementById('stat-vehiculos').textContent = r.vehiculos;
   document.getElementById('stat-alumnos').textContent = r.alumnos;
   document.getElementById('stat-practicas').textContent = r.practicas;
@@ -19,7 +19,7 @@ async function loadDashboard() {
   document.getElementById('stat-card-alumnos-deuda').classList.toggle('hidden', !pref.alumnosConDeuda);
 
   if (pref.practicasHoy || pref.kmMes || pref.totalAdeudado || pref.alumnosConDeuda) {
-    const stats = await window.api.getStatsDashboard();
+    const stats = await window.api.getStatsDashboard(undefined, getSucursalActual());
     document.getElementById('stat-practicas-hoy').textContent = stats.practicasHoy;
     document.getElementById('stat-km-mes').textContent = stats.kmMes + ' km';
     document.getElementById('stat-total-adeudado').textContent = fmt(stats.totalAdeudado) + ' €';

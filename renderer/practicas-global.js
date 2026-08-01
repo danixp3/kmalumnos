@@ -13,7 +13,7 @@ async function loadPracticasGlobal() {
 // Rellena los <select> de alumno/vehículo/profesor conservando la selección actual.
 async function poblarSelectsPracticasGlobal() {
   const [alumnos, vehiculos, profesores] = await Promise.all([
-    window.api.getAlumnos(), window.api.getVehiculos(), window.api.getProfesores()
+    window.api.getAlumnos(getSucursalActual()), window.api.getVehiculos(getSucursalActual()), window.api.getProfesores(getSucursalActual())
   ]);
 
   const selAlumno = document.getElementById('pg-alumno');
@@ -49,6 +49,7 @@ async function fetchPracticasGlobal() {
     vehiculo_id: document.getElementById('pg-vehiculo')?.value || undefined,
     profesor_id: document.getElementById('pg-profesor')?.value || undefined,
     tipo: document.getElementById('pg-tipo')?.value || undefined,
+    sucursal_id: getSucursalActual() || undefined,
   };
   practicasGlobalCache = await window.api.getTodasPracticas(filtros);
   renderPracticasGlobalTabla();

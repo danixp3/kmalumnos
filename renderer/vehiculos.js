@@ -3,7 +3,7 @@
 
 // ─── VEHÍCULOS ───────────────────────────────────────────────────────────────
 async function loadVehiculos() {
-  vehiculosCache = await window.api.getVehiculos();
+  vehiculosCache = await window.api.getVehiculos(getSucursalActual());
   const tbody = document.querySelector('#tabla-vehiculos tbody');
 
   // Actualizar select de relleno masivo
@@ -93,7 +93,7 @@ async function addVehiculo() {
   const matricula = document.getElementById('v-matricula').value.trim();
   const km = parseFloat(document.getElementById('v-km').value) || 0;
   if (!nombre) { alert('Introduce un nombre para el vehículo.'); return; }
-  await window.api.addVehiculo(nombre, matricula, km);
+  await window.api.addVehiculo(nombre, matricula, km, getSucursalActual());
   document.getElementById('v-nombre').value = '';
   document.getElementById('v-matricula').value = '';
   document.getElementById('v-km').value = '';

@@ -3,7 +3,7 @@
 
 // ─── PROFESORES ───────────────────────────────────────────────────────────────
 async function loadProfesores() {
-  profesoresCache = await window.api.getProfesores();
+  profesoresCache = await window.api.getProfesores(getSucursalActual());
   const tbody = document.querySelector('#tabla-profesores tbody');
   if (!profesoresCache.length) {
     tbody.innerHTML = '<tr><td colspan="4" class="empty">No hay profesores registrados</td></tr>';
@@ -24,7 +24,7 @@ async function addProfesor() {
   const nombre = document.getElementById('pf-nombre').value.trim();
   const nota = document.getElementById('pf-nota').value.trim();
   if (!nombre) { alert('Introduce un nombre para el profesor.'); return; }
-  await window.api.addProfesor(nombre, nota);
+  await window.api.addProfesor(nombre, nota, getSucursalActual());
   document.getElementById('pf-nombre').value = '';
   document.getElementById('pf-nota').value = '';
   loadProfesores();

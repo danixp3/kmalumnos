@@ -297,6 +297,27 @@
 
   .tb-drag { flex: 1; }
 
+  /* Selector de sucursal en la barra de título: solo visible con la migración
+     de sucursales aplicada Y al menos una sucursal dada de alta (ver
+     renderer/sucursales.js). */
+  #tb-sucursal-wrap {
+    -webkit-app-region: no-drag;
+    display: flex;
+    align-items: center;
+    margin-right: 4px;
+  }
+  #tb-sucursal {
+    -webkit-app-region: no-drag;
+    background: var(--sidebar-hover);
+    color: var(--sidebar-text);
+    border: 1px solid var(--sidebar-border);
+    border-radius: 6px;
+    font-size: 11.5px;
+    padding: 3px 6px;
+    max-width: 160px;
+    cursor: pointer;
+  }
+
   .tb-btn {
     -webkit-app-region: no-drag;
     width: 46px;

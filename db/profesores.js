@@ -1,20 +1,22 @@
 // ─── PROFESORES ──────────────────────────────────────────────────────────────
 // CRUD de profesores; getProfesores añade el nº de prácticas impartidas.
 
-const { load, save, nextId, _sync } = require('./core');
+const { load, save, nextId, _sync, filtrarPorSucursal } = require('./core');
 
-function getProfesores() {
+// sucursalId opcional: sin argumento devuelve todos los profesores (modo
+// clásico o "Todas las sucursales") — ver filtrarPorSucursal en core.js.
+function getProfesores(sucursalId) {
   const d = load();
-  return d.profesores
+  return filtrarPorSucursal(d.profesores, sucursalId)
     .slice()
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
     .map(p => ({ ...p, num_practicas: d.practicas.filter(x => x.profesor_id === p.id).length }));
 }
 
-function addProfesor(nombre, nota) {
+function addProfesor(nombre, nota, sucursal_id = null) {
   const d = load();
   const id = nextId('pf');
-  d.profesores.push({ id, nombre, nota: nota || '' });
+  d.profesores.push({ id, nombre, nota: nota || '', sucursal_id: sucursal_id ? parseInt(sucursal_id) : null });
   save();
   const s = _sync(); if (s) s.markDirty('profesores', id);
   return id;

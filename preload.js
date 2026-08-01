@@ -14,15 +14,15 @@ contextBridge.exposeInMainWorld('api', {
   guardarTemaFondo:       (color) => ipcRenderer.invoke('guardar-tema-fondo', color),
 
   // Vehículos
-  getVehiculos:     ()                        => ipcRenderer.invoke('get-vehiculos'),
-  addVehiculo:      (n, m, km)               => ipcRenderer.invoke('add-vehiculo', n, m, km),
+  getVehiculos:     (sucursalId)             => ipcRenderer.invoke('get-vehiculos', sucursalId),
+  addVehiculo:      (n, m, km, sucursalId)   => ipcRenderer.invoke('add-vehiculo', n, m, km, sucursalId),
   deleteVehiculo:   (id)                     => ipcRenderer.invoke('delete-vehiculo', id),
   updateVehiculoKm: (id, km)                 => ipcRenderer.invoke('update-vehiculo-km', id, km),
   updateVehiculo:   (id, n, m)               => ipcRenderer.invoke('update-vehiculo', id, n, m),
 
   // Profesores
-  getProfesores:    ()                       => ipcRenderer.invoke('get-profesores'),
-  addProfesor:      (n, nota)                => ipcRenderer.invoke('add-profesor', n, nota),
+  getProfesores:    (sucursalId)             => ipcRenderer.invoke('get-profesores', sucursalId),
+  addProfesor:      (n, nota, sucursalId)    => ipcRenderer.invoke('add-profesor', n, nota, sucursalId),
   deleteProfesor:   (id)                     => ipcRenderer.invoke('delete-profesor', id),
   updateProfesor:   (id, n, nota)            => ipcRenderer.invoke('update-profesor', id, n, nota),
 
@@ -32,33 +32,33 @@ contextBridge.exposeInMainWorld('api', {
   deleteTarifa:      (id)                         => ipcRenderer.invoke('delete-tarifa', id),
 
   // Alumnos
-  getAlumnos:   ()                           => ipcRenderer.invoke('get-alumnos'),
-  addAlumno:    (n, p, vid, profId)          => ipcRenderer.invoke('add-alumno', n, p, vid, profId),
+  getAlumnos:   (sucursalId)                 => ipcRenderer.invoke('get-alumnos', sucursalId),
+  addAlumno:    (n, p, vid, profId, sucursalId) => ipcRenderer.invoke('add-alumno', n, p, vid, profId, sucursalId),
   deleteAlumno: (id)                         => ipcRenderer.invoke('delete-alumno', id),
   updateAlumno: (id, n, p, vid, profId)      => ipcRenderer.invoke('update-alumno', id, n, p, vid, profId),
 
   // Prácticas
   getPracticas:      (alumno_id)             => ipcRenderer.invoke('get-practicas', alumno_id),
   getUltimaPractica: (alumno_id)             => ipcRenderer.invoke('get-ultima-practica', alumno_id),
-  addPractica:       (aid, vid, f, ki, kf, pid, tipo) => ipcRenderer.invoke('add-practica', aid, vid, f, ki, kf, pid, tipo),
+  addPractica:       (aid, vid, f, ki, kf, pid, tipo, sucursalId) => ipcRenderer.invoke('add-practica', aid, vid, f, ki, kf, pid, tipo, sucursalId),
   deletePractica:    (id)                    => ipcRenderer.invoke('delete-practica', id),
   updatePractica:    (id, f, ki, kf, pid, tipo) => ipcRenderer.invoke('update-practica', id, f, ki, kf, pid, tipo),
   getTodasPracticas: (filtros)                => ipcRenderer.invoke('get-todas-practicas', filtros),
 
   // Pagos
   getPagosAlumno:    (alumnoId)                   => ipcRenderer.invoke('get-pagos-alumno', alumnoId),
-  addPago:           (alumnoId, fecha, cantidad, nota) => ipcRenderer.invoke('add-pago', alumnoId, fecha, cantidad, nota),
+  addPago:           (alumnoId, fecha, cantidad, nota, sucursalId) => ipcRenderer.invoke('add-pago', alumnoId, fecha, cantidad, nota, sucursalId),
   updatePago:        (id, fecha, cantidad, nota)  => ipcRenderer.invoke('update-pago', id, fecha, cantidad, nota),
   deletePago:        (id)                         => ipcRenderer.invoke('delete-pago', id),
-  getDeudas:         ()                           => ipcRenderer.invoke('get-deudas'),
+  getDeudas:         (sucursalId)                 => ipcRenderer.invoke('get-deudas', sucursalId),
   getDesglosePagosAlumno: (alumnoId)               => ipcRenderer.invoke('get-desglose-pagos-alumno', alumnoId),
 
   // Generación y resumen
   generarKm:    (kmInicial, min, max)        => ipcRenderer.invoke('generar-km', kmInicial, min, max),
-  getResumen:        ()                      => ipcRenderer.invoke('get-resumen'),
-  getStatsDashboard: ()                      => ipcRenderer.invoke('get-stats-dashboard'),
+  getResumen:        (sucursalId)            => ipcRenderer.invoke('get-resumen', sucursalId),
+  getStatsDashboard: (hoy, sucursalId)       => ipcRenderer.invoke('get-stats-dashboard', hoy, sucursalId),
   getStatsProfesores: (desde, hasta)         => ipcRenderer.invoke('get-stats-profesores', desde, hasta),
-  getDatosGraficos:    (meses)               => ipcRenderer.invoke('get-datos-graficos', meses),
+  getDatosGraficos:    (meses, sucursalId)   => ipcRenderer.invoke('get-datos-graficos', meses, sucursalId),
   getSolapamientos:    ()                        => ipcRenderer.invoke('get-solapamientos'),
   rellenarKmMasivo:    (vid, min, max, inicio, final) => ipcRenderer.invoke('rellenar-km-masivo', vid, min, max, inicio, final),
   getPracticasSinKm:   (vid)                     => ipcRenderer.invoke('get-practicas-sin-km', vid),
@@ -107,6 +107,12 @@ contextBridge.exposeInMainWorld('api', {
   invitarEmpleado:    (email, rol, sucursalId)    => ipcRenderer.invoke('invitar-empleado', email, rol, sucursalId),
   cambiarRolEmpleado: (userId, rol)               => ipcRenderer.invoke('cambiar-rol-empleado', userId, rol),
   quitarEmpleado:     (userId)                    => ipcRenderer.invoke('quitar-empleado', userId),
+
+  // Sucursales (fase 2 multi-empresa)
+  getSucursales:      (soloActivas)               => ipcRenderer.invoke('get-sucursales', soloActivas),
+  addSucursal:        (nombre)                    => ipcRenderer.invoke('add-sucursal', nombre),
+  renombrarSucursal:  (id, nombre)                => ipcRenderer.invoke('renombrar-sucursal', id, nombre),
+  activarSucursal:    (id, activa)                => ipcRenderer.invoke('activar-sucursal', id, activa),
 
   // Auto-update
   checkForUpdates:  ()     => ipcRenderer.invoke('check-for-updates'),
