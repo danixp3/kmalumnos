@@ -95,6 +95,7 @@ async function loadAjustes() {
   document.getElementById('pref-dash-grafico-vehiculo').checked = dashPref.graficoPorVehiculo;
   document.getElementById('pref-dash-grafico-ingresos').checked = dashPref.graficoIngresos;
   refrescarEstadoCuenta();
+  aplicarPermisosPorRol();
   const v = await window.api.getVersion();
   const el = document.getElementById('ajustes-version');
   if (el) el.textContent = 'v' + v;

@@ -124,6 +124,7 @@ function setCredentials(email, password) {
   supabase = null;
   _authError = null;
   _empresaId = null;
+  _perfilCache = null; // cambio de sesión: invalidar el perfil (rol/empresa) cacheado
 }
 
 function hasCredentials() {
@@ -214,6 +215,7 @@ async function registrarEmpresa(email, password) {
       supabase = client;
       _empresaId = data.user.id;
       _authError = null;
+      _perfilCache = null; // sesión nueva: invalidar el perfil (rol/empresa) cacheado
       return { ok: true, estado: 'activa', email, empresaId: data.user.id };
     }
 
@@ -241,6 +243,149 @@ function getEstadoCuenta() {
     email: _creds ? _creds.email : null,
     empresaId: getEmpresaId()
   };
+}
+
+// ─── ROLES (JEFE / EMPLEADO, fase 2 multi-empresa) ────────────────────────────
+// La migración migraciones/2026-08-01_roles_y_sucursales.sql (tabla `perfiles`)
+// TODAVÍA NO se ha aplicado en producción a fecha de escribir esto — se aplicará
+// más tarde, a mano. Mientras tanto la tabla no existe y CUALQUIER consulta a
+// ella falla; ese fallo se trata como "modo clásico", nunca como un error real:
+// el rol efectivo es siempre 'jefe' (no se oculta nada) hasta que la migración
+// esté aplicada Y el usuario tenga sesión iniciada.
+//
+// Cacheado en memoria durante la sesión (una sola consulta por sesión, no una
+// por cada render de la UI); se invalida al cambiar de credenciales (ver
+// setCredentials/registrarEmpresa más arriba).
+let _perfilCache = null;
+
+// Devuelve { disponible, rol, empresa_id?, sucursal_id?, nombre? }.
+//   disponible=false → modo clásico (migración no aplicada, sin sesión, o
+//     cualquier error consultando `perfiles`): rol efectivo 'jefe' SIEMPRE,
+//     para que la interfaz de hoy no oculte nada. Nunca al revés.
+//   disponible=true  → hay fila en `perfiles` para este usuario: rol real.
+async function getPerfilActual() {
+  if (_perfilCache) return _perfilCache;
+  if (!_creds) {
+    // Modo legado (sin cuenta) o app recién arrancada sin credenciales guardadas.
+    _perfilCache = { disponible: false, rol: 'jefe' };
+    return _perfilCache;
+  }
+  try {
+    const sb = await ensureClient();
+    // Sin cliente (credenciales inválidas / sin conexión) o sin uid resuelto:
+    // no hay forma de consultar `perfiles` por auth.uid() todavía.
+    if (!sb || !_empresaId) {
+      _perfilCache = { disponible: false, rol: 'jefe' };
+      return _perfilCache;
+    }
+    const { data, error } = await sb.from('perfiles').select('*').eq('user_id', _empresaId).maybeSingle();
+    if (error || !data) {
+      // error: la tabla `perfiles` no existe todavía (Postgres: relación
+      // inexistente) u otro fallo de la consulta — modo clásico.
+      // !data: usuario autenticado sin fila propia en `perfiles` (no debería
+      // pasar tras el backfill de la migración, pero por seguridad se trata
+      // igual que modo clásico en vez de negar el acceso).
+      _perfilCache = { disponible: false, rol: 'jefe' };
+      return _perfilCache;
+    }
+    _perfilCache = {
+      disponible: true,
+      rol: data.rol,
+      empresa_id: data.empresa_id,
+      sucursal_id: data.sucursal_id != null ? data.sucursal_id : null,
+      nombre: data.nombre || null
+    };
+    return _perfilCache;
+  } catch (e) {
+    _perfilCache = { disponible: false, rol: 'jefe' };
+    return _perfilCache;
+  }
+}
+
+// ─── GESTIÓN DE EMPLEADOS (solo jefe, solo con la migración aplicada) ─────────
+// La propia base de datos ya exige rol jefe para tocar `perfiles` (RLS:
+// perfiles_insert_jefe/_update_jefe/_delete_jefe en la migración); estas
+// funciones comprueban el rol en el cliente solo para dar un mensaje en
+// español claro en vez de dejar pasar un error crudo de Postgres/PostgREST.
+async function listarEmpleados() {
+  const perfil = await getPerfilActual();
+  if (!perfil.disponible) return { ok: false, msg: 'La gestión de empleados todavía no está disponible en esta cuenta.' };
+  const sb = await ensureClient();
+  if (!sb) return { ok: false, msg: _authError || 'Sin conexión.' };
+  try {
+    const { data, error } = await sb.from('perfiles').select('*').eq('empresa_id', perfil.empresa_id);
+    if (error) return { ok: false, msg: error.message };
+    return { ok: true, empleados: data || [] };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+}
+
+// Da de alta en `perfiles` a un usuario que YA tiene cuenta creada (Supabase
+// Auth). No existe forma de resolver un email a su uid desde el cliente con
+// solo la anon key (la tabla auth.users no está expuesta por PostgREST y la
+// API de administración exige la service_role key, que esta app no tiene) —
+// se apoya en la función `buscar_uid_por_email` (RPC SECURITY DEFINER, misma
+// familia que empresa_actual()/rol_actual() de la migración). OJO: esa RPC
+// todavía NO está en migraciones/2026-08-01_roles_y_sucursales.sql; hace
+// falta añadirla en una migración posterior antes de que esta función sirva
+// contra producción. Aquí se deja implementada y probada con mocks para que
+// el resto del flujo (UI, IPC, mensajes de error) esté listo.
+async function invitarEmpleado(email, rol, sucursal_id) {
+  const perfil = await getPerfilActual();
+  if (!perfil.disponible) return { ok: false, msg: 'La gestión de empleados todavía no está disponible en esta cuenta.' };
+  if (perfil.rol !== 'jefe') return { ok: false, msg: 'Solo el jefe puede invitar empleados.' };
+  if (!email) return { ok: false, msg: 'Falta el email del empleado.' };
+  if (rol !== 'jefe' && rol !== 'empleado') return { ok: false, msg: 'Rol no válido.' };
+  const sb = await ensureClient();
+  if (!sb) return { ok: false, msg: _authError || 'Sin conexión.' };
+  try {
+    const { data: uid, error: errBuscar } = await sb.rpc('buscar_uid_por_email', { p_email: email });
+    if (errBuscar) return { ok: false, msg: 'No se pudo verificar el email: ' + errBuscar.message };
+    if (!uid) {
+      return {
+        ok: false,
+        msg: 'Ese email no tiene todavía una cuenta creada. Pide primero a esa persona que se registre en la app y, cuando la tenga, invítala de nuevo.'
+      };
+    }
+    const payload = { user_id: uid, empresa_id: perfil.empresa_id, rol, sucursal_id: sucursal_id || null };
+    const { error } = await sb.from('perfiles').upsert(payload, { onConflict: 'user_id' });
+    if (error) return { ok: false, msg: 'No se pudo dar de alta al empleado: ' + error.message };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+}
+
+async function cambiarRolEmpleado(user_id, rol) {
+  const perfil = await getPerfilActual();
+  if (!perfil.disponible) return { ok: false, msg: 'La gestión de empleados todavía no está disponible en esta cuenta.' };
+  if (perfil.rol !== 'jefe') return { ok: false, msg: 'Solo el jefe puede cambiar roles.' };
+  if (rol !== 'jefe' && rol !== 'empleado') return { ok: false, msg: 'Rol no válido.' };
+  const sb = await ensureClient();
+  if (!sb) return { ok: false, msg: _authError || 'Sin conexión.' };
+  try {
+    const { error } = await sb.from('perfiles').update({ rol }).eq('user_id', user_id);
+    if (error) return { ok: false, msg: error.message };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+}
+
+async function quitarEmpleado(user_id) {
+  const perfil = await getPerfilActual();
+  if (!perfil.disponible) return { ok: false, msg: 'La gestión de empleados todavía no está disponible en esta cuenta.' };
+  if (perfil.rol !== 'jefe') return { ok: false, msg: 'Solo el jefe puede quitar empleados.' };
+  const sb = await ensureClient();
+  if (!sb) return { ok: false, msg: _authError || 'Sin conexión.' };
+  try {
+    const { error } = await sb.from('perfiles').delete().eq('user_id', user_id);
+    if (error) return { ok: false, msg: error.message };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
 }
 
 // ─── PENDING QUEUE ────────────────────────────────────────────────────────────
@@ -581,18 +726,28 @@ async function sync() {
       }
     }
 
-    // Pagos dirty
-    for (const id of (pending.pagos || [])) {
-      const pg = data.pagos.find(x => x.id === id);
-      if (pg) {
-        const payload = {
-          id: pg.id, alumno_id: pg.alumno_id, fecha: pg.fecha,
-          cantidad: pg.cantidad || 0, nota: pg.nota || '',
-          deleted: false, updated_at: new Date().toISOString()
-        };
-        if (_empresaId) payload.empresa_id = _empresaId;
-        await sb.from('pagos').upsert(payload, { onConflict: 'id' });
+    // Pagos dirty. Tras la migración de roles, un empleado no tiene acceso a
+    // `pagos` (RLS restringe esa tabla a jefe): envuelto en try/catch para que
+    // ese rechazo no tumbe el resto del sync (vehículos/alumnos/prácticas deben
+    // subir igual). La cola de pagos se vacía de todos modos en el paso 3, así
+    // que un empleado sin permiso no se queda con reintentos atascados: sus
+    // pagos pendientes simplemente no llegan a la nube (el jefe los subirá
+    // cuando sincronice él).
+    try {
+      for (const id of (pending.pagos || [])) {
+        const pg = data.pagos.find(x => x.id === id);
+        if (pg) {
+          const payload = {
+            id: pg.id, alumno_id: pg.alumno_id, fecha: pg.fecha,
+            cantidad: pg.cantidad || 0, nota: pg.nota || '',
+            deleted: false, updated_at: new Date().toISOString()
+          };
+          if (_empresaId) payload.empresa_id = _empresaId;
+          await sb.from('pagos').upsert(payload, { onConflict: 'id' });
+        }
       }
+    } catch (e) {
+      console.error('Sync: no se pudo subir pagos (permiso denegado o error de red):', e.message);
     }
 
     // Eliminaciones — todas por soft delete (marca deleted). Borrar de verdad
@@ -613,8 +768,12 @@ async function sync() {
     for (const id of (pending.deleted.tarifas || [])) {
       await sb.from('tarifas').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
     }
-    for (const id of (pending.deleted.pagos || [])) {
-      await sb.from('pagos').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
+    try {
+      for (const id of (pending.deleted.pagos || [])) {
+        await sb.from('pagos').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
+      }
+    } catch (e) {
+      console.error('Sync: no se pudo borrar pagos en la nube (permiso denegado o error de red):', e.message);
     }
 
     // ── 2. BAJAR CAMBIOS REMOTOS (del móvil / del otro PC) ───────────────────
@@ -848,47 +1007,55 @@ async function sync() {
           }
         }
 
-    // Pagos nuevos o modificados
-    const { data: remotePagos, error: errPg } = await conEmpresa(sb
-      .from('pagos')
-      .select('*')
-      .gt('updated_at', lastSync));
+    // Pagos nuevos o modificados. Igual que en la subida: un empleado sin
+    // acceso a `pagos` por RLS no debe tumbar el resto de la bajada
+    // (vehículos/alumnos/prácticas ya se bajaron arriba y no deben perderse
+    // por esto), así que la consulta va envuelta en try/catch además del
+    // chequeo normal de `error`.
+    try {
+      const { data: remotePagos, error: errPg } = await conEmpresa(sb
+        .from('pagos')
+        .select('*')
+        .gt('updated_at', lastSync));
 
-    if (!errPg && remotePagos) {
-      for (const rpg of remotePagos) {
-        const idx = data.pagos.findIndex(x => x.id === rpg.id);
-        if (rpg.deleted) {
-          if (idx !== -1) {
-            data.pagos.splice(idx, 1);
-            dataChanged = true;
+      if (!errPg && remotePagos) {
+        for (const rpg of remotePagos) {
+          const idx = data.pagos.findIndex(x => x.id === rpg.id);
+          if (rpg.deleted) {
+            if (idx !== -1) {
+              data.pagos.splice(idx, 1);
+              dataChanged = true;
+            }
+            continue;
           }
-          continue;
-        }
-        if (idx === -1) {
-          data.pagos.push({
-            id: rpg.id, alumno_id: rpg.alumno_id, fecha: rpg.fecha,
-            cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || '',
-            updated_at: rpg.updated_at
-          });
-          if (rpg.id >= data._seq.pg) data._seq.pg = rpg.id + 1;
-          dataChanged = true;
-          pulled++;
-        } else {
-          const localUpdated  = data.pagos[idx].updated_at || '1970-01-01T00:00:00.000Z';
-          const remoteUpdated = rpg.updated_at || '1970-01-01T00:00:00.000Z';
-          if (remoteUpdated > localUpdated) {
-            const nuevo = {
-              alumno_id: rpg.alumno_id, fecha: rpg.fecha,
-              cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || ''
-            };
-            _detectarYRegistrarConflicto(data, 'pagos', pending.pagos,
-              rpg.id, ['alumno_id', 'fecha', 'cantidad', 'nota'], data.pagos[idx], nuevo, conflictos);
-            Object.assign(data.pagos[idx], nuevo, { updated_at: rpg.updated_at });
+          if (idx === -1) {
+            data.pagos.push({
+              id: rpg.id, alumno_id: rpg.alumno_id, fecha: rpg.fecha,
+              cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || '',
+              updated_at: rpg.updated_at
+            });
+            if (rpg.id >= data._seq.pg) data._seq.pg = rpg.id + 1;
             dataChanged = true;
             pulled++;
+          } else {
+            const localUpdated  = data.pagos[idx].updated_at || '1970-01-01T00:00:00.000Z';
+            const remoteUpdated = rpg.updated_at || '1970-01-01T00:00:00.000Z';
+            if (remoteUpdated > localUpdated) {
+              const nuevo = {
+                alumno_id: rpg.alumno_id, fecha: rpg.fecha,
+                cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || ''
+              };
+              _detectarYRegistrarConflicto(data, 'pagos', pending.pagos,
+                rpg.id, ['alumno_id', 'fecha', 'cantidad', 'nota'], data.pagos[idx], nuevo, conflictos);
+              Object.assign(data.pagos[idx], nuevo, { updated_at: rpg.updated_at });
+              dataChanged = true;
+              pulled++;
+            }
           }
         }
       }
+    } catch (e) {
+      console.error('Sync: no se pudo leer pagos (permiso denegado o error de red):', e.message);
     }
 
     if (dataChanged || regenerado) {
@@ -1017,11 +1184,17 @@ async function pushAll() {
         { onConflict: 'id' }
       );
     }
-    if (data.pagos.length) {
-      await sb.from('pagos').upsert(
-        data.pagos.map(pg => ({ ...pg, ...conEmpresaTag, deleted: false, updated_at: now })),
-        { onConflict: 'id' }
-      );
+    // Pagos: igual tolerancia que en sync() — un empleado sin acceso a la
+    // tabla por RLS no debe abortar la subida completa de las demás tablas.
+    try {
+      if (data.pagos.length) {
+        await sb.from('pagos').upsert(
+          data.pagos.map(pg => ({ ...pg, ...conEmpresaTag, deleted: false, updated_at: now })),
+          { onConflict: 'id' }
+        );
+      }
+    } catch (e) {
+      console.error('Sync (subir todo): no se pudo subir pagos (permiso denegado o error de red):', e.message);
     }
 
     // Ejecutar los borrados pendientes antes de vaciar la cola: antes se
@@ -1042,8 +1215,12 @@ async function pushAll() {
     for (const id of (pending.deleted.tarifas || [])) {
       await sb.from('tarifas').update({ deleted: true, updated_at: now }).eq('id', id);
     }
-    for (const id of (pending.deleted.pagos || [])) {
-      await sb.from('pagos').update({ deleted: true, updated_at: now }).eq('id', id);
+    try {
+      for (const id of (pending.deleted.pagos || [])) {
+        await sb.from('pagos').update({ deleted: true, updated_at: now }).eq('id', id);
+      }
+    } catch (e) {
+      console.error('Sync (subir todo): no se pudo borrar pagos en la nube (permiso denegado o error de red):', e.message);
     }
 
     // Limpiar pending. OJO: no adelantar lastSync aquí — si este PC aún no ha
@@ -1109,5 +1286,10 @@ module.exports = {
   programarSyncInmediato,
   _configurarSyncInmediatoParaTests,
   registrarEmpresa,
-  getEstadoCuenta
+  getEstadoCuenta,
+  getPerfilActual,
+  listarEmpleados,
+  invitarEmpleado,
+  cambiarRolEmpleado,
+  quitarEmpleado
 };

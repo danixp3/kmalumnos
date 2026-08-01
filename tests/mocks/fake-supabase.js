@@ -1,12 +1,21 @@
 // Simulador en memoria del cliente de Supabase para testear sync.js
 // sin tocar la base de datos real. Soporta las operaciones que usa sync.js:
-// select/gt/order/limit, upsert, update().eq(), delete().eq().
+// select/gt/order/limit, upsert, update().eq(), delete().eq(), maybeSingle() y
+// rpc() (para los tests de roles: getPerfilActual/invitarEmpleado).
 module.exports = function makeFakeSupabase(remote) {
-  // remote = { online: boolean, tables: { practicas: [], alumnos: [], vehiculos: [], meta: [] } }
+  // remote = { online: boolean, tables: { practicas: [], alumnos: [], vehiculos: [], meta: [] },
+  //   tablasInexistentes: ['perfiles'] (simula "modo clásico", migración no aplicada),
+  //   rpcHandlers: { buscar_uid_por_email: (params) => uid|null },
+  //   rpcErrores: { nombreFuncion: 'mensaje' } }
 
   function execute(state) {
     if (!remote.online) {
       return { data: null, error: { message: 'Fallo de red (simulado)' } };
+    }
+    // Simula una tabla que todavía no existe (migración no aplicada): Postgres
+    // devuelve un error de relación inexistente ante cualquier operación.
+    if ((remote.tablasInexistentes || []).includes(state.table)) {
+      return { data: null, error: { message: `relation "public.${state.table}" does not exist`, code: '42P01' } };
     }
     if (!remote.tables[state.table]) remote.tables[state.table] = [];
     const rows = remote.tables[state.table];
@@ -59,10 +68,31 @@ module.exports = function makeFakeSupabase(remote) {
       upsert(payload) { state.op = 'upsert'; state.payload = payload; return api; },
       update(payload) { state.op = 'update'; state.payload = payload; return api; },
       delete() { state.op = 'delete'; return api; },
+      // Igual que supabase-js: ejecuta la consulta (select con filtros) y
+      // devuelve una única fila (o null si no hay ninguna) en vez de un array.
+      async maybeSingle() {
+        const res = execute(state);
+        if (res.error) return res;
+        const fila = Array.isArray(res.data) ? (res.data[0] || null) : res.data;
+        return { data: fila, error: null };
+      },
       // "thenable": permite hacer await directamente sobre la cadena, como supabase-js
       then(resolve, reject) { return Promise.resolve(execute(state)).then(resolve, reject); }
     };
     return api;
+  }
+
+  // rpc() simulado: usado por getPerfilActual()/invitarEmpleado() (funciones
+  // SECURITY DEFINER de la migración de roles, p.ej. buscar_uid_por_email).
+  async function rpc(fnName, params) {
+    if (!remote.online) return { data: null, error: { message: 'Fallo de red (simulado)' } };
+    if (remote.rpcErrores && remote.rpcErrores[fnName]) {
+      return { data: null, error: { message: remote.rpcErrores[fnName] } };
+    }
+    if (remote.rpcHandlers && typeof remote.rpcHandlers[fnName] === 'function') {
+      return { data: remote.rpcHandlers[fnName](params), error: null };
+    }
+    return { data: null, error: { message: `función ${fnName} no configurada en el mock` } };
   }
 
   const auth = {
@@ -90,5 +120,5 @@ module.exports = function makeFakeSupabase(remote) {
     }
   };
 
-  return { from: builder, auth };
+  return { from: builder, auth, rpc };
 };
