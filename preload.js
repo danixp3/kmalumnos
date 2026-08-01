@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('api', {
   addPractica:       (aid, vid, f, ki, kf, pid, tipo) => ipcRenderer.invoke('add-practica', aid, vid, f, ki, kf, pid, tipo),
   deletePractica:    (id)                    => ipcRenderer.invoke('delete-practica', id),
   updatePractica:    (id, f, ki, kf, pid, tipo) => ipcRenderer.invoke('update-practica', id, f, ki, kf, pid, tipo),
+  getTodasPracticas: (filtros)                => ipcRenderer.invoke('get-todas-practicas', filtros),
 
   // Pagos
   getPagosAlumno:    (alumnoId)                   => ipcRenderer.invoke('get-pagos-alumno', alumnoId),

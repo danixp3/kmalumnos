@@ -60,6 +60,53 @@ function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tip
   }
 }
 
+// ─── TODAS LAS PRÁCTICAS (VISTA GLOBAL) ──────────────────────────────────────
+/**
+ * Devuelve TODAS las prácticas de todos los alumnos juntas, con nombres de
+ * alumno/vehículo/profesor resueltos, para la vista global de la pantalla
+ * Prácticas. `filtros` es opcional: { desde, hasta ('YYYY-MM-DD'), alumno_id,
+ * vehiculo_id, profesor_id, tipo ('pista'|'circulacion') }, todos opcionales.
+ * Excluye solo prácticas con deleted:true (si el alumno/vehículo/profesor
+ * está borrado o no existe, la práctica se sigue mostrando con nombre "—").
+ * Ordena por fecha descendente y, a igualdad, por id descendente.
+ * Solo lectura, no marca sync.
+ */
+function getTodasPracticas(filtros = {}) {
+  const d = load();
+  const { desde, hasta, alumno_id, vehiculo_id, profesor_id, tipo } = filtros || {};
+
+  return d.practicas
+    .filter(p => !p.deleted)
+    .filter(p => !desde || p.fecha >= desde)
+    .filter(p => !hasta || p.fecha <= hasta)
+    .filter(p => alumno_id === undefined || alumno_id === null || alumno_id === '' || p.alumno_id === parseInt(alumno_id))
+    .filter(p => vehiculo_id === undefined || vehiculo_id === null || vehiculo_id === '' || p.vehiculo_id === parseInt(vehiculo_id))
+    .filter(p => profesor_id === undefined || profesor_id === null || profesor_id === '' || p.profesor_id === parseInt(profesor_id))
+    .filter(p => !tipo || (p.tipo || 'circulacion') === tipo)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id)
+    .map(p => {
+      const a = d.alumnos.find(x => x.id === p.alumno_id);
+      const v = d.vehiculos.find(x => x.id === p.vehiculo_id);
+      const prof = d.profesores.find(x => x.id === p.profesor_id);
+      const sinKm = p.km_inicial === 0 && p.km_final === 0;
+      return {
+        id: p.id,
+        fecha: p.fecha,
+        alumno_id: p.alumno_id,
+        alumno_nombre: a ? a.nombre : '—',
+        vehiculo_id: p.vehiculo_id,
+        vehiculo_nombre: v ? v.nombre : '—',
+        profesor_id: p.profesor_id,
+        profesor_nombre: prof ? prof.nombre : '—',
+        km_inicial: p.km_inicial,
+        km_final: p.km_final,
+        km_recorridos: sinKm ? 0 : p.km_final - p.km_inicial,
+        tipo: p.tipo || 'circulacion',
+        sin_km: sinKm,
+      };
+    });
+}
+
 // ─── ALUMNOS POR VEHÍCULO (para registro rápido) ─────────────────────────────
 /**
  * Devuelve todos los alumnos asignados a un vehículo específico,
@@ -255,6 +302,6 @@ function eliminarPracticaPorFecha(vehiculo_id, fecha, alumno_id) {
 }
 
 module.exports = {
-  getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica,
+  getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica, getTodasPracticas,
   getAlumnosPorVehiculo, registrarPracticasMasivas, eliminarPracticaPorFecha, ajustarPracticasAlumno, guardarNotaAlumno,
 };
