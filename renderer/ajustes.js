@@ -37,7 +37,11 @@ function guardarRangoPrefDesdeAjustes() {
 const PREF_DASHBOARD_KEY = 'kmalumnos_dashboard_stats';
 const PREF_DASHBOARD_DEFAULT = {
   vehiculos: true, alumnos: true, practicas: true,
-  practicasHoy: false, kmMes: false, totalAdeudado: false, alumnosConDeuda: false
+  practicasHoy: false, kmMes: false, totalAdeudado: false, alumnosConDeuda: false,
+  // Gráficos configurables (renderer/graficos.js): km y prácticas por mes activos
+  // por defecto, el resto apagado para no saturar la pantalla de entrada.
+  graficoKmMes: true, graficoPracticasMes: true,
+  graficoPorProfesor: false, graficoPorVehiculo: false, graficoIngresos: false
 };
 
 function getDashboardPref() {
@@ -63,7 +67,12 @@ function guardarDashboardPrefDesdeAjustes() {
     practicasHoy: document.getElementById('pref-dash-practicas-hoy').checked,
     kmMes: document.getElementById('pref-dash-km-mes').checked,
     totalAdeudado: document.getElementById('pref-dash-total-adeudado').checked,
-    alumnosConDeuda: document.getElementById('pref-dash-alumnos-deuda').checked
+    alumnosConDeuda: document.getElementById('pref-dash-alumnos-deuda').checked,
+    graficoKmMes: document.getElementById('pref-dash-grafico-km-mes').checked,
+    graficoPracticasMes: document.getElementById('pref-dash-grafico-practicas-mes').checked,
+    graficoPorProfesor: document.getElementById('pref-dash-grafico-profesor').checked,
+    graficoPorVehiculo: document.getElementById('pref-dash-grafico-vehiculo').checked,
+    graficoIngresos: document.getElementById('pref-dash-grafico-ingresos').checked
   };
   guardarDashboardPref(p);
 }
@@ -80,6 +89,11 @@ async function loadAjustes() {
   document.getElementById('pref-dash-km-mes').checked = dashPref.kmMes;
   document.getElementById('pref-dash-total-adeudado').checked = dashPref.totalAdeudado;
   document.getElementById('pref-dash-alumnos-deuda').checked = dashPref.alumnosConDeuda;
+  document.getElementById('pref-dash-grafico-km-mes').checked = dashPref.graficoKmMes;
+  document.getElementById('pref-dash-grafico-practicas-mes').checked = dashPref.graficoPracticasMes;
+  document.getElementById('pref-dash-grafico-profesor').checked = dashPref.graficoPorProfesor;
+  document.getElementById('pref-dash-grafico-vehiculo').checked = dashPref.graficoPorVehiculo;
+  document.getElementById('pref-dash-grafico-ingresos').checked = dashPref.graficoIngresos;
   refrescarEstadoCuenta();
   const v = await window.api.getVersion();
   const el = document.getElementById('ajustes-version');
