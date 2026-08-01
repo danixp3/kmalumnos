@@ -23,6 +23,8 @@ let deudasCache = [];
 let deudasSort = { col: null, dir: 1 };
 let statsProfesoresCache = [];
 let statsProfesoresSort = { col: 'num_practicas', dir: -1 };
+let practicasGlobalCache = [];
+let practicasGlobalSort = { col: 'fecha', dir: -1 };
 
 // ─── NAVEGACIÓN ──────────────────────────────────────────────────────────────
 document.querySelectorAll('#sidebar nav a').forEach(link => {
@@ -40,6 +42,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
       cambiarTabPagos(activeTab);
     }
     if (page === 'alumnos') { loadVehiculosSelect(); llenarSelectProfesores('a-profesor'); loadAlumnos(); }
+    if (page === 'practicas-global') loadPracticasGlobal();
     if (page === 'kilometros') {
       const activeTab = document.querySelector('#page-kilometros .page-tab.active')?.dataset.tab || 'mapa';
       cambiarTabKilometros(activeTab);

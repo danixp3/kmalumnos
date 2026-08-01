@@ -103,6 +103,12 @@
       </a>
 
       <div class="nav-section" style="margin-top:6px">Análisis</div>
+      <a data-page="practicas-global">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
+        </span>
+        Prácticas
+      </a>
       <a data-page="kilometros">
         <span class="nav-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="8 8 3 12 8 16"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -682,6 +688,96 @@
             <tbody></tbody>
           </table>
         </div>
+      </div>
+    </div>
+
+    <!-- ── PRÁCTICAS (VISTA GLOBAL) ──────────────── -->
+    <div id="page-practicas-global" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Prácticas</div>
+          <div class="page-subtitle">Todas las prácticas de todos los alumnos juntas</div>
+        </div>
+      </div>
+
+      <div class="stats" style="grid-template-columns:repeat(2,1fr)">
+        <div class="stat">
+          <div class="stat-head">
+            <span class="lbl">Prácticas mostradas</span>
+            <div class="stat-icon stat-icon-orange">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
+            </div>
+          </div>
+          <div class="num" id="practicas-global-resumen-num">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-head">
+            <span class="lbl">Km recorridos</span>
+            <div class="stat-icon stat-icon-blue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="8 8 3 12 8 16"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </div>
+          </div>
+          <div class="num" id="practicas-global-resumen-km">0 km</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></div>
+          Filtros
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Buscar alumno</label>
+            <input type="text" id="pg-buscar" placeholder="Nombre del alumno..." style="width:180px" oninput="renderPracticasGlobalTabla()">
+          </div>
+          <div class="form-group">
+            <label>Desde</label>
+            <input type="date" id="pg-desde" onchange="fetchPracticasGlobal()">
+          </div>
+          <div class="form-group">
+            <label>Hasta</label>
+            <input type="date" id="pg-hasta" onchange="fetchPracticasGlobal()">
+          </div>
+          <div class="form-group">
+            <label>Alumno</label>
+            <select id="pg-alumno" style="width:170px" onchange="fetchPracticasGlobal()"><option value="">Todos los alumnos</option></select>
+          </div>
+          <div class="form-group">
+            <label>Vehículo</label>
+            <select id="pg-vehiculo" style="width:150px" onchange="fetchPracticasGlobal()"><option value="">Todos los vehículos</option></select>
+          </div>
+          <div class="form-group">
+            <label>Profesor</label>
+            <select id="pg-profesor" style="width:150px" onchange="fetchPracticasGlobal()"><option value="">Todos los profesores</option></select>
+          </div>
+          <div class="form-group">
+            <label>Tipo</label>
+            <select id="pg-tipo" style="width:140px" onchange="fetchPracticasGlobal()">
+              <option value="">Todos los tipos</option>
+              <option value="circulacion">Circulación</option>
+              <option value="pista">Pista</option>
+            </select>
+          </div>
+          <button class="btn btn-gray btn-sm" onclick="limpiarFiltrosPracticasGlobal()" style="align-self:flex-end">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Limpiar filtros
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="tabla-practicas-global">
+          <thead><tr>
+            <th class="sortable" data-sort="fecha" onclick="ordenarPracticasGlobal('fecha')">Fecha<span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="alumno" onclick="ordenarPracticasGlobal('alumno')">Alumno<span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="vehiculo" onclick="ordenarPracticasGlobal('vehiculo')">Vehículo<span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="profesor" onclick="ordenarPracticasGlobal('profesor')">Profesor<span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="tipo" onclick="ordenarPracticasGlobal('tipo')">Tipo<span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="km" onclick="ordenarPracticasGlobal('km')">Km recorridos<span class="sort-ind"></span></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
 
@@ -1507,6 +1603,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <script src="renderer/profesores.js"></script>
 <script src="renderer/alumnos.js"></script>
 <script src="renderer/practicas.js"></script>
+<script src="renderer/practicas-global.js"></script>
 <script src="renderer/pagos.js"></script>
 <script src="renderer/csv.js"></script>
 <script src="renderer/solapamientos.js"></script>
