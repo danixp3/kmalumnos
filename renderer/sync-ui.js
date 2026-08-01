@@ -152,6 +152,7 @@ async function guardarCredsSync() {
     closeModal('modal-sync-creds');
     closeModal('modal-bienvenida');
     refrescarEstadoCuenta();
+    aplicarPermisosPorRol();
     syncNow();
     loadDashboard();
   } else {
@@ -193,6 +194,7 @@ async function crearCuentaEmpresa() {
     closeModal('modal-crear-empresa');
     closeModal('modal-bienvenida');
     refrescarEstadoCuenta();
+    aplicarPermisosPorRol();
     syncNow();
     loadDashboard();
     showToast('cuenta-empresa-toast', '✓ Cuenta de empresa creada y conectada.', 'ok');
@@ -210,6 +212,7 @@ async function cerrarSesionEmpresa() {
   if (!confirm('¿Cerrar sesión de la cuenta de empresa? La app seguirá funcionando en modo local hasta que vuelvas a iniciar sesión.')) return;
   await window.api.clearSyncCreds();
   refrescarEstadoCuenta();
+  aplicarPermisosPorRol();
 }
 
 refrescarEstadoCuenta();

@@ -101,6 +101,13 @@ contextBridge.exposeInMainWorld('api', {
   getEstadoCuenta:    ()                     => ipcRenderer.invoke('get-estado-cuenta'),
   clearSyncCreds:     ()                     => ipcRenderer.invoke('clear-sync-creds'),
 
+  // Roles (jefe/empleado, fase 2 multi-empresa)
+  getPerfilActual:    ()                          => ipcRenderer.invoke('get-perfil-actual'),
+  listarEmpleados:    ()                          => ipcRenderer.invoke('listar-empleados'),
+  invitarEmpleado:    (email, rol, sucursalId)    => ipcRenderer.invoke('invitar-empleado', email, rol, sucursalId),
+  cambiarRolEmpleado: (userId, rol)               => ipcRenderer.invoke('cambiar-rol-empleado', userId, rol),
+  quitarEmpleado:     (userId)                    => ipcRenderer.invoke('quitar-empleado', userId),
+
   // Auto-update
   checkForUpdates:  ()     => ipcRenderer.invoke('check-for-updates'),
   installUpdate:    ()     => ipcRenderer.invoke('install-update'),

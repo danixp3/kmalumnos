@@ -1,0 +1,59 @@
+# Migración: roles (jefe/empleado) y sucursales
+
+Fecha: 2026-08-01. Archivos de esta carpeta:
+
+- `2026-08-01_roles_y_sucursales.sql` — la migración.
+- `2026-08-01_roles_y_sucursales_ROLLBACK.sql` — la red de seguridad, por si algo sale mal.
+
+**Ninguno de los dos se ha aplicado a Supabase.** Son solo archivos en el repositorio, a la espera de que decidas aplicarlos.
+
+## Qué hace, en llano
+
+Hoy, en KMAlumnos, "una cuenta" y "una empresa" son la misma cosa: cuando inicias sesión, el sistema busca los datos cuyo dueño eres literalmente tú (tu usuario). Eso significa que no se puede dar de alta a un empleado con su propio usuario para que trabaje en la misma empresa sin verte todos tus datos, incluidos los pagos.
+
+Esta migración añade dos cosas nuevas sin tocar ni un dato de los que ya existen:
+
+1. **Roles**: se puede crear una cuenta de "empleado" que comparte la empresa contigo (el "jefe") pero que, si tú lo decides, **no puede ver la pantalla de Pagos** (eso queda protegido de verdad por el servidor, no solo escondido en la pantalla — ver más abajo la limitación sobre otros datos).
+2. **Sucursales**: se puede dar de alta más de una sede y, opcionalmente, etiquetar vehículos, alumnos, prácticas, profesores, tarifas y pagos con la sucursal a la que pertenecen. Si no etiquetas nada, todo se sigue tratando como "sede única", exactamente igual que hoy.
+
+Nada de esto se activa solo. Después de aplicar la migración, la app sigue funcionando exactamente igual que ahora hasta que tú (o un desarrollador) creéis manualmente una fila de sucursal o un segundo usuario con perfil de empleado. **Esta migración es solo la base de datos.** La parte de la app de escritorio para los roles (ver tu rol, invitar empleados, y ocultar Pagos y las estadísticas a quien sea empleado) ya está programada y funciona en "modo clásico" mientras la migración no esté aplicada: es decir, hoy no verás ninguna pantalla nueva y todo sigue igual. La parte de elegir sucursal en las pantallas todavía no está hecha.
+
+## Pasos exactos para aplicarla
+
+1. **Copia de seguridad ANTES de nada.** Desde la app: Ajustes → Copia de seguridad (genera un backup de `data.json` local). Además, desde Supabase, exporta o pide un `pg_dump` del proyecto `dmwoqugdnwgkcqtixhyw`, o al menos un `SELECT * FROM …` de las 7 tablas de datos guardado a un archivo. Si algo sale mal, sin copia no hay vuelta atrás fácil.
+2. **Todos los PCs deben estar en la versión de la app que ya soporta este cambio** antes de aplicar la migración en Supabase (ver "Riesgos y limitaciones" — punto sobre versiones).
+3. Aplicar `2026-08-01_roles_y_sucursales.sql` contra la base de datos de producción (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado). El script está envuelto en una transacción: si algo falla a mitad, no deja el esquema a medias.
+4. Verificar (paso siguiente).
+
+## Qué verificar después
+
+Con el usuario actual (el dueño), en el SQL Editor de Supabase o desde la app:
+
+- `SELECT * FROM perfiles;` → debe aparecer exactamente una fila, con `user_id` = tu usuario, `empresa_id` = tu usuario también, y `rol = 'jefe'`.
+- La app de escritorio sigue arrancando, sincronizando y mostrando los mismos alumnos, vehículos, prácticas y pagos que antes de la migración. Si algo desaparece o da error de sincronización, es la señal de que algo fue mal.
+- `SELECT sucursal_id FROM alumnos LIMIT 5;` → todas las filas existentes deben salir con `sucursal_id = NULL`.
+- (Opcional, para probar el aislamiento de roles) Crear un segundo usuario de prueba en Supabase Auth, insertar a mano una fila en `perfiles` con `rol = 'empleado'` y el mismo `empresa_id` que el jefe, iniciar sesión con ese usuario y comprobar que `SELECT * FROM pagos;` devuelve 0 filas, mientras que `SELECT * FROM alumnos;` sí devuelve datos.
+
+## Cómo revertir
+
+Ejecutar `2026-08-01_roles_y_sucursales_ROLLBACK.sql`. Deja las políticas de las tablas operativas exactamente como estaban antes (comparando solo contra `auth.uid()`, sin roles) y borra las tablas `perfiles` y `sucursales` — **si para entonces ya hay sucursales o perfiles de empleado reales, esos datos se pierden**, léase la advertencia dentro del propio archivo antes de ejecutarlo. Las columnas `sucursal_id` de las tablas operativas se quedan (son inofensivas, `NULL` y sin usar); el rollback incluye, comentado, un bloque opcional para quitarlas también si se quiere una reversión total.
+
+## Riesgos y limitaciones
+
+- **Todos los PCs deben estar en la versión nueva de la app antes de aplicar esto en producción.** La migración en sí es compatible hacia atrás a nivel de base de datos (por el `COALESCE`), pero si un PC con una versión antigua de la app inserta o edita filas asumiendo que solo existe un usuario por empresa, y mientras tanto ya hay un segundo usuario con perfil de empleado activo, ese PC antiguo seguiría escribiendo con su propio `auth.uid()` como `empresa_id`, no con el `empresa_id` compartido — cada PC tiene que hablar el mismo modelo de permisos para que los datos no se fragmenten entre "empresas" distintas.
+
+- **La protección por roles tiene un límite de fondo, y hay que ser honesto sobre él.** Un empleado necesita tener alumnos, vehículos y prácticas disponibles en su PC para poder trabajar (apuntar kilómetros, ver a quién le toca circular, etc.), así que esos datos **no se le pueden ocultar** ni en el servidor ni en la app: si se le oculta, no puede hacer su trabajo. Lo único que este diseño protege *de verdad*, a nivel de servidor (RLS), son los **pagos**: un empleado sin rol de jefe no puede leerlos ni escribirlos aunque manipule la app o hable directamente con Supabase. En cambio, las estadísticas de rendimiento por profesor (si en el futuro se ocultan en la interfaz para empleados) se calculan a partir de las prácticas, que el empleado sí tiene delante — ocultarlas sería una barrera de interfaz, no seguridad real, porque los datos de origen ya están en su poder. No hay forma de evitar esto sin negarle al empleado los datos que necesita para trabajar; que quede dicho sin adornos.
+
+- **`buscar_uid_por_email(email)` es SECURITY DEFINER y consulta `auth.users`.** La app la necesita para dar de alta a un empleado: se le pide su email y hay que traducirlo al identificador interno del usuario, algo que no se puede consultar de otro modo desde la aplicación. El peligro sería que cualquier usuario autenticado pudiese ir probando emails para averiguar quién está registrado en el sistema (lo que se llama enumeración de cuentas). Para evitarlo, la función comprueba internamente que quien la llama es jefe **antes** de mirar nada; si no lo es, lanza un error sin consultar. Si alguna vez se toca esta función, esa comprobación no se puede quitar.
+
+- **Las funciones nuevas `empresa_actual()` y `rol_actual()` son SECURITY DEFINER ejecutables por cualquier usuario `authenticated`.** El linter de seguridad de Supabase avisará de esto, igual que ya avisa hoy sobre `reparar_secuencias()`. Es aceptable aquí porque ninguna de las dos funciones recibe parámetros ni permite consultar datos de otro usuario: ambas leen exclusivamente la fila de `perfiles` del que llama (filtran siempre por `auth.uid()` internamente). No exponen ni permiten modificar nada ajeno.
+
+- **`logs` recibe la misma política compatible con roles que el resto de tablas de datos.** Se comprobó por SELECT de solo lectura contra `pg_policies` que su política actual se llama `empresa_all` (igual que en las demás tablas), así que el `DROP POLICY IF EXISTS empresa_all ON public.logs` del bloque 5 acierta con el nombre real. Un empleado con perfil propio puede seguir escribiendo y leyendo su registro de operaciones.
+
+- **El trigger `proteger_campos_criticos_propios` bloquea más que el cambio de rol.** La política `perfiles_update_propio` solo exige `user_id = auth.uid()` para dejar que un usuario edite su propia fila; sin más control, ese usuario podría cambiarse a sí mismo el `empresa_id` al de otra empresa (un uuid visto en un log, por un ex-empleado, etc.) y, a partir de ahí, `empresa_actual()` devolvería ese id ajeno y todas las políticas operativas se lo concederían — es decir, tendría acceso a todos los datos de una empresa que no es la suya. El trigger impide, en la propia fila del usuario que edita (`OLD.user_id = auth.uid()`), cambiar `rol`, `empresa_id` o `sucursal_id`. Un jefe editando la fila de OTRO usuario sí puede cambiar los tres campos con normalidad.
+
+- **No se ha añadido una clave foránea entre `sucursal_id` y `sucursales.id`.** Tal y como se pidió, la columna es una simple columna `bigint` nullable sin `default` ni `FOREIGN KEY`. Esto significa que la base de datos no impide guardar un `sucursal_id` que no corresponda a ninguna sucursal real, ni limpia automáticamente el campo si se borra una sucursal. Si en el futuro se quiere esa garantía, es un cambio pequeño y aparte (`ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY … ON DELETE SET NULL`).
+
+- **El backfill de `perfiles` asume que cada usuario actual de `auth.users` debe quedar como jefe de una empresa cuyo `empresa_id` es su propio `id`.** Esto reproduce exactamente el modelo de hoy, así que es correcto para el estado actual (un usuario = una empresa), pero si en el futuro hay usuarios de Auth que no deberían tener perfil propio (por ejemplo, cuentas de servicio), este backfill les crearía uno igualmente. Con los datos actuales (una empresa, un dueño) no aplica, pero queda anotado.
+
+- **La restricción "nadie puede tocar los campos críticos de su propia fila" se implementa con un trigger (`proteger_campos_criticos_propios`), no con la política RLS.** RLS no permite comparar de forma fiable el valor viejo y el nuevo de una columna dentro de la misma expresión `USING`/`WITH CHECK` en un `UPDATE`, así que se usa un trigger `BEFORE UPDATE` que compara `OLD` contra `NEW` (`rol`, `empresa_id`, `sucursal_id`) y lanza una excepción si alguno difiere y quien edita es el propio dueño de la fila (`OLD.user_id = auth.uid()`). Un jefe editando la fila de OTRO usuario sí puede cambiarle esos tres campos con normalidad.

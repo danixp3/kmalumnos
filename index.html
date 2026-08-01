@@ -438,7 +438,7 @@
         </table>
       </div>
 
-      <div class="card" style="margin-top:20px">
+      <div class="card" style="margin-top:20px" id="profesores-stats-card">
         <div class="card-title">
           <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></div>
           Estadísticas
@@ -976,6 +976,37 @@
         </div>
       </div>
 
+      <!-- ACCESO DE JEFE (roles jefe/empleado, solo visible con la migración aplicada) -->
+      <div class="card hidden" id="card-acceso-jefe">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div>
+          Acceso de jefe
+        </div>
+        <div id="acceso-jefe-texto" class="alert alert-ok" style="margin-bottom:14px"></div>
+        <button class="btn btn-outline hidden" id="btn-cambiar-a-jefe" onclick="cambiarAJefe()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Iniciar sesión como jefe con otra cuenta
+        </button>
+        <p style="font-size:12px;color:var(--text-faint);margin-top:10px">Esto cierra la sesión de empleado y te pide el email y la contraseña de la cuenta de jefe.</p>
+      </div>
+
+      <!-- EMPLEADOS (solo jefe, solo con la migración aplicada) -->
+      <div class="card hidden" id="card-empleados">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          Empleados
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Da de alta a otras personas de tu autoescuela con su propia cuenta. Un empleado no ve Pagos ni las estadísticas de profesores.</p>
+        <button class="btn btn-primary" onclick="abrirInvitarEmpleado()" style="margin-bottom:14px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Invitar empleado
+        </button>
+        <div class="table-wrap">
+          <table id="tabla-empleados">
+            <thead><tr><th>Nombre</th><th>Rol</th><th>Sucursal</th><th>Acciones</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- COPIA DE SEGURIDAD -->
       <div class="card card-banner-success">
         <div class="card-title">
@@ -1412,6 +1443,32 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
   </div>
 </div>
 
+<!-- ═══ MODAL INVITAR EMPLEADO ═══════════════════════ -->
+<div class="overlay" id="modal-invitar-empleado">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <h3>Invitar empleado</h3>
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Email (debe tener ya una cuenta creada)</label>
+      <input type="email" id="invitar-empleado-email" autocomplete="off" style="width:100%">
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Rol</label>
+      <select id="invitar-empleado-rol" style="width:100%">
+        <option value="empleado" selected>Empleado</option>
+        <option value="jefe">Jefe</option>
+      </select>
+    </div>
+    <div id="invitar-empleado-alert" class="hidden alert alert-err" style="margin-bottom:8px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-invitar-empleado')">Cancelar</button>
+      <button class="btn btn-primary" id="invitar-empleado-btn" onclick="invitarEmpleadoUI()">Invitar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ MODAL BIENVENIDA (instalación nueva) ═══════════════════════ -->
 <div class="overlay" id="modal-bienvenida">
   <div class="modal">
@@ -1671,6 +1728,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <script src="renderer/timeline.js"></script>
 <script src="renderer/sync-ui.js"></script>
 <script src="renderer/ajustes.js"></script>
+<script src="renderer/roles.js"></script>
 <script src="renderer/registro-rapido.js"></script>
 <script src="renderer/tutorial.js"></script>
 <script src="renderer/ventana.js"></script>

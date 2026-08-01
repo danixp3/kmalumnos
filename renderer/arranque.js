@@ -45,6 +45,7 @@ document.getElementById('rr-vehiculo')?.addEventListener('change', loadRegistroR
 document.getElementById('rr-profesor')?.addEventListener('change', (e) => { rrProfesorActual = e.target.value || null; });
 document.getElementById('rr-tipo')?.addEventListener('change', (e) => { rrTipoActual = e.target.value || 'circulacion'; });
 loadDashboard();
+aplicarPermisosPorRol();
 comprobarBienvenida().then(() => comprobarTutorial('dashboard')).catch(() => {});
 window.api.getVersion().then(v => {
   const el = document.getElementById('app-version');
