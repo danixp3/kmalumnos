@@ -44,9 +44,14 @@ document.getElementById('relleno-vehiculo')?.addEventListener('change', actualiz
 document.getElementById('rr-vehiculo')?.addEventListener('change', loadRegistroRapido);
 document.getElementById('rr-profesor')?.addEventListener('change', (e) => { rrProfesorActual = e.target.value || null; });
 document.getElementById('rr-tipo')?.addEventListener('change', (e) => { rrTipoActual = e.target.value || 'circulacion'; });
-loadDashboard();
+// loadDashboard() es async (espera a window.api.getResumen() por IPC) y no se
+// esperaba antes de lanzar el tutorial: si comprobarBienvenida() resolvía antes
+// (p.ej. la bienvenida ya estaba descartada, caso normal en instalaciones con datos),
+// el tutorial del panel principal se pintaba con las tarjetas todavía a 0. Se espera
+// a que ambas promesas terminen antes de comprobar si toca mostrar el tutorial.
+const dashboardListo = loadDashboard().catch(() => {});
 aplicarPermisosPorRol();
-comprobarBienvenida().then(() => comprobarTutorial('dashboard')).catch(() => {});
+comprobarBienvenida().catch(() => {}).then(() => dashboardListo).then(() => comprobarTutorial('dashboard'));
 window.api.getVersion().then(v => {
   const el = document.getElementById('app-version');
   if (el) el.textContent = 'v' + v;

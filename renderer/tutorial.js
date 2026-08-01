@@ -1,5 +1,5 @@
 // ─── TUTORIAL INTERACTIVO ───────────────────────────────────────────────────
-// Tutorial guiado por secciones (26 pasos): foco visual, bocadillo, navegación
+// Tutorial guiado por secciones (27 pasos): foco visual, bocadillo, navegación
 // entre pasos y persistencia de qué tutoriales ya se han visto.
 
 // ─── TUTORIAL ───────────────────────────────────────────────────────────────
@@ -32,6 +32,9 @@ const TUTORIAL_PASOS = {
     { sel: '#dash-alertas', pos: 'bottom',
       titulo: 'Alertas que puedes seguir',
       texto: 'Si aparece un aviso de km sin rellenar o de solapamientos, haz clic en él: te lleva directo a la pantalla donde resolverlo.' },
+    { sel: '#graficos-dashboard', pos: 'bottom',
+      titulo: 'Gráficos del panel',
+      texto: 'Activa los que te interesen desde Ajustes → Preferencias: kilómetros y prácticas por mes, por profesor, por vehículo o ingresos.' },
     { sel: '.quick-card-primary', pos: 'right',
       titulo: 'Registro Rápido',
       texto: 'Es el acceso al día a día: apunta en segundos las prácticas de todos los alumnos de un vehículo en una fecha.' },
@@ -184,21 +187,45 @@ function tutorialOnScroll() {
   });
 }
 
+// Umbral por debajo del cual un elemento se considera "sin tamaño real" (p.ej. un
+// contenedor de alertas vacío que existe y no está oculto, pero mide 0 de alto).
+const TUTORIAL_TAM_MIN = 8;
+
+// Ejecuta el `antes()` del paso (algunos solo son visibles tras cambiar de pestaña) y
+// comprueba que su elemento exista, no esté oculto Y tenga tamaño real. Sin la
+// comprobación de tamaño, un paso podía señalar un elemento visible pero vacío (0x0)
+// y el recuadro de foco se dibujaba como una tira sin contenido.
+function esPasoMostrable(paso) {
+  if (typeof paso.antes === 'function') { try { paso.antes(); } catch (e) {} }
+  const el = document.querySelector(paso.sel);
+  if (!el || el.offsetParent === null) return false;
+  const rect = el.getBoundingClientRect();
+  return rect.width >= TUTORIAL_TAM_MIN && rect.height >= TUTORIAL_TAM_MIN;
+}
+
 // Busca desde `desde`, avanzando en pasos de `dir` (+1 adelante, -1 atrás), el primer
-// índice cuyo paso exista y cuyo elemento esté realmente visible. Ejecuta el `antes()`
-// de cada paso que va probando (algunos pasos solo son visibles tras cambiar de pestaña).
-// Devuelve -1 si se sale del rango sin encontrar ninguno mostrable.
+// índice cuyo paso sea mostrable. Devuelve -1 si se sale del rango sin encontrar ninguno.
 function buscarPasoMostrable(desde, dir) {
   const pasos = TUTORIAL_PASOS[tutorialPage] || [];
   let i = desde;
   while (i >= 0 && i < pasos.length) {
-    const paso = pasos[i];
-    if (typeof paso.antes === 'function') { try { paso.antes(); } catch (e) {} }
-    const el = document.querySelector(paso.sel);
-    if (el && el.offsetParent !== null) return i;
+    if (esPasoMostrable(pasos[i])) return i;
     i += dir;
   }
   return -1;
+}
+
+// Recalcula, en el momento de pintar, qué índices de TUTORIAL_PASOS[tutorialPage] son
+// realmente mostrables ahora mismo (una tabla puede haberse llenado, una alerta puede
+// haber aparecido entre paso y paso). Se usa para numerar solo sobre lo que el usuario
+// ve de verdad, nunca sobre el total de pasos definidos.
+function indicesPasosMostrables() {
+  const pasos = TUTORIAL_PASOS[tutorialPage] || [];
+  const idx = [];
+  for (let i = 0; i < pasos.length; i++) {
+    if (esPasoMostrable(pasos[i])) idx.push(i);
+  }
+  return idx;
 }
 
 function mostrarPasoTutorial(i) {
@@ -208,6 +235,16 @@ function mostrarPasoTutorial(i) {
   if (idx < 0) { cerrarTutorial(true); return; }
   tutorialPasoIdx = idx;
   const paso = pasos[idx];
+
+  // indicesPasosMostrables() prueba TODOS los pasos (incluidos los que cambian de
+  // pestaña con antes()), así que puede dejar el DOM en la pestaña del último paso
+  // probado: se vuelve a ejecutar antes() del paso actual para restaurar su contexto.
+  const mostrables = indicesPasosMostrables();
+  if (typeof paso.antes === 'function') { try { paso.antes(); } catch (e) {} }
+  const numero = mostrables.indexOf(idx) + 1;
+  const total = mostrables.length;
+  const esUltimo = mostrables.length > 0 && idx === mostrables[mostrables.length - 1];
+
   const el = document.querySelector(paso.sel);
   el.scrollIntoView({ block: 'center', behavior: 'instant' });
   requestAnimationFrame(() => {
@@ -217,7 +254,7 @@ function mostrarPasoTutorial(i) {
       tutorialFocoEl.style.display = 'block';
       tutorialBocadilloEl.style.display = 'block';
       pintarFocoTutorial(rect);
-      pintarBocadilloTutorial(rect, paso, idx, pasos.length);
+      pintarBocadilloTutorial(rect, paso, numero, total, esUltimo);
       setTimeout(() => { if (tutorialActivo && tutorialPasoIdx === idx) tutorialAlRedimensionar(); }, 320);
     });
   });
@@ -240,17 +277,16 @@ function pintarFocoTutorial(rect) {
   tutorialFocoEl.style.height = (rect.height + m * 2) + 'px';
 }
 
-function pintarBocadilloTutorial(rect, paso, i, total) {
-  const ultimo = i === total - 1;
+function pintarBocadilloTutorial(rect, paso, numero, total, esUltimo) {
   tutorialBocadilloEl.innerHTML =
     `<strong>${paso.titulo}</strong>` +
     `<p>${paso.texto}</p>` +
     `<div class="tutorial-footer">` +
-      `<span class="tutorial-contador">Paso ${i + 1} de ${total}</span>` +
+      `<span class="tutorial-contador">Paso ${numero} de ${total}</span>` +
       `<div class="tutorial-botones">` +
         `<button class="btn btn-gray btn-sm" onclick="cerrarTutorial(true)">Saltar</button>` +
-        (i > 0 ? `<button class="btn btn-gray btn-sm" onclick="anteriorPasoTutorial()">Atrás</button>` : '') +
-        `<button class="btn btn-primary btn-sm" onclick="siguientePasoTutorial()">${ultimo ? 'Entendido' : 'Siguiente'}</button>` +
+        (numero > 1 ? `<button class="btn btn-gray btn-sm" onclick="anteriorPasoTutorial()">Atrás</button>` : '') +
+        `<button class="btn btn-primary btn-sm" onclick="siguientePasoTutorial()">${esUltimo ? 'Entendido' : 'Siguiente'}</button>` +
       `</div>` +
     `</div>`;
   posicionarBocadillo(rect, paso.pos);
@@ -270,7 +306,13 @@ function posicionarBocadillo(rect, posPref) {
     right: { top: rect.top + rect.height / 2 - bh / 2, left: rect.right + margen }
   };
   const opuesto = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
-  const cabe = (o) => o.top >= 40 && o.top + bh <= vh - 8 && o.left >= 8 && o.left + bw <= vw - 8;
+  // El bocadillo no debe tapar el propio elemento que señala (con el mismo margen que
+  // usa el recuadro de foco): sin esto, un elemento muy ancho y bajo podía dejar la
+  // posición "bottom" prácticamente encima de lo que hay justo debajo del elemento.
+  const focoM = 6;
+  const rectFoco = { top: rect.top - focoM, left: rect.left - focoM, right: rect.right + focoM, bottom: rect.bottom + focoM };
+  const solapaFoco = (o) => !(o.left + bw <= rectFoco.left || o.left >= rectFoco.right || o.top + bh <= rectFoco.top || o.top >= rectFoco.bottom);
+  const cabe = (o) => o.top >= 40 && o.top + bh <= vh - 8 && o.left >= 8 && o.left + bw <= vw - 8 && !solapaFoco(o);
 
   const orden = [posPref, opuesto[posPref], 'bottom', 'top', 'right', 'left'];
   let lado = posPref;

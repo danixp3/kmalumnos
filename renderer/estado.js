@@ -34,7 +34,11 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     link.classList.add('active');
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
-    if (page === 'dashboard') loadDashboard();
+    // El dashboard rellena sus tarjetas con una llamada IPC async: si el tutorial se
+    // comprobara antes de que termine, se pintaría señalando tarjetas todavía a 0
+    // (mismo fallo que en el arranque, ver arranque.js). Se espera a que cargue.
+    let dashboardListo = Promise.resolve();
+    if (page === 'dashboard') dashboardListo = loadDashboard().catch(() => {});
     if (page === 'vehiculos') { loadVehiculos(); aplicarRangoPref('relleno-min', 'relleno-max'); }
     if (page === 'profesores') { loadProfesores(); loadStatsProfesores(); }
     if (page === 'pagos') {
@@ -54,7 +58,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     if (page === 'logs') loadLogs();
     if (page === 'registro-rapido') loadRegistroRapidoInit();
     if (page === 'ajustes') loadAjustes();
-    comprobarTutorial(page);
+    dashboardListo.then(() => comprobarTutorial(page));
   });
 });
 
