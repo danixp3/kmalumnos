@@ -217,7 +217,7 @@ async function loadGraficos() {
   const algunoActivo = Object.values(tarjetas).some(Boolean);
   if (!algunoActivo) return;
 
-  const datos = await window.api.getDatosGraficos(12);
+  const datos = await window.api.getDatosGraficos(12, getSucursalActual());
 
   if (pref.graficoKmMes) {
     renderGraficoBarras({

@@ -1,11 +1,13 @@
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
 // CRUD de alumnos y anotaciones de alumno (notas guardadas en sus prácticas).
 
-const { load, save, nextId, _sync } = require('./core');
+const { load, save, nextId, _sync, filtrarPorSucursal } = require('./core');
 
-function getAlumnos() {
+// sucursalId opcional: sin argumento devuelve todos los alumnos (modo clásico
+// o "Todas las sucursales") — ver filtrarPorSucursal en core.js.
+function getAlumnos(sucursalId) {
   const d = load();
-  return d.alumnos
+  return filtrarPorSucursal(d.alumnos, sucursalId)
     .slice()
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
     .map(a => {
@@ -15,12 +17,13 @@ function getAlumnos() {
     });
 }
 
-function addAlumno(nombre, permiso, vehiculo_id, profesor_id = null) {
+function addAlumno(nombre, permiso, vehiculo_id, profesor_id = null, sucursal_id = null) {
   const d = load();
   const id = nextId('a');
   d.alumnos.push({
     id, nombre, permiso: permiso || 'B', vehiculo_id: vehiculo_id ? parseInt(vehiculo_id) : null,
-    profesor_id: profesor_id ? parseInt(profesor_id) : null
+    profesor_id: profesor_id ? parseInt(profesor_id) : null,
+    sucursal_id: sucursal_id ? parseInt(sucursal_id) : null
   });
   save();
   const s = _sync(); if (s) s.markDirty('alumnos', id);

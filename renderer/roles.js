@@ -38,13 +38,23 @@ async function aplicarPermisosPorRol() {
   // clase "hidden" que ya traen en el HTML — aquí no se tocan.
   const bloqueAcceso = document.getElementById('card-acceso-jefe');
   const bloqueEmpleados = document.getElementById('card-empleados');
+  const bloqueSucursales = document.getElementById('card-sucursales');
   if (bloqueAcceso) bloqueAcceso.classList.toggle('hidden', !perfilActual.disponible);
   if (bloqueEmpleados) bloqueEmpleados.classList.toggle('hidden', !(perfilActual.disponible && perfilActual.rol === 'jefe'));
+  if (bloqueSucursales) bloqueSucursales.classList.toggle('hidden', !(perfilActual.disponible && perfilActual.rol === 'jefe'));
 
   if (perfilActual.disponible) {
     pintarAccesoJefe();
-    if (perfilActual.rol === 'jefe') loadEmpleados();
+    if (perfilActual.rol === 'jefe') {
+      loadEmpleados();
+      if (typeof loadSucursalesAjustes === 'function') loadSucursalesAjustes();
+    }
   }
+
+  // Selector de sucursales (renderer/sucursales.js, cargado justo después de
+  // este script): depende de perfilActual, así que se refresca en el mismo
+  // punto que el resto de permisos por rol (arranque, login, registro, logout).
+  if (typeof aplicarSelectorSucursales === 'function') await aplicarSelectorSucursales();
 }
 
 function pintarAccesoJefe() {

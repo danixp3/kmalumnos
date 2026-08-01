@@ -2,19 +2,25 @@
 // Resumen general, tarjetas opcionales del dashboard y timeline de prácticas
 // de un vehículo (con detección de huecos/solapamientos frente a la anterior).
 
-const { load } = require('./core');
+const { load, filtrarPorSucursal } = require('./core');
 const { getSolapamientos } = require('./km-algoritmos');
 const { getDeudas } = require('./pagos');
 
-function getResumen() {
+// sucursalId opcional: sin argumento (o "Todas las sucursales" en el
+// selector) cuenta todo, igual que antes de sucursales.
+function getResumen(sucursalId) {
   const d = load();
-  const sinKm = d.practicas.filter(p => p.km_inicial === 0 && p.km_final === 0).length;
-  // Contar solapamientos
+  const vehiculos = filtrarPorSucursal(d.vehiculos, sucursalId);
+  const alumnos = filtrarPorSucursal(d.alumnos, sucursalId);
+  const practicas = filtrarPorSucursal(d.practicas, sucursalId);
+  const sinKm = practicas.filter(p => p.km_inicial === 0 && p.km_final === 0).length;
+  // Contar solapamientos (no filtrado por sucursal: fuera del alcance de esta
+  // funcionalidad, la detección de conflictos es global)
   const conflictos = getSolapamientos();
   return {
-    vehiculos: d.vehiculos.length,
-    alumnos: d.alumnos.length,
-    practicas: d.practicas.length,
+    vehiculos: vehiculos.length,
+    alumnos: alumnos.length,
+    practicas: practicas.length,
     sinKm,
     solapamientos: conflictos.length
   };
@@ -23,8 +29,9 @@ function getResumen() {
 /**
  * Estadísticas opcionales del dashboard (tarjetas activables por el usuario).
  * `hoy` es opcional 'YYYY-MM-DD'; por defecto la fecha local de hoy.
+ * `sucursalId` opcional: sin argumento cuenta todas las sucursales.
  */
-function getStatsDashboard(hoy) {
+function getStatsDashboard(hoy, sucursalId) {
   const d = load();
   if (!hoy) {
     const pad = n => String(n).padStart(2, '0');
@@ -32,10 +39,11 @@ function getStatsDashboard(hoy) {
     hoy = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   }
   const mesActual = hoy.slice(0, 7);
+  const practicas = filtrarPorSucursal(d.practicas, sucursalId);
 
-  const practicasHoy = d.practicas.filter(p => p.fecha === hoy).length;
+  const practicasHoy = practicas.filter(p => p.fecha === hoy).length;
 
-  const kmMesRaw = d.practicas
+  const kmMesRaw = practicas
     .filter(p => p.fecha && p.fecha.slice(0, 7) === mesActual)
     .reduce((sum, p) => sum + Math.max(0, (p.km_final || 0) - (p.km_inicial || 0)), 0);
   const kmMes = Math.round(kmMesRaw * 10) / 10;
@@ -43,7 +51,7 @@ function getStatsDashboard(hoy) {
   // El dinero en este proyecto se guarda en euros con decimales (no céntimos
   // enteros): getDeudas().saldo ya viene en euros, igual que fmt() lo pinta
   // en loadDeudas() sin dividir entre 100.
-  const deudas = getDeudas().filter(dd => dd.saldo > 0);
+  const deudas = getDeudas(sucursalId).filter(dd => dd.saldo > 0);
   const totalAdeudado = deudas.reduce((sum, dd) => sum + dd.saldo, 0);
   const alumnosConDeuda = deudas.length;
 
@@ -97,9 +105,10 @@ function getStatsProfesores(desde, hasta) {
  * Datos agregados para los gráficos configurables del dashboard, en una sola
  * llamada. `meses` (por defecto 12) es el nº de meses hacia atrás desde el
  * mes actual (incluido), en formato 'YYYY-MM'; los meses sin actividad
- * aparecen igualmente, con los valores a 0. Solo lectura, no marca sync.
+ * aparecen igualmente, con los valores a 0. `sucursalId` opcional: sin
+ * argumento agrega todas las sucursales. Solo lectura, no marca sync.
  */
-function getDatosGraficos(meses) {
+function getDatosGraficos(meses, sucursalId) {
   const n = meses || 12;
   const d = load();
 
@@ -111,8 +120,12 @@ function getDatosGraficos(meses) {
     listaMeses.push(`${dt.getFullYear()}-${pad(dt.getMonth() + 1)}`);
   }
 
-  const practicasValidas = d.practicas.filter(p => !p.deleted);
-  const pagosValidos = d.pagos.filter(p => !p.deleted);
+  const practicasValidas = filtrarPorSucursal(d.practicas, sucursalId).filter(p => !p.deleted);
+  const alumnosSucursal = filtrarPorSucursal(d.alumnos, sucursalId);
+  const idsAlumnosSucursal = sucursalId ? new Set(alumnosSucursal.map(a => a.id)) : null;
+  const pagosValidos = d.pagos
+    .filter(p => !p.deleted)
+    .filter(p => !idsAlumnosSucursal || idsAlumnosSucursal.has(p.alumno_id));
   // Las prácticas sin km (ambos a 0) no aportan kilómetros al total.
   const conKm = p => !(p.km_inicial === 0 && p.km_final === 0);
 
@@ -137,7 +150,7 @@ function getDatosGraficos(meses) {
     return { mes, cobrado: Math.round(cobrado * 100) / 100 };
   });
 
-  const porProfesor = d.profesores
+  const porProfesor = filtrarPorSucursal(d.profesores, sucursalId)
     .filter(p => !p.deleted)
     .map(p => {
       const propias = practicasValidas.filter(x => x.profesor_id === p.id);
@@ -146,7 +159,7 @@ function getDatosGraficos(meses) {
     })
     .sort((a, b) => b.num_practicas - a.num_practicas);
 
-  const porVehiculo = d.vehiculos
+  const porVehiculo = filtrarPorSucursal(d.vehiculos, sucursalId)
     .filter(v => !v.deleted)
     .map(v => {
       const propias = practicasValidas.filter(x => x.vehiculo_id === v.id);

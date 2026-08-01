@@ -17,7 +17,7 @@ async function loadVehiculosSelect() {
 }
 
 async function loadAlumnos() {
-  const alumnos = await window.api.getAlumnos();
+  const alumnos = await window.api.getAlumnos(getSucursalActual());
   // Para cada alumno contar prácticas (una sola vez; el resto de filtrado/orden es en memoria)
   alumnosCache = await Promise.all(alumnos.map(async a => {
     const practicas = await window.api.getPracticas(a.id);
@@ -200,7 +200,7 @@ async function addAlumno() {
     return;
   }
   hideToast('alumno-alert');
-  await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null);
+  await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, getSucursalActual());
   document.getElementById('a-nombre').value = '';
   loadAlumnos();
 }

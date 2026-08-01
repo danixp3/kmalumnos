@@ -16,6 +16,9 @@
     <span>KMAlumnos</span>
   </div>
   <div class="tb-drag"></div>
+  <div id="tb-sucursal-wrap" class="hidden">
+    <select id="tb-sucursal" title="Sucursal" onchange="cambiarSucursalActual(this.value)"></select>
+  </div>
   <button class="tb-btn" id="tb-tema" title="Tema">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
   </button>
@@ -1007,6 +1010,27 @@
         </div>
       </div>
 
+      <!-- SUCURSALES (solo jefe, solo con la migración aplicada) -->
+      <div class="card hidden" id="card-sucursales">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg></div>
+          Sucursales
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Da de alta las distintas sedes de tu autoescuela. Al desactivar una sucursal, sus datos no se borran: solo deja de ofrecerse en el selector de la barra superior.</p>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <input type="text" id="nueva-sucursal-nombre" placeholder="Nombre de la nueva sucursal" style="flex:1">
+          <button class="btn btn-primary" onclick="addSucursalUI()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Añadir
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table id="tabla-sucursales">
+            <thead><tr><th>Nombre</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- COPIA DE SEGURIDAD -->
       <div class="card card-banner-success">
         <div class="card-title">
@@ -1729,6 +1753,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <script src="renderer/sync-ui.js"></script>
 <script src="renderer/ajustes.js"></script>
 <script src="renderer/roles.js"></script>
+<script src="renderer/sucursales.js"></script>
 <script src="renderer/registro-rapido.js"></script>
 <script src="renderer/tutorial.js"></script>
 <script src="renderer/ventana.js"></script>

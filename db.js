@@ -29,6 +29,7 @@ module.exports = {
   ...require('./db/csv'),
   ...require('./db/km-algoritmos'),
   ...require('./db/estadisticas'),
+  ...require('./db/sucursales'),
 
   getLogs: core.getLogs,
   clearLogs: core.clearLogs,

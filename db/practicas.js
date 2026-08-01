@@ -2,7 +2,7 @@
 // CRUD de prácticas individuales y registro rápido/masivo por vehículo+fecha
 // (usado en la pantalla de registro rápido de km).
 
-const { load, save, nextId, _sync, addLog } = require('./core');
+const { load, save, nextId, _sync, addLog, filtrarPorSucursal } = require('./core');
 
 function getPracticasByAlumno(alumno_id) {
   const d = load();
@@ -21,7 +21,7 @@ function getUltimaPractica(alumno_id) {
   return practicas.length ? practicas[practicas.length - 1] : null;
 }
 
-function addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id = null, tipo = 'circulacion') {
+function addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id = null, tipo = 'circulacion', sucursal_id = null) {
   const d = load();
   const id = nextId('p');
   const ki = parseFloat(km_inicial);
@@ -29,7 +29,8 @@ function addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profes
   d.practicas.push({
     id, alumno_id: parseInt(alumno_id), vehiculo_id: parseInt(vehiculo_id), fecha, km_inicial: ki, km_final: kf,
     profesor_id: profesor_id ? parseInt(profesor_id) : null,
-    tipo: tipo || 'circulacion'
+    tipo: tipo || 'circulacion',
+    sucursal_id: sucursal_id ? parseInt(sucursal_id) : null
   });
   // Actualizar km vehículo si corresponde
   const v = d.vehiculos.find(x => x.id === parseInt(vehiculo_id));
@@ -65,7 +66,8 @@ function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tip
  * Devuelve TODAS las prácticas de todos los alumnos juntas, con nombres de
  * alumno/vehículo/profesor resueltos, para la vista global de la pantalla
  * Prácticas. `filtros` es opcional: { desde, hasta ('YYYY-MM-DD'), alumno_id,
- * vehiculo_id, profesor_id, tipo ('pista'|'circulacion') }, todos opcionales.
+ * vehiculo_id, profesor_id, tipo ('pista'|'circulacion'), sucursal_id },
+ * todos opcionales.
  * Excluye solo prácticas con deleted:true (si el alumno/vehículo/profesor
  * está borrado o no existe, la práctica se sigue mostrando con nombre "—").
  * Ordena por fecha descendente y, a igualdad, por id descendente.
@@ -73,9 +75,9 @@ function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tip
  */
 function getTodasPracticas(filtros = {}) {
   const d = load();
-  const { desde, hasta, alumno_id, vehiculo_id, profesor_id, tipo } = filtros || {};
+  const { desde, hasta, alumno_id, vehiculo_id, profesor_id, tipo, sucursal_id } = filtros || {};
 
-  return d.practicas
+  return filtrarPorSucursal(d.practicas, sucursal_id)
     .filter(p => !p.deleted)
     .filter(p => !desde || p.fecha >= desde)
     .filter(p => !hasta || p.fecha <= hasta)

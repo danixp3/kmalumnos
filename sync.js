@@ -100,11 +100,13 @@ function loadDataSafe() {
   if (!Array.isArray(data.practicas))  data.practicas = [];
   if (!Array.isArray(data.tarifas))    data.tarifas = [];
   if (!Array.isArray(data.pagos))      data.pagos = [];
+  if (!Array.isArray(data.sucursales)) data.sucursales = [];
   if (!Array.isArray(data.logs))       data.logs = [];
-  if (!data._seq) data._seq = { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1 };
+  if (!data._seq) data._seq = { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1 };
   if (!data._seq.pf) data._seq.pf = 1;
   if (!data._seq.t) data._seq.t = 1;
   if (!data._seq.pg) data._seq.pg = 1;
+  if (!data._seq.suc) data._seq.suc = 1;
   return { data, regenerado };
 }
 
@@ -125,6 +127,7 @@ function setCredentials(email, password) {
   _authError = null;
   _empresaId = null;
   _perfilCache = null; // cambio de sesión: invalidar el perfil (rol/empresa) cacheado
+  _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
 }
 
 function hasCredentials() {
@@ -216,6 +219,7 @@ async function registrarEmpresa(email, password) {
       _empresaId = data.user.id;
       _authError = null;
       _perfilCache = null; // sesión nueva: invalidar el perfil (rol/empresa) cacheado
+      _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
       return { ok: true, estado: 'activa', email, empresaId: data.user.id };
     }
 
@@ -300,6 +304,29 @@ async function getPerfilActual() {
     _perfilCache = { disponible: false, rol: 'jefe' };
     return _perfilCache;
   }
+}
+
+// ─── SUCURSALES (fase 2 multi-empresa) ────────────────────────────────────────
+// Mismo patrón exacto que _perfilCache/getPerfilActual de arriba: mientras la
+// migración no esté aplicada, cualquier consulta a la tabla `sucursales`
+// falla (relación inexistente) y eso se trata como "modo clásico", nunca
+// como un error real. La migración crea la tabla `sucursales` y las columnas
+// `sucursal_id` en la misma transacción (ver migraciones/2026-08-01_...sql),
+// así que basta con comprobar la tabla para saber que las columnas también
+// existen — no hace falta una consulta separada por columna/tabla.
+// Cacheado en memoria durante la sesión; se invalida al cambiar de
+// credenciales (setCredentials/registrarEmpresa más arriba).
+let _sucursalesDisponibleCache = null;
+
+async function _sucursalesDisponible(sb) {
+  if (_sucursalesDisponibleCache !== null) return _sucursalesDisponibleCache;
+  try {
+    const { error } = await sb.from('sucursales').select('id').limit(1);
+    _sucursalesDisponibleCache = !error;
+  } catch {
+    _sucursalesDisponibleCache = false;
+  }
+  return _sucursalesDisponibleCache;
 }
 
 // ─── GESTIÓN DE EMPLEADOS (solo jefe, solo con la migración aplicada) ─────────
@@ -396,8 +423,8 @@ function loadPending() {
     try { return JSON.parse(fs.readFileSync(p, 'utf-8')); } catch {}
   }
   return {
-    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [],
-    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [] },
+    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [],
+    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: [] },
     lastSync: '1970-01-01T00:00:00.000Z'
   };
 }
@@ -631,6 +658,13 @@ async function sync() {
     const sb = await ensureClient();
     if (!sb) { _lastError = _authError || 'Credenciales de sincronización inválidas'; setStatus(STATUS.ERROR); return { ok: false, reason: _lastError }; }
 
+    // Sucursales (fase 2, ver comentario junto a _sucursalesDisponible): si la
+    // migración no está aplicada, `sucursal_id` no se estampa en ningún
+    // payload de subida (columna inexistente en el servidor) y la tabla
+    // `sucursales` ni se sube ni se baja — comportamiento idéntico al de
+    // antes de esta funcionalidad, sin errores ni reintentos atascados.
+    const sucursalesOn = await _sucursalesDisponible(sb);
+
     // Conflictos reales detectados en la bajada de este sync (ver "DETECCIÓN DE
     // CONFLICTOS" más arriba): edición local sin subir todavía que la nube
     // acaba de sustituir con un contenido distinto.
@@ -666,6 +700,7 @@ async function sync() {
           km_actual: v.km_actual, deleted: false, updated_at: new Date().toISOString()
         };
         if (_empresaId) payload.empresa_id = _empresaId;
+        if (sucursalesOn) payload.sucursal_id = v.sucursal_id != null ? v.sucursal_id : null;
         await sb.from('vehiculos').upsert(payload, { onConflict: 'id' });
       }
     }
@@ -679,6 +714,7 @@ async function sync() {
           deleted: false, updated_at: new Date().toISOString()
         };
         if (_empresaId) payload.empresa_id = _empresaId;
+        if (sucursalesOn) payload.sucursal_id = pr.sucursal_id != null ? pr.sucursal_id : null;
         await sb.from('profesores').upsert(payload, { onConflict: 'id' });
       }
     }
@@ -706,6 +742,7 @@ async function sync() {
           deleted: false, updated_at: new Date().toISOString()
         };
         if (_empresaId) payload.empresa_id = _empresaId;
+        if (sucursalesOn) payload.sucursal_id = a.sucursal_id != null ? a.sucursal_id : null;
         await sb.from('alumnos').upsert(payload, { onConflict: 'id' });
       }
     }
@@ -722,6 +759,7 @@ async function sync() {
           deleted: false, updated_at: new Date().toISOString()
         };
         if (_empresaId) payload.empresa_id = _empresaId;
+        if (sucursalesOn) payload.sucursal_id = p.sucursal_id != null ? p.sucursal_id : null;
         await sb.from('practicas').upsert(payload, { onConflict: 'id' });
       }
     }
@@ -743,11 +781,30 @@ async function sync() {
             deleted: false, updated_at: new Date().toISOString()
           };
           if (_empresaId) payload.empresa_id = _empresaId;
+          if (sucursalesOn) payload.sucursal_id = pg.sucursal_id != null ? pg.sucursal_id : null;
           await sb.from('pagos').upsert(payload, { onConflict: 'id' });
         }
       }
     } catch (e) {
       console.error('Sync: no se pudo subir pagos (permiso denegado o error de red):', e.message);
+    }
+
+    // Sucursales dirty. Solo se procesa si la migración está aplicada
+    // (sucursalesOn): sin ella la tabla no existe y no hay nada que subir —
+    // la cola pending.sucursales se queda tal cual, sin vaciarse ni fallar,
+    // hasta que la migración esté aplicada de verdad.
+    if (sucursalesOn) {
+      for (const id of (pending.sucursales || [])) {
+        const suc = data.sucursales.find(x => x.id === id);
+        if (suc) {
+          const payload = {
+            id: suc.id, nombre: suc.nombre, activa: suc.activa !== false,
+            deleted: false, updated_at: new Date().toISOString()
+          };
+          if (_empresaId) payload.empresa_id = _empresaId;
+          await sb.from('sucursales').upsert(payload, { onConflict: 'id' });
+        }
+      }
     }
 
     // Eliminaciones — todas por soft delete (marca deleted). Borrar de verdad
@@ -774,6 +831,11 @@ async function sync() {
       }
     } catch (e) {
       console.error('Sync: no se pudo borrar pagos en la nube (permiso denegado o error de red):', e.message);
+    }
+    if (sucursalesOn) {
+      for (const id of (pending.deleted.sucursales || [])) {
+        await sb.from('sucursales').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
+      }
     }
 
     // ── 2. BAJAR CAMBIOS REMOTOS (del móvil / del otro PC) ───────────────────
@@ -812,7 +874,9 @@ async function sync() {
         if (idx === -1) {
           data.vehiculos.push({
             id: rv.id, nombre: rv.nombre, matricula: rv.matricula || '',
-            km_actual: parseFloat(rv.km_actual) || 0, updated_at: rv.updated_at
+            km_actual: parseFloat(rv.km_actual) || 0,
+            sucursal_id: rv.sucursal_id != null ? rv.sucursal_id : null,
+            updated_at: rv.updated_at
           });
           if (rv.id >= data._seq.v) data._seq.v = rv.id + 1;
           dataChanged = true;
@@ -823,7 +887,8 @@ async function sync() {
           if (remoteUpdated > localUpdated) {
             const nuevo = {
               nombre: rv.nombre, matricula: rv.matricula || '',
-              km_actual: parseFloat(rv.km_actual) || 0
+              km_actual: parseFloat(rv.km_actual) || 0,
+              sucursal_id: rv.sucursal_id != null ? rv.sucursal_id : null
             };
             _detectarYRegistrarConflicto(data, 'vehiculos', pending.vehiculos,
               rv.id, ['nombre', 'matricula', 'km_actual'], data.vehiculos[idx], nuevo, conflictos);
@@ -854,7 +919,11 @@ async function sync() {
           continue;
         }
         if (idx === -1) {
-          data.profesores.push({ id: rp.id, nombre: rp.nombre, nota: rp.nota || '', updated_at: rp.updated_at });
+          data.profesores.push({
+            id: rp.id, nombre: rp.nombre, nota: rp.nota || '',
+            sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null,
+            updated_at: rp.updated_at
+          });
           if (rp.id >= data._seq.pf) data._seq.pf = rp.id + 1;
           dataChanged = true;
           pulled++;
@@ -862,7 +931,7 @@ async function sync() {
           const localUpdated  = data.profesores[idx].updated_at || '1970-01-01T00:00:00.000Z';
           const remoteUpdated = rp.updated_at || '1970-01-01T00:00:00.000Z';
           if (remoteUpdated > localUpdated) {
-            const nuevo = { nombre: rp.nombre, nota: rp.nota || '' };
+            const nuevo = { nombre: rp.nombre, nota: rp.nota || '', sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null };
             _detectarYRegistrarConflicto(data, 'profesores', pending.profesores,
               rp.id, ['nombre', 'nota'], data.profesores[idx], nuevo, conflictos);
             Object.assign(data.profesores[idx], nuevo, { updated_at: rp.updated_at });
@@ -930,6 +999,7 @@ async function sync() {
         const alumno = {
           id: ra.id, nombre: ra.nombre, permiso: ra.permiso, vehiculo_id: ra.vehiculo_id,
           profesor_id: ra.profesor_id != null ? ra.profesor_id : null,
+          sucursal_id: ra.sucursal_id != null ? ra.sucursal_id : null,
           updated_at: ra.updated_at
         };
         if (idx !== -1) {
@@ -979,6 +1049,7 @@ async function sync() {
                 fecha: rp.fecha, km_inicial: parseFloat(rp.km_inicial), km_final: parseFloat(rp.km_final),
                 nota: rp.nota || '', profesor_id: rp.profesor_id != null ? rp.profesor_id : null,
                 tipo: rp.tipo != null ? rp.tipo : null,
+                sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null,
                 updated_at: rp.updated_at
               };
               if (idx !== -1) {
@@ -1032,6 +1103,7 @@ async function sync() {
             data.pagos.push({
               id: rpg.id, alumno_id: rpg.alumno_id, fecha: rpg.fecha,
               cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || '',
+              sucursal_id: rpg.sucursal_id != null ? rpg.sucursal_id : null,
               updated_at: rpg.updated_at
             });
             if (rpg.id >= data._seq.pg) data._seq.pg = rpg.id + 1;
@@ -1043,7 +1115,8 @@ async function sync() {
             if (remoteUpdated > localUpdated) {
               const nuevo = {
                 alumno_id: rpg.alumno_id, fecha: rpg.fecha,
-                cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || ''
+                cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || '',
+                sucursal_id: rpg.sucursal_id != null ? rpg.sucursal_id : null
               };
               _detectarYRegistrarConflicto(data, 'pagos', pending.pagos,
                 rpg.id, ['alumno_id', 'fecha', 'cantidad', 'nota'], data.pagos[idx], nuevo, conflictos);
@@ -1056,6 +1129,47 @@ async function sync() {
       }
     } catch (e) {
       console.error('Sync: no se pudo leer pagos (permiso denegado o error de red):', e.message);
+    }
+
+    // Sucursales nuevas o modificadas. Igual que el resto de tablas nuevas:
+    // solo se consulta si la migración está aplicada (sucursalesOn), y
+    // envuelta en try/catch por si el rol/RLS deniega algo inesperado.
+    if (sucursalesOn) {
+      try {
+        const { data: remoteSucursales, error: errSuc } = await conEmpresa(sb
+          .from('sucursales')
+          .select('*')
+          .gt('updated_at', lastSync));
+
+        if (!errSuc && remoteSucursales) {
+          for (const rs of remoteSucursales) {
+            const idx = data.sucursales.findIndex(x => x.id === rs.id);
+            if (rs.deleted) {
+              if (idx !== -1) { data.sucursales.splice(idx, 1); dataChanged = true; }
+              continue;
+            }
+            if (idx === -1) {
+              data.sucursales.push({ id: rs.id, nombre: rs.nombre, activa: rs.activa !== false, updated_at: rs.updated_at });
+              if (rs.id >= data._seq.suc) data._seq.suc = rs.id + 1;
+              dataChanged = true;
+              pulled++;
+            } else {
+              const localUpdated  = data.sucursales[idx].updated_at || '1970-01-01T00:00:00.000Z';
+              const remoteUpdated = rs.updated_at || '1970-01-01T00:00:00.000Z';
+              if (remoteUpdated > localUpdated) {
+                const nuevo = { nombre: rs.nombre, activa: rs.activa !== false };
+                _detectarYRegistrarConflicto(data, 'sucursales', pending.sucursales,
+                  rs.id, ['nombre', 'activa'], data.sucursales[idx], nuevo, conflictos);
+                Object.assign(data.sucursales[idx], nuevo, { updated_at: rs.updated_at });
+                dataChanged = true;
+                pulled++;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Sync: no se pudo leer sucursales (permiso denegado o error de red):', e.message);
+      }
     }
 
     if (dataChanged || regenerado) {
@@ -1077,6 +1191,13 @@ async function sync() {
     pending.deleted.profesores  = [];
     pending.deleted.tarifas     = [];
     pending.deleted.pagos       = [];
+    // Sucursales: solo se vacía la cola si de verdad se procesó (migración
+    // aplicada) — si no, se deja tal cual para cuando lo esté (ver subida más
+    // arriba), sin generar errores de sync mientras tanto.
+    if (sucursalesOn) {
+      pending.sucursales          = [];
+      pending.deleted.sucursales  = [];
+    }
     pending.lastSync            = new Date().toISOString();
     savePending(pending);
 
@@ -1152,17 +1273,26 @@ async function pushAll() {
     // uid en cada fila subida; en modo legado no se añade la clave (igual que
     // antes de esta fase).
     const conEmpresaTag = _empresaId ? { empresa_id: _empresaId } : {};
+    // sucursal_id (fase 2): solo se sube si la migración está aplicada — si
+    // no, la columna no existe en el servidor y el upsert fallaría.
+    const sucursalesOn = await _sucursalesDisponible(sb);
+    // `...v` ya trae sucursal_id si el registro local lo tiene; sin la
+    // migración aplicada se elimina del objeto para no mandarlo al servidor.
+    const quitarSucursal = obj => {
+      if (!sucursalesOn) { const { sucursal_id, ...resto } = obj; return resto; }
+      return { ...obj, sucursal_id: obj.sucursal_id != null ? obj.sucursal_id : null };
+    };
 
     // Subir en orden: vehiculos → profesores → tarifas → alumnos → practicas → pagos
     if (data.vehiculos.length) {
       await sb.from('vehiculos').upsert(
-        data.vehiculos.map(v => ({ ...v, ...conEmpresaTag, deleted: false, updated_at: now })),
+        data.vehiculos.map(v => quitarSucursal({ ...v, ...conEmpresaTag, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
     if (data.profesores.length) {
       await sb.from('profesores').upsert(
-        data.profesores.map(p => ({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })),
+        data.profesores.map(p => quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
@@ -1174,13 +1304,20 @@ async function pushAll() {
     }
     if (data.alumnos.length) {
       await sb.from('alumnos').upsert(
-        data.alumnos.map(a => ({ ...a, ...conEmpresaTag, deleted: false, updated_at: now })),
+        data.alumnos.map(a => quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
     if (data.practicas.length) {
       await sb.from('practicas').upsert(
-        data.practicas.map(p => ({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })),
+        data.practicas.map(p => quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })),
+        { onConflict: 'id' }
+      );
+    }
+    // Sucursales: solo si la migración está aplicada (si no, ni la tabla existe).
+    if (sucursalesOn && data.sucursales.length) {
+      await sb.from('sucursales').upsert(
+        data.sucursales.map(s => ({ ...s, ...conEmpresaTag, deleted: false, updated_at: now })),
         { onConflict: 'id' }
       );
     }
@@ -1189,7 +1326,7 @@ async function pushAll() {
     try {
       if (data.pagos.length) {
         await sb.from('pagos').upsert(
-          data.pagos.map(pg => ({ ...pg, ...conEmpresaTag, deleted: false, updated_at: now })),
+          data.pagos.map(pg => quitarSucursal({ ...pg, ...conEmpresaTag, deleted: false, updated_at: now })),
           { onConflict: 'id' }
         );
       }
@@ -1222,11 +1359,17 @@ async function pushAll() {
     } catch (e) {
       console.error('Sync (subir todo): no se pudo borrar pagos en la nube (permiso denegado o error de red):', e.message);
     }
+    if (sucursalesOn) {
+      for (const id of (pending.deleted.sucursales || [])) {
+        await sb.from('sucursales').update({ deleted: true, updated_at: now }).eq('id', id);
+      }
+    }
 
     // Limpiar pending. OJO: no adelantar lastSync aquí — si este PC aún no ha
     // descargado los datos antiguos de la nube, adelantarla se los saltaría.
     pending.vehiculos = []; pending.profesores = []; pending.tarifas = []; pending.alumnos = []; pending.practicas = []; pending.pagos = [];
-    pending.deleted = { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [] };
+    pending.deleted = { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: pending.deleted.sucursales };
+    if (sucursalesOn) { pending.sucursales = []; pending.deleted.sucursales = []; }
     savePending(pending);
 
     _lastError = null;

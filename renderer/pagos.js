@@ -11,7 +11,7 @@ function cambiarTabPagos(tab) {
 }
 
 async function loadDeudas() {
-  deudasCache = await window.api.getDeudas();
+  deudasCache = await window.api.getDeudas(getSucursalActual());
   const aviso = document.getElementById('pagos-aviso-sin-tarifa');
   aviso.classList.toggle('hidden', !deudasCache.some(d => d.sin_tarifa));
 
@@ -167,7 +167,7 @@ async function savePago() {
   if (id) {
     await window.api.updatePago(parseInt(id), fecha, cantidad, nota);
   } else {
-    await window.api.addPago(alumnoId, fecha, cantidad, nota);
+    await window.api.addPago(alumnoId, fecha, cantidad, nota, getSucursalActual());
   }
   closeModal('modal-pago');
   loadDeudas();

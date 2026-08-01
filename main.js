@@ -233,17 +233,17 @@ ipcMain.handle('ventana-esta-maximizada', () => {
 });
 ipcMain.handle('guardar-tema-fondo', (_, color) => guardarTemaFondo(color));
 
-ipcMain.handle('get-vehiculos', () => db.getVehiculos());
-ipcMain.handle('add-vehiculo', (_, nombre, matricula, km_actual) => {
-  const id = db.addVehiculo(nombre, matricula, km_actual);
+ipcMain.handle('get-vehiculos', (_, sucursalId) => db.getVehiculos(sucursalId));
+ipcMain.handle('add-vehiculo', (_, nombre, matricula, km_actual, sucursalId) => {
+  const id = db.addVehiculo(nombre, matricula, km_actual, sucursalId);
   return id;
 });
 ipcMain.handle('delete-vehiculo', (_, id) => { db.deleteVehiculo(id); return true; });
 ipcMain.handle('update-vehiculo-km', (_, id, km) => { db.updateVehiculoKm(id, km); return true; });
 ipcMain.handle('update-vehiculo', (_, id, nombre, matricula) => { db.updateVehiculo(id, nombre, matricula); return true; });
 
-ipcMain.handle('get-profesores', () => db.getProfesores());
-ipcMain.handle('add-profesor', (_, nombre, nota) => db.addProfesor(nombre, nota));
+ipcMain.handle('get-profesores', (_, sucursalId) => db.getProfesores(sucursalId));
+ipcMain.handle('add-profesor', (_, nombre, nota, sucursalId) => db.addProfesor(nombre, nota, sucursalId));
 ipcMain.handle('delete-profesor', (_, id) => { db.deleteProfesor(id); return true; });
 ipcMain.handle('update-profesor', (_, id, nombre, nota) => { db.updateProfesor(id, nombre, nota); return true; });
 
@@ -251,31 +251,39 @@ ipcMain.handle('get-tarifas', () => db.getTarifas());
 ipcMain.handle('set-tarifa', (_, permiso, tipo, precio) => db.setTarifa(permiso, tipo, precio));
 ipcMain.handle('delete-tarifa', (_, id) => { db.deleteTarifa(id); return true; });
 
-ipcMain.handle('get-alumnos', () => db.getAlumnos());
-ipcMain.handle('add-alumno', (_, nombre, permiso, vehiculo_id, profesor_id) => db.addAlumno(nombre, permiso, vehiculo_id, profesor_id));
+ipcMain.handle('get-alumnos', (_, sucursalId) => db.getAlumnos(sucursalId));
+ipcMain.handle('add-alumno', (_, nombre, permiso, vehiculo_id, profesor_id, sucursalId) => db.addAlumno(nombre, permiso, vehiculo_id, profesor_id, sucursalId));
 ipcMain.handle('delete-alumno', (_, id) => { db.deleteAlumno(id); return true; });
 ipcMain.handle('update-alumno', (_, id, nombre, permiso, vehiculo_id, profesor_id) => { db.updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id); return true; });
 
 ipcMain.handle('get-practicas', (_, alumno_id) => db.getPracticasByAlumno(alumno_id));
 ipcMain.handle('get-ultima-practica', (_, alumno_id) => db.getUltimaPractica(alumno_id));
-ipcMain.handle('add-practica', (_, alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo) =>
-  db.addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo)
+ipcMain.handle('add-practica', (_, alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo, sucursalId) =>
+  db.addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo, sucursalId)
 );
 ipcMain.handle('delete-practica', (_, id) => { db.deletePractica(id); return true; });
 ipcMain.handle('update-practica', (_, id, fecha, km_inicial, km_final, profesor_id, tipo) => { db.updatePractica(id, fecha, km_inicial, km_final, profesor_id, tipo); return true; });
 
 ipcMain.handle('get-pagos-alumno', (_, alumno_id) => db.getPagosByAlumno(alumno_id));
-ipcMain.handle('add-pago', (_, alumno_id, fecha, cantidad, nota) => db.addPago(alumno_id, fecha, cantidad, nota));
+ipcMain.handle('add-pago', (_, alumno_id, fecha, cantidad, nota, sucursalId) => db.addPago(alumno_id, fecha, cantidad, nota, sucursalId));
 ipcMain.handle('update-pago', (_, id, fecha, cantidad, nota) => { db.updatePago(id, fecha, cantidad, nota); return true; });
 ipcMain.handle('delete-pago', (_, id) => { db.deletePago(id); return true; });
-ipcMain.handle('get-deudas', () => db.getDeudas());
+ipcMain.handle('get-deudas', (_, sucursalId) => db.getDeudas(sucursalId));
 ipcMain.handle('get-desglose-pagos-alumno', (_, alumno_id) => db.getDesglosePagosAlumno(alumno_id));
 
-ipcMain.handle('get-resumen', () => db.getResumen());
-ipcMain.handle('get-stats-dashboard', () => db.getStatsDashboard());
+ipcMain.handle('get-resumen', (_, sucursalId) => db.getResumen(sucursalId));
+ipcMain.handle('get-stats-dashboard', (_, hoy, sucursalId) => db.getStatsDashboard(hoy, sucursalId));
 ipcMain.handle('get-stats-profesores', (_, desde, hasta) => db.getStatsProfesores(desde, hasta));
-ipcMain.handle('get-datos-graficos', (_, meses) => db.getDatosGraficos(meses));
+ipcMain.handle('get-datos-graficos', (_, meses, sucursalId) => db.getDatosGraficos(meses, sucursalId));
 ipcMain.handle('get-todas-practicas', (_, filtros) => db.getTodasPracticas(filtros));
+
+// Sucursales (fase 2 multi-empresa): CRUD mecánico, la lógica de
+// compatibilidad hacia atrás vive en db/sucursales.js (data.json) y en el
+// renderer (solo se muestra con migración aplicada Y al menos una sucursal).
+ipcMain.handle('get-sucursales', (_, soloActivas) => db.getSucursales(soloActivas));
+ipcMain.handle('add-sucursal', (_, nombre) => db.addSucursal(nombre));
+ipcMain.handle('renombrar-sucursal', (_, id, nombre) => { db.renombrarSucursal(id, nombre); return true; });
+ipcMain.handle('activar-sucursal', (_, id, activa) => { db.activarSucursal(id, activa); return true; });
 ipcMain.handle('get-solapamientos', () => db.getSolapamientos());
 ipcMain.handle('rellenar-km-masivo', (_, vehiculo_id, kmMin, kmMax, kmInicio, kmFinal) => db.rellenarKmMasivo(vehiculo_id, kmMin, kmMax, kmInicio, kmFinal));
 ipcMain.handle('get-practicas-sin-km', (_, vehiculo_id) => db.getPracticasSinKm(vehiculo_id));

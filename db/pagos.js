@@ -1,7 +1,7 @@
 // ─── PAGOS ───────────────────────────────────────────────────────────────────
 // Pagos y cálculo de deudas (desglose FIFO de prácticas pagadas/pendientes).
 
-const { load, save, nextId, _sync } = require('./core');
+const { load, save, nextId, _sync, filtrarPorSucursal } = require('./core');
 const { getPracticasByAlumno } = require('./practicas');
 
 function getPagosByAlumno(alumno_id) {
@@ -12,7 +12,7 @@ function getPagosByAlumno(alumno_id) {
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
 }
 
-function addPago(alumno_id, fecha, cantidad, nota) {
+function addPago(alumno_id, fecha, cantidad, nota, sucursal_id = null) {
   const d = load();
   const id = nextId('pg');
   d.pagos.push({
@@ -20,7 +20,8 @@ function addPago(alumno_id, fecha, cantidad, nota) {
     alumno_id: parseInt(alumno_id),
     fecha,
     cantidad: parseFloat(cantidad) || 0,
-    nota: nota || ''
+    nota: nota || '',
+    sucursal_id: sucursal_id ? parseInt(sucursal_id) : null
   });
   save();
   const s = _sync(); if (s) s.markDirty('pagos', id);
@@ -46,9 +47,12 @@ function deletePago(id) {
   const s = _sync(); if (s) s.markDeleted('pagos', id);
 }
 
-function getDeudas() {
+// sucursalId opcional: filtra las deudas a los alumnos de esa sucursal (los
+// pagos de cada alumno se buscan igual, sin filtrar, ya que cuelgan de su
+// alumno_id) — ver filtrarPorSucursal en core.js.
+function getDeudas(sucursalId) {
   const d = load();
-  return d.alumnos
+  return filtrarPorSucursal(d.alumnos, sucursalId)
     .slice()
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
     .map(alumno => {
