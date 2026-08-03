@@ -63,10 +63,10 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-08-03. El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-08-04. El detalle histórico completo está en HISTORIAL.md._
 
-- **Versión:** 1.9.0 (release publicada). Suite: 198 tests en verde, 17 suites (`npm test`).
-- **Fusión de las 2 líneas divergentes (2026-08-03):** el PC local (modular: roles/sucursales/gráficos/prácticas-global) se había separado del remoto (v1.7.0/v1.8.0: cuenta obligatoria, registro, reset, aislamiento multi-empresa). Fusionadas sobre la base modular en `main` y publicadas como v1.9.0 con auto-update verificado.
+- **Versión:** 1.10.0 (release publicada). Suite: 201 tests en verde, 17 suites (`npm test`).
+- **Rebranding KMAlumnos → AulaMovil (2026-08-04, v1.10.0):** cambios visuales en título de ventana, modales de bienvenida/backup, barras y sidebar; dominio web remoto migrado a aulamovil.vercel.app con redirects y CORS actualizados; identificadores internos (package.json, localStorage, repo GitHub) conservados para compatibilidad con datos y auto-update.
 - **INVARIANTE — Migración roles/sucursales NO APLICADA:** todo cambio de roles/sucursales DEBE funcionar en "modo clásico" (la app detecta en runtime si existen las tablas; si no, se comporta como hoy). SQL + ROLLBACK + README en `migraciones/`. Solo Pagos es seguridad real (RLS servidor); ocultar estadísticas es barrera blanda (el empleado ya tiene las prácticas locales).
 - **Sync/RLS:** RLS endurecido (`empresa_all`, `anon` sin acceso). Los PCs necesitan sesión en Ajustes → Cuenta de empresa para sincronizar; sin sesión trabajan en local.
 - **Herramientas:** SQL de Supabase vía `node .claude/scripts/sql.js`; `gh` CLI autenticado; releases y deploy web por scripts (sin MCP).
