@@ -3,10 +3,20 @@
 // la app (tema inicial, listeners a nivel superior, primeras llamadas). ÚLTIMO
 // script cargado: aquí es seguro invocar cualquier función de los módulos previos.
 
-// ─── BIENVENIDA (instalación nueva) ────────────────────────────────────────────
-const BIENVENIDA_DESCARTADA_KEY = 'kmalumnos_bienvenida_descartada';
-
+// ─── BIENVENIDA (acceso obligatorio: cuenta de empresa) ────────────────────────
+// KM Alumnos es SaaS puro: toda instalación exige una cuenta de empresa
+// conectada (credenciales guardadas y válidas, con o sin internet en ese
+// momento) antes de dejar pasar a la app. Ya no existe un "continuar sin
+// cuenta" ni se exime a instalaciones con datos locales previos: si no hay
+// cuenta conectada, se abre este modal y se queda abierto sin vía de escape
+// (ver el handler de click-fuera-cierra en renderer/utils-ui.js) hasta que el
+// login o el registro tengan éxito.
+// El gate cubre bienvenida y sus modales hijos (login/registro): mientras
+// cualquiera de ellos esté resolviendo la cuenta, #app debe quedar oculto del
+// todo (no solo difuminado). ocultarAppPorGate()/mostrarAppPorGate() (en
+// renderer/sync-ui.js) son el único punto de entrada para esto.
 function abrirBienvenida() {
+  ocultarAppPorGate();
   openModal('modal-bienvenida');
 }
 
@@ -20,19 +30,20 @@ function bienvenidaIniciarSesion() {
   abrirCredsSync();
 }
 
-function continuarSinCuenta() {
-  try { localStorage.setItem(BIENVENIDA_DESCARTADA_KEY, '1'); } catch (e) {}
-  closeModal('modal-bienvenida');
-  comprobarTutorial('dashboard');
-}
-
+// Única fuente de verdad del gate: se llama en INIT, tras cerrar sesión y al
+// cancelar login/registro (renderer/sync-ui.js). Abre (o reabre) el modal de
+// bienvenida siempre que no haya cuenta conectada, sin mirar si ya hay datos
+// locales. Si hay cuenta conectada pero los datos locales de este PC
+// pertenecen a otra cuenta (conflictoEmpresa, ver sync.js), no deja pasar a
+// la app: abre el modal de conflicto en su lugar (renderer/sync-ui.js).
 async function comprobarBienvenida() {
   try {
-    if (localStorage.getItem(BIENVENIDA_DESCARTADA_KEY) === '1') return;
     const estado = await window.api.getEstadoCuenta();
-    if (estado && estado.conectado) return;
-    const resumen = await window.api.getResumen();
-    if (!resumen || resumen.vehiculos > 0 || resumen.alumnos > 0 || resumen.practicas > 0) return;
+    if (estado && estado.conectado) {
+      if (estado.conflictoEmpresa) { abrirConflictoEmpresa(estado.conflictoEmpresa, estado.email); return; }
+      mostrarAppPorGate();
+      return;
+    }
     abrirBienvenida();
   } catch (e) {}
 }

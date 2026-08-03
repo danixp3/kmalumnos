@@ -378,6 +378,11 @@
 
   /* ── LAYOUT ─────────────────────────────────── */
   #app { display: flex; height: calc(100vh - 32px); overflow: hidden; }
+  /* Gate de cuenta obligatoria (modal-bienvenida y sus hijos login/registro):
+     mientras la cuenta no está conectada, el dashboard debe quedar totalmente
+     oculto (no solo difuminado por .overlay) para no filtrar datos reales
+     detrás del modal. Ver ocultarAppPorGate()/mostrarAppPorGate() en renderer/sync-ui.js. */
+  #app.gate-hidden { display: none; }
 
   /* ── SIDEBAR ────────────────────────────────── */
   #sidebar {
@@ -629,6 +634,28 @@
 
   input::placeholder { color: var(--placeholder); }
   input[type=number] { width: 130px; }
+
+  /* ── CAMPO DE CONTRASEÑA (mostrar/ocultar) ──── */
+  .pw-wrap { position: relative; width: 100%; }
+  .pw-wrap input { width: 100%; padding-right: 34px; }
+  .pw-toggle {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .pw-toggle:hover { background: var(--sidebar-hover); color: var(--text); }
 
   /* ── BUTTONS ────────────────────────────────── */
   .btn {

@@ -21,6 +21,6 @@ Objetivo: hacer cambios en web-remote sin cargar archivos enteros (index.html ti
    ```
    python .claude/skills/cambiar-web/scripts/probar_web.py
    ```
-   Prueba portada, login con PIN, rechazo de token inválido y los 3 endpoints de lectura; termina en `WEB-OK` o el fallo concreto. Si el cambio añadió un endpoint o campo visible, comprobar además eso específicamente (curl o Browser). El script no crea datos — para probar un POST nuevo, hacerlo a mano y borrar después (soft delete).
+   Prueba portada, login contra Supabase Auth (email/contraseña, `SYNC_EMAIL`/`SYNC_PASSWORD`), rechazo de un `Bearer` inválido y 4 endpoints de lectura (`vehiculos`, `alumnos`, `historial`, `profesores`); termina en `WEB-OK` o el fallo concreto. Si el cambio añadió un endpoint o campo visible, comprobar además eso específicamente (curl o Browser). El script no crea datos — para probar un POST nuevo, hacerlo a mano y borrar después (soft delete).
 
 6. **Cerrar con /cerrar-tarea**. Si el cambio también toca la app de escritorio (p. ej. un campo nuevo que el sync debe recoger), eso es tarea aparte con /preparar-cambio: el sync y la web son mundos distintos que solo se ven a través de Supabase.
