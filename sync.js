@@ -286,7 +286,7 @@ async function registrarEmpresa(email, password) {
     });
     const { data, error } = await client.auth.signUp({
       email, password,
-      options: { emailRedirectTo: 'https://kmalumnos-remote.vercel.app/email-confirmado.html' }
+      options: { emailRedirectTo: 'https://aulamovil.vercel.app/email-confirmado.html' }
     });
 
     if (error) {
@@ -350,7 +350,7 @@ async function solicitarResetPassword(email) {
       auth: { persistSession: false }
     });
     const { error } = await client.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: 'https://kmalumnos-remote.vercel.app/reset-password.html'
+      redirectTo: 'https://aulamovil.vercel.app/reset-password.html'
     });
     if (error) {
       return { ok: false, msg: 'No se pudo enviar el correo de recuperación. Inténtalo de nuevo más tarde.' };
@@ -823,6 +823,66 @@ async function _resolverColisionesPrimeraVinculacion(data, pending, sb) {
   return { ejecutado: true, huboColisiones, resumen };
 }
 
+// Reconciliación proactiva por matrícula (ver migraciones/2026-08-04_unique_
+// matricula_vehiculos.sql): antes de subir un vehículo local con matrícula no
+// vacía, comprueba si la nube ya tiene un vehículo ACTIVO con esa misma
+// matrícula pero con OTRO id — la señal de que el mismo vehículo real se dio
+// de alta en dos instalaciones con secuencias de id independientes (el bug
+// que motivó esta función: la sync empareja por id, no por matrícula, así que
+// dos ids distintos para el mismo coche quedaban duplicados en Supabase). Si
+// se detecta, se ADOPTA el id remoto en local en vez de subir uno nuevo:
+// fusiona el posible duplicado local que ya tuviera ese id, repunta alumnos y
+// prácticas, y deja la cola de pendientes apuntando al id correcto.
+// Sin red o sin colisión: no toca nada y devuelve false (se sube por id, como
+// hasta ahora; el índice único del servidor — ver migración — protege igual).
+async function _reconciliarVehiculoPorMatricula(sb, data, pending, v) {
+  if (!v.matricula) return false;
+  try {
+    let query = sb.from('vehiculos').select('id, updated_at').eq('matricula', v.matricula).eq('deleted', false);
+    if (_empresaId) query = query.eq('empresa_id', _empresaId);
+    const { data: filas, error } = await query;
+    if (error || !filas) return false;
+
+    const remota = filas.find(f => f.id !== v.id);
+    if (!remota) return false;
+    const remoteId = remota.id;
+    const idViejo = v.id;
+
+    // Si ya existe OTRO vehículo local con el id remoto (p.ej. bajado en un
+    // sync anterior), fusionar antes de mover: se conserva el contenido del
+    // más reciente y se descarta el sobrante, para no dejar dos filas locales
+    // con el mismo id.
+    const idxDuplicadoLocal = data.vehiculos.findIndex(x => x.id === remoteId);
+    if (idxDuplicadoLocal !== -1) {
+      const duplicado = data.vehiculos[idxDuplicadoLocal];
+      const dupUpdated = duplicado.updated_at || '1970-01-01T00:00:00.000Z';
+      const vUpdated = v.updated_at || '1970-01-01T00:00:00.000Z';
+      if (dupUpdated > vUpdated) {
+        v.nombre = duplicado.nombre;
+        v.matricula = duplicado.matricula;
+        v.km_actual = duplicado.km_actual;
+      }
+      data.vehiculos.splice(idxDuplicadoLocal, 1);
+    }
+
+    // Repuntar todas las referencias locales del id viejo al id remoto.
+    data.alumnos.forEach(a => { if (a.vehiculo_id === idViejo) a.vehiculo_id = remoteId; });
+    data.practicas.forEach(p => { if (p.vehiculo_id === idViejo) p.vehiculo_id = remoteId; });
+
+    v.id = remoteId;
+    if (remoteId >= data._seq.v) data._seq.v = remoteId + 1;
+
+    // La cola de pendientes debe apuntar ya al id correcto (sin duplicar).
+    pending.vehiculos = (pending.vehiculos || []).filter(pid => pid !== idViejo);
+    if (!pending.vehiculos.includes(remoteId)) pending.vehiculos.push(remoteId);
+
+    return true;
+  } catch (e) {
+    console.error('Sync: fallo al reconciliar vehículo por matrícula:', e.message);
+    return false;
+  }
+}
+
 // ─── SYNC ────────────────────────────────────────────────────────────────────
 
 async function checkOnline() {
@@ -886,6 +946,14 @@ async function sync() {
     // acaba de sustituir con un contenido distinto.
     const conflictos = [];
 
+    // Se pone a true si _reconciliarVehiculoPorMatricula() adopta un id remoto
+    // durante la subida (paso 1, más abajo): ese cambio vive solo en memoria
+    // hasta que se persiste con saveData(data); sin esta marca, si la bajada
+    // (paso 2) no trae ningún cambio propio, "dataChanged" seguiría en false y
+    // la reconciliación se perdería al reiniciar la app (pending ya se vacía
+    // sin condición al final del sync).
+    let vehiculoReconciliado = false;
+
     // Primera vinculación con esta cuenta (ver comentario junto a la función):
     // si este dispositivo tenía datos locales sin sincronizar, resuelve antes
     // de subir nada las colisiones de id con lo que ya hubiera en la cuenta.
@@ -907,32 +975,48 @@ async function sync() {
     // nulo) toda fila subida se estampa con el uid; en modo legado (sin
     // credenciales) no se añade la clave, comportamiento idéntico al de antes.
 
-    // Vehículos dirty
-    for (const id of pending.vehiculos) {
-      const v = data.vehiculos.find(x => x.id === id);
-      if (v) {
-        const payload = {
-          id: v.id, nombre: v.nombre, matricula: v.matricula,
-          km_actual: v.km_actual, deleted: false, updated_at: new Date().toISOString()
-        };
-        if (_empresaId) payload.empresa_id = _empresaId;
-        if (sucursalesOn) payload.sucursal_id = v.sucursal_id != null ? v.sucursal_id : null;
-        await sb.from('vehiculos').upsert(payload, { onConflict: 'id' });
+    // Vehículos dirty. Envuelto en try/catch (igual que pagos, ver más abajo):
+    // un fallo puntual (de red, de RLS, o de la propia reconciliación) no debe
+    // tumbar el resto del sync — los ids afectados se quedan en pending para
+    // el siguiente intento.
+    try {
+      for (const id of pending.vehiculos) {
+        const v = data.vehiculos.find(x => x.id === id);
+        if (v) {
+          // Reconciliación proactiva por matrícula: si la nube ya tiene este
+          // mismo vehículo con otro id, adoptarlo antes de subir (ver función).
+          if (v.matricula && await _reconciliarVehiculoPorMatricula(sb, data, pending, v)) {
+            vehiculoReconciliado = true;
+          }
+          const payload = {
+            id: v.id, nombre: v.nombre, matricula: v.matricula,
+            km_actual: v.km_actual, deleted: false, updated_at: new Date().toISOString()
+          };
+          if (_empresaId) payload.empresa_id = _empresaId;
+          if (sucursalesOn) payload.sucursal_id = v.sucursal_id != null ? v.sucursal_id : null;
+          await sb.from('vehiculos').upsert(payload, { onConflict: 'id' });
+        }
       }
+    } catch (e) {
+      console.error('Sync: no se pudieron subir vehículos (error de red o del servidor):', e.message);
     }
 
     // Profesores dirty
-    for (const id of (pending.profesores || [])) {
-      const pr = data.profesores.find(x => x.id === id);
-      if (pr) {
-        const payload = {
-          id: pr.id, nombre: pr.nombre, nota: pr.nota || '',
-          deleted: false, updated_at: new Date().toISOString()
-        };
-        if (_empresaId) payload.empresa_id = _empresaId;
-        if (sucursalesOn) payload.sucursal_id = pr.sucursal_id != null ? pr.sucursal_id : null;
-        await sb.from('profesores').upsert(payload, { onConflict: 'id' });
+    try {
+      for (const id of (pending.profesores || [])) {
+        const pr = data.profesores.find(x => x.id === id);
+        if (pr) {
+          const payload = {
+            id: pr.id, nombre: pr.nombre, nota: pr.nota || '',
+            deleted: false, updated_at: new Date().toISOString()
+          };
+          if (_empresaId) payload.empresa_id = _empresaId;
+          if (sucursalesOn) payload.sucursal_id = pr.sucursal_id != null ? pr.sucursal_id : null;
+          await sb.from('profesores').upsert(payload, { onConflict: 'id' });
+        }
       }
+    } catch (e) {
+      console.error('Sync: no se pudieron subir profesores (error de red o del servidor):', e.message);
     }
 
     // Tarifas dirty
@@ -949,35 +1033,43 @@ async function sync() {
     }
 
     // Alumnos dirty
-    for (const id of pending.alumnos) {
-      const a = data.alumnos.find(x => x.id === id);
-      if (a) {
-        const payload = {
-          id: a.id, nombre: a.nombre, permiso: a.permiso,
-          vehiculo_id: a.vehiculo_id, profesor_id: a.profesor_id || null,
-          deleted: false, updated_at: new Date().toISOString()
-        };
-        if (_empresaId) payload.empresa_id = _empresaId;
-        if (sucursalesOn) payload.sucursal_id = a.sucursal_id != null ? a.sucursal_id : null;
-        await sb.from('alumnos').upsert(payload, { onConflict: 'id' });
+    try {
+      for (const id of pending.alumnos) {
+        const a = data.alumnos.find(x => x.id === id);
+        if (a) {
+          const payload = {
+            id: a.id, nombre: a.nombre, permiso: a.permiso,
+            vehiculo_id: a.vehiculo_id, profesor_id: a.profesor_id || null,
+            deleted: false, updated_at: new Date().toISOString()
+          };
+          if (_empresaId) payload.empresa_id = _empresaId;
+          if (sucursalesOn) payload.sucursal_id = a.sucursal_id != null ? a.sucursal_id : null;
+          await sb.from('alumnos').upsert(payload, { onConflict: 'id' });
+        }
       }
+    } catch (e) {
+      console.error('Sync: no se pudieron subir alumnos (error de red o del servidor):', e.message);
     }
 
     // Prácticas dirty
-    for (const id of pending.practicas) {
-      const p = data.practicas.find(x => x.id === id);
-      if (p) {
-        const payload = {
-          id: p.id, alumno_id: p.alumno_id, vehiculo_id: p.vehiculo_id,
-          fecha: p.fecha, km_inicial: p.km_inicial, km_final: p.km_final,
-          nota: p.nota || '', profesor_id: p.profesor_id || null,
-          tipo: p.tipo || null,
-          deleted: false, updated_at: new Date().toISOString()
-        };
-        if (_empresaId) payload.empresa_id = _empresaId;
-        if (sucursalesOn) payload.sucursal_id = p.sucursal_id != null ? p.sucursal_id : null;
-        await sb.from('practicas').upsert(payload, { onConflict: 'id' });
+    try {
+      for (const id of pending.practicas) {
+        const p = data.practicas.find(x => x.id === id);
+        if (p) {
+          const payload = {
+            id: p.id, alumno_id: p.alumno_id, vehiculo_id: p.vehiculo_id,
+            fecha: p.fecha, km_inicial: p.km_inicial, km_final: p.km_final,
+            nota: p.nota || '', profesor_id: p.profesor_id || null,
+            tipo: p.tipo || null,
+            deleted: false, updated_at: new Date().toISOString()
+          };
+          if (_empresaId) payload.empresa_id = _empresaId;
+          if (sucursalesOn) payload.sucursal_id = p.sucursal_id != null ? p.sucursal_id : null;
+          await sb.from('practicas').upsert(payload, { onConflict: 'id' });
+        }
       }
+    } catch (e) {
+      console.error('Sync: no se pudieron subir prácticas (error de red o del servidor):', e.message);
     }
 
     // Pagos dirty. Tras la migración de roles, un empleado no tiene acceso a
@@ -1388,7 +1480,7 @@ async function sync() {
       }
     }
 
-    if (dataChanged || regenerado) {
+    if (dataChanged || regenerado || vehiculoReconciliado) {
       saveData(data);
       // Limpiar caché de db.js
       try { require('./db')._clearCache(); } catch {}

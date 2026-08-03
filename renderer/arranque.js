@@ -4,7 +4,7 @@
 // script cargado: aquí es seguro invocar cualquier función de los módulos previos.
 
 // ─── BIENVENIDA (acceso obligatorio: cuenta de empresa) ────────────────────────
-// KM Alumnos es SaaS puro: toda instalación exige una cuenta de empresa
+// AulaMovil es SaaS puro: toda instalación exige una cuenta de empresa
 // conectada (credenciales guardadas y válidas, con o sin internet en ese
 // momento) antes de dejar pasar a la app. Ya no existe un "continuar sin
 // cuenta" ni se exime a instalaciones con datos locales previos: si no hay

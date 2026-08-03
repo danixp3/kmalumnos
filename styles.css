@@ -514,8 +514,98 @@
   .page.active { display: block; }
 
   @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(6px); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* ── ENTRADA ESCALONADA DE BLOQUES AL ABRIR/CAMBIAR DE PANTALLA ── */
+  @keyframes blockIn {
+    from { opacity: 0; transform: translateY(9px); }
     to   { opacity: 1; transform: translateY(0); }
+  }
+  .page.active > *,
+  #page-alumnos.active #view-alumnos > *,
+  #page-alumnos.active #view-practicas > * {
+    animation: blockIn .36s cubic-bezier(.22,.61,.36,1) both;
+  }
+  .page.active > *:nth-child(1),
+  #page-alumnos.active #view-alumnos > *:nth-child(1),
+  #page-alumnos.active #view-practicas > *:nth-child(1) { animation-delay: .03s; }
+  .page.active > *:nth-child(2),
+  #page-alumnos.active #view-alumnos > *:nth-child(2),
+  #page-alumnos.active #view-practicas > *:nth-child(2) { animation-delay: .08s; }
+  .page.active > *:nth-child(3),
+  #page-alumnos.active #view-alumnos > *:nth-child(3),
+  #page-alumnos.active #view-practicas > *:nth-child(3) { animation-delay: .13s; }
+  .page.active > *:nth-child(4),
+  #page-alumnos.active #view-alumnos > *:nth-child(4),
+  #page-alumnos.active #view-practicas > *:nth-child(4) { animation-delay: .18s; }
+  .page.active > *:nth-child(5),
+  #page-alumnos.active #view-alumnos > *:nth-child(5),
+  #page-alumnos.active #view-practicas > *:nth-child(5) { animation-delay: .23s; }
+  .page.active > *:nth-child(6),
+  #page-alumnos.active #view-alumnos > *:nth-child(6),
+  #page-alumnos.active #view-practicas > *:nth-child(6) { animation-delay: .28s; }
+  .page.active > *:nth-child(n+7),
+  #page-alumnos.active #view-alumnos > *:nth-child(n+7),
+  #page-alumnos.active #view-practicas > *:nth-child(n+7) { animation-delay: .32s; }
+
+  /* Entrada en cascada de las filas, SOLO al abrir la pantalla (clase .entrando). */
+  @keyframes filaIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .page.entrando tbody tr { animation: filaIn .32s ease both; }
+  .page.entrando tbody tr:nth-child(1)  { animation-delay: .04s; }
+  .page.entrando tbody tr:nth-child(2)  { animation-delay: .07s; }
+  .page.entrando tbody tr:nth-child(3)  { animation-delay: .10s; }
+  .page.entrando tbody tr:nth-child(4)  { animation-delay: .13s; }
+  .page.entrando tbody tr:nth-child(5)  { animation-delay: .16s; }
+  .page.entrando tbody tr:nth-child(6)  { animation-delay: .19s; }
+  .page.entrando tbody tr:nth-child(7)  { animation-delay: .22s; }
+  .page.entrando tbody tr:nth-child(8)  { animation-delay: .25s; }
+  .page.entrando tbody tr:nth-child(9)  { animation-delay: .28s; }
+  .page.entrando tbody tr:nth-child(10) { animation-delay: .31s; }
+  .page.entrando tbody tr:nth-child(n+11) { animation-delay: .34s; }
+
+  /* Destello breve cuando un valor cambia (p. ej. tras registrar una práctica). */
+  @keyframes valorFlash {
+    0%   { background-color: transparent; box-shadow: 0 0 0 0 transparent; }
+    25%  { background-color: color-mix(in srgb, var(--primary) 16%, transparent);
+           box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 16%, transparent); }
+    100% { background-color: transparent; box-shadow: 0 0 0 0 transparent; }
+  }
+  .valor-flash { animation: valorFlash .8s ease; border-radius: 6px; }
+
+  /* Barras del mapa de km que crecen desde su borde izquierdo al dibujarse. */
+  @keyframes barraCrece { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  #timeline-chart-bars .tl-bar {
+    transform-origin: left center;
+    animation: barraCrece .5s cubic-bezier(.22,.61,.36,1) both;
+  }
+
+  /* Barras de los gráficos del panel que crecen desde su base al dibujarse:
+     las verticales hacia arriba, las horizontales hacia la derecha. */
+  @keyframes gbarSube  { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  @keyframes gbarCrece { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .grafico-svg-wrap .grafico-barra-v {
+    transform-box: fill-box; transform-origin: bottom;
+    animation: gbarSube .6s cubic-bezier(.22,.61,.36,1) both;
+  }
+  .grafico-svg-wrap .grafico-barra-h {
+    transform-box: fill-box; transform-origin: left;
+    animation: gbarCrece .6s cubic-bezier(.22,.61,.36,1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .page, .page.active > *,
+    #page-alumnos.active #view-alumnos > *,
+    #page-alumnos.active #view-practicas > *,
+    .page.entrando tbody tr,
+    #timeline-chart-bars .tl-bar,
+    .grafico-svg-wrap .grafico-barra-v,
+    .grafico-svg-wrap .grafico-barra-h,
+    .valor-flash { animation: none !important; }
   }
 
   /* ── PAGE HEADER ────────────────────────────── */
@@ -614,7 +704,7 @@
     letter-spacing: .2px;
   }
 
-  input, select {
+  input, select, textarea {
     padding: 8px 11px;
     border: 1px solid var(--border-strong);
     border-radius: 8px;
@@ -624,16 +714,104 @@
     background: var(--input-bg);
     color: var(--text);
     box-shadow: 0 1px 2px rgba(16,24,40,.04);
-    transition: border-color .15s, box-shadow .15s;
+    transition: border-color .15s, box-shadow .15s, background .15s;
   }
 
-  input:focus, select:focus {
+  /* Selects con flecha propia (estilo shadcn), sin el look nativo de Windows.
+     Se excluye el selector de sucursal de la barra, que tiene estilo compacto propio. */
+  select:not(#tb-sucursal) {
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+    padding-right: 30px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 9px center;
+    background-size: 15px;
+  }
+
+  input:not(:disabled):hover:not(:focus),
+  select:not(#tb-sucursal):not(:disabled):hover:not(:focus) {
+    border-color: color-mix(in srgb, var(--primary) 32%, var(--border-strong));
+  }
+
+  input:focus, select:focus, textarea:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(79,70,229,.13);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+
+  input:disabled, select:disabled, textarea:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+    background: var(--gray-light);
   }
 
   input::placeholder { color: var(--placeholder); }
   input[type=number] { width: 130px; }
+
+  /* Icono del calendario visible en los temas oscuros (por si el selector propio
+     no estuviera activo; con él, el input pasa a oculto). */
+  [data-theme="oscuro"] input[type=date]::-webkit-calendar-picker-indicator,
+  [data-theme="negro"] input[type=date]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(.85);
+  }
+
+  /* ── SELECTOR DE FECHA PROPIO (renderer/datepicker.js) ──────────── */
+  .datepicker { display: inline-flex; }
+  .dp-trigger {
+    display: inline-flex; align-items: center; justify-content: space-between; gap: 8px;
+    min-width: 130px; padding: 8px 11px;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: var(--input-bg); color: var(--text);
+    font-size: 13px; font-family: inherit; cursor: pointer;
+    box-shadow: 0 1px 2px rgba(16,24,40,.04);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .dp-trigger:hover { border-color: color-mix(in srgb, var(--primary) 32%, var(--border-strong)); }
+  .dp-trigger:focus-visible, .dp-trigger.dp-abierto {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+  .dp-trigger svg { color: var(--text-muted); flex-shrink: 0; }
+  .dp-trigger.dp-vacio .dp-txt { color: var(--placeholder); }
+
+  .dp-pop {
+    position: fixed; z-index: 250; width: 264px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 16px 44px rgba(16,24,40,.18), 0 4px 12px rgba(16,24,40,.08);
+    padding: 12px;
+    opacity: 0; transform: translateY(-4px);
+    transition: opacity .13s ease, transform .13s ease;
+  }
+  .dp-pop.dp-visible { opacity: 1; transform: translateY(0); }
+  .dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .dp-mesanio { font-size: 13px; font-weight: 600; color: var(--text); }
+  .dp-nav {
+    width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+    border: none; background: transparent; color: var(--text-muted); border-radius: 7px; cursor: pointer;
+  }
+  .dp-nav:hover { background: var(--sidebar-hover); color: var(--text); }
+  .dp-semana { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 2px; }
+  .dp-semana span { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-faint); padding: 4px 0; }
+  .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .dp-vacia { height: 32px; }
+  .dp-dia {
+    height: 32px; border: none; background: transparent; color: var(--text);
+    font-size: 12.5px; font-family: inherit; border-radius: 7px; cursor: pointer;
+    transition: background .1s;
+  }
+  .dp-dia:hover { background: var(--sidebar-hover); }
+  .dp-hoy-marca { font-weight: 700; color: var(--primary); }
+  .dp-sel { background: var(--primary); color: #fff; }
+  .dp-sel:hover { background: var(--primary); }
+  .dp-foot { margin-top: 8px; display: flex; justify-content: flex-end; }
+  .dp-hoy {
+    font-size: 12px; font-weight: 600; font-family: inherit; color: var(--primary);
+    background: transparent; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px;
+  }
+  .dp-hoy:hover { background: var(--primary-light); }
+
+  @media (prefers-reduced-motion: reduce) { .dp-pop { transition: none; } }
 
   /* ── CAMPO DE CONTRASEÑA (mostrar/ocultar) ──── */
   .pw-wrap { position: relative; width: 100%; }
@@ -660,21 +838,39 @@
   /* ── BUTTONS ────────────────────────────────── */
   .btn {
     padding: 8.5px 16px;
-    border: none;
+    border: 1px solid transparent;
     border-radius: 8px;
     font-size: 13px;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
-    transition: all .15s ease;
+    transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease, filter .15s ease, opacity .15s ease;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     white-space: nowrap;
+    outline: none;
+    user-select: none;
+  }
+  .btn svg { flex-shrink: 0; pointer-events: none; }
+
+  .btn:hover { filter: brightness(.95); }
+  .btn:active { filter: brightness(.9); }
+
+  /* Anillo de foco accesible (estilo shadcn), con el color primario del tema */
+  .btn:focus-visible {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent);
   }
 
-  .btn:hover { filter: brightness(1.05); box-shadow: 0 2px 8px rgba(16,24,40,.12); }
-  .btn:active { filter: brightness(.95); box-shadow: none; }
+  /* Estado deshabilitado */
+  .btn:disabled, .btn[disabled] {
+    opacity: .5;
+    pointer-events: none;
+    box-shadow: none;
+    filter: none;
+  }
 
   .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 1px 3px rgba(79,70,229,.35); }
   .btn-primary:hover { background: var(--primary-dark); filter: none; }
@@ -1232,11 +1428,35 @@
   #tutorial-foco {
     display: none;
     position: fixed;
-    box-shadow: 0 0 0 9999px var(--tutorial-overlay);
+    /* Anillo fijo (2px) + oscurecido del resto. El anillo "latido" lo añade la animación. */
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--primary) 60%, transparent),
+      0 0 0 9999px var(--tutorial-overlay);
     border-radius: 10px;
     pointer-events: none;
     z-index: 400;
     transition: top .25s ease, left .25s ease, width .25s ease, height .25s ease;
+    animation: tutorialLatido 1.7s ease-out infinite;
+  }
+
+  /* Pulso tipo radar que emana del recuadro resaltado para atraer la mirada. */
+  @keyframes tutorialLatido {
+    0% {
+      box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--primary) 65%, transparent),
+        0 0 0 0 color-mix(in srgb, var(--primary) 45%, transparent),
+        0 0 0 9999px var(--tutorial-overlay);
+    }
+    100% {
+      box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--primary) 65%, transparent),
+        0 0 0 14px color-mix(in srgb, var(--primary) 0%, transparent),
+        0 0 0 9999px var(--tutorial-overlay);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #tutorial-foco { animation: none; }
   }
 
   #tutorial-bocadillo {

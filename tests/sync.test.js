@@ -91,6 +91,87 @@ test('sube a la nube los cambios hechos en el escritorio y vacía la cola de pen
   expect(pending.practicas).toHaveLength(0);
 });
 
+describe('reconciliación de vehículos duplicados por matrícula (bug: la sync empareja por id)', () => {
+  test('si la nube ya tiene el mismo vehículo (misma matrícula) con otro id, adopta ese id en vez de duplicar', async () => {
+    // Reproduce el bug real: dos instalaciones dieron de alta el mismo coche
+    // con secuencias de id independientes. Local lo tiene como id 8; la nube
+    // ya lo tiene, activo, como id 4.
+    writeData({
+      vehiculos: [{ id: 8, nombre: 'Coche 1', matricula: '6643LSC', km_actual: 200 }],
+      alumnos: [{ id: 1, nombre: 'Ana', permiso: 'B', vehiculo_id: 8 }],
+      practicas: [{ id: 1, alumno_id: 1, vehiculo_id: 8, fecha: '2026-07-01', km_inicial: 100, km_final: 140 }],
+      logs: [],
+      _seq: { v: 9, a: 2, p: 2 }
+    });
+    sync.markDirty('vehiculos', 8);
+
+    mockRemote.tables.vehiculos.push({
+      id: 4, nombre: 'Coche 1', matricula: '6643LSC', km_actual: 200,
+      deleted: false, updated_at: '2026-08-01T00:00:00.000Z'
+    });
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    const d = readData();
+    // El vehículo local pasa a usar el id de la nube.
+    expect(d.vehiculos).toHaveLength(1);
+    expect(d.vehiculos[0].id).toBe(4);
+    // El alumno y la práctica quedan repuntados al nuevo id: no se pierde nada.
+    expect(d.alumnos[0].vehiculo_id).toBe(4);
+    expect(d.practicas).toHaveLength(1);
+    expect(d.practicas[0].vehiculo_id).toBe(4);
+    // No se creó una segunda fila remota con la misma matrícula (el id 8 nunca se subió).
+    const filasMatricula = mockRemote.tables.vehiculos.filter(v => v.matricula === '6643LSC' && !v.deleted);
+    expect(filasMatricula).toHaveLength(1);
+    expect(mockRemote.tables.vehiculos.find(v => v.id === 8)).toBeFalsy();
+
+    const pending = JSON.parse(fs.readFileSync(pendingFile, 'utf-8'));
+    expect(pending.vehiculos).toHaveLength(0);
+  });
+
+  test('sin conexión: la reconciliación no se intenta y los ids no cambian (comportamiento actual)', async () => {
+    writeData({
+      vehiculos: [{ id: 8, nombre: 'Coche 1', matricula: '6643LSC', km_actual: 200 }],
+      alumnos: [],
+      practicas: [],
+      logs: [],
+      _seq: { v: 9, a: 1, p: 1 }
+    });
+    sync.markDirty('vehiculos', 8);
+
+    mockRemote.online = false;
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(false);
+    expect(sync.getStatus()).toBe('offline');
+    const d = readData();
+    expect(d.vehiculos[0].id).toBe(8); // sin red, no se toca el id
+    const pending = JSON.parse(fs.readFileSync(pendingFile, 'utf-8'));
+    expect(pending.vehiculos).toContain(8); // sigue pendiente para el próximo intento
+  });
+
+  test('sin colisión: matrícula que no existe en la nube se sube por id, sin cambios raros', async () => {
+    writeData({
+      vehiculos: [{ id: 8, nombre: 'Coche 1', matricula: 'AAAA000', km_actual: 200 }],
+      alumnos: [],
+      practicas: [],
+      logs: [],
+      _seq: { v: 9, a: 1, p: 1 }
+    });
+    sync.markDirty('vehiculos', 8);
+
+    const res = await sync.sync();
+
+    expect(res.ok).toBe(true);
+    const d = readData();
+    expect(d.vehiculos[0].id).toBe(8); // ninguna colisión: se mantiene el id local
+    expect(mockRemote.tables.vehiculos).toHaveLength(1);
+    expect(mockRemote.tables.vehiculos[0]).toMatchObject({ id: 8, matricula: 'AAAA000' });
+  });
+});
+
 test('sube el profesor_id de un alumno y descarga el de un alumno nuevo llegado del móvil', async () => {
   const vid = db.addVehiculo('Coche 1', '', 0);
   const pid = db.addProfesor('Juan', '');
@@ -993,7 +1074,7 @@ describe('registrarEmpresa / getEstadoCuenta (fase 2 multi-empresa)', () => {
 
     await sync.registrarEmpresa('nueva@empresa.com', 'contraseña123');
 
-    expect(mockRemote.lastSignUpRedirectTo).toBe('https://kmalumnos-remote.vercel.app/email-confirmado.html');
+    expect(mockRemote.lastSignUpRedirectTo).toBe('https://aulamovil.vercel.app/email-confirmado.html');
   });
 
   test('alta pendiente de confirmación por email: no queda logueada', async () => {
@@ -1325,7 +1406,7 @@ describe('solicitarResetPassword ("olvidé mi contraseña")', () => {
 
     expect(res.ok).toBe(true);
     expect(mockRemote.lastResetPasswordEmail).toBe('alumno@empresa.com');
-    expect(mockRemote.lastResetPasswordRedirectTo).toBe('https://kmalumnos-remote.vercel.app/reset-password.html');
+    expect(mockRemote.lastResetPasswordRedirectTo).toBe('https://aulamovil.vercel.app/reset-password.html');
   });
 
   test('no requiere sesión activa: funciona igual si no hay credenciales guardadas', async () => {

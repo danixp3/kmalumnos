@@ -119,9 +119,9 @@ function renderPracticasGlobalTabla() {
   actualizarIndicadoresOrdenPracticasGlobal();
 
   // Resumen: nº de prácticas mostradas + suma de km recorridos, sobre lo filtrado
-  document.getElementById('practicas-global-resumen-num').textContent = filtradas.length;
+  animarContador(document.getElementById('practicas-global-resumen-num'), filtradas.length, null, true);
   const kmTotales = filtradas.reduce((sum, p) => sum + p.km_recorridos, 0);
-  document.getElementById('practicas-global-resumen-km').textContent = fmt(Math.round(kmTotales * 10) / 10) + ' km';
+  animarContador(document.getElementById('practicas-global-resumen-km'), Math.round(kmTotales * 10) / 10, v => fmt(v) + ' km', true);
 
   if (!filtradas.length) {
     tbody.innerHTML = '<tr><td colspan="6" class="empty">No hay prácticas que coincidan con los filtros</td></tr>';

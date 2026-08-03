@@ -157,7 +157,7 @@ function restaurarBackup(srcFile) {
     const parsed = JSON.parse(raw);
     // Validación mínima
     if (!parsed.vehiculos || !parsed.alumnos || !parsed.practicas) {
-      return { ok: false, msg: 'El archivo no parece un backup válido de KM Alumnos.' };
+      return { ok: false, msg: 'El archivo no parece un backup válido de AulaMovil.' };
     }
     fs.writeFileSync(getDataPath(), JSON.stringify(parsed, null, 2), 'utf-8');
     _data = null; // limpiar caché para recargar

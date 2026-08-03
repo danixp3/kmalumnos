@@ -120,7 +120,7 @@ function renderTimelineChart(practicas) {
   }
 
   barsEl.innerHTML = '';
-  conKm.forEach(p => {
+  conKm.forEach((p, idx) => {
     const left  = ((p.km_inicial - kmMin) / rango) * 100;
     const width = Math.max(((p.km_final - p.km_inicial) / rango) * 100, 0.3);
     const color = colorMap[p.alumno_nombre];
@@ -141,6 +141,8 @@ function renderTimelineChart(practicas) {
       border:${isSolap ? '2px solid #dc2626' : '1.5px solid rgba(255,255,255,.3)'};
       box-sizing:border-box;
     `;
+    bar.className = 'tl-bar';
+    bar.style.animationDelay = (idx * 0.02) + 's';
 
     const diff = Math.round((p.km_final - p.km_inicial) * 10) / 10;
     const tooltipText = `${p.alumno_nombre}\n${fmtFecha(p.fecha)}\n${fmt(p.km_inicial)} → ${fmt(p.km_final)}\n+${diff} km${isSolap ? '\nSOLAPA ' + fmt(p.gap) + ' km' : ''}${isHueco ? '\nHueco +' + fmt(p.gap) + ' km' : ''}`;

@@ -45,7 +45,7 @@ export function checkEnvVars() {
 // CORS restringido a dominios conocidos
 export function setCorsHeaders(req, res) {
   const allowedOrigins = [
-    'https://kmalumnos-remote.vercel.app',
+    'https://aulamovil.vercel.app',
     'http://localhost:3000',
     'http://localhost:5173'
   ];

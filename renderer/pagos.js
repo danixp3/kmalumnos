@@ -17,8 +17,8 @@ async function loadDeudas() {
 
   // Las stat-cards se calculan siempre sobre el dataset completo, no el filtrado
   const conDeuda = deudasCache.filter(d => d.saldo > 0);
-  document.getElementById('deudas-resumen-num').textContent = conDeuda.length;
-  document.getElementById('deudas-resumen-total').textContent = fmt(conDeuda.reduce((sum, d) => sum + d.saldo, 0)) + ' €';
+  animarContador(document.getElementById('deudas-resumen-num'), conDeuda.length);
+  animarContador(document.getElementById('deudas-resumen-total'), conDeuda.reduce((sum, d) => sum + d.saldo, 0), v => fmt(v) + ' €');
 
   poblarFiltroPermisosDeudas();
   renderDeudasTabla();

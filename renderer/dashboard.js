@@ -5,9 +5,9 @@
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 async function loadDashboard() {
   const r = await window.api.getResumen(getSucursalActual());
-  document.getElementById('stat-vehiculos').textContent = r.vehiculos;
-  document.getElementById('stat-alumnos').textContent = r.alumnos;
-  document.getElementById('stat-practicas').textContent = r.practicas;
+  animarContador(document.getElementById('stat-vehiculos'), r.vehiculos);
+  animarContador(document.getElementById('stat-alumnos'), r.alumnos);
+  animarContador(document.getElementById('stat-practicas'), r.practicas);
 
   const pref = getDashboardPref();
   document.getElementById('stat-card-vehiculos').classList.toggle('hidden', !pref.vehiculos);
@@ -20,10 +20,10 @@ async function loadDashboard() {
 
   if (pref.practicasHoy || pref.kmMes || pref.totalAdeudado || pref.alumnosConDeuda) {
     const stats = await window.api.getStatsDashboard(undefined, getSucursalActual());
-    document.getElementById('stat-practicas-hoy').textContent = stats.practicasHoy;
-    document.getElementById('stat-km-mes').textContent = stats.kmMes + ' km';
-    document.getElementById('stat-total-adeudado').textContent = fmt(stats.totalAdeudado) + ' €';
-    document.getElementById('stat-alumnos-deuda').textContent = stats.alumnosConDeuda;
+    animarContador(document.getElementById('stat-practicas-hoy'), stats.practicasHoy);
+    animarContador(document.getElementById('stat-km-mes'), stats.kmMes, v => v + ' km');
+    animarContador(document.getElementById('stat-total-adeudado'), stats.totalAdeudado, v => fmt(v) + ' €');
+    animarContador(document.getElementById('stat-alumnos-deuda'), stats.alumnosConDeuda);
   }
 
   loadGraficos();

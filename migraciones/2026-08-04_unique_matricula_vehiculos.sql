@@ -1,0 +1,63 @@
+-- =====================================================================
+-- KMAlumnos — Migración: índice único parcial de matrícula en vehiculos
+-- Fecha: 2026-08-04
+-- Proyecto Supabase: dmwoqugdnwgkcqtixhyw
+--
+-- QUÉ RESUELVE:
+--   La sincronización empareja los vehículos por `id` (upsert con
+--   onConflict: 'id'). Al fusionar dos instalaciones con secuencias de id
+--   independientes, el mismo vehículo real (misma matrícula) se subió con
+--   dos ids distintos y quedó duplicado en Supabase: la app de escritorio
+--   no lo notaba (lee siempre data.json local), pero la web sí, porque lee
+--   directamente de la nube. Este índice hace que ese duplicado sea
+--   imposible a partir de ahora: dos filas ACTIVAS con la misma matrícula
+--   en la misma empresa violan la restricción y Postgres rechaza el
+--   segundo insert/update. sync.js, en paralelo (ver
+--   _reconciliarVehiculoPorMatricula en sync.js), ya evita crear ese
+--   segundo insert de forma proactiva; este índice es la red de seguridad
+--   del lado del servidor por si algún cliente (viejo, o un tercero
+--   hablando directo con la API) no pasa por esa reconciliación.
+--
+--   Parcial e idempotente a propósito:
+--     - Solo aplica cuando `deleted = false` y `matricula <> ''`: un
+--       vehículo dado de baja (soft delete) o sin matrícula todavía
+--       rellenada no cuenta para la restricción, igual que hoy no se
+--       comprueba nada en esos casos.
+--     - `CREATE UNIQUE INDEX IF NOT EXISTS` — reejecutar este script no
+--       falla si el índice ya existe.
+--
+--   MODO LEGADO (empresa_id NULL, migración de roles/sucursales del
+--   2026-08-01 no aplicada): el índice es sobre (empresa_id, matricula).
+--   En una comparación de igualdad SQL, dos valores NULL nunca se
+--   consideran iguales entre sí, así que con empresa_id NULL (como son
+--   HOY todos los vehículos, porque esa migración de roles no está
+--   aplicada) el índice NO restringe nada: cada fila con empresa_id NULL
+--   se trata como distinta de cualquier otra a efectos de esta
+--   restricción. Comportamiento idéntico al actual hasta que la migración
+--   de roles se aplique y las filas empiecen a llevar una empresa_id real.
+--
+-- ADVERTENCIA — LEER ANTES DE APLICAR EN PRODUCCIÓN:
+--   Antes de crear este índice, la tabla `vehiculos` NO puede tener ya
+--   dos filas activas con la misma (empresa_id, matricula), o el CREATE
+--   INDEX falla. Los duplicados que motivaron esta migración YA SE
+--   LIMPIARON A MANO en Supabase el 2026-08-04 (el Director de esta
+--   tarea los identificó y resolvió antes de escribir este archivo). Aun
+--   así, antes de ejecutar esto en producción, vuelve a comprobar con:
+--     SELECT empresa_id, matricula, count(*)
+--     FROM public.vehiculos
+--     WHERE deleted = false AND matricula <> ''
+--     GROUP BY empresa_id, matricula
+--     HAVING count(*) > 1;
+--   Si esa consulta devuelve alguna fila, hay que resolver esos
+--   duplicados (decidir cuál de los dos ids es el bueno, repuntar
+--   alumnos/prácticas del otro y darlo de baja) antes de aplicar este
+--   índice.
+--
+-- IMPORTANTE: esta migración NO se ha aplicado a producción. Es un
+-- archivo de texto en el repositorio, a la espera de revisión y de
+-- ejecución manual siguiendo migraciones/README.md.
+-- =====================================================================
+
+CREATE UNIQUE INDEX IF NOT EXISTS vehiculos_empresa_matricula_activa_uidx
+  ON public.vehiculos (empresa_id, matricula)
+  WHERE deleted = false AND matricula <> '';
