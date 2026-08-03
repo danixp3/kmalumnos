@@ -33,7 +33,14 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     document.querySelectorAll('#sidebar nav a').forEach(a => a.classList.remove('active'));
     link.classList.add('active');
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.getElementById('page-' + page).classList.add('active');
+    const pageEl = document.getElementById('page-' + page);
+    pageEl.classList.add('active');
+    // Marca temporal: las filas de las tablas entran en cascada SOLO al abrir la
+    // pantalla. Al filtrar/buscar la tabla se repinta con la página ya activa (sin
+    // esta clase), así que no re-animan y no marean.
+    pageEl.classList.add('entrando');
+    clearTimeout(pageEl._entrandoTimer);
+    pageEl._entrandoTimer = setTimeout(() => pageEl.classList.remove('entrando'), 1500);
     // El dashboard rellena sus tarjetas con una llamada IPC async: si el tutorial se
     // comprobara antes de que termine, se pintaría señalando tarjetas todavía a 0
     // (mismo fallo que en el arranque, ver arranque.js). Se espera a que cargue.

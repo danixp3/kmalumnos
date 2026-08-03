@@ -43,6 +43,54 @@ function fmt(num) {
   return new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(num);
 }
 
+// Anima un contador desde su valor actual hasta `valorFinal` con una curva suave.
+// `formato` (opcional) recibe el número entero de cada fotograma y devuelve el texto
+// a mostrar (p. ej. v => v + ' km' o v => fmt(v) + ' €'). Respeta "reducir movimiento"
+// y no re-anima si el valor no ha cambiado.
+function animarContador(el, valorFinal, formato, sinFlash) {
+  if (!el) return;
+  const fmtTxt = typeof formato === 'function' ? formato : (v => String(v));
+  valorFinal = Number(valorFinal) || 0;
+
+  // Valor de partida = número que ya se muestra (0 en el primer pintado).
+  const desde = parseFloat(String(el.textContent).replace(/[^\d.-]/g, '')) || 0;
+
+  // Cancela cualquier animación anterior sobre este mismo elemento.
+  if (el._contadorRAF) cancelAnimationFrame(el._contadorRAF);
+
+  // Destello cuando el valor cambia respecto a uno real anterior (no en el primer
+  // pintado desde 0), para que se note qué acaba de cambiar.
+  if (!sinFlash && desde !== 0 && desde !== valorFinal) {
+    el.classList.remove('valor-flash');
+    void el.offsetWidth;
+    el.classList.add('valor-flash');
+    setTimeout(() => el.classList.remove('valor-flash'), 800);
+  }
+
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || desde === valorFinal) {
+    el.textContent = fmtTxt(valorFinal);
+    return;
+  }
+
+  const duracion = 800;
+  const t0 = performance.now();
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+
+  const paso = (ahora) => {
+    const t = Math.min(1, (ahora - t0) / duracion);
+    const valor = Math.round(desde + (valorFinal - desde) * easeOut(t));
+    el.textContent = fmtTxt(valor);
+    if (t < 1) {
+      el._contadorRAF = requestAnimationFrame(paso);
+    } else {
+      el.textContent = fmtTxt(valorFinal);
+      el._contadorRAF = null;
+    }
+  };
+  el._contadorRAF = requestAnimationFrame(paso);
+}
+
 function fmtFecha(str) {
   if (!str) return '';
   const [y, m, d] = str.split('-');

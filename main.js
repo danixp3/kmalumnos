@@ -94,7 +94,7 @@ function createWindow() {
       nodeIntegration: false
     },
     icon: path.join(__dirname, 'icon.png'),
-    title: 'KM Alumnos - Autoescuela'
+    title: 'AulaMovil - Autoescuela'
   });
   mainWin.loadFile('index.html');
   mainWin.setMenuBarVisibility(false);
@@ -306,7 +306,7 @@ ipcMain.handle('crear-backup', () => db.crearBackup());
 
 ipcMain.handle('restaurar-backup', async () => {
   const result = await dialog.showOpenDialog({
-    title: 'Seleccionar backup de KM Alumnos',
+    title: 'Seleccionar backup de AulaMovil',
     filters: [{ name: 'JSON', extensions: ['json'] }],
     properties: ['openFile']
   });

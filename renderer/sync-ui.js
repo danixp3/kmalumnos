@@ -155,7 +155,7 @@ async function refrescarEstadoCuenta() {
 }
 
 // ─── GATE DE CUENTA OBLIGATORIA (mostrar/ocultar #app) ─────────────────────────
-// KM Alumnos es SaaS puro: mientras la cuenta no está conectada, modal-bienvenida
+// AulaMovil es SaaS puro: mientras la cuenta no está conectada, modal-bienvenida
 // y sus hijos (login/registro) deben quedar delante de un dashboard totalmente
 // oculto (no solo difuminado por .overlay) para no filtrar datos reales detrás
 // del modal. Único punto de entrada para tocar #app.gate-hidden — no hacerlo

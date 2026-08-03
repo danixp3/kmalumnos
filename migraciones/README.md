@@ -57,3 +57,38 @@ Ejecutar `2026-08-01_roles_y_sucursales_ROLLBACK.sql`. Deja las políticas de la
 - **El backfill de `perfiles` asume que cada usuario actual de `auth.users` debe quedar como jefe de una empresa cuyo `empresa_id` es su propio `id`.** Esto reproduce exactamente el modelo de hoy, así que es correcto para el estado actual (un usuario = una empresa), pero si en el futuro hay usuarios de Auth que no deberían tener perfil propio (por ejemplo, cuentas de servicio), este backfill les crearía uno igualmente. Con los datos actuales (una empresa, un dueño) no aplica, pero queda anotado.
 
 - **La restricción "nadie puede tocar los campos críticos de su propia fila" se implementa con un trigger (`proteger_campos_criticos_propios`), no con la política RLS.** RLS no permite comparar de forma fiable el valor viejo y el nuevo de una columna dentro de la misma expresión `USING`/`WITH CHECK` en un `UPDATE`, así que se usa un trigger `BEFORE UPDATE` que compara `OLD` contra `NEW` (`rol`, `empresa_id`, `sucursal_id`) y lanza una excepción si alguno difiere y quien edita es el propio dueño de la fila (`OLD.user_id = auth.uid()`). Un jefe editando la fila de OTRO usuario sí puede cambiarle esos tres campos con normalidad.
+
+# Migración: índice único de matrícula en vehículos
+
+Fecha: 2026-08-04. Archivos de esta carpeta:
+
+- `2026-08-04_unique_matricula_vehiculos.sql` — la migración.
+- `2026-08-04_unique_matricula_vehiculos_ROLLBACK.sql` — la red de seguridad.
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla.
+
+## Qué hace, en llano
+
+La sincronización empareja los vehículos por `id`, no por matrícula. Al fusionar dos instalaciones que habían numerado sus vehículos de forma independiente, el mismo coche real se subió con dos ids distintos y quedó duplicado en Supabase — la app de escritorio nunca lo notó (siempre lee su propio `data.json`), pero la web del móvil sí, porque lee directamente de la nube.
+
+Esta migración crea un índice único parcial en `vehiculos` sobre `(empresa_id, matricula)` que solo cuenta las filas activas (`deleted = false`) con matrícula rellenada (`matricula <> ''`). A partir de aplicarla, Postgres rechaza cualquier intento de dejar dos vehículos activos con la misma matrícula en la misma empresa. Es la red de seguridad del lado del servidor: sync.js ya evita crear el duplicado de forma proactiva (ver `_reconciliarVehiculoPorMatricula` en `sync.js`, que antes de subir un vehículo comprueba si la nube ya tiene esa matrícula con otro id y adopta ese id en vez de duplicar), pero el índice cubre también cualquier cliente que no pase por esa comprobación.
+
+En modo legado (sin la migración de roles/sucursales aplicada, `empresa_id` siempre `NULL`), el índice no restringe nada: dos `NULL` nunca se consideran iguales en SQL, así que el comportamiento es idéntico al actual hasta que haya una `empresa_id` real.
+
+## Pasos exactos para aplicarla
+
+1. **Comprobar que no hay ya duplicados activos** (los que motivaron esta migración se limpiaron a mano en Supabase el 2026-08-04, pero hay que reconfirmar antes de aplicar en producción, sobre todo si ha pasado tiempo):
+   ```sql
+   SELECT empresa_id, matricula, count(*)
+   FROM public.vehiculos
+   WHERE deleted = false AND matricula <> ''
+   GROUP BY empresa_id, matricula
+   HAVING count(*) > 1;
+   ```
+   Si devuelve filas, resolver esos duplicados (decidir qué id es el bueno, repuntar alumnos/prácticas del otro y darlo de baja) antes de seguir.
+2. Aplicar `2026-08-04_unique_matricula_vehiculos.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado).
+3. Verificar: la app de escritorio sigue sincronizando con normalidad; dar de alta dos vehículos con la misma matrícula en la misma empresa desde dos PCs distintos ya no debería poder dejar dos filas activas en Supabase.
+
+## Cómo revertir
+
+Ejecutar `2026-08-04_unique_matricula_vehiculos_ROLLBACK.sql` (`DROP INDEX IF EXISTS`). No borra ni modifica ninguna fila: el índice no almacena datos por sí mismo, así que revertirlo es seguro en cualquier momento.

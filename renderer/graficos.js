@@ -141,7 +141,7 @@ function renderGraficoBarras(opts) {
         const h = ejeMax > 0 ? (valor / ejeMax) * plotH : 0;
         const y = marginTop + plotH - h;
         const d = graficoPathBarra('vertical', x, y, barW, h, 4);
-        if (d) partes.push(`<path class="grafico-barra" data-idx="${i}" fill="${series[j].colorVar}" d="${d}"/>`);
+        if (d) partes.push(`<path class="grafico-barra grafico-barra-v" style="animation-delay:${(i * 0.05).toFixed(2)}s" data-idx="${i}" fill="${series[j].colorVar}" d="${d}"/>`);
       });
 
       // Etiqueta de categoría (mes) bajo el grupo
@@ -167,7 +167,7 @@ function renderGraficoBarras(opts) {
       const valor = c.valores[0];
       const w = ejeMax > 0 ? (valor / ejeMax) * plotW : 0;
       const d = graficoPathBarra('horizontal', marginLeft, y, w, barH, 4);
-      if (d) partes.push(`<path class="grafico-barra" data-idx="${i}" fill="${series[0].colorVar}" d="${d}"/>`);
+      if (d) partes.push(`<path class="grafico-barra grafico-barra-h" style="animation-delay:${(i * 0.05).toFixed(2)}s" data-idx="${i}" fill="${series[0].colorVar}" d="${d}"/>`);
 
       ejeSvg.push(`<text class="grafico-eje-texto" x="${marginLeft - 8}" y="${y + barH / 2 + 3}" text-anchor="end">${esc(graficoTruncar(c.etiqueta, 15))}</text>`);
       ejeSvg.push(`<text class="grafico-eje-texto" x="${marginLeft + w + 6}" y="${y + barH / 2 + 3}" text-anchor="start">${esc(formatoEje(valor))}</text>`);
