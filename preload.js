@@ -100,6 +100,8 @@ contextBridge.exposeInMainWorld('api', {
   registrarEmpresa:   (email, password)      => ipcRenderer.invoke('registrar-empresa', email, password),
   getEstadoCuenta:    ()                     => ipcRenderer.invoke('get-estado-cuenta'),
   clearSyncCreds:     ()                     => ipcRenderer.invoke('clear-sync-creds'),
+  solicitarResetPassword: (email)            => ipcRenderer.invoke('solicitar-reset-password', email),
+  resolverConflictoEmpresa: ()                => ipcRenderer.invoke('resolver-conflicto-empresa'),
 
   // Roles (jefe/empleado, fase 2 multi-empresa)
   getPerfilActual:    ()                          => ipcRenderer.invoke('get-perfil-actual'),

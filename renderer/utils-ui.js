@@ -11,6 +11,13 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 // Se exige que el clic EMPIECE y TERMINE en el fondo: si se pulsa dentro del
 // cuadro y se suelta fuera (al arrastrar o seleccionar texto), el evento click
 // se dispara sobre el overlay por ser el ancestro común, y no debe cerrar.
+// Excepción: 'modal-bienvenida' es el gate de cuenta obligatoria (ver
+// renderer/arranque.js) — sin cuenta conectada no tiene vía de escape, ni
+// siquiera haciendo click fuera. 'modal-conflicto-empresa' es igual de
+// bloqueante (renderer/sync-ui.js): solo se sale de él con uno de sus dos
+// botones. Los modales de login/registro que abre modal-bienvenida sí se
+// pueden cerrar, pero al hacerlo se reevalúa el gate y reaparece si sigue sin
+// cuenta conectada.
 document.querySelectorAll('.overlay').forEach(overlay => {
   let pulsadoEnElFondo = false;
 
@@ -19,8 +26,15 @@ document.querySelectorAll('.overlay').forEach(overlay => {
   });
 
   overlay.addEventListener('click', e => {
-    if (e.target === overlay && pulsadoEnElFondo) overlay.classList.remove('open');
+    const cierra = e.target === overlay && pulsadoEnElFondo;
     pulsadoEnElFondo = false;
+    if (!cierra) return;
+    if (overlay.id === 'modal-bienvenida' || overlay.id === 'modal-conflicto-empresa') return;
+    overlay.classList.remove('open');
+    if (overlay.id === 'modal-sync-creds' || overlay.id === 'modal-crear-empresa') {
+      detenerReintentoLogin();
+      comprobarBienvenida();
+    }
   });
 });
 
