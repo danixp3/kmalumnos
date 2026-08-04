@@ -168,3 +168,33 @@ Aplicar esta migración, por sí sola, no cambia nada visible: hoy ningún alumn
 ## Cómo revertir
 
 Ejecutar `2026-08-05_portal_alumno_ROLLBACK.sql`. Si para entonces ya hay alumnos con portal activo (token asignado de verdad), esos tokens se pierden y los enlaces ya repartidos dejan de funcionar — leer la advertencia dentro del propio archivo antes de ejecutarlo.
+
+# Migración: email de alumno
+
+Fecha: 2026-08-05. Archivos de esta carpeta:
+
+- `2026-08-05_alumno_email.sql` — la migración.
+- `2026-08-05_alumno_email_ROLLBACK.sql` — la red de seguridad.
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla. Es un prerequisito de `ROADMAP-SAAS.md` → Fase 0 · Bloque 2 (portal del alumno): antes de poder ofrecer un login por email + código al correo, cada alumno necesita tener un email guardado.
+
+## Qué hace, en llano
+
+Añade una columna `email` a `alumnos` (nullable, sin valor por defecto) y un índice para buscar por email en minúsculas. La app de escritorio ya sabe guardar y editar el email de cada alumno (campo "Email (para el portal del alumno)" en el alta y la edición), y desde antes de aplicar esta migración: en local ya se guarda en `data.json`. Lo único que falta hasta aplicar esta migración es que ese email también se suba a Supabase — `sync.js` detecta en tiempo de ejecución si la columna existe (mismo patrón que `_sucursalesDisponible`) y, mientras no exista, simplemente no lo incluye en la subida, sin errores ni sincronización rota.
+
+Esta migración NO añade ningún mecanismo de login todavía, solo el campo de datos.
+
+## Pasos exactos para aplicarla
+
+1. Copia de seguridad (mismo criterio que el resto de migraciones de esta carpeta): backup de `data.json` desde Ajustes y, si se quiere, un `SELECT * FROM alumnos` guardado.
+2. Aplicar `2026-08-05_alumno_email.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado). No depende de ninguna otra migración de esta carpeta.
+3. Verificar (paso siguiente).
+
+## Qué verificar después
+
+- `SELECT email FROM alumnos LIMIT 5;` → todo `NULL` salvo los alumnos a los que ya se les haya puesto email desde la app (esos se sincronizan al primer `sync()`/`pushAll()` tras aplicar la migración).
+- La app de escritorio sigue arrancando y sincronizando con normalidad; editar el email de un alumno y forzar sincronización (`Ajustes → Sincronizar ahora`) debe reflejarlo en `SELECT email FROM alumnos WHERE id = ...`.
+
+## Cómo revertir
+
+Ejecutar `2026-08-05_alumno_email_ROLLBACK.sql`. Si para entonces ya hay emails de alumnos guardados de verdad, esos datos se pierden — leer la advertencia dentro del propio archivo antes de ejecutarlo.

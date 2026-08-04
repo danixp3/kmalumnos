@@ -175,6 +175,7 @@ function setCredentials(email, password) {
   _empresaId = null;
   _perfilCache = null; // cambio de sesión: invalidar el perfil (rol/empresa) cacheado
   _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
+  _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
   _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
   // Entrada fresca de credenciales (login manual, registro, o logout): nunca
   // se da por buena hasta que un login real lo confirme. Distinto de
@@ -313,6 +314,7 @@ async function registrarEmpresa(email, password) {
       _authError = null;
       _perfilCache = null; // sesión nueva: invalidar el perfil (rol/empresa) cacheado
       _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
+      _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
       _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
       _authOk = true;
       _guardarAuthOk(true);
@@ -451,6 +453,26 @@ async function _sucursalesDisponible(sb) {
     _sucursalesDisponibleCache = false;
   }
   return _sucursalesDisponibleCache;
+}
+
+// Mismo patrón exacto que _sucursalesDisponible de arriba: mientras la
+// migración `migraciones/2026-08-05_alumno_email.sql` (portal del alumno,
+// Bloque 2 SaaS) no esté aplicada, la columna `alumnos.email` no existe en
+// Supabase y cualquier consulta a ella falla — se trata como "modo clásico",
+// nunca como un error real. Cacheado en memoria durante la sesión; se
+// invalida en los mismos puntos que _sucursalesDisponibleCache
+// (setCredentials/registrarEmpresa más arriba).
+let _alumnosEmailDisponibleCache = null;
+
+async function _alumnosEmailDisponible(sb) {
+  if (_alumnosEmailDisponibleCache !== null) return _alumnosEmailDisponibleCache;
+  try {
+    const { error } = await sb.from('alumnos').select('email').limit(1);
+    _alumnosEmailDisponibleCache = !error;
+  } catch {
+    _alumnosEmailDisponibleCache = false;
+  }
+  return _alumnosEmailDisponibleCache;
 }
 
 // ─── MÓDULOS CONTRATADOS (fase 0 SaaS, entitlements por empresa) ─────────────
@@ -978,6 +1000,11 @@ async function sync() {
     // `sucursales` ni se sube ni se baja — comportamiento idéntico al de
     // antes de esta funcionalidad, sin errores ni reintentos atascados.
     const sucursalesOn = await _sucursalesDisponible(sb);
+    // Email de alumno (Bloque 2 SaaS, portal del alumno — ver comentario junto
+    // a _alumnosEmailDisponible): mismo patrón que sucursalesOn, si la
+    // migración no está aplicada la columna `email` no se estampa en el
+    // payload de subida de alumnos, comportamiento idéntico al de antes.
+    const emailOn = await _alumnosEmailDisponible(sb);
     // Conflicto de empresa sin resolver (ver sección "PROPIETARIO DE LOS DATOS
     // LOCALES"): el login de ensureClient() acaba de revelar que data.json
     // pertenece a otra cuenta. No tocar nada — ni subir lo que hay en local
@@ -1096,6 +1123,7 @@ async function sync() {
           };
           if (_empresaId) payload.empresa_id = _empresaId;
           if (sucursalesOn) payload.sucursal_id = a.sucursal_id != null ? a.sucursal_id : null;
+          if (emailOn) payload.email = a.email ? a.email : null;
           await sb.from('alumnos').upsert(payload, { onConflict: 'id' });
         }
       }
@@ -1360,6 +1388,7 @@ async function sync() {
           id: ra.id, nombre: ra.nombre, permiso: ra.permiso, vehiculo_id: ra.vehiculo_id,
           profesor_id: ra.profesor_id != null ? ra.profesor_id : null,
           sucursal_id: ra.sucursal_id != null ? ra.sucursal_id : null,
+          email: ra.email != null ? ra.email : null,
           updated_at: ra.updated_at
         };
         if (idx !== -1) {
@@ -1370,7 +1399,7 @@ async function sync() {
 
           if (remoteUpdated > localUpdated) {
             _detectarYRegistrarConflicto(data, 'alumnos', pending.alumnos, ra.id,
-              ['nombre', 'permiso', 'vehiculo_id', 'profesor_id'],
+              ['nombre', 'permiso', 'vehiculo_id', 'profesor_id', 'email'],
               local, alumno, conflictos);
             data.alumnos[idx] = alumno;
             dataChanged = true;
@@ -1651,6 +1680,15 @@ async function pushAll() {
       if (!sucursalesOn) { const { sucursal_id, ...resto } = obj; return resto; }
       return { ...obj, sucursal_id: obj.sucursal_id != null ? obj.sucursal_id : null };
     };
+    // email (Bloque 2 SaaS, portal del alumno): mismo cuidado que sucursal_id
+    // — `...a` ya trae `email` porque el objeto local lo guarda desde ahora;
+    // si la migración no está aplicada hay que quitarlo del objeto o el
+    // upsert de alumnos falla entero (columna inexistente en el servidor).
+    const emailOn = await _alumnosEmailDisponible(sb);
+    const quitarEmail = obj => {
+      if (!emailOn) { const { email, ...resto } = obj; return resto; }
+      return { ...obj, email: obj.email ? obj.email : null };
+    };
 
     // Subir en orden: vehiculos → profesores → tarifas → alumnos → practicas → pagos
     if (data.vehiculos.length) {
@@ -1673,7 +1711,7 @@ async function pushAll() {
     }
     if (data.alumnos.length) {
       await sb.from('alumnos').upsert(
-        data.alumnos.map(a => quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now })),
+        data.alumnos.map(a => quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now }))),
         { onConflict: 'id' }
       );
     }

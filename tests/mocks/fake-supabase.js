@@ -5,6 +5,8 @@
 module.exports = function makeFakeSupabase(remote) {
   // remote = { online: boolean, tables: { practicas: [], alumnos: [], vehiculos: [], meta: [] },
   //   tablasInexistentes: ['perfiles'] (simula "modo clásico", migración no aplicada),
+  //   columnasInexistentes: { alumnos: ['email'] } (simula una columna nueva sin
+  //     migrar todavía, a diferencia de tablasInexistentes que simula la tabla entera),
   //   rpcHandlers: { buscar_uid_por_email: (params) => uid|null },
   //   rpcErrores: { nombreFuncion: 'mensaje' } }
 
@@ -16,6 +18,16 @@ module.exports = function makeFakeSupabase(remote) {
     // devuelve un error de relación inexistente ante cualquier operación.
     if ((remote.tablasInexistentes || []).includes(state.table)) {
       return { data: null, error: { message: `relation "public.${state.table}" does not exist`, code: '42P01' } };
+    }
+    // Simula un select('columna') sobre una columna que aún no existe (migración
+    // de esa columna concreta no aplicada): solo afecta a selects de esa columna,
+    // no a toda la tabla (a diferencia de tablasInexistentes).
+    if (state.op === 'select' && typeof state.cols === 'string') {
+      const colsPedidas = state.cols.split(',').map(c => c.trim());
+      const inexistentes = (remote.columnasInexistentes || {})[state.table] || [];
+      if (colsPedidas.some(c => inexistentes.includes(c))) {
+        return { data: null, error: { message: `column "public.${state.table}.${colsPedidas[0]}" does not exist`, code: '42703' } };
+      }
     }
     if (!remote.tables[state.table]) remote.tables[state.table] = [];
     const rows = remote.tables[state.table];
@@ -60,7 +72,7 @@ module.exports = function makeFakeSupabase(remote) {
   function builder(table) {
     const state = { table, op: 'select', filters: [], payload: null, order: null };
     const api = {
-      select() { state.op = 'select'; return api; },
+      select(cols) { state.op = 'select'; state.cols = cols; return api; },
       limit() { return api; },
       gt(col, val) { state.filters.push(r => String(r[col] ?? '') > val); return api; },
       eq(col, val) { state.filters.push(r => r[col] === val); return api; },

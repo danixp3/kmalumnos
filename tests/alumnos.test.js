@@ -44,6 +44,30 @@ test('updateAlumno conserva/cambia el profesor asignado', () => {
   expect(a.profesor_nombre).toBeNull();
 });
 
+test('addAlumno/updateAlumno guardan y devuelven el email (opcional)', () => {
+  const vid = db.addVehiculo('Coche 1', '', 0);
+
+  // addAlumno: con email
+  const aid = db.addAlumno('Ana', 'B', vid, null, null, ' ana@correo.com ');
+  let alumnos = db.getAlumnos();
+  expect(alumnos.find(a => a.id === aid).email).toBe('ana@correo.com'); // trim
+
+  // addAlumno: sin email (opcional, no revienta)
+  const aid2 = db.addAlumno('Luis', 'B', vid);
+  alumnos = db.getAlumnos();
+  expect(alumnos.find(a => a.id === aid2).email).toBeNull();
+
+  // updateAlumno: añade email a un alumno que no lo tenía
+  db.updateAlumno(aid2, 'Luis', 'B', vid, null, 'luis@correo.com');
+  alumnos = db.getAlumnos();
+  expect(alumnos.find(a => a.id === aid2).email).toBe('luis@correo.com');
+
+  // updateAlumno: quitar el email (vacío → null)
+  db.updateAlumno(aid, 'Ana', 'B', vid, null, '');
+  alumnos = db.getAlumnos();
+  expect(alumnos.find(a => a.id === aid).email).toBeNull();
+});
+
 test('borrar un profesor no borra ni desasigna a sus alumnos: conservan el profesor_id', () => {
   const vid = db.addVehiculo('Coche 1', '', 0);
   const pid = db.addProfesor('Juan', '');
