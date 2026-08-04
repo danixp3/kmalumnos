@@ -14,17 +14,16 @@
 <style>
   /*
    * Portal del alumno (Fase 0 · Bloque 2, ROADMAP-SAAS.md). Página nueva,
-   * autocontenida, que NO toca index.html. Mismo sistema de tokens/estilo
-   * que index.html (copiado a propósito para no depender de ese archivo).
+   * autocontenida, que NO toca index.html. Mismo sistema de estilos que
+   * index.html (copiado a propósito para no depender de ese archivo).
    *
-   * Formato de la URL: ?a=<alumno_id>&t=<portal_token>
-   * Ejemplo: https://aulamovil.vercel.app/alumno.html?a=12&t=8f3c...
-   * (Se eligió query string en vez de hash porque así el enlace se puede
-   * compartir/registrar en logs de servidor sin perder los parámetros —
-   * el token igualmente solo tiene sentido si coincide con el guardado en
-   * `alumnos.portal_token`, así que no hay problema añadido de seguridad
-   * por ir en la URL visible; es el mismo patrón que un enlace de
-   * restablecimiento de contraseña con token de un solo uso.)
+   * Login por email OTP de Supabase Auth (reemplaza al antiguo enfoque
+   * de "enlace inadivinable" con ?a=<id>&t=<token>, descartado — ver
+   * migraciones/2026-08-05_portal_alumno.sql). El alumno escribe su
+   * email, recibe un código de 6 dígitos por correo, lo introduce y
+   * entra: exactamente el mismo flujo que index.html usa para las
+   * cuentas de empresa, pero con signInWithOtp/verifyOtp en vez de
+   * signInWithPassword.
    */
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -73,6 +72,38 @@
   }
   @keyframes slideUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+
+  input[type="email"], input[type="text"] {
+    width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--border);
+    font-size: 15px; font-family: inherit; color: var(--text); background: #fff;
+  }
+  input[type="email"]:focus, input[type="text"]:focus { outline: none; border-color: var(--primary); }
+
+  input.codigo-input {
+    letter-spacing: 6px; text-align: center; font-size: 22px; font-weight: 700;
+  }
+
+  .campo { margin-bottom: 16px; }
+
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+  .checkbox-row input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--primary); }
+  .checkbox-row label { margin-bottom: 0; font-weight: 500; color: var(--text); font-size: 13.5px; }
+
+  .btn {
+    width: 100%; padding: 13px 16px; border-radius: 12px; border: none; font-size: 15px;
+    font-weight: 700; font-family: inherit; cursor: pointer; background: var(--primary); color: #fff;
+    transition: background .15s ease;
+  }
+  .btn:hover:not(:disabled) { background: var(--primary-dark); }
+  .btn:disabled { opacity: .6; cursor: default; }
+
+  .btn-link {
+    width: 100%; padding: 10px; border: none; background: none; color: var(--primary);
+    font-size: 13.5px; font-weight: 600; font-family: inherit; cursor: pointer; margin-top: 6px;
+  }
+  .btn-link:disabled { opacity: .5; cursor: default; }
+
   .alumno-nombre { font-size: 18px; font-weight: 800; }
   .tag {
     display: inline-block; padding: 3px 10px; border-radius: 7px; font-size: 12px; font-weight: 700;
@@ -102,6 +133,15 @@
   .loading-dots span:nth-child(3) { animation-delay: .2s; }
   @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
 
+  .msg-error {
+    background: var(--danger-light); border: 1.5px solid #fecaca; border-radius: 12px;
+    padding: 10px 14px; font-size: 13px; color: #b91c1c; margin-bottom: 14px; font-weight: 500;
+  }
+  .msg-ok {
+    background: var(--success-light); border: 1.5px solid #a7f3d0; border-radius: 12px;
+    padding: 10px 14px; font-size: 13px; color: #047857; margin-bottom: 14px; font-weight: 500;
+  }
+
   .estado-error {
     background: var(--danger-light); border: 1.5px solid #fecaca; border-radius: var(--radius);
     padding: 26px 22px; text-align: center; animation: popIn .35s cubic-bezier(.17,.67,.35,1.5);
@@ -109,6 +149,12 @@
   @keyframes popIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
   .estado-error .titulo { font-size: 16px; font-weight: 700; color: #dc2626; margin-bottom: 6px; }
   .estado-error .msg { font-size: 13.5px; color: var(--text-muted); line-height: 1.5; }
+
+  .btn-cerrar-sesion {
+    width: 100%; padding: 11px; border-radius: 12px; border: 1.5px solid var(--border);
+    background: #fff; color: var(--text-muted); font-size: 13.5px; font-weight: 600;
+    font-family: inherit; cursor: pointer; margin-top: 8px;
+  }
 
   .hidden { display: none !important; }
 
@@ -128,51 +174,236 @@
     <p class="subtitle">AulaMovil · Portal del alumno</p>
   </div>
 
-  <div id="estado-carga" class="estado-carga">
+  <!-- Comprobación inicial de sesión guardada (localStorage de una visita anterior con "recordar" activado). -->
+  <div id="estado-carga-inicial" class="estado-carga">
+    <div class="loading-dots"><span>●</span><span>●</span><span>●</span></div>
+    <p style="margin-top:10px;font-size:13.5px">Comprobando tu sesión…</p>
+  </div>
+
+  <!-- PASO 1: identificarse con el email -->
+  <div id="paso-email" class="card hidden">
+    <div id="paso-email-msg"></div>
+    <div class="campo">
+      <label for="input-email">Tu email</label>
+      <input type="email" id="input-email" placeholder="tu-email@ejemplo.com" autocomplete="email">
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="input-recordar" checked>
+      <label for="input-recordar">Recordar sesión en este dispositivo</label>
+    </div>
+    <button class="btn" id="btn-enviar-codigo" onclick="solicitarCodigo()">Enviar código</button>
+  </div>
+
+  <!-- PASO 2: introducir el código recibido por email -->
+  <div id="paso-codigo" class="card hidden">
+    <div id="paso-codigo-msg"></div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+      Te hemos enviado un código de 6 dígitos a <strong id="paso-codigo-email"></strong>.
+    </p>
+    <div class="campo">
+      <label for="input-codigo">Código</label>
+      <input type="text" id="input-codigo" class="codigo-input" inputmode="numeric" maxlength="6" pattern="[0-9]*" placeholder="000000">
+    </div>
+    <button class="btn" id="btn-verificar-codigo" onclick="verificarCodigo()">Entrar</button>
+    <button class="btn-link" id="btn-reenviar-codigo" onclick="solicitarCodigo()">Reenviar código</button>
+    <button class="btn-link" onclick="volverAPasoEmail()">‹ Volver, me equivoqué de email</button>
+  </div>
+
+  <!-- Carga de datos tras verificar el código o al recuperar sesión guardada -->
+  <div id="estado-carga-datos" class="estado-carga hidden">
     <div class="loading-dots"><span>●</span><span>●</span><span>●</span></div>
     <p style="margin-top:10px;font-size:13.5px">Cargando tus prácticas…</p>
   </div>
 
-  <div id="estado-error" class="estado-error hidden">
-    <div class="titulo">Enlace no válido</div>
-    <div class="msg" id="estado-error-msg">Este enlace no es válido o ha caducado.</div>
+  <div id="estado-error-datos" class="estado-error hidden">
+    <div class="titulo">No se han podido cargar tus datos</div>
+    <div class="msg" id="estado-error-datos-msg"></div>
   </div>
 
-  <div id="contenido" class="hidden">
+  <!-- PASO 3: mis prácticas -->
+  <div id="paso-datos" class="hidden">
     <div class="card">
       <div class="alumno-nombre" id="alumno-nombre"></div>
       <span class="total-badge" id="alumno-total"></span>
     </div>
     <div id="lista-practicas"></div>
+    <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesión</button>
   </div>
 </div>
 
-<script>
-  // Solo lectura: esta página no envía ningún dato, solo consulta.
+<script type="module">
+  // Solo lectura salvo el propio login: esta página no envía ningún
+  // dato de prácticas, solo consulta.
   function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text == null ? '' : String(text);
     return div.innerHTML;
   }
 
-  function leerParametros() {
-    const params = new URLSearchParams(window.location.search);
-    const alumnoId = params.get('a');
-    const token = params.get('t');
-    return { alumnoId, token };
+  const SUPABASE_URL = 'https://dmwoqugdnwgkcqtixhyw.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtd29xdWdkbndna2NxdGl4aHl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjA5NjYsImV4cCI6MjA5OTU5Njk2Nn0.8XhWdS0ohrCbZcKpHWKsJz22rY8ASA4IkgpbtE_pHkc';
+
+  const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+
+  // "Recordar sesión" — cómo funciona:
+  // supabase-js persiste la sesión en localStorage por defecto. Cuando el
+  // usuario NO marca "recordar", queremos sessionStorage en su lugar (se
+  // pierde al cerrar la pestaña/navegador). El cliente de supabase-js se
+  // configura UNA vez al crearlo, así que hace falta saber la elección del
+  // checkbox ANTES de crear el cliente "de verdad" — pero esa elección solo
+  // se conoce cuando el usuario pulsa "Enviar código" en el paso 1.
+  //
+  // Por eso el arranque va en DOS TIEMPOS:
+  //   1. Al cargar la página, se crea un cliente TEMPORAL con el storage
+  //      por defecto (localStorage) solo para mirar si ya hay una sesión
+  //      guardada de una visita anterior con "recordar" activado
+  //      (getSession()). Si la hay, esa sesión es válida y se usa tal
+  //      cual — vamos directos al paso 3.
+  //   2. Si no hay sesión guardada, NO se crea el cliente definitivo
+  //      todavía: se espera a que el usuario complete el paso 1 y elija
+  //      el checkbox, y entonces sí se crea el cliente "de verdad" con el
+  //      storage correspondiente (localStorage si recuerda, sessionStorage
+  //      si no).
+  let supabaseClient = null;
+  let emailActual = '';
+
+  function crearClienteDefinitivo(recordar) {
+    if (recordar) {
+      // Comportamiento por defecto de supabase-js: no pasar `storage`
+      // implica localStorage.
+      return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true }
+    });
   }
 
-  function mostrarError(msg) {
-    document.getElementById('estado-carga').classList.add('hidden');
-    document.getElementById('contenido').classList.add('hidden');
-    document.getElementById('estado-error-msg').textContent = msg;
-    document.getElementById('estado-error').classList.remove('hidden');
+  function mostrarPaso(paso) {
+    ['estado-carga-inicial', 'paso-email', 'paso-codigo', 'estado-carga-datos', 'estado-error-datos', 'paso-datos']
+      .forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById(paso).classList.remove('hidden');
   }
 
-  function mostrarContenido(data) {
-    document.getElementById('estado-carga').classList.add('hidden');
-    document.getElementById('estado-error').classList.add('hidden');
-    document.getElementById('contenido').classList.remove('hidden');
+  function mostrarMensaje(contenedorId, texto, tipo) {
+    const el = document.getElementById(contenedorId);
+    if (!texto) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="${tipo === 'error' ? 'msg-error' : 'msg-ok'}">${escapeHtml(texto)}</div>`;
+  }
+
+  function volverAPasoEmail() {
+    mostrarMensaje('paso-codigo-msg', '');
+    document.getElementById('input-codigo').value = '';
+    mostrarPaso('paso-email');
+  }
+  window.volverAPasoEmail = volverAPasoEmail;
+
+  async function solicitarCodigo() {
+    // Este botón se usa tanto en el paso 1 ("Enviar código") como en el
+    // paso 2 ("Reenviar código"): en el paso 1 lee el email del input y
+    // crea el cliente definitivo; en el paso 2 reutiliza emailActual.
+    const enPasoEmail = !document.getElementById('paso-email').classList.contains('hidden');
+    let email;
+
+    if (enPasoEmail) {
+      email = document.getElementById('input-email').value.trim();
+      if (!email) {
+        mostrarMensaje('paso-email-msg', 'Escribe tu email.', 'error');
+        return;
+      }
+      const recordar = document.getElementById('input-recordar').checked;
+      // Punto exacto en el que ya conocemos la elección del checkbox:
+      // aquí se crea el cliente definitivo (ver comentario de arriba).
+      supabaseClient = crearClienteDefinitivo(recordar);
+      emailActual = email;
+    } else {
+      email = emailActual;
+    }
+
+    const btnId = enPasoEmail ? 'btn-enviar-codigo' : 'btn-reenviar-codigo';
+    const msgId = enPasoEmail ? 'paso-email-msg' : 'paso-codigo-msg';
+    const btn = document.getElementById(btnId);
+    btn.disabled = true;
+    const textoOriginal = btn.textContent;
+    btn.textContent = 'Enviando…';
+    mostrarMensaje(msgId, '');
+
+    try {
+      const res = await fetch('/api/alumno-solicitar-codigo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 503) {
+        mostrarMensaje(msgId, 'El portal aún no está disponible. Inténtalo más tarde.', 'error');
+        return;
+      }
+      if (!res.ok || !data.ok) {
+        mostrarMensaje(msgId, data.error || 'No se ha podido enviar el código.', 'error');
+        return;
+      }
+
+      if (enPasoEmail) {
+        document.getElementById('paso-codigo-email').textContent = emailActual;
+        document.getElementById('input-codigo').value = '';
+        mostrarMensaje('paso-codigo-msg', data.msg, 'ok');
+        mostrarPaso('paso-codigo');
+      } else {
+        mostrarMensaje('paso-codigo-msg', data.msg, 'ok');
+      }
+    } catch (e) {
+      mostrarMensaje(msgId, 'No se ha podido conectar. Comprueba tu conexión e inténtalo de nuevo.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = textoOriginal;
+    }
+  }
+  window.solicitarCodigo = solicitarCodigo;
+
+  async function verificarCodigo() {
+    const codigo = document.getElementById('input-codigo').value.trim();
+    if (!codigo) {
+      mostrarMensaje('paso-codigo-msg', 'Escribe el código que te hemos enviado.', 'error');
+      return;
+    }
+    if (!supabaseClient) {
+      // No debería pasar (el cliente se crea al enviar el código), pero
+      // por si el usuario llegó aquí sin pasar por el paso 1.
+      mostrarMensaje('paso-codigo-msg', 'Vuelve a introducir tu email.', 'error');
+      volverAPasoEmail();
+      return;
+    }
+
+    const btn = document.getElementById('btn-verificar-codigo');
+    btn.disabled = true;
+    const textoOriginal = btn.textContent;
+    btn.textContent = 'Comprobando…';
+    mostrarMensaje('paso-codigo-msg', '');
+
+    try {
+      const { error } = await supabaseClient.auth.verifyOtp({ email: emailActual, token: codigo, type: 'email' });
+      if (error) {
+        mostrarMensaje('paso-codigo-msg', 'Código incorrecto o caducado.', 'error');
+        return;
+      }
+      await cargarDatos();
+    } catch (e) {
+      mostrarMensaje('paso-codigo-msg', 'No se ha podido conectar. Comprueba tu conexión e inténtalo de nuevo.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = textoOriginal;
+    }
+  }
+  window.verificarCodigo = verificarCodigo;
+
+  function mostrarErrorDatos(msg) {
+    mostrarPaso('estado-error-datos');
+    document.getElementById('estado-error-datos-msg').textContent = msg;
+  }
+
+  function mostrarDatos(data) {
+    mostrarPaso('paso-datos');
 
     document.getElementById('alumno-nombre').innerHTML =
       escapeHtml(data.alumno.nombre) + (data.alumno.permiso ? `<span class="tag">${escapeHtml(data.alumno.permiso)}</span>` : '');
@@ -202,35 +433,79 @@
     }).join('');
   }
 
-  async function cargarPortal() {
-    const { alumnoId, token } = leerParametros();
-    if (!alumnoId || !token) {
-      mostrarError('Falta el enlace completo. Pide a tu autoescuela que te lo reenvíe.');
-      return;
-    }
+  async function cargarDatos() {
+    mostrarPaso('estado-carga-datos');
 
     try {
-      const res = await fetch('/api/alumno-portal?alumno_id=' + encodeURIComponent(alumnoId) + '&token=' + encodeURIComponent(token));
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        mostrarErrorDatos('Tu sesión no es válida. Vuelve a iniciar sesión.');
+        return;
+      }
+
+      const res = await fetch('/api/alumno-mis-datos', {
+        headers: { Authorization: 'Bearer ' + session.access_token }
+      });
       const data = await res.json().catch(() => ({}));
 
       if (res.status === 503) {
-        mostrarError('El portal del alumno todavía no está disponible. Inténtalo más tarde.');
+        mostrarErrorDatos('El portal aún no está disponible. Inténtalo más tarde.');
+        return;
+      }
+      if (res.status === 401) {
+        mostrarErrorDatos('Tu sesión ha caducado. Vuelve a iniciar sesión.');
         return;
       }
       if (!res.ok || !data.ok) {
-        mostrarError(data.error === 'Acceso no válido'
-          ? 'Este enlace no es válido o ha caducado.'
-          : (data.error || 'No se han podido cargar tus prácticas.'));
+        mostrarErrorDatos(data.error || 'No se han podido cargar tus prácticas.');
         return;
       }
 
-      mostrarContenido(data);
+      mostrarDatos(data);
     } catch (e) {
-      mostrarError('No se ha podido conectar. Comprueba tu conexión e inténtalo de nuevo.');
+      mostrarErrorDatos('No se ha podido conectar. Comprueba tu conexión e inténtalo de nuevo.');
     }
   }
+  window.cargarDatos = cargarDatos;
 
-  cargarPortal();
+  async function cerrarSesion() {
+    if (supabaseClient) {
+      try { await supabaseClient.auth.signOut(); } catch (e) { /* seguimos igual */ }
+    }
+    supabaseClient = null;
+    emailActual = '';
+    document.getElementById('input-email').value = '';
+    document.getElementById('input-codigo').value = '';
+    document.getElementById('input-recordar').checked = true;
+    mostrarMensaje('paso-email-msg', '');
+    mostrarMensaje('paso-codigo-msg', '');
+    mostrarPaso('paso-email');
+  }
+  window.cerrarSesion = cerrarSesion;
+
+  async function arrancar() {
+    // Primer tiempo del arranque en dos tiempos (ver comentario de arriba
+    // de "Recordar sesión"): cliente temporal con storage por defecto
+    // (localStorage), solo para mirar si ya hay sesión guardada de una
+    // visita anterior con "recordar" activado.
+    try {
+      const clienteTemporal = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data: { session } } = await clienteTemporal.auth.getSession();
+      if (session) {
+        supabaseClient = clienteTemporal;
+        emailActual = session.user && session.user.email ? session.user.email : '';
+        await cargarDatos();
+        return;
+      }
+    } catch (e) {
+      // Si algo falla comprobando la sesión guardada, seguimos igual al
+      // paso 1: no es un error bloqueante, el usuario puede iniciar sesión
+      // de nuevo.
+    }
+    mostrarPaso('paso-email');
+  }
+
+  arrancar();
 </script>
 </body>
 </html>
