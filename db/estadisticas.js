@@ -214,6 +214,93 @@ function getTimelineVehiculo(vehiculo_id) {
   });
 }
 
+// ─── SEMÁFORO DE EXAMEN ───────────────────────────────────────────────────
+// Heurística v1, determinista y explicable (sin IA externa): a partir del
+// historial de prácticas de cada alumno, estima si está listo para el examen
+// práctico. Umbrales ajustables — heurística v1, ajustable.
+const SEMAFORO_MIN_PRACTICAS_VERDE = 20;
+const SEMAFORO_MAX_DIAS_SIN_PRACTICA_VERDE = 21;
+const SEMAFORO_MIN_PRACTICAS_AMBAR = 10; // por debajo de esto, directo a rojo
+
+// Calcula el nivel/motivo de un alumno a partir de sus prácticas no
+// borradas. Recibe el array ya filtrado (evita recalcular filtros por
+// alumno cuando se procesan todos a la vez).
+function _calcularSemaforo(practicasAlumno) {
+  const nPracticas = practicasAlumno.length;
+  const kmTotalesRaw = practicasAlumno
+    .filter(p => p.km_inicial > 0 && p.km_final > 0)
+    .reduce((sum, p) => sum + (p.km_final - p.km_inicial), 0);
+  const kmTotales = Math.round(kmTotalesRaw * 10) / 10;
+
+  let diasDesdeUltima = null;
+  const ultimaFecha = practicasAlumno.reduce((max, p) => (p.fecha && (!max || p.fecha > max)) ? p.fecha : max, null);
+  if (ultimaFecha) {
+    const [y, m, dd] = ultimaFecha.split('-').map(Number);
+    const msPorDia = 24 * 60 * 60 * 1000;
+    const hoy = new Date();
+    const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const ultimaUTC = Date.UTC(y, m - 1, dd);
+    diasDesdeUltima = Math.round((hoyUTC - ultimaUTC) / msPorDia);
+  }
+
+  let nivel, motivo;
+  if (nPracticas === 0) {
+    nivel = 'rojo';
+    motivo = 'sin prácticas';
+  } else if (nPracticas < SEMAFORO_MIN_PRACTICAS_AMBAR) {
+    nivel = 'rojo';
+    motivo = `${nPracticas} prácticas — faltan clases`;
+  } else if (nPracticas >= SEMAFORO_MIN_PRACTICAS_VERDE && diasDesdeUltima !== null && diasDesdeUltima <= SEMAFORO_MAX_DIAS_SIN_PRACTICA_VERDE) {
+    nivel = 'verde';
+    motivo = `${nPracticas} prácticas, al día`;
+  } else if (nPracticas >= SEMAFORO_MIN_PRACTICAS_VERDE) {
+    nivel = 'ambar';
+    motivo = `${nPracticas} prácticas, última hace ${diasDesdeUltima} días — repasar`;
+  } else {
+    nivel = 'ambar';
+    motivo = `${nPracticas} prácticas — casi listo`;
+  }
+
+  return { nivel, motivo, nPracticas, kmTotales, diasDesdeUltima };
+}
+
+/**
+ * Semáforo de examen de TODOS los alumnos no borrados (v1: heurística
+ * determinista, sin IA). Solo lectura, no marca sync. Evita N+1: una sola
+ * pasada por las prácticas, agrupadas por alumno.
+ */
+function getSemaforoExamen() {
+  const d = load();
+  const alumnos = d.alumnos.filter(a => !a.deleted);
+  const practicasPorAlumno = new Map();
+  for (const p of d.practicas) {
+    if (p.deleted) continue;
+    if (!practicasPorAlumno.has(p.alumno_id)) practicasPorAlumno.set(p.alumno_id, []);
+    practicasPorAlumno.get(p.alumno_id).push(p);
+  }
+
+  return alumnos.map(a => {
+    const propias = practicasPorAlumno.get(a.id) || [];
+    const { nivel, motivo, nPracticas, kmTotales, diasDesdeUltima } = _calcularSemaforo(propias);
+    return { alumno_id: a.id, nombre: a.nombre, nivel, motivo, nPracticas, kmTotales, diasDesdeUltima };
+  });
+}
+
+/**
+ * Semáforo de examen de un solo alumno. Devuelve null si el alumno no
+ * existe o está borrado.
+ */
+function getSemaforoAlumno(alumno_id) {
+  const d = load();
+  const aid = parseInt(alumno_id);
+  const a = d.alumnos.find(x => x.id === aid && !x.deleted);
+  if (!a) return null;
+  const propias = d.practicas.filter(p => p.alumno_id === aid && !p.deleted);
+  const { nivel, motivo, nPracticas, kmTotales, diasDesdeUltima } = _calcularSemaforo(propias);
+  return { alumno_id: a.id, nombre: a.nombre, nivel, motivo, nPracticas, kmTotales, diasDesdeUltima };
+}
+
 module.exports = {
   getResumen, getStatsDashboard, getStatsProfesores, getDatosGraficos, getTimelineVehiculo,
+  getSemaforoExamen, getSemaforoAlumno,
 };

@@ -258,6 +258,19 @@
         <div id="dash-agenda-proximas"></div>
       </div>
 
+      <!-- Semáforo de examen: mini-resumen listos/casi/lejos (renderer/dashboard.js) -->
+      <div class="card hidden" id="dash-semaforo-card" style="margin-bottom:20px">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:var(--success-bg-selected);color:var(--success-fg-soft)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+          Semáforo de examen
+        </div>
+        <div id="dash-semaforo-resumen" style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:14px">
+          <span><span class="semaforo-pill semaforo-verde">Listos</span> <strong id="dash-semaforo-verde">0</strong></span>
+          <span><span class="semaforo-pill semaforo-ambar">Casi</span> <strong id="dash-semaforo-ambar">0</strong></span>
+          <span><span class="semaforo-pill semaforo-rojo">Lejos</span> <strong id="dash-semaforo-rojo">0</strong></span>
+        </div>
+      </div>
+
       <!-- Gráficos configurables (renderer/graficos.js, activados desde Ajustes) -->
       <div class="graficos-grid" id="graficos-dashboard">
         <div class="card grafico-card hidden" id="grafico-card-km-mes">
@@ -691,10 +704,17 @@
               <th class="sortable" data-sort="vehiculo" onclick="ordenarAlumnos('vehiculo')">Vehículo<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="profesor" onclick="ordenarAlumnos('profesor')">Profesor<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="practicas" onclick="ordenarAlumnos('practicas')">Prácticas<span class="sort-ind"></span></th>
+              <th title="Semáforo de examen: estimación automática a partir del historial de prácticas — verde listo, ámbar casi, rojo lejos">Examen</th>
               <th>Acciones</th>
             </tr></thead>
             <tbody></tbody>
           </table>
+        </div>
+        <div class="semaforo-leyenda">
+          <span class="semaforo-pill semaforo-verde">Listo</span>
+          <span class="semaforo-pill semaforo-ambar">Casi</span>
+          <span class="semaforo-pill semaforo-rojo">Lejos</span>
+          <span class="semaforo-leyenda-texto">Semáforo de examen: estimación automática a partir del nº de prácticas y la fecha de la más reciente. Pasa el ratón sobre la pastilla para ver el detalle.</span>
         </div>
       </div>
 

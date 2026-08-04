@@ -59,6 +59,8 @@ contextBridge.exposeInMainWorld('api', {
   getStatsDashboard: (hoy, sucursalId)       => ipcRenderer.invoke('get-stats-dashboard', hoy, sucursalId),
   getStatsProfesores: (desde, hasta)         => ipcRenderer.invoke('get-stats-profesores', desde, hasta),
   getDatosGraficos:    (meses, sucursalId)   => ipcRenderer.invoke('get-datos-graficos', meses, sucursalId),
+  getSemaforoExamen:   ()                        => ipcRenderer.invoke('get-semaforo-examen'),
+  getSemaforoAlumno:   (alumnoId)                => ipcRenderer.invoke('get-semaforo-alumno', alumnoId),
   getSolapamientos:    ()                        => ipcRenderer.invoke('get-solapamientos'),
   rellenarKmMasivo:    (vid, min, max, inicio, final) => ipcRenderer.invoke('rellenar-km-masivo', vid, min, max, inicio, final),
   getPracticasSinKm:   (vid)                     => ipcRenderer.invoke('get-practicas-sin-km', vid),

@@ -1109,6 +1109,30 @@
   .badge-reserva-realizada  { background: var(--info-bg); color: var(--info-fg); }
   .badge-reserva-cancelada  { background: var(--danger-light); color: var(--danger-fg); }
 
+  /* Semáforo de examen (ver db/estadisticas.js:getSemaforoExamen, renderer/alumnos.js) */
+  .semaforo-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: default;
+  }
+  .semaforo-verde { background: var(--success-light); color: var(--success-fg); }
+  .semaforo-ambar { background: var(--warn-light); color: var(--warn-fg); }
+  .semaforo-rojo  { background: var(--danger-light); color: var(--danger-fg); }
+  .semaforo-leyenda {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .semaforo-leyenda-texto { color: var(--text-muted); }
+
   /* ── REGISTRO RÁPIDO ITEMS ──────────────────── */
   .rr-item {
     display: flex;

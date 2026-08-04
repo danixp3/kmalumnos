@@ -27,7 +27,7 @@ AulaMovil pasa de "app de una autoescuela" a **SaaS modular para autoescuelas es
 | Facturación VeriFactu | 0 | Vía API certificada de terceros como "colaborador social" (cliente sin certificado propio); no construir desde cero. Candidatos: VerifactuAPI.es, Facturware. Obligación fabricante desde jul-2025, clientes 2027 |
 | Conexión DGT (AUES) | 0* | *Viable vía Web Service oficial (requiere certificado @firma + alta en `soportecau@dgt.es` + homologación). Ver `INVESTIGACION-AUES-VERIFACTU.md`. Módulo contratable con onboarding asistido |
 | Telemetría GPS + consumo por vehículo | 1 | Apalanca la fortaleza en km |
-| Semáforo de examen (predicción de aptitud con IA) | 1 | Diferenciador único en España |
+| Semáforo de examen (predicción de aptitud) | 1 | **v1 heurística HECHA (2026-08-05):** verde/ámbar/rojo por nº prácticas + km + recencia, en lista de alumnos y dashboard (`db/estadisticas.js:getSemaforoExamen`). Diferenciador único en España. Futuro: sustituir heurística por modelo |
 | Relleno automático de cancelaciones | 1 | Recupera ingresos perdidos |
 | Comunicaciones automáticas (WhatsApp/SMS/email) | 1 | Recordatorios, cobros, caducidades |
 | Migración 1-clic desde competidores | 2 | Gancho de captación |

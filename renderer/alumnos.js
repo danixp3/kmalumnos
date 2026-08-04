@@ -23,6 +23,14 @@ async function loadAlumnos() {
     const practicas = await window.api.getPracticas(a.id);
     return { ...a, num_practicas: practicas.length };
   }));
+  // Semáforo de examen: una sola llamada para todos los alumnos (evita N+1),
+  // cruzado por alumno_id en un Map para pintar la pastilla de cada fila.
+  try {
+    const semaforo = await window.api.getSemaforoExamen();
+    semaforoCache = new Map(semaforo.map(s => [s.alumno_id, s]));
+  } catch (e) {
+    semaforoCache = new Map();
+  }
   poblarFiltrosAlumnos();
   renderAlumnosTabla();
 }
@@ -163,22 +171,28 @@ function renderAlumnosTabla() {
   actualizarIndicadoresOrdenAlumnos();
 
   if (!alumnosCache.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">No hay alumnos registrados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay alumnos registrados</td></tr>';
     return;
   }
   if (!filtrados.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">Ningún alumno coincide con los filtros</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Ningún alumno coincide con los filtros</td></tr>';
     return;
   }
 
   tbody.innerHTML = filtrados.map(a => {
     const tag = tagPermiso(a.permiso);
+    const sem = semaforoCache.get(a.id);
+    const semTexto = { verde: 'Listo', ambar: 'Casi', rojo: 'Lejos' };
+    const pillSemaforo = sem
+      ? `<span class="semaforo-pill semaforo-${sem.nivel}" title="${esc(sem.motivo)}">${semTexto[sem.nivel] || sem.nivel}</span>`
+      : '<span style="color:var(--placeholder)">—</span>';
     return `<tr>
       <td><strong>${esc(a.nombre)}</strong></td>
       <td>${tag}</td>
       <td>${a.vehiculo_nombre ? esc(a.vehiculo_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
       <td>${a.profesor_nombre ? esc(a.profesor_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
       <td><span style="font-weight:700">${a.num_practicas}</span></td>
+      <td>${pillSemaforo}</td>
       <td>
         <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Prácticas</button>
         <button class="btn btn-sm" style="background:var(--warn-bg);color:var(--warn-fg);border:1px solid var(--warn-border)" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Anotaciones</button>
