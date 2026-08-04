@@ -121,7 +121,14 @@ COMMENT ON FUNCTION public.empresa_tiene_portal(uuid) IS
   '(modo clásico, no bloquea). Solo devuelve FALSE cuando la tabla existe y '
   'la empresa no tiene el módulo activo.';
 
-GRANT EXECUTE ON FUNCTION public.empresa_tiene_portal(uuid) TO anon, authenticated;
+-- Función SOLO de uso interno: la llaman `alumno_email_existe` y
+-- `portal_mis_datos` (ambas SECURITY DEFINER, corren como su dueño, que
+-- conserva EXECUTE), así que ningún rol externo la necesita. Supabase
+-- concede EXECUTE por defecto a anon/authenticated en toda función nueva
+-- del esquema public, por eso hay que revocarlo explícitamente (no basta
+-- con no otorgarlo). Evita que un tercero use la función como oráculo de
+-- "¿esta empresa tiene el portal contratado?".
+REVOKE EXECUTE ON FUNCTION public.empresa_tiene_portal(uuid) FROM PUBLIC, anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- 1) Función `alumno_email_existe(p_email)`: único booleano, sin
@@ -265,7 +272,11 @@ COMMENT ON FUNCTION public.portal_mis_datos() IS
   'SECURITY DEFINER.';
 
 -- Solo `authenticated`: el alumno ya tiene JWT de Auth (ha verificado
--- su código) para cuando llama a esta función. No se concede a `anon`.
+-- su código) para cuando llama a esta función. Supabase concede EXECUTE
+-- por defecto a anon en toda función nueva del esquema public, así que
+-- se revoca explícitamente de anon/PUBLIC (para anon devolvería NULL de
+-- todos modos —no hay email en el JWT—, pero se cierra por higiene).
 GRANT EXECUTE ON FUNCTION public.portal_mis_datos() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.portal_mis_datos() FROM PUBLIC, anon;
 
 COMMIT;
