@@ -291,6 +291,16 @@ ipcMain.handle('get-sucursales', (_, soloActivas) => db.getSucursales(soloActiva
 ipcMain.handle('add-sucursal', (_, nombre) => db.addSucursal(nombre));
 ipcMain.handle('renombrar-sucursal', (_, id, nombre) => { db.renombrarSucursal(id, nombre); return true; });
 ipcMain.handle('activar-sucursal', (_, id, activa) => { db.activarSucursal(id, activa); return true; });
+
+// Reservas (agenda, "solicitudes de práctica" — Bloque 2 SaaS): CRUD
+// mecánico, la lógica de compatibilidad hacia atrás vive en db/reservas.js
+// y en sync.js (sin UI todavía, ver db/reservas.js).
+ipcMain.handle('get-reservas', (_, sucursalId) => db.getReservas(sucursalId));
+ipcMain.handle('add-reserva', (_, datos) => db.addReserva(datos));
+ipcMain.handle('update-reserva', (_, id, campos) => { db.updateReserva(id, campos); return true; });
+ipcMain.handle('set-estado-reserva', (_, id, estado) => { db.setEstadoReserva(id, estado); return true; });
+ipcMain.handle('delete-reserva', (_, id) => { db.deleteReserva(id); return true; });
+
 ipcMain.handle('get-solapamientos', () => db.getSolapamientos());
 ipcMain.handle('rellenar-km-masivo', (_, vehiculo_id, kmMin, kmMax, kmInicio, kmFinal) => db.rellenarKmMasivo(vehiculo_id, kmMin, kmMax, kmInicio, kmFinal));
 ipcMain.handle('get-practicas-sin-km', (_, vehiculo_id) => db.getPracticasSinKm(vehiculo_id));

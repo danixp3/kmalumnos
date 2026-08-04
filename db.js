@@ -30,6 +30,7 @@ module.exports = {
   ...require('./db/km-algoritmos'),
   ...require('./db/estadisticas'),
   ...require('./db/sucursales'),
+  ...require('./db/reservas'),
 
   getLogs: core.getLogs,
   clearLogs: core.clearLogs,

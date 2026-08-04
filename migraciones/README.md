@@ -201,3 +201,35 @@ Esta migración NO añade ningún mecanismo de login todavía, solo el campo de 
 ## Cómo revertir
 
 Ejecutar `2026-08-05_alumno_email_ROLLBACK.sql`. Si para entonces ya hay emails de alumnos guardados de verdad, esos datos se pierden — leer la advertencia dentro del propio archivo antes de ejecutarlo.
+
+# Migración: reservas (agenda, solicitudes de práctica)
+
+Fecha: 2026-08-05. Archivos de esta carpeta:
+
+- `2026-08-05_reservas.sql` — la migración.
+- `2026-08-05_reservas_ROLLBACK.sql` — la red de seguridad.
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla. Es la capa de datos de `ROADMAP-SAAS.md` → Fase 0 · Bloque 2 (agenda/reservas), modelo v1: "solicitudes de práctica" — una reserva es una cita (alumno, profesor, vehículo, fecha, hora) con un estado que la autoescuela confirma o cancela. Esta entrega es SOLO base de datos + sync + IPC, sin interfaz de usuario todavía (va en un encargo posterior).
+
+**Dependencia:** requiere `2026-08-01_roles_y_sucursales.sql` ya aplicada (usa `empresa_actual()`).
+
+## Qué hace, en llano
+
+Crea la tabla `reservas` con las mismas garantías que el resto de tablas operativas (vehiculos, alumnos, practicas...): RLS por empresa (`empresa_all`, igual patrón COALESCE de compatibilidad), soft delete (`deleted`), e `id` asignado por el cliente (no autoincremental de Postgres, igual que las demás). El campo `estado` está restringido por un CHECK a `'solicitada' | 'confirmada' | 'cancelada' | 'realizada'`. Aplicar esta migración, por sí sola, no cambia nada visible en la app: el código de escritorio (`db/reservas.js`, IPC, sync.js) ya sabe convivir con que la tabla no exista (`_reservasDisponible()`, mismo patrón que `_sucursalesDisponible`), y todavía no hay ninguna pantalla que la use.
+
+## Pasos exactos para aplicarla
+
+1. Confirmar que `2026-08-01_roles_y_sucursales.sql` ya está aplicada (si no, aplicarla primero).
+2. Copia de seguridad (mismo criterio que el resto de migraciones de esta carpeta): backup de `data.json` desde Ajustes.
+3. Aplicar `2026-08-05_reservas.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado).
+4. Verificar (paso siguiente).
+
+## Qué verificar después
+
+- `SELECT * FROM reservas;` → tabla vacía.
+- La app de escritorio sigue arrancando y sincronizando con normalidad (la migración no toca ninguna tabla existente, solo añade una nueva).
+- (Opcional, tras tener UI) Crear una reserva desde la app y forzar sincronización: debe aparecer en `SELECT * FROM reservas WHERE empresa_id = '<tu uuid>';` con `estado = 'solicitada'`.
+
+## Cómo revertir
+
+Ejecutar `2026-08-05_reservas_ROLLBACK.sql` (`DROP TABLE ... CASCADE`). Si para entonces ya hay reservas reales dadas de alta, esos datos se pierden — leer la advertencia dentro del propio archivo antes de ejecutarlo.
