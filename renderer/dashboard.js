@@ -28,6 +28,7 @@ async function loadDashboard() {
 
   loadGraficos();
   loadAgendaDashboard();
+  loadSemaforoDashboard();
 
   const alertas = document.getElementById('dash-alertas');
   const partes = [];
@@ -98,6 +99,29 @@ async function loadAgendaDashboard() {
         `<span>${fechaHora}</span><span>${alumno}</span></div>`;
     }).join('');
   }
+}
+
+// Tarjeta "Semáforo de examen": recuento listos/casi/lejos de todos los
+// alumnos (heurística v1, ver db/estadisticas.js:getSemaforoExamen). Si
+// falla, se oculta sin romper el resto del dashboard.
+async function loadSemaforoDashboard() {
+  const card = document.getElementById('dash-semaforo-card');
+  if (!card) return;
+  let semaforo = [];
+  try {
+    semaforo = await window.api.getSemaforoExamen();
+  } catch (e) {
+    card.classList.add('hidden');
+    return;
+  }
+  if (!Array.isArray(semaforo) || semaforo.length === 0) {
+    card.classList.add('hidden');
+    return;
+  }
+  card.classList.remove('hidden');
+  document.getElementById('dash-semaforo-verde').textContent = semaforo.filter(s => s.nivel === 'verde').length;
+  document.getElementById('dash-semaforo-ambar').textContent = semaforo.filter(s => s.nivel === 'ambar').length;
+  document.getElementById('dash-semaforo-rojo').textContent = semaforo.filter(s => s.nivel === 'rojo').length;
 }
 
 function navegarA(page, tab) {

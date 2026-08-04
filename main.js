@@ -283,6 +283,8 @@ ipcMain.handle('get-stats-dashboard', (_, hoy, sucursalId) => db.getStatsDashboa
 ipcMain.handle('get-stats-profesores', (_, desde, hasta) => db.getStatsProfesores(desde, hasta));
 ipcMain.handle('get-datos-graficos', (_, meses, sucursalId) => db.getDatosGraficos(meses, sucursalId));
 ipcMain.handle('get-todas-practicas', (_, filtros) => db.getTodasPracticas(filtros));
+ipcMain.handle('get-semaforo-examen', () => db.getSemaforoExamen());
+ipcMain.handle('get-semaforo-alumno', (_, alumno_id) => db.getSemaforoAlumno(alumno_id));
 
 // Sucursales (fase 2 multi-empresa): CRUD mecánico, la lógica de
 // compatibilidad hacia atrás vive en db/sucursales.js (data.json) y en el

@@ -19,6 +19,7 @@ let vehiculosCache = [];
 let profesoresCache = [];
 let alumnosCache = [];
 let alumnosSort = { col: null, dir: 1 };
+let semaforoCache = new Map(); // alumno_id -> { nivel, motivo, ... }, ver ALUMNOS
 let deudasCache = [];
 let deudasSort = { col: null, dir: 1 };
 let statsProfesoresCache = [];
