@@ -287,7 +287,7 @@
     width: 19px;
     height: 19px;
     border-radius: 6px;
-    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -410,12 +410,12 @@
 
   .sidebar-logo-icon {
     width: 36px; height: 36px;
-    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    background: transparent;
     border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
     color: #fff;
-    box-shadow: 0 3px 10px rgba(79,70,229,.35);
+    box-shadow: none;
   }
 
   .sidebar-logo-text {
