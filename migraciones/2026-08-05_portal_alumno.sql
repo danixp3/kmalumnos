@@ -9,6 +9,16 @@
 -- pero `alumno_email_existe`/`portal_mis_datos` siempre devolverán
 -- false/NULL porque no hay ningún email guardado.
 --
+-- DEPENDENCIA OPCIONAL — módulo `portal_alumno`: desde esta versión, las
+-- dos funciones del portal exigen (vía la función auxiliar
+-- `empresa_tiene_portal`) que la empresa del alumno tenga contratado el
+-- módulo 'portal_alumno' en `modulos_empresa` (ver
+-- `2026-08-04_modulos_empresa.sql`, ROADMAP-SAAS.md → Fase 0 · Bloque 1).
+-- Es GRACEFUL: si esa migración no se ha aplicado todavía (la tabla
+-- `modulos_empresa` no existe), el gating no bloquea nada y el portal
+-- funciona exactamente igual que antes de existir el sistema de módulos.
+-- No hace falta ningún orden de aplicación entre ambas migraciones.
+--
 -- QUÉ HACE (resumen, ver migraciones/README.md para el detalle en
 -- lenguaje llano):
 --   Entregable de ROADMAP-SAAS.md → Fase 0 · Bloque 2 (portal del
@@ -62,9 +72,67 @@
 BEGIN;
 
 -- ---------------------------------------------------------------------
+-- 0) Función auxiliar `empresa_tiene_portal(p_empresa_id)`: gating por
+--    módulo contratado, GRACEFUL y compartido por las dos funciones del
+--    portal. "Graceful" significa que mientras el sistema de módulos
+--    (ROADMAP-SAAS.md → Fase 0 · Bloque 1, tabla `modulos_empresa`) no
+--    se haya aplicado en Supabase, esta función devuelve TRUE siempre
+--    (modo clásico: el portal funciona igual que antes de existir el
+--    concepto de módulos, no se bloquea nada). Solo cuando la tabla
+--    existe de verdad se exige que la empresa tenga de alta el módulo
+--    'portal_alumno' con activo = true; cualquier error inesperado
+--    leyendo esa tabla también se trata como TRUE, para no dejar el
+--    portal caído por un fallo ajeno a la lógica de negocio.
+--    Clave del módulo: 'portal_alumno' — así se llamará la fila que
+--    haya que insertar en `modulos_empresa` el día que se dé de alta
+--    este módulo comercialmente.
+-- ---------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.empresa_tiene_portal(p_empresa_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_activo boolean;
+BEGIN
+  -- Modo clásico: si la tabla de módulos no existe todavía, no bloquear.
+  IF to_regclass('public.modulos_empresa') IS NULL THEN
+    RETURN true;
+  END IF;
+
+  SELECT activo INTO v_activo
+    FROM public.modulos_empresa
+   WHERE empresa_id = p_empresa_id
+     AND modulo = 'portal_alumno';
+
+  RETURN coalesce(v_activo, false);
+EXCEPTION
+  WHEN undefined_table OR others THEN
+    -- Cualquier fallo inesperado leyendo modulos_empresa tampoco bloquea.
+    RETURN true;
+END;
+$$;
+
+COMMENT ON FUNCTION public.empresa_tiene_portal(uuid) IS
+  'Gating del portal del alumno por módulo contratado (clave ''portal_alumno'' '
+  'en modulos_empresa). Graceful: si la tabla modulos_empresa no existe '
+  '(sistema de módulos aún no aplicado) o falla la consulta, devuelve TRUE '
+  '(modo clásico, no bloquea). Solo devuelve FALSE cuando la tabla existe y '
+  'la empresa no tiene el módulo activo.';
+
+GRANT EXECUTE ON FUNCTION public.empresa_tiene_portal(uuid) TO anon, authenticated;
+
+-- ---------------------------------------------------------------------
 -- 1) Función `alumno_email_existe(p_email)`: único booleano, sin
 --    revelar nada más del alumno. La llama el endpoint que pide el
---    código, ANTES de que el alumno tenga ningún JWT.
+--    código, ANTES de que el alumno tenga ningún JWT. Además de existir
+--    el alumno, exige que la empresa de ese alumno tenga contratado el
+--    módulo 'portal_alumno' (empresa_tiene_portal) — así no se envían
+--    códigos OTP a alumnos de empresas que no han contratado el portal.
+--    Si hay varios alumnos con el mismo email en empresas distintas,
+--    basta con que uno de ellos pertenezca a una empresa con el portal
+--    activo para devolver true.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.alumno_email_existe(p_email text)
 RETURNS boolean
@@ -84,6 +152,7 @@ BEGIN
       FROM public.alumnos
      WHERE lower(email) = lower(p_email)
        AND deleted = false
+       AND public.empresa_tiene_portal(empresa_id)
   ) INTO v_existe;
 
   RETURN v_existe;
@@ -91,9 +160,10 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.alumno_email_existe(text) IS
-  'Portal del alumno: ¿hay algún alumno activo con este email? Solo '
-  'devuelve un booleano, nunca datos del alumno. La usa el endpoint que '
-  'pide el código OTP, antes de que el alumno tenga sesión.';
+  'Portal del alumno: ¿hay algún alumno activo, de una empresa con el '
+  'módulo portal_alumno activo (empresa_tiene_portal), con este email? '
+  'Solo devuelve un booleano, nunca datos del alumno. La usa el endpoint '
+  'que pide el código OTP, antes de que el alumno tenga sesión.';
 
 GRANT EXECUTE ON FUNCTION public.alumno_email_existe(text) TO anon, authenticated;
 
@@ -103,6 +173,12 @@ GRANT EXECUTE ON FUNCTION public.alumno_email_existe(text) TO anon, authenticate
 --    verificado por Supabase Auth (auth.jwt() ->> 'email'), así no se
 --    puede falsear pidiendo los datos de otro alumno. Ver arriba por
 --    qué SECURITY DEFINER es seguro en este caso concreto.
+--    Tras localizar al alumno, comprueba también empresa_tiene_portal
+--    (mismo gating graceful que alumno_email_existe): si la empresa del
+--    alumno no tiene el módulo 'portal_alumno' activo, se devuelve NULL,
+--    como si no hubiera datos — el alumno nunca sabe si es por no tener
+--    módulo contratado o por no tener prácticas, mismo comportamiento
+--    externo en ambos casos.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.portal_mis_datos()
 RETURNS json
@@ -128,7 +204,7 @@ BEGIN
   -- más reciente) de forma arbitraria pero determinista. No debería
   -- pasar en uso normal (cada alumno tiene su propio correo), pero se
   -- documenta aquí para que quede claro el criterio de desempate.
-  SELECT id, nombre, permiso
+  SELECT id, nombre, permiso, empresa_id
     INTO v_alumno
     FROM public.alumnos
    WHERE lower(email) = lower(v_email)
@@ -137,6 +213,12 @@ BEGIN
    LIMIT 1;
 
   IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+
+  -- Gating por módulo contratado: si la empresa de este alumno no tiene
+  -- 'portal_alumno' activo, se responde igual que si no hubiera alumno.
+  IF NOT public.empresa_tiene_portal(v_alumno.empresa_id) THEN
     RETURN NULL;
   END IF;
 
@@ -177,8 +259,10 @@ COMMENT ON FUNCTION public.portal_mis_datos() IS
   'Portal del alumno (solo lectura). Sin parámetros: el email sale de '
   'auth.jwt(), ya verificado por Supabase Auth tras el código OTP. Si '
   'hay emails duplicados entre alumnos, se usa el de id más alto (ver '
-  'comentario dentro de la función). Ver cabecera de esta migración '
-  'para el detalle de seguridad de SECURITY DEFINER.';
+  'comentario dentro de la función). Devuelve NULL si la empresa del '
+  'alumno no tiene el módulo portal_alumno activo (empresa_tiene_portal). '
+  'Ver cabecera de esta migración para el detalle de seguridad de '
+  'SECURITY DEFINER.';
 
 -- Solo `authenticated`: el alumno ya tiene JWT de Auth (ha verificado
 -- su código) para cuando llama a esta función. No se concede a `anon`.
