@@ -1,6 +1,13 @@
 const { app, BrowserWindow, ipcMain, dialog, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// Carpeta de datos estable: aunque productName pase a "AulaMovil", seguimos usando
+// la carpeta histórica "KMAlumnos" en %AppData% para no orfanar el data.json (ni la
+// sesión ni las preferencias) de las instalaciones previas. Debe ejecutarse antes
+// de requerir ./db y antes de app.whenReady().
+app.setPath('userData', path.join(app.getPath('appData'), 'KMAlumnos'));
+
 const db = require('./db');
 const sync = require('./sync');
 const { autoUpdater } = require('electron-updater');
