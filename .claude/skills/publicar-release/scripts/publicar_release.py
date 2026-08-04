@@ -36,8 +36,8 @@ def main():
     print(f'version en package.json: {version}')
 
     # 1. Artefactos en dist/ (electron-builder los genera con espacios; se suben con guiones)
-    exe = ROOT / 'dist' / f'KMAlumnos Setup {version}.exe'
-    blockmap = ROOT / 'dist' / f'KMAlumnos Setup {version}.exe.blockmap'
+    exe = ROOT / 'dist' / f'AulaMovil Setup {version}.exe'
+    blockmap = ROOT / 'dist' / f'AulaMovil Setup {version}.exe.blockmap'
     yml = ROOT / 'dist' / 'latest.yml'
     for f in (exe, blockmap, yml):
         if not f.exists():
@@ -45,7 +45,7 @@ def main():
     yml_text = yml.read_text(encoding='utf-8')
     if f'version: {version}' not in yml_text:
         sys.exit(f'ERROR: dist/latest.yml no es de la versión {version} — regenerar con "npm run dist"')
-    if f'KMAlumnos-Setup-{version}.exe' not in yml_text:
+    if f'AulaMovil-Setup-{version}.exe' not in yml_text:
         sys.exit('ERROR: latest.yml no apunta al nombre con guiones — revisar configuración de electron-builder')
     print('artefactos de dist/ correctos')
 
@@ -60,8 +60,8 @@ def main():
             raise
 
     uploads = [
-        (exe, f'KMAlumnos-Setup-{version}.exe', 'application/octet-stream'),
-        (blockmap, f'KMAlumnos-Setup-{version}.exe.blockmap', 'application/octet-stream'),
+        (exe, f'AulaMovil-Setup-{version}.exe', 'application/octet-stream'),
+        (blockmap, f'AulaMovil-Setup-{version}.exe.blockmap', 'application/octet-stream'),
         (yml, 'latest.yml', 'text/yaml'),
     ]
     if args.dry_run:
@@ -72,7 +72,7 @@ def main():
 
     # 3. Crear release y subir assets
     body = json.dumps({'tag_name': tag, 'target_commitish': 'main',
-                       'name': f'KMAlumnos {tag}', 'body': args.notas}).encode()
+                       'name': f'AulaMovil {tag}', 'body': args.notas}).encode()
     _, rel = req(f'{API}/releases', data=body, headers={**H, 'Content-Type': 'application/json'}, method='POST')
     print('release creada:', rel['id'])
 
@@ -86,7 +86,7 @@ def main():
     if f'version: {version}' not in pub_yml.decode('utf-8'):
         sys.exit('ERROR: el latest.yml publicado NO es de esta versión — revisar la release en GitHub')
     r = urllib.request.Request(
-        f'https://github.com/{REPO}/releases/download/{tag}/KMAlumnos-Setup-{version}.exe', method='HEAD')
+        f'https://github.com/{REPO}/releases/download/{tag}/AulaMovil-Setup-{version}.exe', method='HEAD')
     with urllib.request.urlopen(r) as resp:  # HEAD: comprueba sin descargar 81 MB
         if resp.status != 200:
             sys.exit(f'ERROR: el instalador devuelve HTTP {resp.status}')
