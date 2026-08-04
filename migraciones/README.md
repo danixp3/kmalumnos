@@ -130,3 +130,41 @@ Ejecutar `2026-08-04_modulos_empresa_ROLLBACK.sql` (`DROP TABLE ... CASCADE`). S
 ## Nota sobre `2026-08-01_roles_y_sucursales.sql`: endurecimiento de `buscar_uid_por_email`
 
 Al preparar esta migración se revisó `buscar_uid_por_email` (la función que usa `invitarEmpleado()` para traducir un email a su user_id) y se encontró una rendija: comprobaba el rol de quien llama con `coalesce(rol_actual(), 'jefe') = 'jefe'`, así que un usuario autenticado SIN fila todavía en `perfiles` pasaba la comprobación igual que un jefe de verdad, y podía usar la función como oráculo para averiguar qué emails están registrados (enumeración de cuentas). Se corrigió en el propio archivo `2026-08-01_roles_y_sucursales.sql` a una comprobación estricta (`rol_actual() IS NULL OR rol_actual() <> 'jefe'` → excepción). No hay pérdida funcional: `invitarEmpleado()` en `sync.js` ya exige `perfil.disponible` antes de llamar a esta RPC, así que un jefe legítimo (con su fila de backfill) nunca la dispara. Si `2026-08-01_roles_y_sucursales.sql` ya se hubiera aplicado en producción con la versión antigua de la función, hay que reaplicar solo el bloque 4b (`CREATE OR REPLACE FUNCTION public.buscar_uid_por_email`) para adoptar el arreglo.
+
+# Migración: portal del alumno (solo lectura)
+
+Fecha: 2026-08-05. Archivos de esta carpeta:
+
+- `2026-08-05_portal_alumno.sql` — la migración.
+- `2026-08-05_portal_alumno_ROLLBACK.sql` — la red de seguridad.
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla. Es el primer entregable de `ROADMAP-SAAS.md` → Fase 0 · Bloque 2 (portal del alumno), ver también `PROPUESTA-BLOQUE2-PORTAL-ALUMNO.md`.
+
+## Qué hace, en llano
+
+Da a cada alumno un enlace propio, de solo lectura, para ver sus prácticas desde el móvil sin tener que iniciar sesión como si fuera la autoescuela. Un alumno no es una cuenta de empresa (no tiene usuario de Supabase Auth), así que no puede pasar por el sistema de permisos normal (RLS); en su lugar se usa un "enlace inadivinable": la columna nueva `alumnos.portal_token` guarda un texto secreto y aleatorio, y solo quien conoce el `alumno_id` **y** ese token exacto puede leer sus prácticas, a través de la función `portal_alumno_datos(id, token)`.
+
+Aplicar esta migración, por sí sola, no cambia nada visible: hoy ningún alumno tiene `portal_token` (columna nueva, todo `NULL`), así que la función siempre devuelve `NULL` (portal cerrado) hasta que se le asigne un token a algún alumno a mano.
+
+## Pasos exactos para aplicarla
+
+1. Copia de seguridad (mismo criterio que el resto de migraciones de esta carpeta): backup de `data.json` desde Ajustes y, si se quiere, un `SELECT * FROM alumnos` guardado.
+2. Aplicar `2026-08-05_portal_alumno.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado). No depende de ninguna otra migración de esta carpeta (solo toca `alumnos`, que existe siempre).
+3. Verificar (paso siguiente).
+
+## Qué verificar después
+
+- `SELECT portal_token FROM alumnos LIMIT 5;` → todo `NULL` (nadie tiene portal activo todavía).
+- `SELECT portal_alumno_datos(1, 'lo-que-sea');` → `NULL` (sin token real, no hay acceso).
+- Generar un token de prueba a un alumno real y comprobar que la función devuelve sus datos:
+  ```sql
+  UPDATE alumnos SET portal_token = encode(gen_random_bytes(24), 'hex') WHERE id = 1;
+  SELECT portal_token FROM alumnos WHERE id = 1;  -- copiar el valor
+  SELECT portal_alumno_datos(1, '<token copiado>');  -- debe devolver el json con alumno/total/practicas
+  SELECT portal_alumno_datos(1, 'token-incorrecto');  -- debe devolver NULL
+  ```
+- La app de escritorio sigue arrancando y sincronizando con normalidad (la migración no toca RLS ni ninguna tabla salvo añadir una columna nullable a `alumnos`).
+
+## Cómo revertir
+
+Ejecutar `2026-08-05_portal_alumno_ROLLBACK.sql`. Si para entonces ya hay alumnos con portal activo (token asignado de verdad), esos tokens se pierden y los enlaces ya repartidos dejan de funcionar — leer la advertencia dentro del propio archivo antes de ejecutarlo.
