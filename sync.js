@@ -148,12 +148,14 @@ function loadDataSafe() {
   if (!Array.isArray(data.tarifas))    data.tarifas = [];
   if (!Array.isArray(data.pagos))      data.pagos = [];
   if (!Array.isArray(data.sucursales)) data.sucursales = [];
+  if (!Array.isArray(data.reservas))   data.reservas = [];
   if (!Array.isArray(data.logs))       data.logs = [];
-  if (!data._seq) data._seq = { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1 };
+  if (!data._seq) data._seq = { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1, r: 1 };
   if (!data._seq.pf) data._seq.pf = 1;
   if (!data._seq.t) data._seq.t = 1;
   if (!data._seq.pg) data._seq.pg = 1;
   if (!data._seq.suc) data._seq.suc = 1;
+  if (!data._seq.r) data._seq.r = 1;
   return { data, regenerado };
 }
 
@@ -175,6 +177,7 @@ function setCredentials(email, password) {
   _empresaId = null;
   _perfilCache = null; // cambio de sesión: invalidar el perfil (rol/empresa) cacheado
   _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
+  _reservasDisponibleCache = null; // idem: reconsultar si la migración de reservas está aplicada
   _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
   _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
   // Entrada fresca de credenciales (login manual, registro, o logout): nunca
@@ -314,6 +317,7 @@ async function registrarEmpresa(email, password) {
       _authError = null;
       _perfilCache = null; // sesión nueva: invalidar el perfil (rol/empresa) cacheado
       _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
+      _reservasDisponibleCache = null; // idem: reconsultar si la migración de reservas está aplicada
       _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
       _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
       _authOk = true;
@@ -453,6 +457,27 @@ async function _sucursalesDisponible(sb) {
     _sucursalesDisponibleCache = false;
   }
   return _sucursalesDisponibleCache;
+}
+
+// ─── RESERVAS (agenda, Bloque 2 SaaS) ─────────────────────────────────────────
+// Mismo patrón exacto que _sucursalesDisponible de arriba: mientras la
+// migración `migraciones/2026-08-05_reservas.sql` no esté aplicada, la tabla
+// `reservas` no existe en Supabase y cualquier consulta a ella falla — se
+// trata como "modo clásico", nunca como un error real: reservas simplemente
+// no se sube ni se baja. Cacheado en memoria durante la sesión; se invalida
+// en los mismos puntos que _sucursalesDisponibleCache (setCredentials/
+// registrarEmpresa más arriba).
+let _reservasDisponibleCache = null;
+
+async function _reservasDisponible(sb) {
+  if (_reservasDisponibleCache !== null) return _reservasDisponibleCache;
+  try {
+    const { error } = await sb.from('reservas').select('id').limit(1);
+    _reservasDisponibleCache = !error;
+  } catch {
+    _reservasDisponibleCache = false;
+  }
+  return _reservasDisponibleCache;
 }
 
 // Mismo patrón exacto que _sucursalesDisponible de arriba: mientras la
@@ -699,8 +724,8 @@ function loadPending() {
     try { return JSON.parse(fs.readFileSync(p, 'utf-8')); } catch {}
   }
   return {
-    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [],
-    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: [] },
+    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [],
+    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: [], reservas: [] },
     lastSync: '1970-01-01T00:00:00.000Z'
   };
 }
@@ -819,7 +844,8 @@ const _TABLAS_COLISION = [
   { tabla: 'tarifas',    seq: 't'  },
   { tabla: 'alumnos',    seq: 'a'  },
   { tabla: 'practicas',  seq: 'p'  },
-  { tabla: 'pagos',      seq: 'pg' }
+  { tabla: 'pagos',      seq: 'pg' },
+  { tabla: 'reservas',   seq: 'r'  }
 ];
 
 async function _resolverColisionesPrimeraVinculacion(data, pending, sb) {
@@ -857,14 +883,17 @@ async function _resolverColisionesPrimeraVinculacion(data, pending, sb) {
   if (remaps.vehiculos.size) {
     data.alumnos.forEach(a => { if (remaps.vehiculos.has(a.vehiculo_id)) a.vehiculo_id = remaps.vehiculos.get(a.vehiculo_id); });
     data.practicas.forEach(p => { if (remaps.vehiculos.has(p.vehiculo_id)) p.vehiculo_id = remaps.vehiculos.get(p.vehiculo_id); });
+    data.reservas.forEach(r => { if (remaps.vehiculos.has(r.vehiculo_id)) r.vehiculo_id = remaps.vehiculos.get(r.vehiculo_id); });
   }
   if (remaps.profesores.size) {
     data.alumnos.forEach(a => { if (a.profesor_id != null && remaps.profesores.has(a.profesor_id)) a.profesor_id = remaps.profesores.get(a.profesor_id); });
     data.practicas.forEach(p => { if (p.profesor_id != null && remaps.profesores.has(p.profesor_id)) p.profesor_id = remaps.profesores.get(p.profesor_id); });
+    data.reservas.forEach(r => { if (r.profesor_id != null && remaps.profesores.has(r.profesor_id)) r.profesor_id = remaps.profesores.get(r.profesor_id); });
   }
   if (remaps.alumnos.size) {
     data.practicas.forEach(p => { if (remaps.alumnos.has(p.alumno_id)) p.alumno_id = remaps.alumnos.get(p.alumno_id); });
     data.pagos.forEach(pg => { if (remaps.alumnos.has(pg.alumno_id)) pg.alumno_id = remaps.alumnos.get(pg.alumno_id); });
+    data.reservas.forEach(r => { if (r.alumno_id != null && remaps.alumnos.has(r.alumno_id)) r.alumno_id = remaps.alumnos.get(r.alumno_id); });
   }
 
   // Colas de pendientes: que sigan apuntando al id correcto tras la reasignación.
@@ -1000,6 +1029,11 @@ async function sync() {
     // `sucursales` ni se sube ni se baja — comportamiento idéntico al de
     // antes de esta funcionalidad, sin errores ni reintentos atascados.
     const sucursalesOn = await _sucursalesDisponible(sb);
+    // Reservas (agenda, Bloque 2 SaaS — ver comentario junto a
+    // _reservasDisponible): mismo patrón que sucursalesOn, si la migración no
+    // está aplicada la tabla `reservas` ni se sube ni se baja, sin errores ni
+    // reintentos atascados.
+    const reservasOn = await _reservasDisponible(sb);
     // Email de alumno (Bloque 2 SaaS, portal del alumno — ver comentario junto
     // a _alumnosEmailDisponible): mismo patrón que sucursalesOn, si la
     // migración no está aplicada la columna `email` no se estampa en el
@@ -1195,6 +1229,28 @@ async function sync() {
       }
     }
 
+    // Reservas dirty (agenda, Bloque 2 SaaS). Solo se procesa si la migración
+    // está aplicada (reservasOn): sin ella la tabla no existe y no hay nada
+    // que subir — la cola pending.reservas se queda tal cual, sin vaciarse ni
+    // fallar, hasta que la migración esté aplicada de verdad.
+    if (reservasOn) {
+      for (const id of (pending.reservas || [])) {
+        const r = data.reservas.find(x => x.id === id);
+        if (r) {
+          const payload = {
+            id: r.id, alumno_id: r.alumno_id || null, profesor_id: r.profesor_id || null,
+            vehiculo_id: r.vehiculo_id || null, fecha: r.fecha || null, hora_inicio: r.hora_inicio || null,
+            duracion_min: r.duracion_min || 45, estado: r.estado || 'solicitada',
+            origen: r.origen || 'desktop', nota: r.nota || '',
+            deleted: false, updated_at: new Date().toISOString()
+          };
+          if (_empresaId) payload.empresa_id = _empresaId;
+          if (sucursalesOn) payload.sucursal_id = r.sucursal_id != null ? r.sucursal_id : null;
+          await sb.from('reservas').upsert(payload, { onConflict: 'id' });
+        }
+      }
+    }
+
     // Eliminaciones — todas por soft delete (marca deleted). Borrar de verdad
     // un alumno falla en Supabase si tiene prácticas (clave foránea) y además
     // sin la marca los otros dispositivos nunca se enteran del borrado.
@@ -1223,6 +1279,11 @@ async function sync() {
     if (sucursalesOn) {
       for (const id of (pending.deleted.sucursales || [])) {
         await sb.from('sucursales').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
+      }
+    }
+    if (reservasOn) {
+      for (const id of (pending.deleted.reservas || [])) {
+        await sb.from('reservas').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
       }
     }
 
@@ -1561,6 +1622,58 @@ async function sync() {
       }
     }
 
+    // Reservas nuevas o modificadas (agenda, Bloque 2 SaaS). Mismo patrón que
+    // sucursales: solo se consulta si la migración está aplicada (reservasOn),
+    // y envuelta en try/catch por si el rol/RLS deniega algo inesperado.
+    if (reservasOn) {
+      try {
+        const { data: remoteReservas, error: errR } = await conEmpresa(sb
+          .from('reservas')
+          .select('*')
+          .gt('updated_at', lastSync));
+
+        if (!errR && remoteReservas) {
+          for (const rr of remoteReservas) {
+            const idx = data.reservas.findIndex(x => x.id === rr.id);
+            if (rr.deleted) {
+              if (idx !== -1) { data.reservas.splice(idx, 1); dataChanged = true; }
+              continue;
+            }
+            const reserva = {
+              id: rr.id, alumno_id: rr.alumno_id != null ? rr.alumno_id : null,
+              profesor_id: rr.profesor_id != null ? rr.profesor_id : null,
+              vehiculo_id: rr.vehiculo_id != null ? rr.vehiculo_id : null,
+              fecha: rr.fecha || null, hora_inicio: rr.hora_inicio || null,
+              duracion_min: rr.duracion_min != null ? rr.duracion_min : 45,
+              estado: rr.estado || 'solicitada', origen: rr.origen || 'desktop',
+              nota: rr.nota || '',
+              sucursal_id: rr.sucursal_id != null ? rr.sucursal_id : null,
+              updated_at: rr.updated_at
+            };
+            if (idx === -1) {
+              data.reservas.push(reserva);
+              if (rr.id >= data._seq.r) data._seq.r = rr.id + 1;
+              dataChanged = true;
+              pulled++;
+            } else {
+              const localUpdated  = data.reservas[idx].updated_at || '1970-01-01T00:00:00.000Z';
+              const remoteUpdated = rr.updated_at || '1970-01-01T00:00:00.000Z';
+              if (remoteUpdated > localUpdated) {
+                _detectarYRegistrarConflicto(data, 'reservas', pending.reservas, rr.id,
+                  ['estado', 'fecha', 'hora_inicio', 'profesor_id'], data.reservas[idx], reserva, conflictos);
+                data.reservas[idx] = reserva;
+                dataChanged = true;
+                pulled++;
+              }
+              // Si local es más reciente, no sobrescribir (el usuario editó localmente)
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Sync: no se pudo leer reservas (permiso denegado o error de red):', e.message);
+      }
+    }
+
     if (dataChanged || regenerado || vehiculoReconciliado) {
       saveData(data);
       // Limpiar caché de db.js
@@ -1586,6 +1699,12 @@ async function sync() {
     if (sucursalesOn) {
       pending.sucursales          = [];
       pending.deleted.sucursales  = [];
+    }
+    // Reservas: mismo criterio que sucursales, solo se vacía si de verdad se
+    // procesó (migración aplicada).
+    if (reservasOn) {
+      pending.reservas            = [];
+      pending.deleted.reservas    = [];
     }
     pending.lastSync            = new Date().toISOString();
     savePending(pending);
@@ -1674,6 +1793,9 @@ async function pushAll() {
     // sucursal_id (fase 2): solo se sube si la migración está aplicada — si
     // no, la columna no existe en el servidor y el upsert fallaría.
     const sucursalesOn = await _sucursalesDisponible(sb);
+    // reservas (agenda, Bloque 2 SaaS): mismo cuidado, si la tabla no existe
+    // aún en el servidor ni se sube ni se intenta.
+    const reservasOn = await _reservasDisponible(sb);
     // `...v` ya trae sucursal_id si el registro local lo tiene; sin la
     // migración aplicada se elimina del objeto para no mandarlo al servidor.
     const quitarSucursal = obj => {
@@ -1728,6 +1850,13 @@ async function pushAll() {
         { onConflict: 'id' }
       );
     }
+    // Reservas: solo si la migración está aplicada (si no, ni la tabla existe).
+    if (reservasOn && data.reservas.length) {
+      await sb.from('reservas').upsert(
+        data.reservas.map(r => quitarSucursal({ ...r, ...conEmpresaTag, deleted: false, updated_at: now })),
+        { onConflict: 'id' }
+      );
+    }
     // Pagos: igual tolerancia que en sync() — un empleado sin acceso a la
     // tabla por RLS no debe abortar la subida completa de las demás tablas.
     try {
@@ -1771,12 +1900,18 @@ async function pushAll() {
         await sb.from('sucursales').update({ deleted: true, updated_at: now }).eq('id', id);
       }
     }
+    if (reservasOn) {
+      for (const id of (pending.deleted.reservas || [])) {
+        await sb.from('reservas').update({ deleted: true, updated_at: now }).eq('id', id);
+      }
+    }
 
     // Limpiar pending. OJO: no adelantar lastSync aquí — si este PC aún no ha
     // descargado los datos antiguos de la nube, adelantarla se los saltaría.
     pending.vehiculos = []; pending.profesores = []; pending.tarifas = []; pending.alumnos = []; pending.practicas = []; pending.pagos = [];
-    pending.deleted = { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: pending.deleted.sucursales };
+    pending.deleted = { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: pending.deleted.sucursales, reservas: pending.deleted.reservas };
     if (sucursalesOn) { pending.sucursales = []; pending.deleted.sucursales = []; }
+    if (reservasOn) { pending.reservas = []; pending.deleted.reservas = []; }
     savePending(pending);
 
     _lastError = null;

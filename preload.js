@@ -117,6 +117,13 @@ contextBridge.exposeInMainWorld('api', {
   renombrarSucursal:  (id, nombre)                => ipcRenderer.invoke('renombrar-sucursal', id, nombre),
   activarSucursal:    (id, activa)                => ipcRenderer.invoke('activar-sucursal', id, activa),
 
+  // Reservas (agenda/solicitudes de práctica, Bloque 2 SaaS — sin UI todavía)
+  getReservas:        (sucursalId)                => ipcRenderer.invoke('get-reservas', sucursalId),
+  addReserva:         (datos)                     => ipcRenderer.invoke('add-reserva', datos),
+  updateReserva:      (id, campos)                => ipcRenderer.invoke('update-reserva', id, campos),
+  setEstadoReserva:   (id, estado)                => ipcRenderer.invoke('set-estado-reserva', id, estado),
+  deleteReserva:      (id)                        => ipcRenderer.invoke('delete-reserva', id),
+
   // Auto-update
   checkForUpdates:  ()     => ipcRenderer.invoke('check-for-updates'),
   installUpdate:    ()     => ipcRenderer.invoke('install-update'),
