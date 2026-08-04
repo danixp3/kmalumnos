@@ -1095,6 +1095,20 @@
   .badge-pendiente-pago { background: var(--danger-light); color: var(--danger-fg); }
   .badge-sin-tarifa     { background: var(--gray-light); color: var(--gray); }
 
+  /* Pastillas de estado de la agenda de reservas (ver renderer/reservas.js) */
+  .badge-reserva-solicitada, .badge-reserva-confirmada, .badge-reserva-realizada, .badge-reserva-cancelada {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .badge-reserva-solicitada { background: var(--warn-light); color: var(--warn-fg); }
+  .badge-reserva-confirmada { background: var(--success-light); color: var(--success-fg); }
+  .badge-reserva-realizada  { background: var(--info-bg); color: var(--info-fg); }
+  .badge-reserva-cancelada  { background: var(--danger-light); color: var(--danger-fg); }
+
   /* ── REGISTRO RÁPIDO ITEMS ──────────────────── */
   .rr-item {
     display: flex;
