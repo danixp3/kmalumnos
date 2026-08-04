@@ -105,6 +105,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Roles (jefe/empleado, fase 2 multi-empresa)
   getPerfilActual:    ()                          => ipcRenderer.invoke('get-perfil-actual'),
+  getModulosActivos:  ()                          => ipcRenderer.invoke('get-modulos-activos'),
   listarEmpleados:    ()                          => ipcRenderer.invoke('listar-empleados'),
   invitarEmpleado:    (email, rol, sucursalId)    => ipcRenderer.invoke('invitar-empleado', email, rol, sucursalId),
   cambiarRolEmpleado: (userId, rol)               => ipcRenderer.invoke('cambiar-rol-empleado', userId, rol),

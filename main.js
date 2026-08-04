@@ -473,6 +473,10 @@ ipcMain.handle('clear-sync-creds', () => {
 // Roles (jefe/empleado, fase 2 multi-empresa): mecánicos, la lógica de
 // compatibilidad hacia atrás (modo clásico si `perfiles` no existe) vive en sync.js.
 ipcMain.handle('get-perfil-actual', async () => sync.getPerfilActual());
+// Módulos contratados por empresa (fase 0 SaaS, entitlements): mecánico,
+// misma lógica de compatibilidad hacia atrás (modo clásico si `perfiles` o
+// `modulos_empresa` no existen) en sync.js.
+ipcMain.handle('get-modulos-activos', async () => sync.getModulosActivos());
 ipcMain.handle('listar-empleados', async () => sync.listarEmpleados());
 ipcMain.handle('invitar-empleado', async (_, email, rol, sucursalId) => sync.invitarEmpleado(email, rol, sucursalId));
 ipcMain.handle('cambiar-rol-empleado', async (_, userId, rol) => sync.cambiarRolEmpleado(userId, rol));
