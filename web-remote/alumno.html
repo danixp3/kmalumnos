@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta property="og:title" content="AulaMovil — Mis prácticas">
+<meta property="og:description" content="Consulta tus prácticas de conducción">
+<meta name="theme-color" content="#f6f7f9">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/logo.png">
+<title>AulaMovil — Mis prácticas</title>
+<style>
+  /*
+   * Portal del alumno (Fase 0 · Bloque 2, ROADMAP-SAAS.md). Página nueva,
+   * autocontenida, que NO toca index.html. Mismo sistema de tokens/estilo
+   * que index.html (copiado a propósito para no depender de ese archivo).
+   *
+   * Formato de la URL: ?a=<alumno_id>&t=<portal_token>
+   * Ejemplo: https://aulamovil.vercel.app/alumno.html?a=12&t=8f3c...
+   * (Se eligió query string en vez de hash porque así el enlace se puede
+   * compartir/registrar en logs de servidor sin perder los parámetros —
+   * el token igualmente solo tiene sentido si coincide con el guardado en
+   * `alumnos.portal_token`, así que no hay problema añadido de seguridad
+   * por ir en la URL visible; es el mismo patrón que un enlace de
+   * restablecimiento de contraseña con token de un solo uso.)
+   */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --primary: #4f46e5;
+    --primary-dark: #4338ca;
+    --primary-light: #eef2ff;
+    --success: #10b981;
+    --success-light: #d1fae5;
+    --danger: #ef4444;
+    --danger-light: #fee2e2;
+    --text: #101828;
+    --text-muted: #667085;
+    --border: #e3e6ee;
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(16,24,40,.05);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Inter', -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 24px);
+    padding-top: max(env(safe-area-inset-top), 24px);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 460px; margin: 0 auto; }
+
+  .header { text-align: center; margin-bottom: 22px; padding-top: 8px; animation: slideDown .5s ease-out; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
+
+  .logo-mark { width: 48px; height: 48px; margin: 0 auto 10px; border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+  h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .subtitle { font-size: 13px; color: var(--text-muted); margin-top: 5px; font-weight: 500; }
+
+  .card {
+    background: var(--card); border-radius: var(--radius); padding: 20px;
+    box-shadow: var(--shadow); margin-bottom: 16px; border: 1px solid var(--border);
+    animation: slideUp .4s ease-out .05s both;
+  }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+  .alumno-nombre { font-size: 18px; font-weight: 800; }
+  .tag {
+    display: inline-block; padding: 3px 10px; border-radius: 7px; font-size: 12px; font-weight: 700;
+    background: #e0e7ff; color: #4338ca; margin-left: 6px; border: 1px solid rgba(67,56,202,.12);
+  }
+  .total-badge {
+    display: inline-block; margin-top: 10px; font-size: 12.5px; font-weight: 700;
+    color: var(--text-muted); background: #f2f4f7; border: 1px solid var(--border);
+    padding: 4px 12px; border-radius: 99px;
+  }
+
+  .historial-item {
+    background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow);
+    padding: 14px 16px; margin-bottom: 10px; animation: listaIn .32s ease both;
+  }
+  @keyframes listaIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .historial-item:nth-child(n+6) { animation-delay: .18s; }
+
+  .historial-fecha { font-weight: 700; font-size: 14.5px; }
+  .historial-detalle { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+  .historial-nota { font-size: 13px; color: var(--text-muted); margin-top: 4px; font-style: italic; }
+  .historial-empty { text-align: center; color: var(--text-muted); padding: 34px 16px; font-size: 14px; }
+
+  .estado-carga { text-align: center; padding: 60px 16px; color: var(--text-muted); }
+  .loading-dots span { display: inline-block; animation: bounce .6s infinite; font-size: 22px; }
+  .loading-dots span:nth-child(2) { animation-delay: .1s; }
+  .loading-dots span:nth-child(3) { animation-delay: .2s; }
+  @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+
+  .estado-error {
+    background: var(--danger-light); border: 1.5px solid #fecaca; border-radius: var(--radius);
+    padding: 26px 22px; text-align: center; animation: popIn .35s cubic-bezier(.17,.67,.35,1.5);
+  }
+  @keyframes popIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
+  .estado-error .titulo { font-size: 16px; font-weight: 700; color: #dc2626; margin-bottom: 6px; }
+  .estado-error .msg { font-size: 13.5px; color: var(--text-muted); line-height: 1.5; }
+
+  .hidden { display: none !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, .header, .card, .historial-item, .estado-error { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="header">
+    <div class="logo-mark">
+      <img src="/logo.png" alt="AulaMovil" style="width:100%;height:100%;object-fit:contain">
+    </div>
+    <h1>Mis prácticas</h1>
+    <p class="subtitle">AulaMovil · Portal del alumno</p>
+  </div>
+
+  <div id="estado-carga" class="estado-carga">
+    <div class="loading-dots"><span>●</span><span>●</span><span>●</span></div>
+    <p style="margin-top:10px;font-size:13.5px">Cargando tus prácticas…</p>
+  </div>
+
+  <div id="estado-error" class="estado-error hidden">
+    <div class="titulo">Enlace no válido</div>
+    <div class="msg" id="estado-error-msg">Este enlace no es válido o ha caducado.</div>
+  </div>
+
+  <div id="contenido" class="hidden">
+    <div class="card">
+      <div class="alumno-nombre" id="alumno-nombre"></div>
+      <span class="total-badge" id="alumno-total"></span>
+    </div>
+    <div id="lista-practicas"></div>
+  </div>
+</div>
+
+<script>
+  // Solo lectura: esta página no envía ningún dato, solo consulta.
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text == null ? '' : String(text);
+    return div.innerHTML;
+  }
+
+  function leerParametros() {
+    const params = new URLSearchParams(window.location.search);
+    const alumnoId = params.get('a');
+    const token = params.get('t');
+    return { alumnoId, token };
+  }
+
+  function mostrarError(msg) {
+    document.getElementById('estado-carga').classList.add('hidden');
+    document.getElementById('contenido').classList.add('hidden');
+    document.getElementById('estado-error-msg').textContent = msg;
+    document.getElementById('estado-error').classList.remove('hidden');
+  }
+
+  function mostrarContenido(data) {
+    document.getElementById('estado-carga').classList.add('hidden');
+    document.getElementById('estado-error').classList.add('hidden');
+    document.getElementById('contenido').classList.remove('hidden');
+
+    document.getElementById('alumno-nombre').innerHTML =
+      escapeHtml(data.alumno.nombre) + (data.alumno.permiso ? `<span class="tag">${escapeHtml(data.alumno.permiso)}</span>` : '');
+    document.getElementById('alumno-total').textContent =
+      data.total + (data.total === 1 ? ' práctica registrada' : ' prácticas registradas');
+
+    const listEl = document.getElementById('lista-practicas');
+    if (!data.practicas || !data.practicas.length) {
+      listEl.innerHTML = '<div class="historial-empty">Todavía no tienes prácticas registradas.</div>';
+      return;
+    }
+
+    listEl.innerHTML = data.practicas.map(p => {
+      const tipoTxt = p.tipo === 'pista' ? 'Pista' : 'Circulación';
+      const tieneKm = (p.km_final != null && p.km_inicial != null) && (p.km_final > 0 || p.km_inicial > 0);
+      const kmTxt = tieneKm ? (Math.max(0, p.km_final - p.km_inicial) + ' km') : 'Km pendientes';
+      const partes = [kmTxt];
+      if (p.profesor_nombre) partes.push(escapeHtml(p.profesor_nombre));
+      const fechaFmt = typeof p.fecha === 'string' ? p.fecha.split('-').reverse().join('/') : '';
+      return `
+        <div class="historial-item">
+          <div class="historial-fecha">${escapeHtml(fechaFmt)} <span class="tag">${escapeHtml(tipoTxt)}</span></div>
+          <div class="historial-detalle">${partes.join(' · ')}</div>
+          ${p.nota ? `<div class="historial-nota">${escapeHtml(p.nota)}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function cargarPortal() {
+    const { alumnoId, token } = leerParametros();
+    if (!alumnoId || !token) {
+      mostrarError('Falta el enlace completo. Pide a tu autoescuela que te lo reenvíe.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/alumno-portal?alumno_id=' + encodeURIComponent(alumnoId) + '&token=' + encodeURIComponent(token));
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 503) {
+        mostrarError('El portal del alumno todavía no está disponible. Inténtalo más tarde.');
+        return;
+      }
+      if (!res.ok || !data.ok) {
+        mostrarError(data.error === 'Acceso no válido'
+          ? 'Este enlace no es válido o ha caducado.'
+          : (data.error || 'No se han podido cargar tus prácticas.'));
+        return;
+      }
+
+      mostrarContenido(data);
+    } catch (e) {
+      mostrarError('No se ha podido conectar. Comprueba tu conexión e inténtalo de nuevo.');
+    }
+  }
+
+  cargarPortal();
+</script>
+</body>
+</html>
