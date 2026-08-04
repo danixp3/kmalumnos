@@ -37,8 +37,8 @@ AulaMovil pasa de "app de una autoescuela" a **SaaS modular para autoescuelas es
 
 ## Fase 0 — Producto vendible
 
-- **Bloque 1 · Cimientos multi-empresa (EN CURSO):** aplicar la migración roles/sucursales de `migraciones/` (con prueba en rama de Supabase y rollback listo), añadir el modelo de módulos contratados por empresa, y que la app active/desactive funciones según lo contratado. Criterio: dos empresas ficticias con módulos distintos ven cosas distintas; el modo clásico sigue funcionando intacto.
-- **Bloque 2 · Portal del alumno v1:** cuentas de alumno, ver su progreso, reservar/cancelar prácticas contra la agenda real. Después: pago online (Stripe) y firma digital del contrato.
+- **Bloque 1 · Cimientos multi-empresa (APLICADO 2026-08-05):** migración roles/sucursales + módulos contratados aplicadas y verificadas en Supabase (datos intactos). App activa/desactiva funciones vía `moduloActivo`. Módulo `portal_alumno` activado para la empresa principal.
+- **Bloque 2 · Portal del alumno v1 (APLICADO 2026-08-05, capa "Ver"):** login por email + código OTP, ver prácticas en solo lectura, gateado por módulo. Migraciones aplicadas. Falta config Supabase Auth (email OTP + plantilla) para que llegue el código. Pendiente capas siguientes: reservar/cancelar (requiere agenda), pago online (Stripe), firma (OTP).
 - **Bloque 3 · Facturación VeriFactu:** comparar proveedores de API certificada españoles, integrar emisión de facturas con QR y encadenado desde Pagos.
 - **Bloque 4 · Investigación AUES/VeriFactu (HECHO, 2026-08-04):** informe completo en `INVESTIGACION-AUES-VERIFACTU.md`. Conclusiones: AUES viable por Web Service (certificado + alta DGT + homologación); VeriFactu vía colaborador social; firma OTP y pagos Stripe/Redsys por API. Próximo paso material: escribir a `soportecau@dgt.es` para pedir specs del Web Service (gratis, no compromete).
 
