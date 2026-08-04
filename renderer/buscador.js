@@ -36,6 +36,9 @@ const BUSCADOR_DESTINOS = [
   // Prácticas
   { titulo: 'Prácticas', sub: 'Todas las prácticas con filtros', page: 'practicas-global', kw: 'practicas todas global filtros buscar clases' },
 
+  // Agenda
+  { titulo: 'Agenda', sub: 'Reservas y solicitudes de práctica', page: 'reservas', kw: 'agenda reservas cita citas solicitud solicitudes confirmar practica reserva calendario' },
+
   // Kilómetros
   { titulo: 'Mapa del vehículo', sub: 'Kilómetros', page: 'kilometros', tab: 'mapa', kw: 'kilometros km mapa vehiculo timeline linea tiempo odometro' },
   { titulo: 'Conflictos de km', sub: 'Kilómetros', page: 'kilometros', tab: 'conflictos', kw: 'kilometros conflictos solapamientos errores km incoherencias' },
