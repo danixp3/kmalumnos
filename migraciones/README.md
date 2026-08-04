@@ -142,12 +142,15 @@ Fecha: 2026-08-05. Archivos de esta carpeta:
 
 **Dependencia:** requiere aplicar antes `2026-08-05_alumno_email.sql` (usa la columna `alumnos.email`).
 
+**Dependencia opcional — módulo `portal_alumno`:** las funciones del portal comprueban, a través de la función auxiliar `empresa_tiene_portal(empresa_id)`, que la empresa del alumno tenga contratado el módulo `portal_alumno` en `modulos_empresa` (ver `2026-08-04_modulos_empresa.sql`, ROADMAP-SAAS.md → Fase 0 · Bloque 1). Es graceful: si esa migración todavía no está aplicada (la tabla `modulos_empresa` no existe), no bloquea nada y el portal funciona igual que si el gating no existiera. No hay orden de aplicación obligatorio entre las dos migraciones.
+
 ## Qué hace, en llano
 
-Da a cada alumno acceso a sus prácticas desde `/alumno.html` iniciando sesión con su propio email: escribe el correo, Supabase le envía un código de 6 dígitos, lo introduce y entra. No hace falta que el alumno tenga contraseña ni cuenta de empresa. Dos funciones nuevas:
+Da a cada alumno acceso a sus prácticas desde `/alumno.html` iniciando sesión con su propio email: escribe el correo, Supabase le envía un código de 6 dígitos, lo introduce y entra. No hace falta que el alumno tenga contraseña ni cuenta de empresa. Tres funciones nuevas:
 
-- `alumno_email_existe(email)` — booleano: ¿hay algún alumno con este email? La usa el backend para decidir si pide a Supabase Auth que envíe el código (y siempre responde igual al navegador, exista o no el alumno, para no revelar nada).
-- `portal_mis_datos()` — sin parámetros: lee el email del JWT ya verificado por Supabase Auth y devuelve los datos y últimas prácticas del alumno con ese email. Al no aceptar ningún id ni email como argumento, un alumno no puede pedir los datos de otro cambiando un parámetro.
+- `empresa_tiene_portal(empresa_id)` — booleano auxiliar: ¿esa empresa tiene contratado el módulo `portal_alumno`? Si el sistema de módulos no está aplicado (tabla `modulos_empresa` inexistente) devuelve siempre true (modo clásico, no bloquea).
+- `alumno_email_existe(email)` — booleano: ¿hay algún alumno con este email cuya empresa tenga el portal activo? La usa el backend para decidir si pide a Supabase Auth que envíe el código (y siempre responde igual al navegador, exista o no el alumno, para no revelar nada).
+- `portal_mis_datos()` — sin parámetros: lee el email del JWT ya verificado por Supabase Auth y devuelve los datos y últimas prácticas del alumno con ese email, o NULL si la empresa del alumno no tiene el portal activo. Al no aceptar ningún id ni email como argumento, un alumno no puede pedir los datos de otro cambiando un parámetro.
 
 Aplicar esta migración, por sí sola, no cambia nada visible en la app de escritorio (no toca ninguna tabla, solo añade funciones). En el panel de Supabase hace falta además habilitar el login por email OTP y revisar la plantilla de correo — checklist completo en el comentario de cabecera de `web-remote/api/alumno-solicitar-codigo.js`.
 
@@ -161,13 +164,13 @@ Aplicar esta migración, por sí sola, no cambia nada visible en la app de escri
 
 ## Qué verificar después
 
-- `SELECT alumno_email_existe('correo-de-un-alumno-real@ejemplo.com');` → `true` si ese email existe en `alumnos` (y `false` para uno inventado).
+- `SELECT alumno_email_existe('correo-de-un-alumno-real@ejemplo.com');` → `true` si ese email existe en `alumnos` (y `false` para uno inventado). Si ya se ha aplicado también `2026-08-04_modulos_empresa.sql` y esa empresa NO tiene el módulo `portal_alumno` activo, debe dar `false` aunque el email exista.
 - `portal_mis_datos()` NO se puede probar de verdad desde el SQL Editor (corre con el rol de servicio, que no tiene un JWT de alumno con claim `email`): la única forma real de probarla es completar el flujo de Supabase Auth desde `/alumno.html` (pedir código, verificarlo, ver que llegan los datos).
-- La app de escritorio sigue arrancando y sincronizando con normalidad (la migración no toca RLS ni ninguna tabla, solo añade dos funciones).
+- La app de escritorio sigue arrancando y sincronizando con normalidad (la migración no toca RLS ni ninguna tabla, solo añade funciones).
 
 ## Cómo revertir
 
-Ejecutar `2026-08-05_portal_alumno_ROLLBACK.sql` (borra las dos funciones; no hay columna que perder en esta migración).
+Ejecutar `2026-08-05_portal_alumno_ROLLBACK.sql` (borra las tres funciones: las dos del portal y la auxiliar `empresa_tiene_portal`; no hay columna que perder en esta migración).
 
 # Migración: email de alumno
 
