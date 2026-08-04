@@ -10,6 +10,11 @@ _Registro vivo de tareas que requieren tu cuenta, tus credenciales o una decisi�
 - [ ] _(Opcional, producción)_ **SMTP propio** en Supabase Auth: el SMTP por defecto tiene un límite bajo; para volumen real de alumnos hace falta configurar uno propio (SendGrid, Resend, etc.).
 - [ ] _(Opcional, recomendado)_ **Supabase → Authentication:** activar "Leaked Password Protection" (lo marca el linter de seguridad).
 
+## Para revisar en la app cuando quieras (opcional, no bloquea nada)
+
+- [ ] **Abrir la app** y mirar la nueva pestaña **"Agenda"** en la barra lateral: crear una reserva, confirmarla/cancelarla/marcarla realizada. También aparece un resumen de agenda en el panel principal y se encuentra desde el buscador (Ctrl/⌘+K → "agenda").
+- [ ] _(Cuando esté el correo del portal configurado)_ Probar el **portal del alumno** de punta a punta: poner tu email en un alumno, entrar en `aulamovil.vercel.app/alumno.html`, recibir el código y ver las prácticas.
+
 ## Decisiones de negocio pendientes
 
 - [ ] **Precios y planes** del SaaS (horquilla objetivo 39–79 €/mes por módulos; ver `ROADMAP-SAAS.md`).

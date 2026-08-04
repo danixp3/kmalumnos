@@ -27,6 +27,7 @@ async function loadDashboard() {
   }
 
   loadGraficos();
+  loadAgendaDashboard();
 
   const alertas = document.getElementById('dash-alertas');
   const partes = [];
@@ -49,6 +50,54 @@ async function loadDashboard() {
     );
   }
   alertas.innerHTML = partes.join('');
+}
+
+// Tarjeta "Agenda": solicitudes pendientes de confirmar y próximas reservas
+// confirmadas. Módulo opcional (Bloque 2 SaaS) — si getReservas falla o no
+// hay nada que mostrar, la tarjeta se oculta sin romper el resto del panel.
+async function loadAgendaDashboard() {
+  const card = document.getElementById('dash-agenda-card');
+  if (!card) return;
+  let reservas = [];
+  try {
+    reservas = await window.api.getReservas(getSucursalActual());
+  } catch (e) {
+    card.classList.add('hidden');
+    return;
+  }
+  if (!Array.isArray(reservas) || reservas.length === 0) {
+    card.classList.add('hidden');
+    return;
+  }
+  card.classList.remove('hidden');
+
+  const solicitadas = reservas.filter(r => r.estado === 'solicitada');
+  const contSolic = document.getElementById('dash-agenda-solicitudes');
+  if (solicitadas.length > 0) {
+    contSolic.innerHTML =
+      `<div class="alert alert-warn" style="cursor:pointer" onclick="navegarA('reservas')" title="Ir a Agenda">` +
+      `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><strong>${solicitadas.length} solicitud(es) pendiente(s).</strong> Ve a <u>Agenda</u> para confirmarlas o rechazarlas.</div>`;
+  } else {
+    contSolic.innerHTML = '';
+  }
+
+  const hoy = new Date().toISOString().slice(0, 10);
+  const proximas = reservas
+    .filter(r => r.estado === 'confirmada' && r.fecha >= hoy)
+    .sort((a, b) => (a.fecha + (a.hora_inicio || '')).localeCompare(b.fecha + (b.hora_inicio || '')))
+    .slice(0, 5);
+
+  const contProx = document.getElementById('dash-agenda-proximas');
+  if (proximas.length === 0) {
+    contProx.innerHTML = '<div style="color:var(--placeholder);font-size:13px">No hay próximas reservas confirmadas.</div>';
+  } else {
+    contProx.innerHTML = proximas.map(r => {
+      const fechaHora = `${fmtFecha(r.fecha)}${r.hora_inicio ? ' · ' + esc(r.hora_inicio) : ''}`;
+      const alumno = r.alumno_nombre ? esc(r.alumno_nombre) : '—';
+      return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">` +
+        `<span>${fechaHora}</span><span>${alumno}</span></div>`;
+    }).join('');
+  }
 }
 
 function navegarA(page, tab) {
