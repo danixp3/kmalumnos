@@ -16,6 +16,14 @@
     <span>AulaMovil</span>
   </div>
   <div class="tb-drag"></div>
+  <div id="tb-search-wrap">
+    <div class="cir-search" id="cir-search" role="combobox" aria-expanded="false" aria-haspopup="listbox">
+      <svg class="cir-search__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="cir-search__field" id="cir-search-input" type="text" placeholder="Buscar en la aplicación…" autocomplete="off" spellcheck="false" aria-label="Buscar en la aplicación">
+    </div>
+    <div id="cir-search-results" class="hidden" role="listbox"></div>
+  </div>
+  <div class="tb-drag"></div>
   <div id="tb-sucursal-wrap" class="hidden">
     <select id="tb-sucursal" title="Sucursal" onchange="cambiarSucursalActual(this.value)"></select>
   </div>
@@ -361,7 +369,7 @@
         </div>
       </div>
 
-      <div class="card card-banner">
+      <div class="card card-banner" id="veh-relleno">
         <div class="card-title">
           <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
           Relleno masivo de kilómetros
@@ -932,7 +940,7 @@
       </div>
 
       <!-- SINCRONIZACIÓN -->
-      <div class="card">
+      <div class="card" id="aj-sincronizacion">
         <div class="card-title">
           <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
           Sincronización
@@ -1032,7 +1040,7 @@
       </div>
 
       <!-- COPIA DE SEGURIDAD -->
-      <div class="card card-banner-success">
+      <div class="card card-banner-success" id="aj-guardar-backup">
         <div class="card-title">
           <div class="card-title-icon" style="background:#ecfdf5;color:#059669"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
           Guardar copia de seguridad
@@ -1045,7 +1053,7 @@
       </div>
 
       <!-- RESTAURAR ÚLTIMO BACKUP -->
-      <div class="card card-banner-warn">
+      <div class="card card-banner-warn" id="aj-restaurar-ultimo">
         <div class="card-title">
           <div class="card-title-icon" style="background:#fffbeb;color:#d97706"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
           Restaurar último backup
@@ -1057,7 +1065,7 @@
         </button>
       </div>
 
-      <div class="card card-banner-warn">
+      <div class="card card-banner-warn" id="aj-restaurar-backup">
         <div class="card-title">
           <div class="card-title-icon" style="background:#fffbeb;color:#d97706"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
           Restaurar copia de seguridad
@@ -1071,7 +1079,7 @@
       </div>
 
       <!-- ACTUALIZACIONES -->
-      <div class="card">
+      <div class="card" id="aj-actualizaciones">
         <div class="card-title">
           <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></div>
           Actualizaciones
@@ -1084,7 +1092,7 @@
       </div>
 
       <!-- PREFERENCIAS -->
-      <div class="card">
+      <div class="card" id="aj-preferencias">
         <div class="card-title">
           <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
           Preferencias
@@ -1795,6 +1803,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <script src="renderer/ventana.js"></script>
 <script src="renderer/graficos.js"></script>
 <script src="renderer/datepicker.js"></script>
+<script src="renderer/buscador.js"></script>
 <script src="renderer/arranque.js"></script>
 </body>
 </html>
