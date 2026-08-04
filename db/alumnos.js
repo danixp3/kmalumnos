@@ -17,13 +17,14 @@ function getAlumnos(sucursalId) {
     });
 }
 
-function addAlumno(nombre, permiso, vehiculo_id, profesor_id = null, sucursal_id = null) {
+function addAlumno(nombre, permiso, vehiculo_id, profesor_id = null, sucursal_id = null, email = null) {
   const d = load();
   const id = nextId('a');
   d.alumnos.push({
     id, nombre, permiso: permiso || 'B', vehiculo_id: vehiculo_id ? parseInt(vehiculo_id) : null,
     profesor_id: profesor_id ? parseInt(profesor_id) : null,
-    sucursal_id: sucursal_id ? parseInt(sucursal_id) : null
+    sucursal_id: sucursal_id ? parseInt(sucursal_id) : null,
+    email: email ? String(email).trim() : null
   });
   save();
   const s = _sync(); if (s) s.markDirty('alumnos', id);
@@ -45,7 +46,7 @@ function deleteAlumno(id) {
   }
 }
 
-function updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id = null) {
+function updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id = null, email = null) {
   const d = load();
   const a = d.alumnos.find(x => x.id === id);
   if (a) {
@@ -53,6 +54,7 @@ function updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id = null) {
     a.permiso = permiso;
     a.vehiculo_id = vehiculo_id ? parseInt(vehiculo_id) : null;
     a.profesor_id = profesor_id ? parseInt(profesor_id) : null;
+    a.email = email ? String(email).trim() : null;
     save();
     const s = _sync(); if (s) s.markDirty('alumnos', id);
   }

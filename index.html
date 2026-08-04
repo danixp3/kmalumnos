@@ -626,6 +626,10 @@
               <label>Profesor</label>
               <select id="a-profesor" style="width:165px"><option value="">— Sin profesor —</option></select>
             </div>
+            <div class="form-group">
+              <label>Email (para el portal del alumno)</label>
+              <input type="email" id="a-email" placeholder="alumno@email.com" style="width:200px">
+            </div>
             <button class="btn btn-primary" onclick="addAlumno()" style="align-self:flex-end">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Añadir alumno
@@ -1613,6 +1617,10 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     <div class="form-group">
       <label>Profesor</label>
       <select id="edit-a-profesor" style="width:100%"><option value="">— Sin profesor —</option></select>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Email (para el portal del alumno)</label>
+      <input type="email" id="edit-a-email" placeholder="alumno@email.com" style="width:100%">
     </div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-alumno')">Cancelar</button>
