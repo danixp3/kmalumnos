@@ -131,43 +131,43 @@ Ejecutar `2026-08-04_modulos_empresa_ROLLBACK.sql` (`DROP TABLE ... CASCADE`). S
 
 Al preparar esta migración se revisó `buscar_uid_por_email` (la función que usa `invitarEmpleado()` para traducir un email a su user_id) y se encontró una rendija: comprobaba el rol de quien llama con `coalesce(rol_actual(), 'jefe') = 'jefe'`, así que un usuario autenticado SIN fila todavía en `perfiles` pasaba la comprobación igual que un jefe de verdad, y podía usar la función como oráculo para averiguar qué emails están registrados (enumeración de cuentas). Se corrigió en el propio archivo `2026-08-01_roles_y_sucursales.sql` a una comprobación estricta (`rol_actual() IS NULL OR rol_actual() <> 'jefe'` → excepción). No hay pérdida funcional: `invitarEmpleado()` en `sync.js` ya exige `perfil.disponible` antes de llamar a esta RPC, así que un jefe legítimo (con su fila de backfill) nunca la dispara. Si `2026-08-01_roles_y_sucursales.sql` ya se hubiera aplicado en producción con la versión antigua de la función, hay que reaplicar solo el bloque 4b (`CREATE OR REPLACE FUNCTION public.buscar_uid_por_email`) para adoptar el arreglo.
 
-# Migración: portal del alumno (solo lectura)
+# Migración: portal del alumno (email OTP de Supabase Auth)
 
 Fecha: 2026-08-05. Archivos de esta carpeta:
 
 - `2026-08-05_portal_alumno.sql` — la migración.
 - `2026-08-05_portal_alumno_ROLLBACK.sql` — la red de seguridad.
 
-**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla. Es el primer entregable de `ROADMAP-SAAS.md` → Fase 0 · Bloque 2 (portal del alumno), ver también `PROPUESTA-BLOQUE2-PORTAL-ALUMNO.md`.
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla. Es el entregable de `ROADMAP-SAAS.md` → Fase 0 · Bloque 2 (portal del alumno), ver también `PROPUESTA-BLOQUE2-PORTAL-ALUMNO.md`. Reemplaza al enfoque anterior de "enlace inadivinable" con `portal_token` (descartado, nunca llegó a aplicarse) por login con email + código OTP de un solo uso, usando Supabase Auth directamente.
+
+**Dependencia:** requiere aplicar antes `2026-08-05_alumno_email.sql` (usa la columna `alumnos.email`).
 
 ## Qué hace, en llano
 
-Da a cada alumno un enlace propio, de solo lectura, para ver sus prácticas desde el móvil sin tener que iniciar sesión como si fuera la autoescuela. Un alumno no es una cuenta de empresa (no tiene usuario de Supabase Auth), así que no puede pasar por el sistema de permisos normal (RLS); en su lugar se usa un "enlace inadivinable": la columna nueva `alumnos.portal_token` guarda un texto secreto y aleatorio, y solo quien conoce el `alumno_id` **y** ese token exacto puede leer sus prácticas, a través de la función `portal_alumno_datos(id, token)`.
+Da a cada alumno acceso a sus prácticas desde `/alumno.html` iniciando sesión con su propio email: escribe el correo, Supabase le envía un código de 6 dígitos, lo introduce y entra. No hace falta que el alumno tenga contraseña ni cuenta de empresa. Dos funciones nuevas:
 
-Aplicar esta migración, por sí sola, no cambia nada visible: hoy ningún alumno tiene `portal_token` (columna nueva, todo `NULL`), así que la función siempre devuelve `NULL` (portal cerrado) hasta que se le asigne un token a algún alumno a mano.
+- `alumno_email_existe(email)` — booleano: ¿hay algún alumno con este email? La usa el backend para decidir si pide a Supabase Auth que envíe el código (y siempre responde igual al navegador, exista o no el alumno, para no revelar nada).
+- `portal_mis_datos()` — sin parámetros: lee el email del JWT ya verificado por Supabase Auth y devuelve los datos y últimas prácticas del alumno con ese email. Al no aceptar ningún id ni email como argumento, un alumno no puede pedir los datos de otro cambiando un parámetro.
+
+Aplicar esta migración, por sí sola, no cambia nada visible en la app de escritorio (no toca ninguna tabla, solo añade funciones). En el panel de Supabase hace falta además habilitar el login por email OTP y revisar la plantilla de correo — checklist completo en el comentario de cabecera de `web-remote/api/alumno-solicitar-codigo.js`.
 
 ## Pasos exactos para aplicarla
 
 1. Copia de seguridad (mismo criterio que el resto de migraciones de esta carpeta): backup de `data.json` desde Ajustes y, si se quiere, un `SELECT * FROM alumnos` guardado.
-2. Aplicar `2026-08-05_portal_alumno.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado). No depende de ninguna otra migración de esta carpeta (solo toca `alumnos`, que existe siempre).
-3. Verificar (paso siguiente).
+2. Aplicar `2026-08-05_alumno_email.sql` si no se ha aplicado ya (dependencia).
+3. Aplicar `2026-08-05_portal_alumno.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado).
+4. En el panel de Supabase: habilitar email OTP (Authentication → Providers → Email), añadir `{{ .Token }}` a la plantilla de "Magic Link"/OTP (Authentication → Email Templates) y revisar los límites de envío del SMTP (Authentication → Settings → SMTP Settings; el SMTP por defecto de Supabase es de pruebas, con volumen bajo).
+5. Verificar (paso siguiente).
 
 ## Qué verificar después
 
-- `SELECT portal_token FROM alumnos LIMIT 5;` → todo `NULL` (nadie tiene portal activo todavía).
-- `SELECT portal_alumno_datos(1, 'lo-que-sea');` → `NULL` (sin token real, no hay acceso).
-- Generar un token de prueba a un alumno real y comprobar que la función devuelve sus datos:
-  ```sql
-  UPDATE alumnos SET portal_token = encode(gen_random_bytes(24), 'hex') WHERE id = 1;
-  SELECT portal_token FROM alumnos WHERE id = 1;  -- copiar el valor
-  SELECT portal_alumno_datos(1, '<token copiado>');  -- debe devolver el json con alumno/total/practicas
-  SELECT portal_alumno_datos(1, 'token-incorrecto');  -- debe devolver NULL
-  ```
-- La app de escritorio sigue arrancando y sincronizando con normalidad (la migración no toca RLS ni ninguna tabla salvo añadir una columna nullable a `alumnos`).
+- `SELECT alumno_email_existe('correo-de-un-alumno-real@ejemplo.com');` → `true` si ese email existe en `alumnos` (y `false` para uno inventado).
+- `portal_mis_datos()` NO se puede probar de verdad desde el SQL Editor (corre con el rol de servicio, que no tiene un JWT de alumno con claim `email`): la única forma real de probarla es completar el flujo de Supabase Auth desde `/alumno.html` (pedir código, verificarlo, ver que llegan los datos).
+- La app de escritorio sigue arrancando y sincronizando con normalidad (la migración no toca RLS ni ninguna tabla, solo añade dos funciones).
 
 ## Cómo revertir
 
-Ejecutar `2026-08-05_portal_alumno_ROLLBACK.sql`. Si para entonces ya hay alumnos con portal activo (token asignado de verdad), esos tokens se pierden y los enlaces ya repartidos dejan de funcionar — leer la advertencia dentro del propio archivo antes de ejecutarlo.
+Ejecutar `2026-08-05_portal_alumno_ROLLBACK.sql` (borra las dos funciones; no hay columna que perder en esta migración).
 
 # Migración: email de alumno
 

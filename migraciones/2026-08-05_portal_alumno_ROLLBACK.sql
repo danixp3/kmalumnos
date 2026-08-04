@@ -1,20 +1,16 @@
 -- =====================================================================
--- KMAlumnos — ROLLBACK: portal del alumno (solo lectura)
+-- KMAlumnos — ROLLBACK: portal del alumno (email OTP de Supabase Auth)
 -- Revierte 2026-08-05_portal_alumno.sql
 --
--- ADVERTENCIA: si para cuando se ejecuta este rollback ya hay alumnos
--- con `portal_token` asignado (portal en uso real), esos tokens se
--- pierden al borrar la columna y cualquier enlace ya repartido a un
--- alumno deja de funcionar. No borra ninguna otra fila ni dato: solo
--- quita la columna, el índice y la función añadidos por la migración.
+-- No hay columna ni índice que borrar en esta migración: la columna
+-- `email` pertenece a `2026-08-05_alumno_email.sql` (rollback aparte,
+-- `2026-08-05_alumno_email_ROLLBACK.sql`) y no se toca aquí. Este
+-- rollback solo quita las dos funciones RPC.
 -- =====================================================================
 
 BEGIN;
 
-DROP FUNCTION IF EXISTS public.portal_alumno_datos(int, text);
-
-DROP INDEX IF EXISTS public.idx_alumnos_portal_token;
-
-ALTER TABLE public.alumnos DROP COLUMN IF EXISTS portal_token;
+DROP FUNCTION IF EXISTS public.alumno_email_existe(text);
+DROP FUNCTION IF EXISTS public.portal_mis_datos();
 
 COMMIT;
