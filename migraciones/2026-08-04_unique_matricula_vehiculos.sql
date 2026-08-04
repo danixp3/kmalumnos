@@ -53,9 +53,11 @@
 --   alumnos/prácticas del otro y darlo de baja) antes de aplicar este
 --   índice.
 --
--- IMPORTANTE: esta migración NO se ha aplicado a producción. Es un
--- archivo de texto en el repositorio, a la espera de revisión y de
--- ejecución manual siguiendo migraciones/README.md.
+-- ESTADO (verificado en producción el 2026-08-05, solo lectura): esta
+-- migración YA ESTÁ APLICADA. El índice `vehiculos_empresa_matricula_activa_uidx`
+-- existe en Supabase (migración registrada `20260803231106`). Se conserva
+-- este archivo como referencia histórica; es idempotente (IF NOT EXISTS),
+-- así que reejecutarlo no haría daño, pero NO es necesario.
 -- =====================================================================
 
 CREATE UNIQUE INDEX IF NOT EXISTS vehiculos_empresa_matricula_activa_uidx
