@@ -175,6 +175,7 @@ function setCredentials(email, password) {
   _empresaId = null;
   _perfilCache = null; // cambio de sesión: invalidar el perfil (rol/empresa) cacheado
   _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
+  _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
   // Entrada fresca de credenciales (login manual, registro, o logout): nunca
   // se da por buena hasta que un login real lo confirme. Distinto de
   // restaurarCredenciales(), pensada para el arranque de la app.
@@ -312,6 +313,7 @@ async function registrarEmpresa(email, password) {
       _authError = null;
       _perfilCache = null; // sesión nueva: invalidar el perfil (rol/empresa) cacheado
       _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
+      _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
       _authOk = true;
       _guardarAuthOk(true);
       _comprobarConflictoEmpresaLocal(_empresaId, email);
@@ -449,6 +451,56 @@ async function _sucursalesDisponible(sb) {
     _sucursalesDisponibleCache = false;
   }
   return _sucursalesDisponibleCache;
+}
+
+// ─── MÓDULOS CONTRATADOS (fase 0 SaaS, entitlements por empresa) ─────────────
+// Mismo patrón exacto que _perfilCache/getPerfilActual y
+// _sucursalesDisponibleCache/_sucursalesDisponible de arriba: mientras la
+// migración de módulos (o la de roles, de la que depende — ver
+// migraciones/2026-08-04_modulos_empresa.sql) no esté aplicada, o no haya
+// perfil resuelto, cualquier consulta a `modulos_empresa` falla y se trata
+// como "modo clásico": ningún módulo se da por activo, nunca al revés. El
+// núcleo actual de la app NO consulta moduloActivo() en ningún sitio
+// todavía, así que esto no cambia nada de lo que existe hoy.
+// Cacheado en memoria durante la sesión; se invalida al cambiar de
+// credenciales (setCredentials/registrarEmpresa más arriba).
+let _modulosCache = null;
+
+// Devuelve { disponible, modulos }.
+//   disponible=false → modo clásico: modulos siempre {} (moduloActivo() en
+//     el renderer devuelve false para cualquier módulo).
+//   disponible=true  → modulos es un mapa modulo -> activo (boolean) con las
+//     filas encontradas para la empresa actual.
+async function getModulosActivos() {
+  if (_modulosCache) return _modulosCache;
+  try {
+    const perfil = await getPerfilActual();
+    if (!perfil.disponible || !perfil.empresa_id) {
+      // Sin fila en `perfiles` (migración de roles no aplicada, o sin
+      // sesión) no hay empresa_id fiable con el que filtrar: modo clásico.
+      _modulosCache = { disponible: false, modulos: {} };
+      return _modulosCache;
+    }
+    const sb = await ensureClient();
+    if (!sb) {
+      _modulosCache = { disponible: false, modulos: {} };
+      return _modulosCache;
+    }
+    const { data, error } = await sb.from('modulos_empresa').select('modulo, activo').eq('empresa_id', perfil.empresa_id);
+    if (error || !data) {
+      // error: la tabla `modulos_empresa` no existe todavía (migración no
+      // aplicada) u otro fallo de la consulta — modo clásico.
+      _modulosCache = { disponible: false, modulos: {} };
+      return _modulosCache;
+    }
+    const modulos = {};
+    for (const fila of data) modulos[fila.modulo] = !!fila.activo;
+    _modulosCache = { disponible: true, modulos };
+    return _modulosCache;
+  } catch (e) {
+    _modulosCache = { disponible: false, modulos: {} };
+    return _modulosCache;
+  }
 }
 
 // ─── GESTIÓN DE EMPLEADOS (solo jefe, solo con la migración aplicada) ─────────
@@ -1749,6 +1801,7 @@ module.exports = {
   registrarEmpresa,
   getEstadoCuenta,
   getPerfilActual,
+  getModulosActivos,
   listarEmpleados,
   invitarEmpleado,
   cambiarRolEmpleado,

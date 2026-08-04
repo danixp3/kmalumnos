@@ -137,9 +137,16 @@ GRANT EXECUTE ON FUNCTION public.rol_actual() TO authenticated;
 --     para averiguar qué emails están registrados en el sistema
 --     (enumeración de cuentas). Por eso, antes de mirar auth.users,
 --     exige que quien llama sea jefe; si no lo es, ni siquiera consulta.
---     El coalesce a 'jefe' mantiene la compatibilidad con usuarios que
---     todavía no tengan fila en `perfiles`, igual que en el resto de la
---     migración.
+--     A DIFERENCIA del resto de la migración, aquí NO se usa
+--     coalesce(rol_actual(), 'jefe'): un usuario autenticado SIN fila en
+--     `perfiles` no tiene forma de demostrar que es jefe de nadie, así
+--     que se le niega directamente en vez de darle el beneficio de la
+--     duda — con el coalesce, cualquier cuenta autenticada sin perfil
+--     todavía podría usar esta función como oráculo de enumeración de
+--     emails. No hay pérdida funcional: invitarEmpleado() en sync.js ya
+--     exige perfil.disponible antes de llamar a esta RPC, así que un
+--     jefe legítimo (con su fila de backfill) nunca choca con esta
+--     comprobación.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.buscar_uid_por_email(p_email text)
 RETURNS uuid
@@ -151,7 +158,7 @@ AS $$
 DECLARE
   v_uid uuid;
 BEGIN
-  IF coalesce(public.rol_actual(), 'jefe') <> 'jefe' THEN
+  IF public.rol_actual() IS NULL OR public.rol_actual() <> 'jefe' THEN
     RAISE EXCEPTION 'Solo un jefe puede buscar usuarios por email';
   END IF;
 

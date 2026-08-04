@@ -8,10 +8,26 @@
 let perfilActual = { disponible: false, rol: 'jefe' };
 let empleadosCache = [];
 
+// Módulos contratados por empresa (fase 0 SaaS, ver sync.js:getModulosActivos).
+// Mismo patrón que perfilActual: copia cacheada en memoria, se recarga en el
+// mismo punto (aplicarPermisosPorRol, abajo). En modo clásico (disponible:
+// false) modulosActivosCache.modulos siempre está vacío, así que
+// moduloActivo() devuelve false para cualquier nombre — el núcleo actual de
+// la app no llama todavía a moduloActivo() en ningún sitio, así que nada
+// cambia hoy.
+let modulosActivosCache = { disponible: false, modulos: {} };
+
+// ¿Tiene la empresa actual el módulo `nombre` contratado y activo? Siempre
+// false en modo clásico (sin migración de módulos aplicada, o sin sesión).
+function moduloActivo(nombre) {
+  return !!(modulosActivosCache.disponible && modulosActivosCache.modulos[nombre]);
+}
+
 // Se llama al arrancar la app y tras cualquier cambio de sesión (login,
 // registro, logout) — mismos puntos donde ya se llama a refrescarEstadoCuenta().
 async function aplicarPermisosPorRol() {
   perfilActual = await window.api.getPerfilActual();
+  modulosActivosCache = await window.api.getModulosActivos();
   const esEmpleado = perfilActual.disponible && perfilActual.rol === 'empleado';
 
   // Pagos: esto es solo comodidad de interfaz (ocultar el enlace). La barrera

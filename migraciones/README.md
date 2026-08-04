@@ -92,3 +92,41 @@ En modo legado (sin la migración de roles/sucursales aplicada, `empresa_id` sie
 ## Cómo revertir
 
 Ejecutar `2026-08-04_unique_matricula_vehiculos_ROLLBACK.sql` (`DROP INDEX IF EXISTS`). No borra ni modifica ninguna fila: el índice no almacena datos por sí mismo, así que revertirlo es seguro en cualquier momento.
+
+# Migración: módulos contratados por empresa (entitlements)
+
+Fecha: 2026-08-04. Archivos de esta carpeta:
+
+- `2026-08-04_modulos_empresa.sql` — la migración.
+- `2026-08-04_modulos_empresa_ROLLBACK.sql` — la red de seguridad.
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla. Es el primer paso de `ROADMAP-SAAS.md` → Fase 0 · Bloque 1 (cimientos multi-empresa).
+
+## Qué hace, en llano
+
+Crea la tabla `modulos_empresa`: una fila por cada módulo que una empresa tiene contratado (por ejemplo, en el futuro, "portal_alumno" o "verifactu"), con un booleano `activo`. La app solo LEE esta tabla (nunca inserta, actualiza ni borra desde el cliente): el alta o baja de un módulo para una empresa se hace a mano por SQL, o con la clave de rol de servicio, nunca desde la aplicación. Así, aunque alguien manipulara la app instalada, no podría autoconcederse un módulo de pago que no ha contratado.
+
+Aplicar esta migración, por sí sola, no cambia nada visible: hoy ningún sitio del código consulta todavía `moduloActivo()` para decidir qué mostrar (`renderer/roles.js`), así que la tabla existe pero no influye en nada hasta que una funcionalidad futura empiece a consultarla.
+
+**⚠️ ORDEN OBLIGATORIO:** esta migración usa la función `empresa_actual()`, definida en `2026-08-01_roles_y_sucursales.sql`. Esa migración tiene que estar aplicada ANTES que esta — si no lo está, el `CREATE POLICY` de esta migración falla porque la función no existe todavía.
+
+## Pasos exactos para aplicarla
+
+1. Confirmar que `2026-08-01_roles_y_sucursales.sql` ya está aplicada en el proyecto (ver su propia sección de este README). Si no lo está, aplicarla primero.
+2. Copia de seguridad (mismo criterio que el resto de migraciones de esta carpeta): backup de `data.json` desde Ajustes y, si se quiere, un `SELECT * FROM …` guardado de las tablas relevantes.
+3. Aplicar `2026-08-04_modulos_empresa.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado).
+4. Verificar (paso siguiente).
+
+## Qué verificar después
+
+- `SELECT * FROM modulos_empresa;` → tabla vacía (nadie tiene módulos dados de alta todavía).
+- La app de escritorio sigue arrancando y sincronizando exactamente igual que antes: `sync.getModulosActivos()` consulta la tabla, la encuentra vacía, y devuelve `{ disponible: true, modulos: {} }` — ningún módulo se considera activo porque no hay filas, no porque la tabla falte.
+- (Opcional) Dar de alta a mano una fila de prueba (`INSERT INTO modulos_empresa (empresa_id, modulo, activo) VALUES ('<uuid de una empresa>', 'modulo_prueba', true);`) e iniciar sesión con esa cuenta: `sync.getModulosActivos()` debe devolver `{ disponible: true, modulos: { modulo_prueba: true } }`.
+
+## Cómo revertir
+
+Ejecutar `2026-08-04_modulos_empresa_ROLLBACK.sql` (`DROP TABLE ... CASCADE`). Si para entonces ya hay módulos contratados dados de alta de verdad, esos datos se pierden — leer la advertencia dentro del propio archivo antes de ejecutarlo.
+
+## Nota sobre `2026-08-01_roles_y_sucursales.sql`: endurecimiento de `buscar_uid_por_email`
+
+Al preparar esta migración se revisó `buscar_uid_por_email` (la función que usa `invitarEmpleado()` para traducir un email a su user_id) y se encontró una rendija: comprobaba el rol de quien llama con `coalesce(rol_actual(), 'jefe') = 'jefe'`, así que un usuario autenticado SIN fila todavía en `perfiles` pasaba la comprobación igual que un jefe de verdad, y podía usar la función como oráculo para averiguar qué emails están registrados (enumeración de cuentas). Se corrigió en el propio archivo `2026-08-01_roles_y_sucursales.sql` a una comprobación estricta (`rol_actual() IS NULL OR rol_actual() <> 'jefe'` → excepción). No hay pérdida funcional: `invitarEmpleado()` en `sync.js` ya exige `perfil.disponible` antes de llamar a esta RPC, así que un jefe legítimo (con su fila de backfill) nunca la dispara. Si `2026-08-01_roles_y_sucursales.sql` ya se hubiera aplicado en producción con la versión antigua de la función, hay que reaplicar solo el bloque 4b (`CREATE OR REPLACE FUNCTION public.buscar_uid_por_email`) para adoptar el arreglo.
