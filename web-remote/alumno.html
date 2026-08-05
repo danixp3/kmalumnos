@@ -35,6 +35,8 @@
     --primary-light: #eef2ff;
     --success: #10b981;
     --success-light: #d1fae5;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
     --danger: #ef4444;
     --danger-light: #fee2e2;
     --text: #101828;
@@ -111,6 +113,15 @@
     display: inline-block; margin-top: 10px; font-size: 12.5px; font-weight: 700;
     color: var(--text-muted); background: #f2f4f7; border: 1px solid var(--border);
     padding: 4px 12px; border-radius: 99px;
+  }
+
+  .tag-ambar {
+    display: inline-block; padding: 3px 10px; border-radius: 7px; font-size: 12px; font-weight: 700;
+    background: var(--warning-light); color: var(--warning); margin-left: 6px; border: 1px solid rgba(217,119,6,.18);
+  }
+  .tag-verde {
+    display: inline-block; padding: 3px 10px; border-radius: 7px; font-size: 12px; font-weight: 700;
+    background: var(--success-light); color: #047857; margin-left: 6px; border: 1px solid rgba(4,120,87,.18);
   }
 
   .historial-item {
@@ -220,6 +231,36 @@
       <div class="alumno-nombre" id="alumno-nombre"></div>
       <span class="total-badge" id="alumno-total"></span>
     </div>
+
+    <!-- Solicitar una clase nueva -->
+    <div class="card">
+      <label style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px">Solicitar una clase</label>
+      <div id="reserva-msg"></div>
+      <div class="campo">
+        <label for="reserva-fecha">Fecha</label>
+        <input type="date" id="reserva-fecha">
+      </div>
+      <div class="campo">
+        <label for="reserva-hora">Hora (opcional)</label>
+        <input type="time" id="reserva-hora">
+      </div>
+      <div class="campo">
+        <label for="reserva-n-practicas">Nº de prácticas</label>
+        <input type="number" id="reserva-n-practicas" min="1" max="10" value="1">
+      </div>
+      <div class="campo">
+        <label for="reserva-nota">Nota (opcional)</label>
+        <textarea id="reserva-nota" rows="2" placeholder="Algo que debamos saber…" style="width:100%;padding:12px 14px;border-radius:12px;border:1.5px solid var(--border);font-size:15px;font-family:inherit;color:var(--text);background:#fff;resize:vertical"></textarea>
+      </div>
+      <button class="btn" id="btn-solicitar-reserva" onclick="solicitarReserva()">Solicitar</button>
+    </div>
+
+    <!-- Mis próximas clases -->
+    <div class="card">
+      <label style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px">Mis próximas clases</label>
+      <div id="lista-reservas"></div>
+    </div>
+
     <div id="lista-practicas"></div>
     <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesión</button>
   </div>
@@ -340,6 +381,87 @@
     document.getElementById('estado-error-datos-msg').textContent = msg;
   }
 
+  function mostrarReservas(reservas) {
+    const listEl = document.getElementById('lista-reservas');
+    if (!reservas || !reservas.length) {
+      listEl.innerHTML = '<div class="historial-empty">No tienes clases próximas.</div>';
+      return;
+    }
+    listEl.innerHTML = reservas.map(r => {
+      const fechaFmt = typeof r.fecha === 'string' ? r.fecha.split('-').reverse().join('/') : '';
+      const partes = [];
+      if (r.hora_inicio) partes.push(escapeHtml(r.hora_inicio));
+      partes.push((r.n_practicas || 1) + (r.n_practicas === 1 ? ' práctica' : ' prácticas'));
+      if (r.profesor_nombre) partes.push(escapeHtml(r.profesor_nombre));
+      const tagClase = r.estado === 'confirmada' ? 'tag-verde' : 'tag-ambar';
+      const tagTexto = r.estado === 'confirmada' ? 'Confirmada' : 'Pendiente de confirmar';
+      return `
+        <div class="historial-item">
+          <div class="historial-fecha">${escapeHtml(fechaFmt)} <span class="${tagClase}">${escapeHtml(tagTexto)}</span></div>
+          <div class="historial-detalle">${partes.join(' · ')}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function solicitarReserva() {
+    const fecha = document.getElementById('reserva-fecha').value;
+    const hora = document.getElementById('reserva-hora').value;
+    const nPracticas = document.getElementById('reserva-n-practicas').value;
+    const nota = document.getElementById('reserva-nota').value;
+
+    if (!fecha) {
+      mostrarMensaje('reserva-msg', 'Elige una fecha.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('btn-solicitar-reserva');
+    btn.disabled = true;
+    const textoOriginal = btn.textContent;
+    btn.textContent = 'Enviando…';
+    mostrarMensaje('reserva-msg', '');
+
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        mostrarMensaje('reserva-msg', 'Tu sesión no es válida. Vuelve a iniciar sesión.', 'error');
+        return;
+      }
+
+      const res = await fetch('/api/alumno-solicitar-reserva', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + session.access_token
+        },
+        body: JSON.stringify({ fecha, hora, n_practicas: nPracticas, nota })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 503) {
+        mostrarMensaje('reserva-msg', 'El portal aún no está disponible. Inténtalo más tarde.', 'error');
+        return;
+      }
+      if (!res.ok || !data.ok) {
+        mostrarMensaje('reserva-msg', data.error || 'No se ha podido enviar la solicitud.', 'error');
+        return;
+      }
+
+      mostrarMensaje('reserva-msg', 'Solicitud enviada. La autoescuela la confirmará.', 'ok');
+      document.getElementById('reserva-fecha').value = '';
+      document.getElementById('reserva-hora').value = '';
+      document.getElementById('reserva-n-practicas').value = '1';
+      document.getElementById('reserva-nota').value = '';
+      await cargarDatos();
+    } catch (e) {
+      mostrarMensaje('reserva-msg', 'No se ha podido conectar. Comprueba tu conexión e inténtalo de nuevo.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = textoOriginal;
+    }
+  }
+  window.solicitarReserva = solicitarReserva;
+
   function mostrarDatos(data) {
     mostrarPaso('paso-datos');
 
@@ -347,6 +469,8 @@
       escapeHtml(data.alumno.nombre) + (data.alumno.permiso ? `<span class="tag">${escapeHtml(data.alumno.permiso)}</span>` : '');
     document.getElementById('alumno-total').textContent =
       data.total + (data.total === 1 ? ' práctica registrada' : ' prácticas registradas');
+
+    mostrarReservas(data.reservas);
 
     const listEl = document.getElementById('lista-practicas');
     if (!data.practicas || !data.practicas.length) {
