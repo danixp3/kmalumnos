@@ -60,7 +60,14 @@ function getSupabaseAnon() {
   return createClient(
     process.env.SUPABASE_URL || '',
     process.env.SUPABASE_ANON_KEY || '',
-    { auth: { persistSession: false, autoRefreshToken: false } }
+    // flowType 'implicit': el enlace mágico se genera EN EL SERVIDOR (esta
+    // función), no en el navegador del alumno. Con PKCE, el canje del enlace
+    // exige un "code_verifier" guardado en el navegador que inició la
+    // petición — que aquí es el servidor, no el alumno, así que el canje
+    // fallaría. Con implicit, el enlace lleva los tokens en el fragmento de
+    // la URL y el navegador del alumno los consume solo (detectSessionInUrl),
+    // sin necesitar ningún verifier. Es el modo correcto para este flujo.
+    { auth: { persistSession: false, autoRefreshToken: false, flowType: 'implicit' } }
   );
 }
 
@@ -76,7 +83,7 @@ export default async function handler(req, res) {
   }
   const emailNormalizado = email.trim();
 
-  const RESPUESTA_GENERICA = { ok: true, msg: 'Si el correo corresponde a un alumno, te hemos enviado un código.' };
+  const RESPUESTA_GENERICA = { ok: true, msg: 'Si el correo corresponde a un alumno, te hemos enviado un enlace de acceso. Ábrelo desde tu correo en este dispositivo.' };
 
   try {
     const supabase = getSupabaseAnon();
@@ -100,7 +107,7 @@ export default async function handler(req, res) {
     if (data === true) {
       const { error: errorOtp } = await supabase.auth.signInWithOtp({
         email: emailNormalizado,
-        options: { shouldCreateUser: true }
+        options: { shouldCreateUser: true, emailRedirectTo: 'https://aulamovil.vercel.app/alumno.html' }
       });
       if (errorOtp) {
         // No cambiamos la respuesta al cliente ni con éxito ni con
