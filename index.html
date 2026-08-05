@@ -683,6 +683,34 @@
               <label>Email (para el portal del alumno)</label>
               <input type="email" id="a-email" placeholder="alumno@email.com" style="width:200px">
             </div>
+          </div>
+          <div class="form-row" style="margin-top:10px">
+            <div class="form-group">
+              <label>Teléfono</label>
+              <input type="text" id="a-telefono" placeholder="600 123 456" style="width:150px">
+            </div>
+            <div class="form-group">
+              <label>DNI/NIE</label>
+              <input type="text" id="a-dni" placeholder="12345678A" style="width:130px">
+            </div>
+            <div class="form-group">
+              <label>Fecha de nacimiento</label>
+              <input type="date" id="a-fecha-nacimiento" style="width:150px">
+            </div>
+            <div class="form-group">
+              <label>Fecha de alta</label>
+              <input type="date" id="a-fecha-alta" style="width:150px">
+            </div>
+            <div class="form-group" style="flex:1;min-width:200px">
+              <label>Dirección</label>
+              <input type="text" id="a-direccion" placeholder="Calle, número, ciudad" style="width:100%">
+            </div>
+          </div>
+          <div class="form-row" style="margin-top:10px">
+            <div class="form-group" style="flex:1">
+              <label>Observaciones</label>
+              <textarea id="a-observaciones" rows="2" style="width:100%" placeholder="Notas sobre el alumno..."></textarea>
+            </div>
             <button class="btn btn-primary" onclick="addAlumno()" style="align-self:flex-end">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Añadir alumno
@@ -724,6 +752,7 @@
           <table id="tabla-alumnos">
             <thead><tr>
               <th class="sortable" data-sort="nombre" onclick="ordenarAlumnos('nombre')">Nombre<span class="sort-ind"></span></th>
+              <th>Teléfono</th>
               <th class="sortable" data-sort="permiso" onclick="ordenarAlumnos('permiso')">Permiso<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="vehiculo" onclick="ordenarAlumnos('vehiculo')">Vehículo<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="profesor" onclick="ordenarAlumnos('profesor')">Profesor<span class="sort-ind"></span></th>
@@ -1742,6 +1771,34 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     <div class="form-group" style="margin-top:14px">
       <label>Email (para el portal del alumno)</label>
       <input type="email" id="edit-a-email" placeholder="alumno@email.com" style="width:100%">
+    </div>
+    <div class="form-row" style="margin-top:14px">
+      <div class="form-group" style="flex:1">
+        <label>Teléfono</label>
+        <input type="text" id="edit-a-telefono" placeholder="600 123 456" style="width:100%">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label>DNI/NIE</label>
+        <input type="text" id="edit-a-dni" placeholder="12345678A" style="width:100%">
+      </div>
+    </div>
+    <div class="form-row" style="margin-top:14px">
+      <div class="form-group" style="flex:1">
+        <label>Fecha de nacimiento</label>
+        <input type="date" id="edit-a-fecha-nacimiento" style="width:100%">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label>Fecha de alta</label>
+        <input type="date" id="edit-a-fecha-alta" style="width:100%">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Dirección</label>
+      <input type="text" id="edit-a-direccion" placeholder="Calle, número, ciudad" style="width:100%">
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Observaciones</label>
+      <textarea id="edit-a-observaciones" rows="2" style="width:100%" placeholder="Notas sobre el alumno..."></textarea>
     </div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-alumno')">Cancelar</button>

@@ -265,3 +265,31 @@ Solo añade una columna nueva a una tabla que ya existe — no toca RLS ni el re
 ## Cómo revertir
 
 Ejecutar `2026-08-05_reservas_n_practicas_ROLLBACK.sql`. Si para entonces ya hay reservas reales con `n_practicas` distinto de 1, ese dato se pierde — leer la advertencia dentro del propio archivo antes de ejecutarlo.
+
+# Migración: ficha ampliada del alumno
+
+Fecha: 2026-08-06. Archivos de esta carpeta:
+
+- `2026-08-06_alumno_datos.sql` — la migración.
+- `2026-08-06_alumno_datos_ROLLBACK.sql` — la red de seguridad.
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla.
+
+## Qué hace, en llano
+
+Añade 6 columnas de texto a `alumnos`, todas nullable y opcionales: `telefono`, `dni`, `fecha_nacimiento`, `direccion`, `fecha_alta` y `observaciones`. Es el mismo enriquecimiento de ficha que ya tienen otros programas de gestión de autoescuelas — hoy la ficha del alumno en KMAlumnos solo tenía nombre, permiso, vehículo, profesor y email. La app de escritorio ya sabe guardar y editar estos 6 campos en el alta y la edición del alumno, y desde antes de aplicar esta migración: en local ya se guardan en `data.json`. Lo único que falta hasta aplicar esta migración es que también se suban a Supabase — `sync.js` detecta en tiempo de ejecución si las columnas existen (mismo patrón que `_alumnosEmailDisponible`/`_sucursalesDisponible`, comprobando solo `telefono` porque las 6 se añaden juntas) y, mientras no existan, simplemente no las incluye en la subida, sin errores ni sincronización rota.
+
+## Pasos exactos para aplicarla
+
+1. Copia de seguridad (mismo criterio que el resto de migraciones de esta carpeta): backup de `data.json` desde Ajustes y, si se quiere, un `SELECT * FROM alumnos` guardado.
+2. Aplicar `2026-08-06_alumno_datos.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado). No depende de ninguna otra migración de esta carpeta.
+3. Verificar (paso siguiente).
+
+## Qué verificar después
+
+- `SELECT telefono, dni, fecha_nacimiento, direccion, fecha_alta, observaciones FROM alumnos LIMIT 5;` → todo `NULL` salvo los alumnos a los que ya se les haya rellenado algún campo desde la app (esos se sincronizan al primer `sync()`/`pushAll()` tras aplicar la migración).
+- La app de escritorio sigue arrancando y sincronizando con normalidad; editar el teléfono o el DNI de un alumno y forzar sincronización (`Ajustes → Sincronizar ahora`) debe reflejarlo en `SELECT ... FROM alumnos WHERE id = ...`.
+
+## Cómo revertir
+
+Ejecutar `2026-08-06_alumno_datos_ROLLBACK.sql`. Si para entonces ya hay datos reales guardados en estos 6 campos, se pierden — leer la advertencia dentro del propio archivo antes de ejecutarlo.

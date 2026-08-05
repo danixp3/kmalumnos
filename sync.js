@@ -179,6 +179,7 @@ function setCredentials(email, password) {
   _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
   _reservasDisponibleCache = null; // idem: reconsultar si la migración de reservas está aplicada
   _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
+  _alumnosDatosDisponibleCache = null; // idem: reconsultar si las columnas de ficha ampliada están disponibles
   _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
   // Entrada fresca de credenciales (login manual, registro, o logout): nunca
   // se da por buena hasta que un login real lo confirme. Distinto de
@@ -319,6 +320,7 @@ async function registrarEmpresa(email, password) {
       _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
       _reservasDisponibleCache = null; // idem: reconsultar si la migración de reservas está aplicada
       _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
+      _alumnosDatosDisponibleCache = null; // idem: reconsultar si las columnas de ficha ampliada están disponibles
       _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
       _authOk = true;
       _guardarAuthOk(true);
@@ -498,6 +500,27 @@ async function _alumnosEmailDisponible(sb) {
     _alumnosEmailDisponibleCache = false;
   }
   return _alumnosEmailDisponibleCache;
+}
+
+// Mismo patrón exacto que _alumnosEmailDisponible de arriba, para los 6 campos
+// de ficha ampliada del alumno (teléfono, DNI, fecha de nacimiento, dirección,
+// fecha de alta, observaciones — migración `migraciones/2026-08-06_alumno_datos.sql`,
+// TODAVÍA NO aplicada): si no está aplicada, esas columnas no existen en
+// Supabase y se trata como "modo clásico", nunca como un error real. Basta
+// comprobar una sola columna (`telefono`): las 6 se añaden juntas en la misma
+// migración. Cacheado en memoria durante la sesión; se invalida en los mismos
+// puntos que _alumnosEmailDisponibleCache (setCredentials/registrarEmpresa).
+let _alumnosDatosDisponibleCache = null;
+
+async function _alumnosDatosDisponible(sb) {
+  if (_alumnosDatosDisponibleCache !== null) return _alumnosDatosDisponibleCache;
+  try {
+    const { error } = await sb.from('alumnos').select('telefono').limit(1);
+    _alumnosDatosDisponibleCache = !error;
+  } catch {
+    _alumnosDatosDisponibleCache = false;
+  }
+  return _alumnosDatosDisponibleCache;
 }
 
 // ─── MÓDULOS CONTRATADOS (fase 0 SaaS, entitlements por empresa) ─────────────
@@ -1039,6 +1062,11 @@ async function sync() {
     // migración no está aplicada la columna `email` no se estampa en el
     // payload de subida de alumnos, comportamiento idéntico al de antes.
     const emailOn = await _alumnosEmailDisponible(sb);
+    // Datos ampliados de alumno (teléfono, DNI, fecha de nacimiento, dirección,
+    // fecha de alta, observaciones — ver comentario junto a
+    // _alumnosDatosDisponible): mismo patrón que emailOn, si la migración no
+    // está aplicada esas 6 columnas no se estampan en el payload de subida.
+    const datosOn = await _alumnosDatosDisponible(sb);
     // Conflicto de empresa sin resolver (ver sección "PROPIETARIO DE LOS DATOS
     // LOCALES"): el login de ensureClient() acaba de revelar que data.json
     // pertenece a otra cuenta. No tocar nada — ni subir lo que hay en local
@@ -1158,6 +1186,14 @@ async function sync() {
           if (_empresaId) payload.empresa_id = _empresaId;
           if (sucursalesOn) payload.sucursal_id = a.sucursal_id != null ? a.sucursal_id : null;
           if (emailOn) payload.email = a.email ? a.email : null;
+          if (datosOn) {
+            payload.telefono = a.telefono || null;
+            payload.dni = a.dni || null;
+            payload.fecha_nacimiento = a.fecha_nacimiento || null;
+            payload.direccion = a.direccion || null;
+            payload.fecha_alta = a.fecha_alta || null;
+            payload.observaciones = a.observaciones || null;
+          }
           await sb.from('alumnos').upsert(payload, { onConflict: 'id' });
         }
       }
@@ -1451,6 +1487,12 @@ async function sync() {
           profesor_id: ra.profesor_id != null ? ra.profesor_id : null,
           sucursal_id: ra.sucursal_id != null ? ra.sucursal_id : null,
           email: ra.email != null ? ra.email : null,
+          telefono: ra.telefono != null ? ra.telefono : null,
+          dni: ra.dni != null ? ra.dni : null,
+          fecha_nacimiento: ra.fecha_nacimiento != null ? ra.fecha_nacimiento : null,
+          direccion: ra.direccion != null ? ra.direccion : null,
+          fecha_alta: ra.fecha_alta != null ? ra.fecha_alta : null,
+          observaciones: ra.observaciones != null ? ra.observaciones : null,
           updated_at: ra.updated_at
         };
         if (idx !== -1) {
@@ -1461,7 +1503,8 @@ async function sync() {
 
           if (remoteUpdated > localUpdated) {
             _detectarYRegistrarConflicto(data, 'alumnos', pending.alumnos, ra.id,
-              ['nombre', 'permiso', 'vehiculo_id', 'profesor_id', 'email'],
+              ['nombre', 'permiso', 'vehiculo_id', 'profesor_id', 'email',
+                'telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones'],
               local, alumno, conflictos);
             data.alumnos[idx] = alumno;
             dataChanged = true;
@@ -1819,6 +1862,26 @@ async function pushAll() {
       if (!emailOn) { const { email, ...resto } = obj; return resto; }
       return { ...obj, email: obj.email ? obj.email : null };
     };
+    // datos ampliados de alumno (teléfono, DNI, fecha de nacimiento, dirección,
+    // fecha de alta, observaciones): mismo cuidado que quitarEmail — si la
+    // migración no está aplicada hay que quitarlos del objeto o el upsert de
+    // alumnos falla entero (columnas inexistentes en el servidor).
+    const datosOn = await _alumnosDatosDisponible(sb);
+    const quitarDatos = obj => {
+      if (!datosOn) {
+        const { telefono, dni, fecha_nacimiento, direccion, fecha_alta, observaciones, ...resto } = obj;
+        return resto;
+      }
+      return {
+        ...obj,
+        telefono: obj.telefono || null,
+        dni: obj.dni || null,
+        fecha_nacimiento: obj.fecha_nacimiento || null,
+        direccion: obj.direccion || null,
+        fecha_alta: obj.fecha_alta || null,
+        observaciones: obj.observaciones || null
+      };
+    };
 
     // Subir en orden: vehiculos → profesores → tarifas → alumnos → practicas → pagos
     if (data.vehiculos.length) {
@@ -1841,7 +1904,7 @@ async function pushAll() {
     }
     if (data.alumnos.length) {
       await sb.from('alumnos').upsert(
-        data.alumnos.map(a => quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now }))),
+        data.alumnos.map(a => quitarDatos(quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now })))),
         { onConflict: 'id' }
       );
     }
