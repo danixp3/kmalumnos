@@ -348,7 +348,72 @@ function getAlumnosEnRiesgo() {
   return enRiesgo.sort((a, b) => b.diasSinPractica - a.diasSinPractica);
 }
 
+// ─── ANÁLISIS DE USO Y COSTE DE COMBUSTIBLE POR VEHÍCULO ──────────────────
+// Heurística v1, determinista y sin datos externos: a partir de los km ya
+// registrados en las prácticas, resume uso por vehículo (el coste en € se
+// calcula en el renderer con el precio/consumo configurados en Ajustes).
+const ANALISIS_VEHICULOS_DIAS = 30;
+
+/**
+ * Análisis de uso de TODOS los vehículos no borrados (v1: heurística
+ * determinista, sin IA). Solo lectura, no marca sync. Ordenado por
+ * kmTotales descendente.
+ */
+function getAnalisisVehiculos() {
+  const d = load();
+  const vehiculos = d.vehiculos.filter(v => !v.deleted);
+
+  const msPorDia = 24 * 60 * 60 * 1000;
+  const hoy = new Date();
+  const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+  const practicasPorVehiculo = new Map();
+  for (const p of d.practicas) {
+    if (p.deleted) continue;
+    if (!practicasPorVehiculo.has(p.vehiculo_id)) practicasPorVehiculo.set(p.vehiculo_id, []);
+    practicasPorVehiculo.get(p.vehiculo_id).push(p);
+  }
+
+  const conKm = p => p.km_final != null && p.km_inicial != null && p.km_final >= p.km_inicial && !(p.km_inicial === 0 && p.km_final === 0);
+
+  const resultado = vehiculos.map(v => {
+    const propias = practicasPorVehiculo.get(v.id) || [];
+    const nPracticas = propias.length;
+
+    const kmTotalesRaw = propias.filter(conKm).reduce((sum, p) => sum + (p.km_final - p.km_inicial), 0);
+    const kmTotales = Math.round(kmTotalesRaw * 10) / 10;
+
+    const kmUltimos30Raw = propias
+      .filter(conKm)
+      .filter(p => {
+        if (!p.fecha) return false;
+        const partes = p.fecha.split('-').map(Number);
+        if (partes.length !== 3 || partes.some(Number.isNaN)) return false;
+        const [y, m, dd] = partes;
+        const fechaUTC = Date.UTC(y, m - 1, dd);
+        const dias = Math.round((hoyUTC - fechaUTC) / msPorDia);
+        return dias >= 0 && dias <= ANALISIS_VEHICULOS_DIAS;
+      })
+      .reduce((sum, p) => sum + (p.km_final - p.km_inicial), 0);
+    const kmUltimos30 = Math.round(kmUltimos30Raw * 10) / 10;
+
+    const mediaKmPractica = nPracticas === 0 ? 0 : Math.round((kmTotales / nPracticas) * 10) / 10;
+
+    return {
+      vehiculo_id: v.id,
+      nombre: v.nombre,
+      matricula: v.matricula,
+      nPracticas,
+      kmTotales,
+      kmUltimos30,
+      mediaKmPractica,
+    };
+  });
+
+  return resultado.sort((a, b) => b.kmTotales - a.kmTotales);
+}
+
 module.exports = {
   getResumen, getStatsDashboard, getStatsProfesores, getDatosGraficos, getTimelineVehiculo,
-  getSemaforoExamen, getSemaforoAlumno, getAlumnosEnRiesgo,
+  getSemaforoExamen, getSemaforoAlumno, getAlumnosEnRiesgo, getAnalisisVehiculos,
 };

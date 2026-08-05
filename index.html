@@ -449,6 +449,20 @@
           <tbody></tbody>
         </table>
       </div>
+
+      <div class="card" id="veh-analisis">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg></div>
+          Uso y coste de combustible estimado
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Estimación calculada a partir de los kilómetros ya registrados en las prácticas de cada vehículo, con el precio del combustible y el consumo medio configurados en Ajustes → Preferencias.</p>
+        <div class="table-wrap">
+          <table id="tabla-analisis-vehiculos">
+            <thead><tr><th>Vehículo</th><th>Matrícula</th><th>Prácticas</th><th>Km totales</th><th>Media km/práctica</th><th>Km últimos 30 días</th><th>Coste combustible estimado</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- ── PROFESORES ─────────────────────────── -->
@@ -1207,6 +1221,14 @@
         <div class="form-group">
           <label>Minutos por clase/práctica</label>
           <input type="number" id="pref-duracion-clase" min="1" max="999" style="width:100px" title="Minutos que dura una clase/práctica, usado por la agenda" onchange="guardarDuracionClaseDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label>Precio del combustible (€/L)</label>
+          <input type="number" id="pref-precio-combustible" min="0.01" step="0.01" style="width:100px" title="Precio del litro de combustible, usado para estimar el coste por vehículo" onchange="guardarCombustiblePrefDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label>Consumo medio (L/100 km)</label>
+          <input type="number" id="pref-consumo-medio" min="0.1" step="0.1" style="width:100px" title="Consumo medio de la flota, usado para estimar el coste por vehículo" onchange="guardarCombustiblePrefDesdeAjustes()">
         </div>
         <div class="form-group">
           <label>Tarjetas del panel principal</label>

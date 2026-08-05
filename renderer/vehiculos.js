@@ -35,6 +35,38 @@ async function loadVehiculos() {
     </tr>`;
   }));
   tbody.innerHTML = rows.join('');
+  loadAnalisisVehiculos();
+}
+
+// ─── ANÁLISIS DE USO Y COSTE DE COMBUSTIBLE ───────────────────────────────
+// Una sola llamada a getAnalisisVehiculos() (evita N+1); el coste se calcula
+// aquí con el precio/consumo configurados en Ajustes (renderer/ajustes.js).
+async function loadAnalisisVehiculos() {
+  const tbody = document.querySelector('#tabla-analisis-vehiculos tbody');
+  if (!tbody) return;
+
+  const analisis = await window.api.getAnalisisVehiculos();
+  if (!analisis.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay vehículos registrados</td></tr>';
+    return;
+  }
+
+  const precio = getPrecioCombustible();
+  const consumo = getConsumoMedio();
+
+  tbody.innerHTML = analisis.map(v => {
+    const coste = v.kmTotales * (consumo / 100) * precio;
+    const costeTxt = coste.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `<tr>
+      <td><strong>${esc(v.nombre)}</strong></td>
+      <td>${esc(v.matricula) || '<span style="color:var(--placeholder)">—</span>'}</td>
+      <td>${v.nPracticas}</td>
+      <td>${fmt(v.kmTotales)} km</td>
+      <td>${fmt(v.mediaKmPractica)} km</td>
+      <td>${fmt(v.kmUltimos30)} km</td>
+      <td>${costeTxt} €</td>
+    </tr>`;
+  }).join('');
 }
 
 async function actualizarContadorSinKm() {
