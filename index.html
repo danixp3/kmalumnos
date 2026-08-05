@@ -1827,6 +1827,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <textarea id="edit-a-observaciones" rows="2" style="width:100%" placeholder="Notas sobre el alumno..."></textarea>
     </div>
     <div class="modal-actions">
+      <button class="btn btn-gray" onclick="imprimirFichaAlumno(parseInt(document.getElementById('edit-a-id').value))">🖨️ Imprimir ficha</button>
       <button class="btn btn-gray" onclick="closeModal('modal-alumno')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveAlumno()">Guardar cambios</button>
     </div>
@@ -2090,6 +2091,11 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     </div>
   </div>
 </div>
+
+<!-- ═══ FICHA IMPRIMIBLE DEL ALUMNO ═══════════════════════════
+     Oculta en pantalla (ver styles.css); se rellena en imprimirFichaAlumno()
+     (renderer/alumnos.js) y solo se muestra dentro de @media print. -->
+<div id="ficha-print"></div>
 
 <script src="date-utils.js"></script>
 <script src="renderer/estado.js"></script>

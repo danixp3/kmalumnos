@@ -1718,4 +1718,59 @@
   }
   .grafico-tooltip strong { color: var(--text); font-size: 13px; }
   .grafico-tooltip .lbl { color: var(--text-muted); }
+
+/* ─── FICHA IMPRIMIBLE DEL ALUMNO ────────────────────────────────────────── */
+/* Oculta en pantalla siempre; renderer/alumnos.js:imprimirFichaAlumno() la
+   rellena y llama a window.print(). Colores fijos (no variables de tema:
+   se imprime en papel blanco, no debe depender del tema oscuro/negro). */
+#ficha-print { display: none; }
+
+@media print {
+  body > *:not(#ficha-print) { display: none !important; }
+  #ficha-print {
+    display: block !important;
+    background: #fff;
+    color: #1a1a1a;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    padding: 20px;
+    max-width: 100%;
+  }
+  .ficha-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 2px solid #1a1a1a;
+    padding-bottom: 12px;
+    margin-bottom: 18px;
+  }
+  .ficha-logo { width: 48px; height: 48px; object-fit: contain; }
+  .ficha-cabecera h1 { margin: 0; font-size: 18px; color: #1a1a1a; }
+  .ficha-fecha { font-size: 12px; color: #555; margin-top: 2px; }
+  #ficha-print h2 {
+    font-size: 14px;
+    color: #1a1a1a;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 4px;
+    margin: 18px 0 10px;
+  }
+  .ficha-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 24px;
+  }
+  .ficha-campo {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px dotted #ccc;
+    padding: 3px 0;
+    font-size: 12.5px;
+  }
+  .ficha-etiqueta { color: #555; }
+  .ficha-valor { color: #1a1a1a; font-weight: 600; text-align: right; }
+  .ficha-observaciones { margin-top: 10px; }
+  .ficha-observaciones .ficha-etiqueta { display: block; margin-bottom: 4px; }
+  .ficha-observaciones p { margin: 0; font-size: 12.5px; color: #1a1a1a; white-space: pre-wrap; }
+  .ficha-sin-datos { font-size: 12.5px; color: #777; }
+}
   .tutorial-lado-left::after { right: -8px; top: var(--tutorial-flecha-y, 24px); margin-top: -7px; border-left: none; border-bottom: none; }

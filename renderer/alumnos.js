@@ -445,3 +445,79 @@ async function deletePagoEconomia(id) {
   await renderEconomiaAlumno();
 }
 
+// ─── FICHA IMPRIMIBLE DEL ALUMNO ────────────────────────────────────────────
+// Reutiliza datos ya cargados (alumnosCache) + dos llamadas puntuales
+// (desglose de pagos y semáforo). Rellena #ficha-print (oculto en pantalla,
+// visible solo dentro de @media print, ver styles.css) y lanza window.print().
+function fmtEuros(num) {
+  return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num || 0);
+}
+
+// Construye un bloque "Etiqueta: valor" solo si el valor no está vacío
+// (omite null/undefined/'' con elegancia en vez de imprimir "null").
+function filaFicha(etiqueta, valor) {
+  if (valor === null || valor === undefined || valor === '') return '';
+  return `<div class="ficha-campo"><span class="ficha-etiqueta">${esc(etiqueta)}</span><span class="ficha-valor">${esc(valor)}</span></div>`;
+}
+
+async function imprimirFichaAlumno(id) {
+  const a = alumnosCache.find(x => x.id === id);
+  if (!a) return;
+
+  let desglose = null;
+  let semaforo = null;
+  try { desglose = await window.api.getDesglosePagosAlumno(id); } catch (e) { /* sin economía disponible */ }
+  try { semaforo = await window.api.getSemaforoAlumno(id); } catch (e) { /* sin semáforo disponible */ }
+
+  const SEM_TEXTO = { verde: 'Listo para examen', ambar: 'Casi listo', rojo: 'Aún lejos' };
+  const ESTADO_TEXTO = { activo: 'Activo', aprobado: 'Aprobado', baja: 'Baja' };
+  const PERMISO_TEXTO = { B: 'B (Coche)', A: 'A (Moto)', A2: 'A2', AM: 'AM', C: 'C (Camión)' };
+
+  const kmTotales = semaforo ? semaforo.kmTotales : null;
+
+  const ficha = document.getElementById('ficha-print');
+  ficha.innerHTML = `
+    <div class="ficha-cabecera">
+      <img src="icon.png" alt="AulaMovil" class="ficha-logo">
+      <div>
+        <h1>AulaMovil — Ficha del alumno</h1>
+        <div class="ficha-fecha">Impresa el ${fmtFecha(new Date().toISOString().split('T')[0])}</div>
+      </div>
+    </div>
+
+    <h2>Datos personales</h2>
+    <div class="ficha-grid">
+      ${filaFicha('Nombre', a.nombre)}
+      ${filaFicha('DNI/NIE', a.dni)}
+      ${filaFicha('Teléfono', a.telefono)}
+      ${filaFicha('Email', a.email)}
+      ${filaFicha('Fecha de nacimiento', a.fecha_nacimiento ? fmtFecha(a.fecha_nacimiento) : '')}
+      ${filaFicha('Dirección', a.direccion)}
+      ${filaFicha('Permiso', PERMISO_TEXTO[a.permiso] || a.permiso)}
+      ${filaFicha('Estado', ESTADO_TEXTO[a.estado || 'activo'] || a.estado)}
+      ${filaFicha('Fecha de alta', a.fecha_alta ? fmtFecha(a.fecha_alta) : '')}
+      ${filaFicha('Profesor', a.profesor_nombre)}
+      ${filaFicha('Vehículo', a.vehiculo_nombre)}
+    </div>
+    ${a.observaciones ? `<div class="ficha-observaciones"><span class="ficha-etiqueta">Observaciones</span><p>${esc(a.observaciones)}</p></div>` : ''}
+
+    <h2>Progreso</h2>
+    <div class="ficha-grid">
+      ${filaFicha('Nº de prácticas', a.num_practicas != null ? String(a.num_practicas) : '')}
+      ${filaFicha('Km totales', kmTotales != null ? `${kmTotales} km` : '')}
+      ${filaFicha('Semáforo de examen', semaforo ? (SEM_TEXTO[semaforo.nivel] || semaforo.nivel) : 'Sin datos suficientes')}
+      ${semaforo && semaforo.motivo ? filaFicha('Motivo', semaforo.motivo) : ''}
+    </div>
+
+    <h2>Economía</h2>
+    ${desglose ? `
+    <div class="ficha-grid">
+      ${filaFicha('Generado', `${fmtEuros(desglose.total_generado)} €`)}
+      ${filaFicha('Pagado', `${fmtEuros(desglose.total_pagado)} €`)}
+      ${filaFicha('Saldo', `${fmtEuros(desglose.saldo)} €`)}
+    </div>` : '<p class="ficha-sin-datos">No hay datos de economía disponibles.</p>'}
+  `;
+
+  window.print();
+}
+
