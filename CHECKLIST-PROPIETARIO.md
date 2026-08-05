@@ -4,10 +4,12 @@ _Registro vivo de tareas que requieren tu cuenta, tus credenciales o una decisi�
 
 ## Ahora mismo (para que el portal del alumno funcione end-to-end)
 
-- [ ] **Supabase → Authentication → Providers → Email:** activar el inicio de sesión con **código de un solo uso (OTP)**.
-- [ ] **Supabase → Authentication → Email Templates:** en la plantilla de *Magic Link / OTP*, incluir el placeholder **`{{ .Token }}`** para que al alumno le llegue el código de 6 dígitos.
-- [ ] **Poner email a los alumnos** que vayan a usar el portal (campo "Email" ya disponible en el alta/edición del alumno en la app). Para la prueba, basta con poner tu propio correo en un alumno.
-- [ ] _(Opcional, producción)_ **SMTP propio** en Supabase Auth: el SMTP por defecto tiene un límite bajo; para volumen real de alumnos hace falta configurar uno propio (SendGrid, Resend, etc.).
+Se eligió **enlace mágico** (el alumno pulsa un enlace en el correo, no teclea código) — funciona sin SMTP propio.
+
+- [x] **Supabase → Authentication → Providers → Email:** proveedor de email activado (ya estaba). ✓
+- [ ] **Supabase → Authentication → URL Configuration → Redirect URLs:** añadir `https://aulamovil.vercel.app/alumno.html` (o el comodín `https://aulamovil.vercel.app/**`). Sin esto, el enlace del correo no vuelve a la página correcta.
+- [ ] **Poner email a los alumnos** que vayan a usar el portal (campo "Email" en el alta/edición del alumno en la app). Para la prueba, pon tu propio correo en un alumno.
+- [ ] _(Opcional, futuro)_ **SMTP propio** en Supabase Auth: solo hace falta si algún día quieres el flujo de *código de 6 dígitos* en vez de enlace, o para volumen alto de correos (el SMTP por defecto tiene límite bajo).
 - [ ] _(Opcional, recomendado)_ **Supabase → Authentication:** activar "Leaked Password Protection" (lo marca el linter de seguridad).
 
 ## Para revisar en la app cuando quieras (opcional, no bloquea nada)
