@@ -56,6 +56,9 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     }
     if (page === 'alumnos') { loadVehiculosSelect(); llenarSelectProfesores('a-profesor'); loadAlumnos(); }
     if (page === 'reservas') loadReservas();
+    if (page === 'jornada') loadJornadas();
+    if (page === 'vencimientos') loadVencimientos();
+    if (page === 'examenes') loadExamenes();
     if (page === 'practicas-global') loadPracticasGlobal();
     if (page === 'kilometros') {
       const activeTab = document.querySelector('#page-kilometros .page-tab.active')?.dataset.tab || 'mapa';

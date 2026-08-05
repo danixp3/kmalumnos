@@ -321,3 +321,53 @@ Añade 1 columna de texto a `alumnos`, nullable y opcional: `estado`, con valore
 ## Cómo revertir
 
 Ejecutar `2026-08-06_alumno_estado_ROLLBACK.sql`. Si para entonces ya hay datos reales guardados en `estado`, se pierden — leer la advertencia dentro del propio archivo antes de ejecutarlo.
+
+# Migración: libro de registro de alumnos (RD 1295/2003 art. 39)
+
+Fecha: 2026-08-06. Archivo de esta carpeta: `2026-08-06_alumno_libro.sql` (rollback comentado dentro del propio archivo).
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla.
+
+## Qué hace, en llano
+
+Añade 5 columnas a `alumnos`, todas nullable y opcionales: `n_inscripcion` (nº secuencial de inscripción en el libro oficial), `permisos_posee` (texto libre, los permisos que el alumno YA tiene, distinto de `permiso` que es al que aspira), `fecha_inicio`/`fecha_fin` (fechas de la enseñanza) y `resultado` (apto/no_apto/baja). La app de escritorio ya sabe asignar el número de inscripción, guardar y editar estos campos, y generar el libro imprimible, y desde antes de aplicar esta migración: en local ya se guardan en `data.json`. Lo único que falta hasta aplicar esta migración es que también se suban a Supabase — `sync.js` detecta en tiempo de ejecución si la columna `n_inscripcion` existe (mismo patrón que `_alumnosDatosDisponible`) y, mientras no exista, simplemente no incluye estos 5 campos en la subida, sin errores ni sincronización rota.
+
+## Pasos exactos para aplicarla
+
+1. Copia de seguridad (mismo criterio que el resto de migraciones de esta carpeta): backup de `data.json` desde Ajustes.
+2. Aplicar `2026-08-06_alumno_libro.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado). No depende de otras migraciones de esta carpeta.
+3. Verificar (paso siguiente).
+
+## Qué verificar después
+
+- `SELECT n_inscripcion, permisos_posee, fecha_inicio, fecha_fin, resultado FROM alumnos LIMIT 5;` → todo `NULL` salvo los alumnos ya numerados/editados desde la app tras aplicar la migración.
+- La app de escritorio sigue arrancando y sincronizando con normalidad.
+
+## Cómo revertir
+
+Ejecutar el bloque `ROLLBACK` comentado al final de `2026-08-06_alumno_libro.sql`. Si para entonces ya hay datos reales guardados en estos 5 campos, se pierden.
+
+# Migración: permisos múltiples del alumno (tarea B1)
+
+Fecha: 2026-08-06. Archivo de esta carpeta: `2026-08-06_alumno_permisos.sql` (rollback comentado dentro del propio archivo).
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla.
+
+## Qué hace, en llano
+
+Añade 1 columna `jsonb` a `alumnos`, nullable y opcional: `permisos` (array de códigos, ej. `["A2","BE"]`), para los DEMÁS permisos que un alumno cursa además del principal. El `permiso` principal (columna existente, string) NO cambia: sigue rigiendo tarifas y pagos exactamente igual que antes. La app de escritorio ya sabe guardar y editar `permisos` en el alta y la edición del alumno (checkboxes "Otros permisos que cursa"), y desde antes de aplicar esta migración: en local ya se guarda en `data.json`. Lo único que falta hasta aplicar esta migración es que también se suba a Supabase — `sync.js` detecta en tiempo de ejecución si la columna `permisos` existe (mismo patrón que `_alumnosLibroDisponible`) y, mientras no exista, simplemente no la incluye en la subida, sin errores ni sincronización rota. Se sube como JSON string (`JSON.stringify`) y se descarga tolerando tanto array (jsonb) como string.
+
+## Pasos exactos para aplicarla
+
+1. Copia de seguridad (mismo criterio que el resto de migraciones de esta carpeta): backup de `data.json` desde Ajustes.
+2. Aplicar `2026-08-06_alumno_permisos.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado). No depende de otras migraciones de esta carpeta.
+3. Verificar (paso siguiente).
+
+## Qué verificar después
+
+- `SELECT permisos FROM alumnos LIMIT 5;` → todo `NULL` salvo los alumnos ya editados desde la app tras aplicar la migración.
+- La app de escritorio sigue arrancando y sincronizando con normalidad; marcar un permiso adicional en un alumno y forzar sincronización debe reflejarlo en `SELECT permisos FROM alumnos WHERE id = ...`.
+
+## Cómo revertir
+
+Ejecutar el bloque `ROLLBACK` comentado al final de `2026-08-06_alumno_permisos.sql`. Si para entonces ya hay datos reales guardados en `permisos`, se pierden.

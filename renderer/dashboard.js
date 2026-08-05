@@ -30,6 +30,7 @@ async function loadDashboard() {
   loadAgendaDashboard();
   loadSemaforoDashboard();
   loadRiesgoAbandonoDashboard();
+  loadVencimientosDashboard();
 
   const alertas = document.getElementById('dash-alertas');
   const partes = [];
@@ -159,6 +160,40 @@ async function loadRiesgoAbandonoDashboard() {
   lista.innerHTML = riesgo.slice(0, 5).map(r => {
     return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="navegarA('alumnos')" title="Ir a Alumnos">` +
       `<span>${esc(r.nombre)}</span><span>${r.diasSinPractica} días sin práctica</span></div>`;
+  }).join('');
+}
+
+// Tarjeta "Caducidades próximas": ITV, seguros, psicotécnicos... a menos de
+// 30 días o ya vencidos (heurística v1, ver db/vencimientos.js:getProximosVencimientos).
+// Si falla, se oculta sin romper el resto del dashboard.
+async function loadVencimientosDashboard() {
+  const card = document.getElementById('dash-venc-card');
+  if (!card) return;
+  let venc = [];
+  try {
+    venc = await window.api.getProximosVencimientos(30, null, getSucursalActual());
+  } catch (e) {
+    card.classList.add('hidden');
+    return;
+  }
+  if (!Array.isArray(venc) || venc.length === 0) {
+    card.classList.add('hidden');
+    return;
+  }
+  card.classList.remove('hidden');
+
+  const resumen = document.getElementById('dash-venc-resumen');
+  const lista = document.getElementById('dash-venc-lista');
+
+  resumen.innerHTML =
+    `<div class="alert alert-warn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><strong>${venc.length} caducidad(es) requieren atención.</strong></div>`;
+
+  lista.innerHTML = venc.slice(0, 5).map(v => {
+    const cuando = v.vencido
+      ? `vencido hace ${Math.abs(v.diasRestantes)} día(s)`
+      : `en ${v.diasRestantes} día(s)`;
+    return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="navegarA('vencimientos')" title="Ir a Caducidades">` +
+      `<span>${esc(v.tipo)} · ${esc(v.nombreEntidad)}</span><span>${fmtFecha(v.fecha_vencimiento)} — ${cuando}</span></div>`;
   }).join('');
 }
 

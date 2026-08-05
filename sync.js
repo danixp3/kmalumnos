@@ -180,6 +180,8 @@ function setCredentials(email, password) {
   _reservasDisponibleCache = null; // idem: reconsultar si la migración de reservas está aplicada
   _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
   _alumnosDatosDisponibleCache = null; // idem: reconsultar si las columnas de ficha ampliada están disponibles
+  _alumnosLibroDisponibleCache = null; // idem: reconsultar si las columnas del libro de registro están disponibles
+  _alumnosPermisosDisponibleCache = null; // idem: reconsultar si la columna permisos está disponible
   _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
   // Entrada fresca de credenciales (login manual, registro, o logout): nunca
   // se da por buena hasta que un login real lo confirme. Distinto de
@@ -321,6 +323,8 @@ async function registrarEmpresa(email, password) {
       _reservasDisponibleCache = null; // idem: reconsultar si la migración de reservas está aplicada
       _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
       _alumnosDatosDisponibleCache = null; // idem: reconsultar si las columnas de ficha ampliada están disponibles
+      _alumnosLibroDisponibleCache = null; // idem: reconsultar si las columnas del libro de registro están disponibles
+  _alumnosPermisosDisponibleCache = null; // idem: reconsultar si la columna permisos está disponible
       _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
       _authOk = true;
       _guardarAuthOk(true);
@@ -522,6 +526,49 @@ async function _alumnosDatosDisponible(sb) {
     _alumnosDatosDisponibleCache = false;
   }
   return _alumnosDatosDisponibleCache;
+}
+
+// Mismo patrón exacto que _alumnosDatosDisponible de arriba, pero para el
+// grupo APARTE del "libro de registro de alumnos" (RD 1295/2003 art. 39:
+// nº de inscripción, permisos que ya posee, fechas de inicio/fin de la
+// enseñanza y resultado — migración `migraciones/2026-08-06_alumno_libro.sql`,
+// TODAVÍA NO aplicada): si no está aplicada, esas columnas no existen en
+// Supabase y se trata como "modo clásico", nunca como un error real. Basta
+// comprobar una sola columna (`n_inscripcion`): se aplican juntas. Cacheado
+// en memoria durante la sesión; se invalida en los mismos puntos que
+// _alumnosDatosDisponibleCache (setCredentials/registrarEmpresa).
+let _alumnosLibroDisponibleCache = null;
+
+async function _alumnosLibroDisponible(sb) {
+  if (_alumnosLibroDisponibleCache !== null) return _alumnosLibroDisponibleCache;
+  try {
+    const { error } = await sb.from('alumnos').select('n_inscripcion').limit(1);
+    _alumnosLibroDisponibleCache = !error;
+  } catch {
+    _alumnosLibroDisponibleCache = false;
+  }
+  return _alumnosLibroDisponibleCache;
+}
+
+// Mismo patrón exacto que _alumnosLibroDisponible de arriba, para el campo
+// NUEVO `permisos` (array con los DEMÁS permisos que cursa el alumno, aparte
+// del `permiso` principal que NO se toca — sigue rigiendo tarifas/pagos) —
+// migración `migraciones/2026-08-06_alumno_permisos.sql`, TODAVÍA NO
+// aplicada. Si no está aplicada, la columna `permisos` no existe en Supabase
+// y se trata como "modo clásico", nunca como un error real. Cacheado en
+// memoria durante la sesión; se invalida en los mismos puntos que
+// _alumnosLibroDisponibleCache (setCredentials/registrarEmpresa).
+let _alumnosPermisosDisponibleCache = null;
+
+async function _alumnosPermisosDisponible(sb) {
+  if (_alumnosPermisosDisponibleCache !== null) return _alumnosPermisosDisponibleCache;
+  try {
+    const { error } = await sb.from('alumnos').select('permisos').limit(1);
+    _alumnosPermisosDisponibleCache = !error;
+  } catch {
+    _alumnosPermisosDisponibleCache = false;
+  }
+  return _alumnosPermisosDisponibleCache;
 }
 
 // ─── MÓDULOS CONTRATADOS (fase 0 SaaS, entitlements por empresa) ─────────────
@@ -1068,6 +1115,15 @@ async function sync() {
     // _alumnosDatosDisponible): mismo patrón que emailOn, si la migración no
     // está aplicada esas 6 columnas no se estampan en el payload de subida.
     const datosOn = await _alumnosDatosDisponible(sb);
+    // Libro de registro de alumnos (RD 1295/2003 art. 39) — ver comentario
+    // junto a _alumnosLibroDisponible: mismo patrón que datosOn, si la
+    // migración no está aplicada esas 5 columnas no se estampan en el payload.
+    const libroOn = await _alumnosLibroDisponible(sb);
+    // Permisos múltiples del alumno (tarea B1 del PLAN-MAESTRO) — ver
+    // comentario junto a _alumnosPermisosDisponible: mismo patrón que
+    // libroOn, si la migración no está aplicada la columna `permisos` no se
+    // estampa en el payload de subida de alumnos.
+    const permisosOn = await _alumnosPermisosDisponible(sb);
     // Conflicto de empresa sin resolver (ver sección "PROPIETARIO DE LOS DATOS
     // LOCALES"): el login de ensureClient() acaba de revelar que data.json
     // pertenece a otra cuenta. No tocar nada — ni subir lo que hay en local
@@ -1196,6 +1252,14 @@ async function sync() {
             payload.observaciones = a.observaciones || null;
             payload.estado = a.estado || null;
           }
+          if (libroOn) {
+            payload.n_inscripcion = a.n_inscripcion != null ? a.n_inscripcion : null;
+            payload.permisos_posee = a.permisos_posee || null;
+            payload.fecha_inicio = a.fecha_inicio || null;
+            payload.fecha_fin = a.fecha_fin || null;
+            payload.resultado = a.resultado || null;
+          }
+          if (permisosOn) payload.permisos = JSON.stringify(a.permisos || []);
           await sb.from('alumnos').upsert(payload, { onConflict: 'id' });
         }
       }
@@ -1496,6 +1560,18 @@ async function sync() {
           fecha_alta: ra.fecha_alta != null ? ra.fecha_alta : null,
           observaciones: ra.observaciones != null ? ra.observaciones : null,
           estado: ra.estado != null ? ra.estado : null,
+          // Libro de registro de alumnos (RD 1295/2003 art. 39): mismo patrón
+          // que el resto de campos opcionales de arriba (columna nueva
+          // sincronizada, detección en runtime, sin migración aplicada).
+          n_inscripcion: ra.n_inscripcion != null ? ra.n_inscripcion : null,
+          permisos_posee: ra.permisos_posee != null ? ra.permisos_posee : null,
+          fecha_inicio: ra.fecha_inicio != null ? ra.fecha_inicio : null,
+          fecha_fin: ra.fecha_fin != null ? ra.fecha_fin : null,
+          resultado: ra.resultado != null ? ra.resultado : null,
+          // Permisos múltiples (tarea B1): la columna es jsonb, pero se
+          // tolera también texto (JSON.stringify en la subida) — parsea si
+          // llega como string, pasa tal cual si ya llega como array/null.
+          permisos: ra.permisos ? (typeof ra.permisos === 'string' ? JSON.parse(ra.permisos) : ra.permisos) : [],
           updated_at: ra.updated_at
         };
         if (idx !== -1) {
@@ -1507,7 +1583,8 @@ async function sync() {
           if (remoteUpdated > localUpdated) {
             _detectarYRegistrarConflicto(data, 'alumnos', pending.alumnos, ra.id,
               ['nombre', 'permiso', 'vehiculo_id', 'profesor_id', 'email',
-                'telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones', 'estado'],
+                'telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones', 'estado',
+                'n_inscripcion', 'permisos_posee', 'fecha_inicio', 'fecha_fin', 'resultado', 'permisos'],
               local, alumno, conflictos);
             data.alumnos[idx] = alumno;
             dataChanged = true;
@@ -1886,6 +1963,30 @@ async function pushAll() {
         estado: obj.estado || null
       };
     };
+    // libro de registro de alumnos (RD 1295/2003 art. 39): mismo cuidado que
+    // quitarDatos — si la migración no está aplicada hay que quitar estas 5
+    // columnas del objeto o el upsert de alumnos falla entero (columnas
+    // inexistentes en el servidor).
+    const libroOn = await _alumnosLibroDisponible(sb);
+    const quitarLibro = obj => {
+      if (!libroOn) {
+        const { n_inscripcion, permisos_posee, fecha_inicio, fecha_fin, resultado, ...resto } = obj;
+        return resto;
+      }
+      return { ...obj, n_inscripcion: obj.n_inscripcion != null ? obj.n_inscripcion : null, permisos_posee: obj.permisos_posee||null, fecha_inicio: obj.fecha_inicio||null, fecha_fin: obj.fecha_fin||null, resultado: obj.resultado||null };
+    };
+    // permisos múltiples del alumno (tarea B1 del PLAN-MAESTRO): mismo cuidado
+    // que quitarLibro — si la migración no está aplicada hay que quitar la
+    // columna del objeto o el upsert de alumnos falla entero (columna
+    // inexistente en el servidor). Se sube como JSON string (columna jsonb).
+    const permisosOn = await _alumnosPermisosDisponible(sb);
+    const quitarPermisos = obj => {
+      if (!permisosOn) {
+        const { permisos, ...resto } = obj;
+        return resto;
+      }
+      return { ...obj, permisos: JSON.stringify(obj.permisos || []) };
+    };
 
     // Subir en orden: vehiculos → profesores → tarifas → alumnos → practicas → pagos
     if (data.vehiculos.length) {
@@ -1908,7 +2009,7 @@ async function pushAll() {
     }
     if (data.alumnos.length) {
       await sb.from('alumnos').upsert(
-        data.alumnos.map(a => quitarDatos(quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now })))),
+        data.alumnos.map(a => quitarPermisos(quitarLibro(quitarDatos(quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now })))))),
         { onConflict: 'id' }
       );
     }

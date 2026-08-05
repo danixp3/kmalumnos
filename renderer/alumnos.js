@@ -1,6 +1,17 @@
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
 // Listado, filtros, ordenación, CRUD y anotaciones de alumnos.
 
+// Etiquetas del ciclo de estados ampliado (tarea B1 del PLAN-MAESTRO):
+// matriculado → en teórica → apto teórico → en prácticas → presentado →
+// apto/no apto, más baja. activo/aprobado se conservan (legacy) para que
+// alumnos ya guardados con esos valores sigan mostrando su etiqueta. Usado
+// tanto en la tabla (pastilla) como en la ficha imprimible.
+const ESTADO_ALUMNO_TEXTO = {
+  matriculado: 'Matriculado', en_teorica: 'En teórica', apto_teorico: 'Apto teórico',
+  en_practicas: 'En prácticas', presentado: 'Presentado a examen', apto: 'Apto (aprobado)',
+  no_apto: 'No apto', baja: 'Baja', activo: 'Activo', aprobado: 'Aprobado'
+};
+
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
 async function loadVehiculosSelect() {
   vehiculosCache = await window.api.getVehiculos();
@@ -198,12 +209,12 @@ function renderAlumnosTabla() {
       ? `<span class="semaforo-pill semaforo-${sem.nivel}" title="${esc(sem.motivo)}">${semTexto[sem.nivel] || sem.nivel}</span>`
       : '<span style="color:var(--placeholder)">—</span>';
     const estado = a.estado || 'activo';
-    const estadoTexto = { activo: 'Activo', aprobado: 'Aprobado', baja: 'Baja' };
-    const pillEstado = `<span class="estado-pill estado-${estado}">${estadoTexto[estado] || estado}</span>`;
+    const pillEstado = `<span class="estado-pill estado-${estado}">${ESTADO_ALUMNO_TEXTO[estado] || estado}</span>`;
+    const otrosPermisos = (a.permisos || []).map(p => tagPermiso(p)).join(' ');
     return `<tr>
       <td><strong>${esc(a.nombre)}</strong></td>
       <td>${a.telefono ? esc(a.telefono) : '<span style="color:var(--placeholder)">—</span>'}</td>
-      <td>${tag}</td>
+      <td>${tag}${otrosPermisos ? ' ' + otrosPermisos : ''}</td>
       <td>${a.vehiculo_nombre ? esc(a.vehiculo_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
       <td>${a.profesor_nombre ? esc(a.profesor_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
       <td><span style="font-weight:700">${a.num_practicas}</span></td>
@@ -229,6 +240,24 @@ function emailValido(email) {
   return arroba > 0 && email.indexOf('.', arroba) > arroba;
 }
 
+// Permisos múltiples (tarea B1): lee los checkboxes marcados del contenedor
+// #a-permisos / #edit-a-permisos y devuelve un array de códigos. Distinto del
+// `permiso` principal (select), que NO se toca.
+function leerPermisosCheckboxes(contenedorId) {
+  const cont = document.getElementById(contenedorId);
+  if (!cont) return [];
+  return [...cont.querySelectorAll('input[type="checkbox"]:checked')].map(cb => cb.value);
+}
+
+// Inverso de leerPermisosCheckboxes: marca los checkboxes del contenedor
+// según el array `permisos` del alumno (se llama al abrir el modal de editar).
+function marcarPermisosCheckboxes(contenedorId, permisos) {
+  const cont = document.getElementById(contenedorId);
+  if (!cont) return;
+  const set = new Set(permisos || []);
+  cont.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = set.has(cb.value); });
+}
+
 async function addAlumno() {
   const nombre = document.getElementById('a-nombre').value.trim();
   const permiso = document.getElementById('a-permiso').value;
@@ -244,6 +273,15 @@ async function addAlumno() {
     observaciones: document.getElementById('a-observaciones')?.value.trim() || '',
     estado: document.getElementById('a-estado')?.value || ''
   };
+  // Libro de registro de alumnos (RD 1295/2003 art. 39): permisos que ya
+  // posee, fechas de la enseñanza y resultado. El nº de inscripción no se
+  // pide aquí, se asigna aparte.
+  const libro = {
+    permisos_posee: document.getElementById('a-permisos-posee')?.value.trim() || '',
+    fecha_inicio: document.getElementById('a-fecha-inicio')?.value || '',
+    fecha_fin: document.getElementById('a-fecha-fin')?.value || '',
+    resultado: document.getElementById('a-resultado')?.value || ''
+  };
   if (!nombre) {
     showToast('alumno-alert', 'Introduce el nombre del alumno.', 'err');
     document.getElementById('a-nombre').focus();
@@ -255,7 +293,8 @@ async function addAlumno() {
     return;
   }
   hideToast('alumno-alert');
-  await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, getSucursalActual(), email || null, datos);
+  const permisos = leerPermisosCheckboxes('a-permisos');
+  await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, getSucursalActual(), email || null, datos, libro, permisos);
   document.getElementById('a-nombre').value = '';
   document.getElementById('a-email').value = '';
   document.getElementById('a-telefono').value = '';
@@ -265,6 +304,11 @@ async function addAlumno() {
   document.getElementById('a-fecha-alta').value = '';
   document.getElementById('a-observaciones').value = '';
   document.getElementById('a-estado').value = 'activo';
+  document.getElementById('a-permisos-posee').value = '';
+  document.getElementById('a-fecha-inicio').value = '';
+  document.getElementById('a-fecha-fin').value = '';
+  document.getElementById('a-resultado').value = '';
+  marcarPermisosCheckboxes('a-permisos', []);
   loadAlumnos();
 }
 
@@ -313,6 +357,13 @@ async function openEditAlumno(id) {
   document.getElementById('edit-a-fecha-alta').value = a.fecha_alta || '';
   document.getElementById('edit-a-observaciones').value = a.observaciones || '';
   document.getElementById('edit-a-estado').value = a.estado || 'activo';
+  document.getElementById('edit-a-permisos-posee').value = a.permisos_posee || '';
+  document.getElementById('edit-a-fecha-inicio').value = a.fecha_inicio || '';
+  document.getElementById('edit-a-fecha-fin').value = a.fecha_fin || '';
+  document.getElementById('edit-a-resultado').value = a.resultado || '';
+  marcarPermisosCheckboxes('edit-a-permisos', a.permisos || []);
+  const nInsc = document.getElementById('edit-a-n-inscripcion');
+  nInsc.textContent = a.n_inscripcion != null ? `Nº inscripción libro: ${a.n_inscripcion}` : '';
   await llenarSelectProfesores('edit-a-profesor', a.profesor_id);
   openModal('modal-alumno');
 }
@@ -333,9 +384,16 @@ async function saveAlumno() {
     observaciones: document.getElementById('edit-a-observaciones')?.value.trim() || '',
     estado: document.getElementById('edit-a-estado')?.value || ''
   };
+  const libro = {
+    permisos_posee: document.getElementById('edit-a-permisos-posee')?.value.trim() || '',
+    fecha_inicio: document.getElementById('edit-a-fecha-inicio')?.value || '',
+    fecha_fin: document.getElementById('edit-a-fecha-fin')?.value || '',
+    resultado: document.getElementById('edit-a-resultado')?.value || ''
+  };
   if (!nombre) { alert('Introduce un nombre.'); return; }
   if (!emailValido(email)) { alert('El email no tiene un formato válido.'); return; }
-  await window.api.updateAlumno(id, nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, email || null, datos);
+  const permisos = leerPermisosCheckboxes('edit-a-permisos');
+  await window.api.updateAlumno(id, nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, email || null, datos, libro, permisos);
   closeModal('modal-alumno');
   loadAlumnos();
 }
@@ -470,7 +528,6 @@ async function imprimirFichaAlumno(id) {
   try { semaforo = await window.api.getSemaforoAlumno(id); } catch (e) { /* sin semáforo disponible */ }
 
   const SEM_TEXTO = { verde: 'Listo para examen', ambar: 'Casi listo', rojo: 'Aún lejos' };
-  const ESTADO_TEXTO = { activo: 'Activo', aprobado: 'Aprobado', baja: 'Baja' };
   const PERMISO_TEXTO = { B: 'B (Coche)', A: 'A (Moto)', A2: 'A2', AM: 'AM', C: 'C (Camión)' };
 
   const kmTotales = semaforo ? semaforo.kmTotales : null;
@@ -494,7 +551,8 @@ async function imprimirFichaAlumno(id) {
       ${filaFicha('Fecha de nacimiento', a.fecha_nacimiento ? fmtFecha(a.fecha_nacimiento) : '')}
       ${filaFicha('Dirección', a.direccion)}
       ${filaFicha('Permiso', PERMISO_TEXTO[a.permiso] || a.permiso)}
-      ${filaFicha('Estado', ESTADO_TEXTO[a.estado || 'activo'] || a.estado)}
+      ${filaFicha('Otros permisos', (a.permisos || []).join(', '))}
+      ${filaFicha('Estado', ESTADO_ALUMNO_TEXTO[a.estado || 'activo'] || a.estado)}
       ${filaFicha('Fecha de alta', a.fecha_alta ? fmtFecha(a.fecha_alta) : '')}
       ${filaFicha('Profesor', a.profesor_nombre)}
       ${filaFicha('Vehículo', a.vehiculo_nombre)}
@@ -516,6 +574,55 @@ async function imprimirFichaAlumno(id) {
       ${filaFicha('Pagado', `${fmtEuros(desglose.total_pagado)} €`)}
       ${filaFicha('Saldo', `${fmtEuros(desglose.saldo)} €`)}
     </div>` : '<p class="ficha-sin-datos">No hay datos de economía disponibles.</p>'}
+  `;
+
+  window.print();
+}
+
+// ─── LIBRO DE REGISTRO DE ALUMNOS (RD 1295/2003 art. 39) ──────────────────
+// Reutiliza EXACTAMENTE el mismo elemento/patrón de impresión que
+// imprimirFichaAlumno (#ficha-print oculto en pantalla, visible solo en
+// @media print, ver styles.css) en vez de reinventar el CSS de impresión.
+async function imprimirLibroRegistro() {
+  // Asegura que todos los alumnos tienen nº de inscripción antes de listar.
+  await window.api.backfillNumInscripcion();
+  const libro = await window.api.getLibroRegistro(getSucursalActual());
+
+  const RESULTADO_TEXTO = { apto: 'Apto', no_apto: 'No apto', baja: 'Baja' };
+  const PERMISO_TEXTO = { B: 'B (Coche)', A: 'A (Moto)', A2: 'A2', AM: 'AM', C: 'C (Camión)' };
+
+  const filas = libro.map(a => {
+    const fechaInscripcion = a.fecha_inicio || a.fecha_alta || '';
+    return `<tr>
+      <td>${a.n_inscripcion != null ? a.n_inscripcion : '—'}</td>
+      <td>${fechaInscripcion ? fmtFecha(fechaInscripcion) : '—'}</td>
+      <td>${esc(a.nombre)}</td>
+      <td>${a.dni ? esc(a.dni) : '—'}</td>
+      <td>${a.fecha_nacimiento ? fmtFecha(a.fecha_nacimiento) : '—'}</td>
+      <td>${a.permisos_posee ? esc(a.permisos_posee) : '—'}</td>
+      <td>${esc(PERMISO_TEXTO[a.permiso] || a.permiso)}</td>
+      <td>${a.fecha_inicio ? fmtFecha(a.fecha_inicio) : '—'}</td>
+      <td>${a.fecha_fin ? fmtFecha(a.fecha_fin) : '—'}</td>
+      <td>${RESULTADO_TEXTO[a.resultado] || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const ficha = document.getElementById('ficha-print');
+  ficha.innerHTML = `
+    <div class="ficha-cabecera">
+      <img src="icon.png" alt="AulaMovil" class="ficha-logo">
+      <div>
+        <h1>AulaMovil — Libro de registro de alumnos (art. 39)</h1>
+        <div class="ficha-fecha">Generado el ${fmtFecha(new Date().toISOString().split('T')[0])}</div>
+      </div>
+    </div>
+    <table class="ficha-tabla">
+      <thead><tr>
+        <th>Nº</th><th>F. inscripción</th><th>Nombre</th><th>DNI/NIE</th><th>F. nacimiento</th>
+        <th>Permisos que posee</th><th>Permiso al que aspira</th><th>Inicio enseñanza</th><th>Fin enseñanza</th><th>Resultado</th>
+      </tr></thead>
+      <tbody>${filas || '<tr><td colspan="10" style="text-align:center">No hay alumnos registrados</td></tr>'}</tbody>
+    </table>
   `;
 
   window.print();
