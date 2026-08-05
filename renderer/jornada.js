@@ -64,6 +64,11 @@ function renderJornadasLista() {
 
 // Lee el nombre del cuadro de fichar y consulta si ese empleado tiene ya una
 // jornada abierta hoy, para decidir si el botón dice "entrada" o "salida".
+// Se dispara en cada tecla del nombre: las respuestas pueden llegar
+// desordenadas, así que se descarta la que ya no corresponde a lo escrito
+// (si no, el botón podría quedar apuntando a la jornada de otro empleado).
+let _jornadaConsultaSeq = 0;
+
 async function actualizarBotonFichaje() {
   const btn = document.getElementById('btn-fichar');
   if (!btn) return;
@@ -73,7 +78,10 @@ async function actualizarBotonFichaje() {
     delete btn.dataset.jornadaId;
     return;
   }
+  const seq = ++_jornadaConsultaSeq;
   const abierta = await window.api.jornadaAbiertaDe(empleado, getSucursalActual());
+  const actual = document.getElementById('jor-empleado')?.value.trim() || '';
+  if (seq !== _jornadaConsultaSeq || actual !== empleado) return; // respuesta obsoleta
   if (abierta) {
     btn.textContent = 'Fichar salida';
     btn.dataset.jornadaId = abierta.id;
@@ -84,15 +92,18 @@ async function actualizarBotonFichaje() {
 }
 
 async function toggleFichaje() {
-  const btn = document.getElementById('btn-fichar');
   const empleado = document.getElementById('jor-empleado')?.value.trim() || '';
   if (!empleado) {
     showToast('jornada-toast', 'Escribe el nombre del empleado.', 'err');
     return;
   }
 
-  if (btn.dataset.jornadaId) {
-    const res = await window.api.ficharSalida(parseInt(btn.dataset.jornadaId));
+  // No se confía en el estado pintado del botón: se vuelve a preguntar por el
+  // empleado escrito justo antes de actuar, para no cerrar la jornada de otro.
+  const abierta = await window.api.jornadaAbiertaDe(empleado, getSucursalActual());
+
+  if (abierta) {
+    const res = await window.api.ficharSalida(abierta.id);
     if (!res || !res.ok) {
       showToast('jornada-toast', (res && res.msg) || 'No se pudo fichar la salida.', 'err');
       return;

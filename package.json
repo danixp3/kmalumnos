@@ -1,12 +1,13 @@
 {
   "name": "kmalumnos",
-  "version": "1.15.0",
+  "version": "1.15.1",
   "description": "Gestión de kilómetros de prácticas para autoescuela",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "test": "jest",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "smoke": "electron scripts/smoke-ui.js"
   },
   "build": {
     "appId": "com.kmalumnos.app",

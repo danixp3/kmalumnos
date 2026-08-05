@@ -169,13 +169,13 @@ function _llenarSelectAlumnosExamen(selectId, selectedId) {
   if (selectedId != null) sel.value = String(selectedId);
 }
 
-function abrirNuevaPresentacion() {
+async function abrirNuevaPresentacion() {
   document.getElementById('pres-modal-titulo').textContent = 'Registrar presentación';
   document.getElementById('pres-edit-id').value = '';
   _llenarSelectAlumnosExamen('pres-alumno');
   document.getElementById('pres-tipo').value = 'teorico';
   document.getElementById('pres-fecha').value = '';
-  llenarSelectProfesores('pres-profesor');
+  await llenarSelectProfesores('pres-profesor');
   document.getElementById('pres-n-convocatoria').value = 1;
   document.getElementById('pres-resultado').value = 'pendiente';
   document.getElementById('pres-nota').value = '';

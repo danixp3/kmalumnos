@@ -103,7 +103,9 @@ function createWindow() {
     icon: path.join(__dirname, 'icon.png'),
     title: 'AulaMovil - Autoescuela'
   });
-  mainWin.loadFile('index.html');
+  // Ruta absoluta: loadFile('index.html') se resolvería contra app.getAppPath(),
+  // que cambia si se arranca con otro script de entrada (p. ej. npm run smoke).
+  mainWin.loadFile(path.join(__dirname, 'index.html'));
   mainWin.setMenuBarVisibility(false);
 
   // Los botones laterales del ratón (atrás/adelante) no deben navegar el
