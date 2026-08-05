@@ -106,6 +106,18 @@
         </span>
         Caducidades
       </a>
+      <a data-page="crm">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-8"/><path d="M20 15l3-3-3-3"/></svg>
+        </span>
+        Captación
+      </a>
+      <a data-page="bonos">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        </span>
+        Bonos
+      </a>
       <a data-page="examenes">
         <span class="nav-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
@@ -136,6 +148,12 @@
         </span>
         Pagos
       </a>
+      <a data-page="caja">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        </span>
+        Caja
+      </a>
 
       <div class="nav-section" style="margin-top:6px">Análisis</div>
       <a data-page="practicas-global">
@@ -155,6 +173,12 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         </span>
         Historial
+      </a>
+      <a data-page="informes">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </span>
+        Informes
       </a>
 
       <div class="nav-section" style="margin-top:6px">Datos</div>
@@ -668,6 +692,44 @@
       </div>
     </div>
 
+    <!-- ── CAJA (arqueo + morosidad) ────────────────────────────── -->
+    <div id="page-caja" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Caja</div>
+          <div class="page-subtitle">Arqueo por forma de pago, empleado y sede — y lista de morosidad</div>
+        </div>
+        <button class="btn btn-gray btn-sm" onclick="window.print()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Imprimir / PDF
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+          Rango de fechas
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Desde</label>
+            <input type="date" id="caja-desde" style="width:160px">
+          </div>
+          <div class="form-group">
+            <label>Hasta</label>
+            <input type="date" id="caja-hasta" style="width:160px">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="loadCaja()" style="align-self:flex-end">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Generar arqueo
+          </button>
+        </div>
+      </div>
+
+      <div id="caja-arqueo"></div>
+      <div id="caja-morosos"></div>
+    </div>
+
     <!-- ── ALUMNOS ────────────────────────────── -->
     <div id="page-alumnos" class="page">
       <!-- LISTA ALUMNOS -->
@@ -1077,6 +1139,40 @@
       <div id="vencimientos-lista"></div>
     </div>
 
+    <!-- ── CRM DE CAPTACIÓN (LEADS) ── -->
+    <div id="page-crm" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Captación</div>
+          <div class="page-subtitle">Leads, origen, presupuestos y embudo de conversión</div>
+        </div>
+        <button class="btn btn-primary" onclick="abrirNuevoLead()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuevo lead
+        </button>
+      </div>
+
+      <div id="crm-stats"></div>
+      <div id="leads-lista"></div>
+    </div>
+
+    <!-- ── BONOS / PACKS DE PRÁCTICAS ── -->
+    <div id="page-bonos" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Bonos</div>
+          <div class="page-subtitle">Packs de clases prepagadas por alumno</div>
+        </div>
+        <button class="btn btn-primary" onclick="abrirNuevoBono()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Añadir bono
+        </button>
+      </div>
+
+      <div id="bonos-toast" class="hidden" style="margin-bottom:12px"></div>
+      <div id="bonos-lista"></div>
+    </div>
+
     <!-- ── EXÁMENES (PRESENTACIONES A CONVOCATORIA Y TASAS) ── -->
     <div id="page-examenes" class="page">
       <div class="page-header">
@@ -1273,14 +1369,18 @@
       </div>
     </div>
 
-    <!-- ── HISTORIAL ──────────────────────────── -->
+    <!-- ── HISTORIAL / AUDITORÍA (solo jefe) ──────────────────────────── -->
     <div id="page-logs" class="page">
       <div class="page-header">
         <div>
           <div class="page-title">Historial</div>
-          <div class="page-subtitle">Registro de operaciones automáticas</div>
+          <div class="page-subtitle">Registro de operaciones automáticas (auditoría)</div>
         </div>
         <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="exportarLogsCSV()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar CSV
+          </button>
           <button class="btn btn-outline btn-sm" onclick="loadLogs()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
             Actualizar
@@ -1292,7 +1392,78 @@
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:180px">
+            <label style="font-size:12px;color:var(--text-muted)">Buscar</label>
+            <input type="text" id="f-logs-texto" placeholder="Texto en la descripción o detalles..." oninput="loadLogs()">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted)">Tipo</label>
+            <select id="f-logs-tipo" onchange="loadLogs()">
+              <option value="">Todos</option>
+              <option value="importacion">Importación</option>
+              <option value="relleno">Relleno masivo</option>
+              <option value="correccion">Corrección</option>
+              <option value="conflicto_sync">Conflicto de sincronización</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted)">Desde</label>
+            <input type="date" id="f-logs-desde" onchange="loadLogs()">
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text-muted)">Hasta</label>
+            <input type="date" id="f-logs-hasta" onchange="loadLogs()">
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="limpiarFiltrosLogs()">Limpiar filtros</button>
+        </div>
+      </div>
+
+      <div id="logs-toast" class="hidden" style="margin-bottom:12px"></div>
       <div id="logs-result"></div>
+    </div>
+
+    <!-- ── INFORMES ──────────────────────────── -->
+    <div id="page-informes" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Informes</div>
+          <div class="page-subtitle">Aprobados, ocupación, ingresos y deudas por periodo</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" id="inf-print" onclick="imprimirInforme()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Imprimir / Guardar PDF
+          </button>
+          <button class="btn btn-outline btn-sm" id="inf-csv" onclick="exportarInformeCSV()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar CSV
+          </button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></div>
+          Periodo
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Desde</label>
+            <input type="date" id="inf-desde">
+          </div>
+          <div class="form-group">
+            <label>Hasta</label>
+            <input type="date" id="inf-hasta">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="loadInformes()" style="align-self:flex-end">Generar</button>
+        </div>
+      </div>
+
+      <div id="inf-toast" class="alert hidden" style="margin-bottom:16px"></div>
+
+      <div id="informes-contenido"></div>
     </div>
 
     <!-- ── AJUSTES ────────────────────────────── -->
@@ -1404,6 +1575,16 @@
         </div>
       </div>
 
+      <!-- SECCIONES OCULTAS A EMPLEADOS (solo jefe, solo con la migración aplicada) -->
+      <div class="card hidden" id="card-secciones-ocultas">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></div>
+          Secciones ocultas a empleados
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Marca las secciones del menú que no quieres que vean las cuentas de empleado. Solo afecta a cuentas <strong>'empleado'</strong>: el jefe siempre tiene acceso completo a toda la aplicación. Es una restricción de interfaz local a este PC, no de seguridad del servidor.</p>
+        <div id="secciones-ocultas-empleado-lista"></div>
+      </div>
+
       <!-- COPIA DE SEGURIDAD -->
       <div class="card card-banner-success" id="aj-guardar-backup">
         <div class="card-title">
@@ -1481,6 +1662,23 @@
         <div class="form-group">
           <label>Consumo medio (L/100 km)</label>
           <input type="number" id="pref-consumo-medio" min="0.1" step="0.1" style="width:100px" title="Consumo medio de la flota, usado para estimar el coste por vehículo" onchange="guardarCombustiblePrefDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label>Plazo mínimo de cancelación (horas)</label>
+          <input type="number" id="pref-cancel-plazo" min="0" step="1" style="width:100px" title="Horas de antelación mínimas para cancelar una clase de la agenda sin penalización" onchange="guardarCancelacionPrefDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer">
+            <input type="checkbox" id="pref-cancel-devolucion" onchange="guardarCancelacionPrefDesdeAjustes()"> Con devolución si se cancela a tiempo
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Importe por defecto de matrícula (€)</label>
+          <input type="number" id="pref-matricula" min="0" step="0.01" style="width:110px" title="Importe que precarga el botón 'Añadir matrícula' en la ficha económica del alumno" onchange="guardarCargosPrefDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label>Importe por defecto de tasa (€)</label>
+          <input type="number" id="pref-tasa" min="0" step="0.01" style="width:110px" title="Importe que precarga el botón 'Añadir tasa' en la ficha económica del alumno" onchange="guardarCargosPrefDesdeAjustes()">
         </div>
         <div class="form-group">
           <label>Tarjetas del panel principal</label>
@@ -2084,6 +2282,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     <p id="edit-a-n-inscripcion" style="font-size:12px;color:var(--text-muted);margin-top:8px"></p>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="imprimirFichaAlumno(parseInt(document.getElementById('edit-a-id').value))">🖨️ Imprimir ficha</button>
+      <button class="btn btn-gray" onclick="imprimirFichaPracticas(parseInt(document.getElementById('edit-a-id').value))" title="Ficha de clases prácticas firmable (RD 1295/2003 art. 40)">🖨️ Ficha de prácticas (firmable)</button>
       <button class="btn btn-gray" onclick="closeModal('modal-alumno')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveAlumno()">Guardar cambios</button>
     </div>
@@ -2211,6 +2410,129 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-vencimiento')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarVencimiento()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL LEAD (CRM) ══════════════════════════════ -->
+<div class="overlay" id="modal-lead">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+      <h3 id="lead-modal-titulo">Nuevo lead</h3>
+    </div>
+    <input type="hidden" id="lead-edit-id">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" id="lead-nombre" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Teléfono</label>
+        <input type="text" id="lead-telefono" style="width:100%">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="lead-email" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Origen</label>
+        <input type="text" id="lead-origen" style="width:100%" list="lead-origen-list" placeholder="Recomendación, Google, Redes...">
+        <datalist id="lead-origen-list">
+          <option value="Recomendación">
+          <option value="Google">
+          <option value="Redes">
+          <option value="Pasaba por la calle">
+          <option value="Otro">
+        </datalist>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Permiso de interés</label>
+        <input type="text" id="lead-permiso-interes" style="width:100%" placeholder="B, A2...">
+      </div>
+      <div class="form-group">
+        <label>Presupuesto (€)</label>
+        <input type="number" id="lead-presupuesto" style="width:100%" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Estado</label>
+        <select id="lead-estado" style="width:100%">
+          <option value="nuevo">Nuevo</option>
+          <option value="contactado">Contactado</option>
+          <option value="presupuesto">Presupuesto</option>
+          <option value="ganado">Ganado</option>
+          <option value="perdido">Perdido</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Fecha de alta</label>
+        <input type="date" id="lead-fecha-alta" style="width:100%">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Notas</label>
+      <textarea id="lead-notas" rows="3" style="width:100%"></textarea>
+    </div>
+    <div id="lead-alert" class="hidden" style="margin-top:12px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-lead')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarLead()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL BONO ══════════════════════════════ -->
+<div class="overlay" id="modal-bono">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+      <h3 id="bono-modal-titulo">Añadir bono</h3>
+    </div>
+    <input type="hidden" id="bono-edit-id">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Alumno</label>
+        <select id="bono-alumno-id" style="width:100%"></select>
+      </div>
+      <div class="form-group">
+        <label>Nombre del bono</label>
+        <input type="text" id="bono-nombre" style="width:100%" placeholder="Bono 10 clases...">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nº de clases</label>
+        <input type="number" id="bono-n-clases" min="1" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Precio (€)</label>
+        <input type="number" id="bono-precio" min="0" step="0.01" style="width:100%">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Fecha de compra</label>
+        <input type="date" id="bono-fecha-compra" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Fecha de caducidad</label>
+        <input type="date" id="bono-fecha-caducidad" style="width:100%">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Nota</label>
+      <textarea id="bono-nota" rows="3" style="width:100%"></textarea>
+    </div>
+    <div id="bono-alert" class="hidden" style="margin-top:12px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-bono')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarBono()">Guardar</button>
     </div>
   </div>
 </div>
@@ -2438,6 +2760,17 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <label>Fecha</label>
       <input type="date" id="edit-pago-fecha" style="width:100%">
     </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Forma de pago (opcional)</label>
+      <select id="edit-pago-forma" style="width:100%">
+        <option value="">—</option>
+        <option value="efectivo">Efectivo</option>
+        <option value="tarjeta">Tarjeta</option>
+        <option value="transferencia">Transferencia</option>
+        <option value="bizum">Bizum</option>
+        <option value="otro">Otro</option>
+      </select>
+    </div>
     <div class="form-group">
       <label>Nota (opcional)</label>
       <input type="text" id="edit-pago-nota" placeholder="Ej: pago en efectivo, transferencia..." style="width:100%">
@@ -2458,7 +2791,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     </div>
     <div class="table-wrap" style="overflow-y:auto;max-height:50vh">
       <table id="tabla-historial-pagos">
-        <thead><tr><th>Fecha</th><th>Cantidad</th><th>Nota</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Cantidad</th><th>Forma</th><th>Nota</th><th>Acciones</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -2499,7 +2832,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     <div id="economia-aviso-sin-tarifa" class="hidden alert alert-warn" style="margin-bottom:14px">
       Hay prácticas sin tarifa definida — el importe generado puede estar incompleto. Revisa Pagos → Tarifas.
     </div>
-    <div class="stats" id="economia-resumen" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px"></div>
+    <div class="stats" id="economia-resumen" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px"></div>
 
     <div style="overflow-y:auto;flex:1">
       <h4 style="margin:0 0 8px">Pagos registrados</h4>
@@ -2532,10 +2865,64 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
           <tbody></tbody>
         </table>
       </div>
+
+      <h4 style="margin:16px 0 8px">Cargos y descuentos</h4>
+      <div class="form-row" style="gap:8px;margin-bottom:12px">
+        <button class="btn btn-gray btn-sm" onclick="addCargoRapido('matricula')">Añadir matrícula</button>
+        <button class="btn btn-gray btn-sm" onclick="addCargoRapido('tasa')">Añadir tasa</button>
+        <button class="btn btn-primary btn-sm" onclick="abrirModalCargo()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Añadir cargo/descuento</button>
+      </div>
+      <div class="table-wrap" style="max-height:180px;overflow-y:auto">
+        <table id="tabla-economia-cargos">
+          <thead><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Importe</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-economia-alumno')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL AÑADIR CARGO / DESCUENTO ═══════════════════════════ -->
+<div class="overlay" id="modal-cargo">
+  <div class="modal" style="width:420px">
+    <div class="modal-header">
+      <div class="modal-header-icon">💶</div>
+      <h3>Añadir cargo / descuento</h3>
+    </div>
+    <div class="form-group">
+      <label>Tipo</label>
+      <select id="cargo-tipo">
+        <option value="matricula">Matrícula</option>
+        <option value="tasa">Tasa</option>
+        <option value="cargo" selected>Cargo</option>
+        <option value="descuento">Descuento</option>
+        <option value="promo">Promoción</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Concepto</label>
+      <input type="text" id="cargo-concepto" placeholder="Ej: Matrícula inicial, promo 2x1...">
+    </div>
+    <div class="form-group">
+      <label>Importe (€)</label>
+      <input type="number" id="cargo-importe" step="0.01">
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Usa un importe negativo para un descuento (reduce la deuda).</div>
+    </div>
+    <div class="form-group">
+      <label>Fecha</label>
+      <input type="date" id="cargo-fecha">
+    </div>
+    <div class="form-group">
+      <label>Nota (opcional)</label>
+      <textarea id="cargo-nota" rows="2"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-cargo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCargo()">Guardar</button>
     </div>
   </div>
 </div>
@@ -2572,7 +2959,11 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <script src="renderer/reservas.js"></script>
 <script src="renderer/jornada.js"></script>
 <script src="renderer/vencimientos.js"></script>
+<script src="renderer/crm.js"></script>
+<script src="renderer/bonos.js"></script>
 <script src="renderer/examenes.js"></script>
+<script src="renderer/informes.js"></script>
+<script src="renderer/caja.js"></script>
 <script src="renderer/arranque.js"></script>
 </body>
 </html>

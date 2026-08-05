@@ -164,12 +164,33 @@ async function confirmarReserva(id) {
 }
 
 async function cancelarReserva(id) {
-  if (!confirm('¿Cancelar esta reserva?')) return;
+  const r = reservasCache.find(x => x.id === id);
+  let mensaje = '¿Cancelar esta reserva?';
+
+  // Aviso informativo de política de cancelación (Ajustes → Plazo mínimo de
+  // cancelación). No cambia la lógica: solo el texto del confirm.
+  if (r && r.fecha && typeof getCancelPlazoHoras === 'function') {
+    const fechaHora = r.hora_inicio ? `${r.fecha}T${r.hora_inicio}` : `${r.fecha}T00:00`;
+    const msClase = new Date(fechaHora).getTime();
+    if (!isNaN(msClase)) {
+      const horasRestantes = (msClase - Date.now()) / 3600000;
+      if (horasRestantes < getCancelPlazoHoras()) {
+        mensaje = 'Vas a cancelar fuera de plazo.';
+        if (typeof getCancelDevolucion === 'function' && !getCancelDevolucion()) {
+          mensaje += ' No procede devolución.';
+        }
+        mensaje += ' ¿Cancelar esta reserva?';
+      }
+    }
+  }
+
+  if (!confirm(mensaje)) return;
   await window.api.setEstadoReserva(id, 'cancelada');
   loadReservas();
 }
 
 async function marcarRealizadaReserva(id) {
+  const r = reservasCache.find(x => x.id === id);
   const res = await window.api.completarReserva(id);
   if (!res || !res.ok) {
     showToast('reservas-toast', (res && res.msg) || 'No se pudo completar la reserva.', 'err');
@@ -179,6 +200,25 @@ async function marcarRealizadaReserva(id) {
   if (res.creadas > 0) {
     showToast('reservas-toast', `${res.creadas} práctica${res.creadas === 1 ? '' : 's'} añadida${res.creadas === 1 ? '' : 's'} al alumno.`, 'ok');
   }
+
+  // Integración ligera con bonos: si el alumno tiene saldo, ofrece consumir
+  // 1 clase del bono. No bloquea ni deshace el flujo si algo falla, la
+  // reserva ya quedó marcada realizada arriba.
+  try {
+    if (r && r.alumno_id) {
+      const saldo = await window.api.getSaldoBonosAlumno(r.alumno_id);
+      if (saldo > 0 && confirm('El alumno tiene bonos con saldo. ¿Consumir 1 clase del bono?')) {
+        const bonos = await window.api.getBonosAlumno(r.alumno_id);
+        const bono = bonos.find(b => b.estado === 'activo' && b.saldo > 0 && !b.caducado);
+        if (bono) {
+          const consumo = await window.api.consumirBono(bono.id, 1);
+          if (consumo && consumo.ok) {
+            showToast('reservas-toast', `Clase consumida del bono. Saldo restante: ${consumo.saldo}.`, 'ok');
+          }
+        }
+      }
+    }
+  } catch (e) {}
 }
 
 async function borrarReserva(id) {

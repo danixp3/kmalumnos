@@ -278,11 +278,14 @@ ipcMain.handle('delete-practica', (_, id) => { db.deletePractica(id); return tru
 ipcMain.handle('update-practica', (_, id, fecha, km_inicial, km_final, profesor_id, tipo) => { db.updatePractica(id, fecha, km_inicial, km_final, profesor_id, tipo); return true; });
 
 ipcMain.handle('get-pagos-alumno', (_, alumno_id) => db.getPagosByAlumno(alumno_id));
-ipcMain.handle('add-pago', (_, alumno_id, fecha, cantidad, nota, sucursalId) => db.addPago(alumno_id, fecha, cantidad, nota, sucursalId));
-ipcMain.handle('update-pago', (_, id, fecha, cantidad, nota) => { db.updatePago(id, fecha, cantidad, nota); return true; });
+ipcMain.handle('add-pago', (_, alumno_id, fecha, cantidad, nota, sucursalId, forma_pago, empleado) => db.addPago(alumno_id, fecha, cantidad, nota, sucursalId, forma_pago, empleado));
+ipcMain.handle('update-pago', (_, id, fecha, cantidad, nota, forma_pago, empleado) => { db.updatePago(id, fecha, cantidad, nota, forma_pago, empleado); return true; });
 ipcMain.handle('delete-pago', (_, id) => { db.deletePago(id); return true; });
 ipcMain.handle('get-deudas', (_, sucursalId) => db.getDeudas(sucursalId));
 ipcMain.handle('get-desglose-pagos-alumno', (_, alumno_id) => db.getDesglosePagosAlumno(alumno_id));
+ipcMain.handle('get-ficha-practicas-alumno', (_, alumno_id) => db.getFichaPracticasAlumno(alumno_id));
+ipcMain.handle('get-arqueo', (_, desde, hasta, sucursalId) => db.getArqueo(desde, hasta, sucursalId));
+ipcMain.handle('get-morosos', (_, sucursalId) => db.getMorosos(sucursalId));
 
 ipcMain.handle('get-resumen', (_, sucursalId) => db.getResumen(sucursalId));
 ipcMain.handle('get-stats-dashboard', (_, hoy, sucursalId) => db.getStatsDashboard(hoy, sucursalId));
@@ -293,6 +296,7 @@ ipcMain.handle('get-semaforo-examen', () => db.getSemaforoExamen());
 ipcMain.handle('get-semaforo-alumno', (_, alumno_id) => db.getSemaforoAlumno(alumno_id));
 ipcMain.handle('get-alumnos-en-riesgo', () => db.getAlumnosEnRiesgo());
 ipcMain.handle('get-analisis-vehiculos', () => db.getAnalisisVehiculos());
+ipcMain.handle('get-informes', (_, desde, hasta, sucursalId) => db.getInformes(desde, hasta, sucursalId));
 
 // Sucursales (fase 2 multi-empresa): CRUD mecánico, la lógica de
 // compatibilidad hacia atrás vive en db/sucursales.js (data.json) y en el
@@ -330,6 +334,16 @@ ipcMain.handle('update-vencimiento', (_, id, campos) => { db.updateVencimiento(i
 ipcMain.handle('set-completado-vencimiento', (_, id, completado) => { db.setCompletadoVencimiento(id, completado); return true; });
 ipcMain.handle('delete-vencimiento', (_, id) => { db.deleteVencimiento(id); return true; });
 
+// CRM de captación (leads) — local por puesto, NO sincroniza con Supabase
+// (ver db/crm.js).
+ipcMain.handle('get-leads', (_, sucursalId) => db.getLeads(sucursalId));
+ipcMain.handle('add-lead', (_, datos) => db.addLead(datos));
+ipcMain.handle('update-lead', (_, id, campos) => { db.updateLead(id, campos); return true; });
+ipcMain.handle('set-estado-lead', (_, id, estado) => { db.setEstadoLead(id, estado); return true; });
+ipcMain.handle('delete-lead', (_, id) => { db.deleteLead(id); return true; });
+ipcMain.handle('convertir-lead', (_, id) => db.convertirLeadEnAlumno(id));
+ipcMain.handle('get-estadisticas-crm', (_, sucursalId) => db.getEstadisticasCrm(sucursalId));
+
 // Exámenes: presentaciones a convocatoria, tasas y estadísticas de aprobados —
 // local por puesto, NO sincroniza con Supabase (ver db/convocatorias.js).
 ipcMain.handle('get-presentaciones', (_, sucursalId) => db.getPresentaciones(sucursalId));
@@ -337,6 +351,29 @@ ipcMain.handle('add-presentacion', (_, datos) => db.addPresentacion(datos));
 ipcMain.handle('update-presentacion', (_, id, campos) => { db.updatePresentacion(id, campos); return true; });
 ipcMain.handle('set-resultado-presentacion', (_, id, resultado) => { db.setResultadoPresentacion(id, resultado); return true; });
 ipcMain.handle('delete-presentacion', (_, id) => { db.deletePresentacion(id); return true; });
+
+// Bonos / packs de prácticas — local por puesto, NO sincroniza con Supabase
+// (ver db/bonos.js).
+ipcMain.handle('get-bonos', (_, sucursalId) => db.getBonos(sucursalId));
+ipcMain.handle('get-bonos-alumno', (_, alumnoId) => db.getBonosAlumno(alumnoId));
+ipcMain.handle('get-saldo-bonos-alumno', (_, alumnoId) => db.getSaldoBonosAlumno(alumnoId));
+ipcMain.handle('add-bono', (_, datos) => db.addBono(datos));
+ipcMain.handle('update-bono', (_, id, campos) => { db.updateBono(id, campos); return true; });
+ipcMain.handle('consumir-bono', (_, id, n) => db.consumirBono(id, n));
+ipcMain.handle('reponer-bono', (_, id, n) => db.reponerBono(id, n));
+ipcMain.handle('anular-bono', (_, id) => { db.anularBono(id); return true; });
+ipcMain.handle('delete-bono', (_, id) => { db.deleteBono(id); return true; });
+
+// Cargos y descuentos (matrícula/tasas/cargos/descuentos/promos — tarea D2
+// del PLAN-MAESTRO): CRUD mecánico, la lógica de compatibilidad hacia atrás
+// (gateado, sin migración aplicada aún) vive en db/cargos.js y en sync.js.
+ipcMain.handle('get-cargos', (_, sucursalId) => db.getCargos(sucursalId));
+ipcMain.handle('get-cargos-alumno', (_, alumnoId) => db.getCargosAlumno(alumnoId));
+ipcMain.handle('get-total-cargos-alumno', (_, alumnoId) => db.getTotalCargosAlumno(alumnoId));
+ipcMain.handle('add-cargo', (_, datos) => db.addCargo(datos));
+ipcMain.handle('update-cargo', (_, id, campos) => { db.updateCargo(id, campos); return true; });
+ipcMain.handle('delete-cargo', (_, id) => { db.deleteCargo(id); return true; });
+
 ipcMain.handle('get-tasas', (_, sucursalId) => db.getTasas(sucursalId));
 ipcMain.handle('get-tasas-alumno', (_, alumnoId) => db.getTasasAlumno(alumnoId));
 ipcMain.handle('add-tasa', (_, datos) => db.addTasa(datos));
@@ -358,7 +395,7 @@ ipcMain.handle('ajustar-practicas-alumno', (_, vehiculo_id, fecha, alumno_id, de
 ipcMain.handle('guardar-nota-alumno', (_, vehiculo_id, fecha, alumno_id, nota, profesor_id, tipo) => db.guardarNotaAlumno(vehiculo_id, fecha, alumno_id, nota, profesor_id, tipo));
 ipcMain.handle('get-anotaciones-alumno', (_, alumno_id) => db.getAnotacionesAlumno(alumno_id));
 
-ipcMain.handle('get-logs', () => db.getLogs());
+ipcMain.handle('get-logs', (_, filtro) => db.getLogs(filtro));
 ipcMain.handle('clear-logs', () => db.clearLogs());
 ipcMain.handle('validar-solapamiento', (_, vehiculo_id, fecha, kmI, kmF, excluirId) => db.validarSolapamiento(vehiculo_id, fecha, kmI, kmF, excluirId));
 

@@ -371,3 +371,62 @@ Añade 1 columna `jsonb` a `alumnos`, nullable y opcional: `permisos` (array de 
 ## Cómo revertir
 
 Ejecutar el bloque `ROLLBACK` comentado al final de `2026-08-06_alumno_permisos.sql`. Si para entonces ya hay datos reales guardados en `permisos`, se pierden.
+
+# Migración: forma de pago y empleado en pagos (tarea D1, arqueo de caja)
+
+Fecha: 2026-08-06. Archivo de esta carpeta: `2026-08-06_pago_forma_empleado.sql` (rollback comentado dentro del propio archivo).
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla.
+
+## Qué hace, en llano
+
+Añade 2 columnas de texto a `pagos`, ambas nullable y opcionales: `forma_pago` (efectivo/tarjeta/transferencia/bizum/otro) y `empleado` (nombre de quien anotó el cobro). Con estos dos datos, la nueva pantalla "Caja" puede calcular el arqueo del día (o de un rango de fechas): cuánto se ha cobrado, desglosado por forma de pago, por empleado y por sede, además de la lista de alumnos morosos. La app de escritorio ya sabe guardar y editar estos 2 campos al anotar un pago, y desde antes de aplicar esta migración: en local ya se guardan en `data.json`. Lo único que falta hasta aplicar esta migración es que también se suban a Supabase — `sync.js` detecta en tiempo de ejecución si la columna `forma_pago` existe (mismo patrón que `_alumnosLibroDisponible`) y, mientras no exista, simplemente no incluye estos 2 campos en la subida, sin errores ni sincronización rota.
+
+## Pasos exactos para aplicarla
+
+1. Copia de seguridad (mismo criterio que el resto de migraciones de esta carpeta): backup de `data.json` desde Ajustes.
+2. Aplicar `2026-08-06_pago_forma_empleado.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado). No depende de otras migraciones de esta carpeta.
+3. Verificar (paso siguiente).
+
+## Qué verificar después
+
+- `SELECT forma_pago, empleado FROM pagos LIMIT 5;` → todo `NULL` salvo los pagos anotados desde la app tras aplicar la migración.
+- La app de escritorio sigue arrancando y sincronizando con normalidad; anotar un pago con forma de pago y forzar sincronización debe reflejarlo en `SELECT forma_pago, empleado FROM pagos WHERE id = ...`.
+
+## Cómo revertir
+
+Ejecutar el bloque `ROLLBACK` comentado al final de `2026-08-06_pago_forma_empleado.sql`. Si para entonces ya hay datos reales guardados en estos 2 campos, se pierden.
+
+# Migración: cargos y descuentos (tarea D2, matrícula/tasas + promociones)
+
+Fecha: 2026-08-06. Archivos de esta carpeta:
+
+- `2026-08-06_cargos.sql` — la migración.
+- `2026-08-06_cargos_ROLLBACK.sql` — la red de seguridad.
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla. Es la capa de datos de la tarea D2 del PLAN-MAESTRO: descuentos/promociones + cargos automáticos de matrícula/tasas.
+
+**Dependencia:** requiere `2026-08-01_roles_y_sucursales.sql` ya aplicada (usa `empresa_actual()` y `rol_actual()`).
+
+## Qué hace, en llano
+
+Crea la tabla `cargos`: cada fila es un movimiento de cargo o descuento de un alumno (matrícula, tasa de examen, un cargo puntual, o un descuento/promoción), con un `importe` **con signo** — positivo aumenta lo que el alumno debe, negativo lo reduce. La app ya suma estos movimientos al cálculo de deuda existente (`getDeudas`/`getDesglosePagosAlumno`) de forma aditiva: sin cargos dados de alta, el resultado es exactamente el mismo que antes de esta tarea. Mismas garantías que el resto de tablas operativas: RLS por empresa (`empresa_all`), soft delete (`deleted`), e `id` asignado por el cliente. A diferencia de `reservas` (abierta a cualquier rol), esta tabla está restringida a **jefe** — igual que `pagos` — porque es dinero: un empleado sin rol de jefe no puede leerla ni escribirla por RLS.
+
+Aplicar esta migración, por sí sola, no cambia nada visible en la app: el código de escritorio (`db/cargos.js`, IPC, sync.js) ya sabe convivir con que la tabla no exista (`_cargosDisponible()`, mismo patrón que `_reservasDisponible`), y en local ya funciona desde ya (solo falta que viaje a la nube).
+
+## Pasos exactos para aplicarla
+
+1. Confirmar que `2026-08-01_roles_y_sucursales.sql` ya está aplicada (si no, aplicarla primero).
+2. Copia de seguridad (mismo criterio que el resto de migraciones de esta carpeta): backup de `data.json` desde Ajustes.
+3. Aplicar `2026-08-06_cargos.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado).
+4. Verificar (paso siguiente).
+
+## Qué verificar después
+
+- `SELECT * FROM cargos;` → tabla vacía.
+- La app de escritorio sigue arrancando y sincronizando con normalidad (la migración no toca ninguna tabla existente, solo añade una nueva).
+- Añadir un cargo o descuento desde la ficha económica de un alumno y forzar sincronización: debe aparecer en `SELECT * FROM cargos WHERE empresa_id = '<tu uuid>';`, y con una cuenta de empleado (no jefe) la consulta debe devolver 0 filas.
+
+## Cómo revertir
+
+Ejecutar `2026-08-06_cargos_ROLLBACK.sql` (`DROP TABLE ... CASCADE`). Si para entonces ya hay cargos reales dados de alta, esos datos se pierden — leer la advertencia dentro del propio archivo antes de ejecutarlo.

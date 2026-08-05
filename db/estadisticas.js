@@ -5,6 +5,7 @@
 const { load, filtrarPorSucursal } = require('./core');
 const { getSolapamientos } = require('./km-algoritmos');
 const { getDeudas } = require('./pagos');
+const { getEstadisticasAprobados } = require('./convocatorias');
 
 // sucursalId opcional: sin argumento (o "Todas las sucursales" en el
 // selector) cuenta todo, igual que antes de sucursales.
@@ -413,7 +414,88 @@ function getAnalisisVehiculos() {
   return resultado.sort((a, b) => b.kmTotales - a.kmTotales);
 }
 
+// ─── INFORMES (agregador para la pantalla "Informes") ─────────────────────
+// Junta en una sola llamada los datasets que ya calculan otras funciones de
+// este archivo/módulo, filtrados por rango de fechas ('YYYY-MM-DD', ambos
+// opcionales) y sucursal. Solo lectura, no marca sync. Defensivo: sin datos
+// devuelve arrays vacíos y totales a 0, nunca lanza.
+function _enRango(fecha, desde, hasta) {
+  if (!fecha) return false;
+  if (desde && fecha < desde) return false;
+  if (hasta && fecha > hasta) return false;
+  return true;
+}
+
+function getInformes(desde, hasta, sucursalId) {
+  const d = load();
+
+  // Aprobados: getEstadisticasAprobados no acepta rango de fechas (es un
+  // ratio histórico de convocatorias, no una foto del periodo) — se reutiliza
+  // tal cual, filtrada solo por sucursal.
+  const aprobados = getEstadisticasAprobados(sucursalId);
+
+  // Ocupación por profesor: getStatsProfesores ya acepta desde/hasta, se
+  // reutiliza y solo se remapea a las claves pedidas por el informe.
+  const ocupacionProfesores = getStatsProfesores(desde, hasta).map(p => ({
+    profesor_id: p.id,
+    nombre: p.nombre,
+    nPracticas: p.num_practicas,
+    kmTotales: p.km_totales
+  }));
+
+  // Ocupación de vehículos: getAnalisisVehiculos no filtra por fecha, así
+  // que aquí se recorren las prácticas del periodo directamente (mismo
+  // criterio de "con km" que esa función).
+  const vehiculos = filtrarPorSucursal(d.vehiculos, sucursalId).filter(v => !v.deleted);
+  const practicasPeriodo = filtrarPorSucursal(d.practicas, sucursalId)
+    .filter(p => !p.deleted && _enRango(p.fecha, desde, hasta));
+  const conKm = p => p.km_final != null && p.km_inicial != null && p.km_final >= p.km_inicial && !(p.km_inicial === 0 && p.km_final === 0);
+  const ocupacionVehiculos = vehiculos.map(v => {
+    const propias = practicasPeriodo.filter(p => p.vehiculo_id === v.id);
+    const nPracticas = propias.length;
+    const kmTotalesRaw = propias.filter(conKm).reduce((sum, p) => sum + (p.km_final - p.km_inicial), 0);
+    const kmTotales = Math.round(kmTotalesRaw * 10) / 10;
+    const mediaKmPractica = nPracticas === 0 ? 0 : Math.round((kmTotales / nPracticas) * 10) / 10;
+    return { vehiculo_id: v.id, nombre: v.nombre, matricula: v.matricula, nPracticas, kmTotales, mediaKmPractica };
+  }).sort((a, b) => b.kmTotales - a.kmTotales);
+
+  // Ingresos: pagos del periodo (filtrados por su propio sucursal_id, igual
+  // que getDatosGraficos hace con la práctica/alumno).
+  const pagosPeriodo = filtrarPorSucursal(d.pagos, sucursalId)
+    .filter(p => !p.deleted && _enRango(p.fecha, desde, hasta));
+  const total = Math.round(pagosPeriodo.reduce((sum, p) => sum + p.cantidad, 0) * 100) / 100;
+  const porMesMap = new Map();
+  for (const p of pagosPeriodo) {
+    const mes = p.fecha.slice(0, 7);
+    porMesMap.set(mes, (porMesMap.get(mes) || 0) + p.cantidad);
+  }
+  const porMes = Array.from(porMesMap.entries())
+    .map(([mes, tot]) => ({ mes, total: Math.round(tot * 100) / 100 }))
+    .sort((a, b) => a.mes.localeCompare(b.mes));
+  const ingresos = { total, nPagos: pagosPeriodo.length, porMes };
+
+  // Deudas: getDeudas es una foto del saldo actual, no un dato de periodo —
+  // se reutiliza tal cual, filtrada solo por sucursal (mismo criterio que
+  // getStatsDashboard).
+  const conDeuda = getDeudas(sucursalId).filter(dd => dd.saldo > 0);
+  const deudas = {
+    totalAdeudado: Math.round(conDeuda.reduce((sum, dd) => sum + dd.saldo, 0) * 100) / 100,
+    nAlumnos: conDeuda.length,
+    detalle: conDeuda.map(dd => ({ alumno_id: dd.alumno_id, nombre: dd.alumno_nombre, saldo: dd.saldo }))
+  };
+
+  return {
+    periodo: { desde: desde || null, hasta: hasta || null },
+    aprobados,
+    ocupacionProfesores,
+    ocupacionVehiculos,
+    ingresos,
+    deudas
+  };
+}
+
 module.exports = {
   getResumen, getStatsDashboard, getStatsProfesores, getDatosGraficos, getTimelineVehiculo,
   getSemaforoExamen, getSemaforoAlumno, getAlumnosEnRiesgo, getAnalisisVehiculos,
+  getInformes,
 };

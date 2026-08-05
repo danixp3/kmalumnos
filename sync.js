@@ -149,13 +149,15 @@ function loadDataSafe() {
   if (!Array.isArray(data.pagos))      data.pagos = [];
   if (!Array.isArray(data.sucursales)) data.sucursales = [];
   if (!Array.isArray(data.reservas))   data.reservas = [];
+  if (!Array.isArray(data.cargos))     data.cargos = [];
   if (!Array.isArray(data.logs))       data.logs = [];
-  if (!data._seq) data._seq = { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1, r: 1 };
+  if (!data._seq) data._seq = { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1, r: 1, cargo: 1 };
   if (!data._seq.pf) data._seq.pf = 1;
   if (!data._seq.t) data._seq.t = 1;
   if (!data._seq.pg) data._seq.pg = 1;
   if (!data._seq.suc) data._seq.suc = 1;
   if (!data._seq.r) data._seq.r = 1;
+  if (!data._seq.cargo) data._seq.cargo = 1;
   return { data, regenerado };
 }
 
@@ -178,10 +180,12 @@ function setCredentials(email, password) {
   _perfilCache = null; // cambio de sesión: invalidar el perfil (rol/empresa) cacheado
   _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
   _reservasDisponibleCache = null; // idem: reconsultar si la migración de reservas está aplicada
+  _cargosDisponibleCache = null; // idem: reconsultar si la migración de cargos está aplicada
   _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
   _alumnosDatosDisponibleCache = null; // idem: reconsultar si las columnas de ficha ampliada están disponibles
   _alumnosLibroDisponibleCache = null; // idem: reconsultar si las columnas del libro de registro están disponibles
   _alumnosPermisosDisponibleCache = null; // idem: reconsultar si la columna permisos está disponible
+  _pagosCamposDisponibleCache = null; // idem: reconsultar si forma_pago/empleado están disponibles
   _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
   // Entrada fresca de credenciales (login manual, registro, o logout): nunca
   // se da por buena hasta que un login real lo confirme. Distinto de
@@ -321,10 +325,12 @@ async function registrarEmpresa(email, password) {
       _perfilCache = null; // sesión nueva: invalidar el perfil (rol/empresa) cacheado
       _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
       _reservasDisponibleCache = null; // idem: reconsultar si la migración de reservas está aplicada
+      _cargosDisponibleCache = null; // idem: reconsultar si la migración de cargos está aplicada
       _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
       _alumnosDatosDisponibleCache = null; // idem: reconsultar si las columnas de ficha ampliada están disponibles
       _alumnosLibroDisponibleCache = null; // idem: reconsultar si las columnas del libro de registro están disponibles
   _alumnosPermisosDisponibleCache = null; // idem: reconsultar si la columna permisos está disponible
+  _pagosCamposDisponibleCache = null; // idem: reconsultar si forma_pago/empleado están disponibles
       _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
       _authOk = true;
       _guardarAuthOk(true);
@@ -486,6 +492,27 @@ async function _reservasDisponible(sb) {
   return _reservasDisponibleCache;
 }
 
+// ─── CARGOS (descuentos/promociones + cargos automáticos, tarea D2) ──────────
+// Mismo patrón exacto que _reservasDisponible de arriba: mientras la
+// migración `migraciones/2026-08-06_cargos.sql` no esté aplicada, la tabla
+// `cargos` no existe en Supabase y cualquier consulta a ella falla — se
+// trata como "modo clásico", nunca como un error real: cargos simplemente
+// no se sube ni se baja. Cacheado en memoria durante la sesión; se invalida
+// en los mismos puntos que _reservasDisponibleCache (setCredentials/
+// registrarEmpresa más arriba).
+let _cargosDisponibleCache = null;
+
+async function _cargosDisponible(sb) {
+  if (_cargosDisponibleCache !== null) return _cargosDisponibleCache;
+  try {
+    const { error } = await sb.from('cargos').select('id').limit(1);
+    _cargosDisponibleCache = !error;
+  } catch {
+    _cargosDisponibleCache = false;
+  }
+  return _cargosDisponibleCache;
+}
+
 // Mismo patrón exacto que _sucursalesDisponible de arriba: mientras la
 // migración `migraciones/2026-08-05_alumno_email.sql` (portal del alumno,
 // Bloque 2 SaaS) no esté aplicada, la columna `alumnos.email` no existe en
@@ -569,6 +596,28 @@ async function _alumnosPermisosDisponible(sb) {
     _alumnosPermisosDisponibleCache = false;
   }
   return _alumnosPermisosDisponibleCache;
+}
+
+// Mismo patrón exacto que _alumnosLibroDisponible de arriba, pero para las
+// columnas NUEVAS de `pagos` (tarea D1 del PLAN-MAESTRO: arqueo de caja) —
+// `forma_pago` y `empleado` — migración
+// `migraciones/2026-08-06_pago_forma_empleado.sql`, TODAVÍA NO aplicada. Si
+// no está aplicada, esas columnas no existen en Supabase y se trata como
+// "modo clásico", nunca como un error real. Basta comprobar una sola columna
+// (`forma_pago`): se aplican juntas. Cacheado en memoria durante la sesión;
+// se invalida en los mismos puntos que _alumnosLibroDisponibleCache
+// (setCredentials/registrarEmpresa).
+let _pagosCamposDisponibleCache = null;
+
+async function _pagosCamposDisponible(sb) {
+  if (_pagosCamposDisponibleCache !== null) return _pagosCamposDisponibleCache;
+  try {
+    const { error } = await sb.from('pagos').select('forma_pago').limit(1);
+    _pagosCamposDisponibleCache = !error;
+  } catch {
+    _pagosCamposDisponibleCache = false;
+  }
+  return _pagosCamposDisponibleCache;
 }
 
 // ─── MÓDULOS CONTRATADOS (fase 0 SaaS, entitlements por empresa) ─────────────
@@ -795,8 +844,8 @@ function loadPending() {
     try { return JSON.parse(fs.readFileSync(p, 'utf-8')); } catch {}
   }
   return {
-    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [],
-    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: [], reservas: [] },
+    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [],
+    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [] },
     lastSync: '1970-01-01T00:00:00.000Z'
   };
 }
@@ -916,7 +965,8 @@ const _TABLAS_COLISION = [
   { tabla: 'alumnos',    seq: 'a'  },
   { tabla: 'practicas',  seq: 'p'  },
   { tabla: 'pagos',      seq: 'pg' },
-  { tabla: 'reservas',   seq: 'r'  }
+  { tabla: 'reservas',   seq: 'r'  },
+  { tabla: 'cargos',     seq: 'cargo' }
 ];
 
 async function _resolverColisionesPrimeraVinculacion(data, pending, sb) {
@@ -965,6 +1015,7 @@ async function _resolverColisionesPrimeraVinculacion(data, pending, sb) {
     data.practicas.forEach(p => { if (remaps.alumnos.has(p.alumno_id)) p.alumno_id = remaps.alumnos.get(p.alumno_id); });
     data.pagos.forEach(pg => { if (remaps.alumnos.has(pg.alumno_id)) pg.alumno_id = remaps.alumnos.get(pg.alumno_id); });
     data.reservas.forEach(r => { if (r.alumno_id != null && remaps.alumnos.has(r.alumno_id)) r.alumno_id = remaps.alumnos.get(r.alumno_id); });
+    data.cargos.forEach(c => { if (c.alumno_id != null && remaps.alumnos.has(c.alumno_id)) c.alumno_id = remaps.alumnos.get(c.alumno_id); });
   }
 
   // Colas de pendientes: que sigan apuntando al id correcto tras la reasignación.
@@ -1105,6 +1156,11 @@ async function sync() {
     // está aplicada la tabla `reservas` ni se sube ni se baja, sin errores ni
     // reintentos atascados.
     const reservasOn = await _reservasDisponible(sb);
+    // Cargos y descuentos (tarea D2 del PLAN-MAESTRO — ver comentario junto a
+    // _cargosDisponible): mismo patrón que reservasOn, si la migración no
+    // está aplicada la tabla `cargos` ni se sube ni se baja, sin errores ni
+    // reintentos atascados.
+    const cargosOn = await _cargosDisponible(sb);
     // Email de alumno (Bloque 2 SaaS, portal del alumno — ver comentario junto
     // a _alumnosEmailDisponible): mismo patrón que sucursalesOn, si la
     // migración no está aplicada la columna `email` no se estampa en el
@@ -1124,6 +1180,11 @@ async function sync() {
     // libroOn, si la migración no está aplicada la columna `permisos` no se
     // estampa en el payload de subida de alumnos.
     const permisosOn = await _alumnosPermisosDisponible(sb);
+    // Forma de pago y empleado de caja (tarea D1 del PLAN-MAESTRO, arqueo) —
+    // ver comentario junto a _pagosCamposDisponible: mismo patrón que
+    // permisosOn, si la migración no está aplicada esas 2 columnas no se
+    // estampan en el payload de subida de pagos.
+    const pagosCamposOn = await _pagosCamposDisponible(sb);
     // Conflicto de empresa sin resolver (ver sección "PROPIETARIO DE LOS DATOS
     // LOCALES"): el login de ensureClient() acaba de revelar que data.json
     // pertenece a otra cuenta. No tocar nada — ni subir lo que hay en local
@@ -1306,6 +1367,7 @@ async function sync() {
           };
           if (_empresaId) payload.empresa_id = _empresaId;
           if (sucursalesOn) payload.sucursal_id = pg.sucursal_id != null ? pg.sucursal_id : null;
+          if (pagosCamposOn) { payload.forma_pago = pg.forma_pago || null; payload.empleado = pg.empleado || null; }
           await sb.from('pagos').upsert(payload, { onConflict: 'id' });
         }
       }
@@ -1354,6 +1416,28 @@ async function sync() {
       }
     }
 
+    // Cargos y descuentos dirty (tarea D2). Solo se procesa si la migración
+    // está aplicada (cargosOn): sin ella la tabla no existe y no hay nada
+    // que subir — la cola pending.cargos se queda tal cual, sin vaciarse ni
+    // fallar, hasta que la migración esté aplicada de verdad. Se sube
+    // después de alumnos (más arriba) para que un cargo nuevo nunca llegue
+    // antes que el alumno al que pertenece.
+    if (cargosOn) {
+      for (const id of (pending.cargos || [])) {
+        const c = data.cargos.find(x => x.id === id);
+        if (c) {
+          const payload = {
+            id: c.id, alumno_id: c.alumno_id || null, concepto: c.concepto || '',
+            tipo: c.tipo, importe: c.importe || 0, fecha: c.fecha || null, nota: c.nota || '',
+            deleted: !!c.deleted, updated_at: new Date().toISOString()
+          };
+          if (_empresaId) payload.empresa_id = _empresaId;
+          if (sucursalesOn) payload.sucursal_id = c.sucursal_id != null ? c.sucursal_id : null;
+          await sb.from('cargos').upsert(payload, { onConflict: 'id' });
+        }
+      }
+    }
+
     // Eliminaciones — todas por soft delete (marca deleted). Borrar de verdad
     // un alumno falla en Supabase si tiene prácticas (clave foránea) y además
     // sin la marca los otros dispositivos nunca se enteran del borrado.
@@ -1387,6 +1471,11 @@ async function sync() {
     if (reservasOn) {
       for (const id of (pending.deleted.reservas || [])) {
         await sb.from('reservas').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
+      }
+    }
+    if (cargosOn) {
+      for (const id of (pending.deleted.cargos || [])) {
+        await sb.from('cargos').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id);
       }
     }
 
@@ -1678,6 +1767,8 @@ async function sync() {
               id: rpg.id, alumno_id: rpg.alumno_id, fecha: rpg.fecha,
               cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || '',
               sucursal_id: rpg.sucursal_id != null ? rpg.sucursal_id : null,
+              forma_pago: rpg.forma_pago != null ? rpg.forma_pago : null,
+              empleado: rpg.empleado != null ? rpg.empleado : null,
               updated_at: rpg.updated_at
             });
             if (rpg.id >= data._seq.pg) data._seq.pg = rpg.id + 1;
@@ -1690,7 +1781,9 @@ async function sync() {
               const nuevo = {
                 alumno_id: rpg.alumno_id, fecha: rpg.fecha,
                 cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || '',
-                sucursal_id: rpg.sucursal_id != null ? rpg.sucursal_id : null
+                sucursal_id: rpg.sucursal_id != null ? rpg.sucursal_id : null,
+                forma_pago: rpg.forma_pago != null ? rpg.forma_pago : null,
+                empleado: rpg.empleado != null ? rpg.empleado : null
               };
               _detectarYRegistrarConflicto(data, 'pagos', pending.pagos,
                 rpg.id, ['alumno_id', 'fecha', 'cantidad', 'nota'], data.pagos[idx], nuevo, conflictos);
@@ -1805,6 +1898,54 @@ async function sync() {
       }
     }
 
+    // Cargos y descuentos nuevos o modificados (tarea D2). Mismo patrón que
+    // reservas: solo se consulta si la migración está aplicada (cargosOn), y
+    // envuelta en try/catch por si el rol/RLS deniega algo inesperado. A
+    // diferencia de reservas (que borra de verdad en local), aquí el borrado
+    // remoto también se aplica como soft delete local (deleted:true), no se
+    // quita la fila: mantiene el mismo criterio que db/cargos.js.
+    if (cargosOn) {
+      try {
+        const { data: remoteCargos, error: errC } = await conEmpresa(sb
+          .from('cargos')
+          .select('*')
+          .gt('updated_at', lastSync));
+
+        if (!errC && remoteCargos) {
+          for (const rc of remoteCargos) {
+            const idx = data.cargos.findIndex(x => x.id === rc.id);
+            const cargo = {
+              id: rc.id, alumno_id: rc.alumno_id != null ? rc.alumno_id : null,
+              concepto: rc.concepto || '', tipo: rc.tipo, importe: parseFloat(rc.importe) || 0,
+              fecha: rc.fecha || null, nota: rc.nota || '',
+              sucursal_id: rc.sucursal_id != null ? rc.sucursal_id : null,
+              deleted: !!rc.deleted,
+              updated_at: rc.updated_at
+            };
+            if (idx === -1) {
+              data.cargos.push(cargo);
+              if (rc.id >= data._seq.cargo) data._seq.cargo = rc.id + 1;
+              dataChanged = true;
+              pulled++;
+            } else {
+              const localUpdated  = data.cargos[idx].updated_at || '1970-01-01T00:00:00.000Z';
+              const remoteUpdated = rc.updated_at || '1970-01-01T00:00:00.000Z';
+              if (remoteUpdated > localUpdated) {
+                _detectarYRegistrarConflicto(data, 'cargos', pending.cargos, rc.id,
+                  ['concepto', 'tipo', 'importe', 'fecha', 'nota'], data.cargos[idx], cargo, conflictos);
+                data.cargos[idx] = cargo;
+                dataChanged = true;
+                pulled++;
+              }
+              // Si local es más reciente, no sobrescribir (el usuario editó localmente)
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Sync: no se pudo leer cargos (permiso denegado o error de red):', e.message);
+      }
+    }
+
     if (dataChanged || regenerado || vehiculoReconciliado) {
       saveData(data);
       // Limpiar caché de db.js
@@ -1836,6 +1977,12 @@ async function sync() {
     if (reservasOn) {
       pending.reservas            = [];
       pending.deleted.reservas    = [];
+    }
+    // Cargos: mismo criterio que reservas, solo se vacía si de verdad se
+    // procesó (migración aplicada).
+    if (cargosOn) {
+      pending.cargos               = [];
+      pending.deleted.cargos       = [];
     }
     pending.lastSync            = new Date().toISOString();
     savePending(pending);
@@ -1927,6 +2074,10 @@ async function pushAll() {
     // reservas (agenda, Bloque 2 SaaS): mismo cuidado, si la tabla no existe
     // aún en el servidor ni se sube ni se intenta.
     const reservasOn = await _reservasDisponible(sb);
+    // cargos (tarea D2, descuentos/promociones + cargos automáticos): mismo
+    // cuidado, si la tabla no existe aún en el servidor ni se sube ni se
+    // intenta.
+    const cargosOn = await _cargosDisponible(sb);
     // `...v` ya trae sucursal_id si el registro local lo tiene; sin la
     // migración aplicada se elimina del objeto para no mandarlo al servidor.
     const quitarSucursal = obj => {
@@ -1974,6 +2125,15 @@ async function pushAll() {
         return resto;
       }
       return { ...obj, n_inscripcion: obj.n_inscripcion != null ? obj.n_inscripcion : null, permisos_posee: obj.permisos_posee||null, fecha_inicio: obj.fecha_inicio||null, fecha_fin: obj.fecha_fin||null, resultado: obj.resultado||null };
+    };
+    // forma_pago/empleado (tarea D1 del PLAN-MAESTRO, arqueo de caja): mismo
+    // cuidado que quitarSucursal — si la migración no está aplicada hay que
+    // quitarlos del objeto o el upsert de pagos falla entero (columnas
+    // inexistentes en el servidor).
+    const pagosCamposOn = await _pagosCamposDisponible(sb);
+    const quitarPagosCampos = obj => {
+      if (!pagosCamposOn) { const { forma_pago, empleado, ...resto } = obj; return resto; }
+      return { ...obj, forma_pago: obj.forma_pago || null, empleado: obj.empleado || null };
     };
     // permisos múltiples del alumno (tarea B1 del PLAN-MAESTRO): mismo cuidado
     // que quitarLibro — si la migración no está aplicada hay que quitar la
@@ -2033,12 +2193,19 @@ async function pushAll() {
         { onConflict: 'id' }
       );
     }
+    // Cargos: solo si la migración está aplicada (si no, ni la tabla existe).
+    if (cargosOn && data.cargos.length) {
+      await sb.from('cargos').upsert(
+        data.cargos.map(c => quitarSucursal({ ...c, ...conEmpresaTag, updated_at: now })),
+        { onConflict: 'id' }
+      );
+    }
     // Pagos: igual tolerancia que en sync() — un empleado sin acceso a la
     // tabla por RLS no debe abortar la subida completa de las demás tablas.
     try {
       if (data.pagos.length) {
         await sb.from('pagos').upsert(
-          data.pagos.map(pg => quitarSucursal({ ...pg, ...conEmpresaTag, deleted: false, updated_at: now })),
+          data.pagos.map(pg => quitarPagosCampos(quitarSucursal({ ...pg, ...conEmpresaTag, deleted: false, updated_at: now }))),
           { onConflict: 'id' }
         );
       }
@@ -2081,13 +2248,19 @@ async function pushAll() {
         await sb.from('reservas').update({ deleted: true, updated_at: now }).eq('id', id);
       }
     }
+    if (cargosOn) {
+      for (const id of (pending.deleted.cargos || [])) {
+        await sb.from('cargos').update({ deleted: true, updated_at: now }).eq('id', id);
+      }
+    }
 
     // Limpiar pending. OJO: no adelantar lastSync aquí — si este PC aún no ha
     // descargado los datos antiguos de la nube, adelantarla se los saltaría.
     pending.vehiculos = []; pending.profesores = []; pending.tarifas = []; pending.alumnos = []; pending.practicas = []; pending.pagos = [];
-    pending.deleted = { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: pending.deleted.sucursales, reservas: pending.deleted.reservas };
+    pending.deleted = { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: pending.deleted.sucursales, reservas: pending.deleted.reservas, cargos: pending.deleted.cargos };
     if (sucursalesOn) { pending.sucursales = []; pending.deleted.sucursales = []; }
     if (reservasOn) { pending.reservas = []; pending.deleted.reservas = []; }
+    if (cargosOn) { pending.cargos = []; pending.deleted.cargos = []; }
     savePending(pending);
 
     _lastError = null;

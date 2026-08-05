@@ -39,6 +39,28 @@ async function aplicarPermisosPorRol() {
     navegarA('dashboard');
   }
 
+  // Auditoría (Historial de logs): solo jefe. El historial vive únicamente
+  // en el data.json local (nunca se sube a Supabase), así que aquí no existe
+  // RLS que aplicar — ocultar el enlace es la única barrera posible, igual
+  // de blanda que la de Estadísticas de profesores de abajo.
+  document.querySelectorAll('#sidebar a[data-page="logs"]').forEach(a => a.classList.toggle('hidden', esEmpleado));
+  if (esEmpleado && document.getElementById('page-logs')?.classList.contains('active')) {
+    navegarA('dashboard');
+  }
+
+  // Secciones ocultas a empleados por config del jefe (opt-in, ver
+  // getSeccionesOcultasEmpleado más abajo). Barrera BLANDA de interfaz, NO
+  // seguridad de servidor. Solo se aplica a cuentas 'empleado'; el jefe
+  // SIEMPRE ve el menú completo, nunca se le aplica esta lista.
+  if (esEmpleado) {
+    const ocultas = getSeccionesOcultasEmpleado();
+    ocultas.forEach(page => {
+      document.querySelectorAll(`#sidebar a[data-page="${page}"]`).forEach(a => a.classList.add('hidden'));
+      const pageEl = document.getElementById('page-' + page);
+      if (pageEl && pageEl.classList.contains('active')) navegarA('dashboard');
+    });
+  }
+
   // Estadísticas de profesores: AL CONTRARIO que Pagos, esto es una barrera
   // BLANDA, no seguridad real. Un empleado sigue recibiendo por sync las
   // mismas prácticas que ve el jefe (practicas/alumnos/vehiculos no están
@@ -55,14 +77,19 @@ async function aplicarPermisosPorRol() {
   const bloqueAcceso = document.getElementById('card-acceso-jefe');
   const bloqueEmpleados = document.getElementById('card-empleados');
   const bloqueSucursales = document.getElementById('card-sucursales');
+  const bloqueSeccionesOcultas = document.getElementById('card-secciones-ocultas');
   if (bloqueAcceso) bloqueAcceso.classList.toggle('hidden', !perfilActual.disponible);
   if (bloqueEmpleados) bloqueEmpleados.classList.toggle('hidden', !(perfilActual.disponible && perfilActual.rol === 'jefe'));
   if (bloqueSucursales) bloqueSucursales.classList.toggle('hidden', !(perfilActual.disponible && perfilActual.rol === 'jefe'));
+  // Solo tiene sentido con la migración de roles activa: sin ella no hay
+  // cuentas de empleado a las que aplicar la lista (ver getSeccionesOcultasEmpleado).
+  if (bloqueSeccionesOcultas) bloqueSeccionesOcultas.classList.toggle('hidden', !(perfilActual.disponible && perfilActual.rol === 'jefe'));
 
   if (perfilActual.disponible) {
     pintarAccesoJefe();
     if (perfilActual.rol === 'jefe') {
       loadEmpleados();
+      pintarSeccionesOcultasEmpleado();
       if (typeof loadSucursalesAjustes === 'function') loadSucursalesAjustes();
     }
   }
@@ -160,4 +187,61 @@ async function quitarEmpleadoUI(userId) {
   const res = await window.api.quitarEmpleado(userId);
   if (!res || !res.ok) alert((res && res.msg) || 'No se pudo quitar al empleado.');
   loadEmpleados();
+}
+
+// ─── PERMISOS GRANULARES POR SECCIÓN (opt-in, solo jefe) ───────────────────
+// Config LOCAL guardada en localStorage (mismo patrón que renderer/ajustes.js:
+// getRangoPref/guardarRangoPref), NUNCA en Supabase ni RLS. Es una barrera
+// BLANDA de interfaz: oculta el enlace del menú a las cuentas de empleado,
+// pero no protege el dato en el servidor (los datos ya sincronizados —
+// alumnos/prácticas/vehículos— no están restringidos por rol, solo por
+// empresa, igual que el resto de barreras "blandas" de este archivo). La
+// única seguridad real de servidor del proyecto sigue siendo el RLS de la
+// tabla `pagos`. Valor por defecto: array vacío → ningún comportamiento
+// nuevo hasta que el jefe marque alguna casilla.
+const SECCIONES_OCULTAS_EMPLEADO_KEY = 'km_secciones_ocultas_empleado';
+
+// Secciones que jamás se pueden ofrecer para ocultar: sin dashboard la app
+// no tiene pantalla de arranque, y sin ajustes un empleado no podría volver
+// a iniciar sesión como jefe (el botón vive en Ajustes → Acceso de jefe).
+const SECCIONES_CRITICAS_NO_OCULTABLES = ['dashboard', 'ajustes'];
+
+function getSeccionesOcultasEmpleado() {
+  try {
+    const raw = localStorage.getItem(SECCIONES_OCULTAS_EMPLEADO_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter(p => !SECCIONES_CRITICAS_NO_OCULTABLES.includes(p)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function guardarSeccionesOcultasEmpleado(arr) {
+  try { localStorage.setItem(SECCIONES_OCULTAS_EMPLEADO_KEY, JSON.stringify(arr)); } catch {}
+}
+
+// Pinta la lista de checkboxes en Ajustes → card "Secciones ocultas a
+// empleados" (solo visible para el jefe). Deriva las secciones directamente
+// del menú lateral (data-page + etiqueta) para no duplicar el listado a
+// mano y quedar desincronizada si se añade una página nueva.
+function pintarSeccionesOcultasEmpleado() {
+  const cont = document.getElementById('secciones-ocultas-empleado-lista');
+  if (!cont) return;
+  const ocultas = getSeccionesOcultasEmpleado();
+  const enlaces = Array.from(document.querySelectorAll('#sidebar nav a[data-page]'))
+    .filter(a => !SECCIONES_CRITICAS_NO_OCULTABLES.includes(a.dataset.page));
+  cont.innerHTML = enlaces.map(a => {
+    const page = a.dataset.page;
+    const label = a.textContent.trim();
+    const checked = ocultas.includes(page) ? 'checked' : '';
+    return `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px">
+        <input type="checkbox" ${checked} onchange="toggleSeccionOcultaEmpleado('${page}', this.checked)"> ${esc(label)}
+      </label>`;
+  }).join('');
+}
+
+function toggleSeccionOcultaEmpleado(page, oculta) {
+  const actuales = new Set(getSeccionesOcultasEmpleado());
+  if (oculta) actuales.add(page); else actuales.delete(page);
+  guardarSeccionesOcultasEmpleado(Array.from(actuales));
 }

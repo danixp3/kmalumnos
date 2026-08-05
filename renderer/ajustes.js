@@ -92,6 +92,80 @@ function guardarCombustiblePrefDesdeAjustes() {
   if (typeof loadAnalisisVehiculos === 'function') loadAnalisisVehiculos();
 }
 
+// Política de cancelación de la Agenda: plazo mínimo (horas) y si hay
+// devolución cuando se cancela dentro de plazo. Usado por renderer/reservas.js
+// (cancelarReserva) solo como aviso informativo. Mismo patrón localStorage
+// que DURACION_CLASE_KEY.
+const CANCEL_PLAZO_KEY = 'km_cancel_plazo_horas';
+const CANCEL_DEVOLUCION_KEY = 'km_cancel_devolucion';
+
+function getCancelPlazoHoras() {
+  try {
+    const raw = localStorage.getItem(CANCEL_PLAZO_KEY);
+    const n = parseInt(raw);
+    if (!isNaN(n) && n >= 0) return n;
+  } catch (e) {}
+  return 24;
+}
+
+function setCancelPlazoHoras(horas) {
+  try { localStorage.setItem(CANCEL_PLAZO_KEY, String(Math.max(0, parseInt(horas) || 24))); } catch (e) {}
+}
+
+function getCancelDevolucion() {
+  try {
+    const raw = localStorage.getItem(CANCEL_DEVOLUCION_KEY);
+    if (raw !== null) return raw !== 'false';
+  } catch (e) {}
+  return true;
+}
+
+function setCancelDevolucion(valor) {
+  try { localStorage.setItem(CANCEL_DEVOLUCION_KEY, String(!!valor)); } catch (e) {}
+}
+
+function guardarCancelacionPrefDesdeAjustes() {
+  const plazo = document.getElementById('pref-cancel-plazo').value;
+  const devolucion = document.getElementById('pref-cancel-devolucion').checked;
+  setCancelPlazoHoras(plazo);
+  setCancelDevolucion(devolucion);
+}
+
+// Importe por defecto de matrícula y tasa (tarea D2, cargos automáticos):
+// precargan el modal de "Añadir cargo/descuento" cuando se pulsan los
+// botones rápidos "Añadir matrícula"/"Añadir tasa" en la ficha económica del
+// alumno (renderer/alumnos.js). Mismo patrón localStorage que
+// DURACION_CLASE_KEY.
+const MATRICULA_IMPORTE_KEY = 'km_matricula_importe';
+const TASA_IMPORTE_KEY = 'km_tasa_importe';
+
+function getMatriculaImporte() {
+  try {
+    const raw = localStorage.getItem(MATRICULA_IMPORTE_KEY);
+    const n = parseFloat(raw);
+    if (!isNaN(n) && n >= 0) return n;
+  } catch (e) {}
+  return 0;
+}
+
+function getTasaImporte() {
+  try {
+    const raw = localStorage.getItem(TASA_IMPORTE_KEY);
+    const n = parseFloat(raw);
+    if (!isNaN(n) && n >= 0) return n;
+  } catch (e) {}
+  return 0;
+}
+
+function guardarCargosPrefDesdeAjustes() {
+  const matricula = parseFloat(document.getElementById('pref-matricula').value);
+  const tasa = parseFloat(document.getElementById('pref-tasa').value);
+  try {
+    if (!isNaN(matricula) && matricula >= 0) localStorage.setItem(MATRICULA_IMPORTE_KEY, String(matricula));
+    if (!isNaN(tasa) && tasa >= 0) localStorage.setItem(TASA_IMPORTE_KEY, String(tasa));
+  } catch (e) {}
+}
+
 const PREF_DASHBOARD_KEY = 'kmalumnos_dashboard_stats';
 const PREF_DASHBOARD_DEFAULT = {
   vehiculos: true, alumnos: true, practicas: true,
@@ -145,6 +219,14 @@ async function loadAjustes() {
   if (elPrecioCombustible) elPrecioCombustible.value = getPrecioCombustible();
   const elConsumoMedio = document.getElementById('pref-consumo-medio');
   if (elConsumoMedio) elConsumoMedio.value = getConsumoMedio();
+  const elCancelPlazo = document.getElementById('pref-cancel-plazo');
+  if (elCancelPlazo) elCancelPlazo.value = getCancelPlazoHoras();
+  const elCancelDevolucion = document.getElementById('pref-cancel-devolucion');
+  if (elCancelDevolucion) elCancelDevolucion.checked = getCancelDevolucion();
+  const elMatricula = document.getElementById('pref-matricula');
+  if (elMatricula) elMatricula.value = getMatriculaImporte();
+  const elTasa = document.getElementById('pref-tasa');
+  if (elTasa) elTasa.value = getTasaImporte();
   const dashPref = getDashboardPref();
   document.getElementById('pref-dash-vehiculos').checked = dashPref.vehiculos;
   document.getElementById('pref-dash-alumnos').checked = dashPref.alumnos;

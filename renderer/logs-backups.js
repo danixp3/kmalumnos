@@ -6,12 +6,39 @@ const LOG_ICONS = { importacion: '<svg width="13" height="13" viewBox="0 0 24 24
 const LOG_COLORS = { importacion: '#1d4ed8', relleno: '#15803d', correccion: '#92400e', conflicto_sync: '#b91c1c' };
 const LOG_BG = { importacion: '#eff6ff', relleno: '#f0fdf4', correccion: '#fef3c7', conflicto_sync: '#fef2f2' };
 
+// ─── AUDITORÍA: FILTROS Y EXPORTACIÓN ──────────────────────────────────────
+// Los filtros (texto/tipo/rango de fechas) se resuelven en db/core.js
+// (getLogs(filtro)) para no traer al renderer más logs de los necesarios.
+let logsCache = [];
+
+function leerFiltroLogs() {
+  return {
+    texto: (document.getElementById('f-logs-texto')?.value || '').trim() || undefined,
+    tipo: document.getElementById('f-logs-tipo')?.value || undefined,
+    desde: document.getElementById('f-logs-desde')?.value || undefined,
+    hasta: document.getElementById('f-logs-hasta')?.value || undefined,
+  };
+}
+
+function limpiarFiltrosLogs() {
+  const txt = document.getElementById('f-logs-texto');
+  const tipo = document.getElementById('f-logs-tipo');
+  const desde = document.getElementById('f-logs-desde');
+  const hasta = document.getElementById('f-logs-hasta');
+  if (txt) txt.value = '';
+  if (tipo) tipo.value = '';
+  if (desde) desde.value = '';
+  if (hasta) hasta.value = '';
+  loadLogs();
+}
+
 async function loadLogs() {
   ocultarConflictosSync(); // visitar Historial cuenta como "visto" el aviso de conflictos
-  const logs = await window.api.getLogs();
+  const logs = await window.api.getLogs(leerFiltroLogs());
+  logsCache = logs;
   const el = document.getElementById('logs-result');
   if (!logs.length) {
-    el.innerHTML = '<div class="card"><p class="empty">No hay operaciones registradas todavía.</p></div>';
+    el.innerHTML = '<div class="card"><p class="empty">No hay operaciones que coincidan con el filtro.</p></div>';
     return;
   }
   el.innerHTML = logs.map(log => {
@@ -33,6 +60,32 @@ async function loadLogs() {
       ${detallesHtml}
     </div>`;
   }).join('');
+}
+
+// Exporta el historial actualmente filtrado (mismo patrón que
+// renderer/informes.js:exportarInformeCSV — Blob + BOM para que Excel
+// muestre bien los acentos).
+function _csvLineaLogs(campos) {
+  return campos.map(c => `"${String(c == null ? '' : c).replace(/"/g, '""')}"`).join(';') + '\r\n';
+}
+
+function exportarLogsCSV() {
+  if (!logsCache.length) { showToast('logs-toast', 'No hay operaciones que exportar con el filtro actual.', 'warn'); return; }
+  let csv = '﻿';
+  csv += _csvLineaLogs(['Fecha', 'Tipo', 'Descripción', 'Detalles']);
+  for (const log of logsCache) {
+    const detalles = Array.isArray(log.detalles) ? log.detalles.join(' | ') : '';
+    csv += _csvLineaLogs([log.fecha, log.tipo, log.descripcion, detalles]);
+  }
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `historial_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 async function borrarLogs() {

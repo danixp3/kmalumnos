@@ -61,6 +61,52 @@ function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tip
   }
 }
 
+// ─── FICHA DE CLASES PRÁCTICAS FIRMABLE (RD 1295/2003 art. 40) ──────────────
+/**
+ * Datos listos para la ficha imprimible de clases prácticas de un alumno:
+ * cabecera del alumno + tabla de prácticas (ordenadas por fecha ascendente,
+ * con nombre de vehículo/matrícula y profesor resueltos) + totales.
+ * Solo lectura, no marca sync. Alumno inexistente → null.
+ */
+function getFichaPracticasAlumno(alumno_id) {
+  const d = load();
+  const aid = parseInt(alumno_id);
+  const a = d.alumnos.find(x => x.id === aid);
+  if (!a) return null;
+
+  const practicas = d.practicas
+    .filter(p => p.alumno_id === aid && !p.deleted)
+    .sort((a2, b2) => a2.fecha.localeCompare(b2.fecha) || a2.id - b2.id)
+    .map(p => {
+      const v = d.vehiculos.find(x => x.id === p.vehiculo_id);
+      const prof = d.profesores.find(x => x.id === p.profesor_id);
+      const ki = p.km_inicial || 0;
+      const kf = p.km_final || 0;
+      return {
+        id: p.id,
+        fecha: p.fecha,
+        vehiculo_nombre: v ? v.nombre : null,
+        matricula: v ? v.matricula : null,
+        profesor_nombre: prof ? prof.nombre : null,
+        tipo: p.tipo || 'circulacion',
+        km_inicial: ki,
+        km_final: kf,
+        km_recorridos: Math.max(0, kf - ki),
+      };
+    });
+
+  const totales = {
+    nClases: practicas.length,
+    kmTotales: practicas.reduce((sum, p) => sum + p.km_recorridos, 0),
+  };
+
+  return {
+    alumno: { id: a.id, nombre: a.nombre, permiso: a.permiso, dni: a.dni || null },
+    practicas,
+    totales,
+  };
+}
+
 // ─── TODAS LAS PRÁCTICAS (VISTA GLOBAL) ──────────────────────────────────────
 /**
  * Devuelve TODAS las prácticas de todos los alumnos juntas, con nombres de
@@ -306,4 +352,5 @@ function eliminarPracticaPorFecha(vehiculo_id, fecha, alumno_id) {
 module.exports = {
   getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica, getTodasPracticas,
   getAlumnosPorVehiculo, registrarPracticasMasivas, eliminarPracticaPorFecha, ajustarPracticasAlumno, guardarNotaAlumno,
+  getFichaPracticasAlumno,
 };
