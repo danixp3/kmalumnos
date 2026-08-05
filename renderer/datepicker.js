@@ -20,7 +20,11 @@ function dpHoyIso() {
 function mejorarInputsFecha() {
   document.querySelectorAll('input[type="date"]').forEach(dpUpgrade);
   document.addEventListener('click', e => {
-    if (dpAbierto && !dpAbierto.pop.contains(e.target) && e.target !== dpAbierto.anchor) cerrarDatepicker();
+    if (!dpAbierto) return;
+    // Un clic dentro del calendario que provoca un re-render (cambiar de mes)
+    // deja su e.target fuera del DOM: no es un clic "fuera", es uno ya atendido.
+    if (!e.target.isConnected) return;
+    if (!dpAbierto.pop.contains(e.target) && e.target !== dpAbierto.anchor) cerrarDatepicker();
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarDatepicker(); });
   window.addEventListener('resize', cerrarDatepicker);
@@ -136,12 +140,15 @@ function dpRender() {
 }
 
 function dpClickPop(e) {
+  // El clic ya se atiende aquí; que no llegue a los cierres globales por fuera.
+  e.stopPropagation();
   const nav = e.target.closest('.dp-nav');
   if (nav) {
     dpAbierto.mes += parseInt(nav.dataset.dir, 10);
     if (dpAbierto.mes < 0) { dpAbierto.mes = 11; dpAbierto.anio--; }
     else if (dpAbierto.mes > 11) { dpAbierto.mes = 0; dpAbierto.anio++; }
     dpRender();
+    dpPosicionar(); // el alto cambia si el mes ocupa otra fila
     return;
   }
   if (e.target.closest('.dp-hoy')) { dpElegir(dpHoyIso()); return; }
