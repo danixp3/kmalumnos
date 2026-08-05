@@ -31,6 +31,9 @@ module.exports = {
   ...require('./db/estadisticas'),
   ...require('./db/sucursales'),
   ...require('./db/reservas'),
+  ...require('./db/jornadas'),
+  ...require('./db/vencimientos'),
+  ...require('./db/convocatorias'),
 
   getLogs: core.getLogs,
   clearLogs: core.clearLogs,

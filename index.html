@@ -94,6 +94,24 @@
         </span>
         Agenda
       </a>
+      <a data-page="jornada">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </span>
+        Jornada
+      </a>
+      <a data-page="vencimientos">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </span>
+        Caducidades
+      </a>
+      <a data-page="examenes">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
+        </span>
+        Exámenes
+      </a>
       <a data-page="alumnos">
         <span class="nav-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -279,6 +297,16 @@
         </div>
         <div id="dash-riesgo-resumen" style="margin-bottom:10px"></div>
         <div id="dash-riesgo-lista"></div>
+      </div>
+
+      <!-- Vencimientos próximos: ITV, seguros, psicotécnicos... (renderer/dashboard.js, db/vencimientos.js) -->
+      <div class="card hidden" id="dash-venc-card" style="margin-bottom:20px">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:var(--danger-light);color:var(--danger-fg-soft)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          Caducidades próximas
+        </div>
+        <div id="dash-venc-resumen" style="margin-bottom:10px"></div>
+        <div id="dash-venc-lista"></div>
       </div>
 
       <!-- Gráficos configurables (renderer/graficos.js, activados desde Ajustes) -->
@@ -649,6 +677,7 @@
             <div class="page-title">Alumnos</div>
             <div class="page-subtitle">Gestión de alumnos y sus prácticas</div>
           </div>
+          <button class="btn btn-gray" onclick="imprimirLibroRegistro()" title="Libro de registro de alumnos (RD 1295/2003 art. 39)">🖨️ Libro de registro (art. 39)</button>
         </div>
 
         <div class="card">
@@ -685,11 +714,37 @@
             </div>
             <div class="form-group">
               <label>Estado</label>
-              <select id="a-estado" style="width:120px">
-                <option value="activo">Activo</option>
-                <option value="aprobado">Aprobado</option>
+              <select id="a-estado" style="width:170px">
+                <option value="matriculado">Matriculado</option>
+                <option value="en_teorica">En teórica</option>
+                <option value="apto_teorico">Apto teórico</option>
+                <option value="en_practicas">En prácticas</option>
+                <option value="presentado">Presentado a examen</option>
+                <option value="apto">Apto (aprobado)</option>
+                <option value="no_apto">No apto</option>
                 <option value="baja">Baja</option>
+                <option value="activo">Activo (legacy)</option>
+                <option value="aprobado">Aprobado (legacy)</option>
               </select>
+            </div>
+          </div>
+          <div class="form-row" style="margin-top:10px">
+            <div class="form-group" style="flex:1">
+              <label>Otros permisos que cursa</label>
+              <div id="a-permisos" class="permisos-checks">
+                <label><input type="checkbox" value="AM"> AM</label>
+                <label><input type="checkbox" value="A1"> A1</label>
+                <label><input type="checkbox" value="A2"> A2</label>
+                <label><input type="checkbox" value="A"> A</label>
+                <label><input type="checkbox" value="B"> B</label>
+                <label><input type="checkbox" value="BE"> BE</label>
+                <label><input type="checkbox" value="C1"> C1</label>
+                <label><input type="checkbox" value="C"> C</label>
+                <label><input type="checkbox" value="D1"> D1</label>
+                <label><input type="checkbox" value="D"> D</label>
+                <label><input type="checkbox" value="CAP"> CAP</label>
+                <label><input type="checkbox" value="ADR"> ADR</label>
+              </div>
             </div>
           </div>
           <div class="form-row" style="margin-top:10px">
@@ -718,6 +773,32 @@
             <div class="form-group" style="flex:1">
               <label>Observaciones</label>
               <textarea id="a-observaciones" rows="2" style="width:100%" placeholder="Notas sobre el alumno..."></textarea>
+            </div>
+          </div>
+          <!-- Libro de registro de alumnos (RD 1295/2003 art. 39): permisos que ya
+               posee, fechas de la enseñanza y resultado final. El nº de inscripción
+               NO se pide aquí, se asigna solo (ver asignarNumInscripcion/backfillNumInscripcion). -->
+          <div class="form-row" style="margin-top:10px">
+            <div class="form-group">
+              <label>Permisos que posee</label>
+              <input type="text" id="a-permisos-posee" placeholder="Ej. B, A2" style="width:150px">
+            </div>
+            <div class="form-group">
+              <label>Inicio enseñanza</label>
+              <input type="date" id="a-fecha-inicio" style="width:150px">
+            </div>
+            <div class="form-group">
+              <label>Fin enseñanza</label>
+              <input type="date" id="a-fecha-fin" style="width:150px">
+            </div>
+            <div class="form-group">
+              <label>Resultado</label>
+              <select id="a-resultado" style="width:130px">
+                <option value="">—</option>
+                <option value="apto">Apto</option>
+                <option value="no_apto">No apto</option>
+                <option value="baja">Baja</option>
+              </select>
             </div>
             <button class="btn btn-primary" onclick="addAlumno()" style="align-self:flex-end">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -751,11 +832,18 @@
             </div>
             <div class="form-group">
               <label>Estado</label>
-              <select id="f-alumnos-estado" style="width:140px" onchange="renderAlumnosTabla()">
+              <select id="f-alumnos-estado" style="width:170px" onchange="renderAlumnosTabla()">
                 <option value="">Todos</option>
-                <option value="activo">Activo</option>
-                <option value="aprobado">Aprobado</option>
+                <option value="matriculado">Matriculado</option>
+                <option value="en_teorica">En teórica</option>
+                <option value="apto_teorico">Apto teórico</option>
+                <option value="en_practicas">En prácticas</option>
+                <option value="presentado">Presentado a examen</option>
+                <option value="apto">Apto (aprobado)</option>
+                <option value="no_apto">No apto</option>
                 <option value="baja">Baja</option>
+                <option value="activo">Activo (legacy)</option>
+                <option value="aprobado">Aprobado (legacy)</option>
               </select>
             </div>
             <button class="btn btn-gray btn-sm" onclick="limpiarFiltrosAlumnos()" style="align-self:flex-end">
@@ -900,6 +988,123 @@
           <tbody></tbody>
         </table>
       </div>
+    </div>
+
+    <!-- ── JORNADA LABORAL (FICHAJES, ART. 34.9 ET) ── -->
+    <div id="page-jornada" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Jornada</div>
+          <div class="page-subtitle">Registro de fichajes de entrada y salida</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          Fichar
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Empleado</label>
+            <input type="text" id="jor-empleado" style="width:220px" placeholder="Nombre del empleado" oninput="actualizarBotonFichaje()">
+          </div>
+          <div class="form-group" style="align-self:flex-end">
+            <button class="btn btn-primary" id="btn-fichar" onclick="toggleFichaje()">Fichar entrada</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></div>
+          Filtro
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Desde</label>
+            <input type="date" id="f-jornada-desde" style="width:160px">
+          </div>
+          <div class="form-group">
+            <label>Hasta</label>
+            <input type="date" id="f-jornada-hasta" style="width:160px">
+          </div>
+          <div class="form-group">
+            <label>Empleado</label>
+            <input type="text" id="f-jornada-empleado" style="width:200px" placeholder="Nombre">
+          </div>
+          <div class="form-group" style="align-self:flex-end">
+            <button class="btn btn-primary" onclick="loadJornadas()">Filtrar</button>
+          </div>
+          <div class="form-group" style="align-self:flex-end">
+            <button class="btn btn-gray" onclick="exportarJornadasCSV()">Exportar CSV</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="jornada-toast" class="hidden" style="margin-bottom:12px"></div>
+
+      <div class="table-wrap">
+        <table id="tabla-jornadas">
+          <thead><tr>
+            <th>Fecha</th>
+            <th>Empleado</th>
+            <th>Sucursal</th>
+            <th>Entrada</th>
+            <th>Salida</th>
+            <th>Horas</th>
+            <th>Correcciones</th>
+            <th>Acciones</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── VENCIMIENTOS / ALERTAS DE CADUCIDADES ── -->
+    <div id="page-vencimientos" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Caducidades</div>
+          <div class="page-subtitle">ITV, seguros, psicotécnicos y demás fechas límite</div>
+        </div>
+        <button class="btn btn-primary" onclick="abrirNuevoVencimiento()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Añadir vencimiento
+        </button>
+      </div>
+
+      <div id="vencimientos-lista"></div>
+    </div>
+
+    <!-- ── EXÁMENES (PRESENTACIONES A CONVOCATORIA Y TASAS) ── -->
+    <div id="page-examenes" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Exámenes</div>
+          <div class="page-subtitle">Presentaciones a convocatoria, tasas y estadísticas de aprobados</div>
+        </div>
+        <button class="btn btn-primary" onclick="abrirNuevaPresentacion()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Registrar presentación
+        </button>
+      </div>
+
+      <div id="examenes-stats" class="card" style="margin-bottom:16px"></div>
+
+      <div id="presentaciones-lista"></div>
+
+      <div class="page-header" style="margin-top:24px">
+        <div>
+          <div class="page-title" style="font-size:16px">Tasas</div>
+        </div>
+        <button class="btn btn-primary" onclick="abrirNuevaTasa()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Añadir tasa
+        </button>
+      </div>
+
+      <div id="tasas-lista"></div>
     </div>
 
     <!-- ── PRÁCTICAS (VISTA GLOBAL) ──────────────── -->
@@ -1793,10 +1998,34 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     <div class="form-group" style="margin-top:14px">
       <label>Estado</label>
       <select id="edit-a-estado" style="width:100%">
-        <option value="activo">Activo</option>
-        <option value="aprobado">Aprobado</option>
+        <option value="matriculado">Matriculado</option>
+        <option value="en_teorica">En teórica</option>
+        <option value="apto_teorico">Apto teórico</option>
+        <option value="en_practicas">En prácticas</option>
+        <option value="presentado">Presentado a examen</option>
+        <option value="apto">Apto (aprobado)</option>
+        <option value="no_apto">No apto</option>
         <option value="baja">Baja</option>
+        <option value="activo">Activo (legacy)</option>
+        <option value="aprobado">Aprobado (legacy)</option>
       </select>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Otros permisos que cursa</label>
+      <div id="edit-a-permisos" class="permisos-checks">
+        <label><input type="checkbox" value="AM"> AM</label>
+        <label><input type="checkbox" value="A1"> A1</label>
+        <label><input type="checkbox" value="A2"> A2</label>
+        <label><input type="checkbox" value="A"> A</label>
+        <label><input type="checkbox" value="B"> B</label>
+        <label><input type="checkbox" value="BE"> BE</label>
+        <label><input type="checkbox" value="C1"> C1</label>
+        <label><input type="checkbox" value="C"> C</label>
+        <label><input type="checkbox" value="D1"> D1</label>
+        <label><input type="checkbox" value="D"> D</label>
+        <label><input type="checkbox" value="CAP"> CAP</label>
+        <label><input type="checkbox" value="ADR"> ADR</label>
+      </div>
     </div>
     <div class="form-row" style="margin-top:14px">
       <div class="form-group" style="flex:1">
@@ -1826,6 +2055,33 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <label>Observaciones</label>
       <textarea id="edit-a-observaciones" rows="2" style="width:100%" placeholder="Notas sobre el alumno..."></textarea>
     </div>
+    <!-- Libro de registro de alumnos (RD 1295/2003 art. 39) -->
+    <div class="form-row" style="margin-top:14px">
+      <div class="form-group" style="flex:1">
+        <label>Permisos que posee</label>
+        <input type="text" id="edit-a-permisos-posee" placeholder="Ej. B, A2" style="width:100%">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label>Resultado</label>
+        <select id="edit-a-resultado" style="width:100%">
+          <option value="">—</option>
+          <option value="apto">Apto</option>
+          <option value="no_apto">No apto</option>
+          <option value="baja">Baja</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" style="margin-top:14px">
+      <div class="form-group" style="flex:1">
+        <label>Inicio enseñanza</label>
+        <input type="date" id="edit-a-fecha-inicio" style="width:100%">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label>Fin enseñanza</label>
+        <input type="date" id="edit-a-fecha-fin" style="width:100%">
+      </div>
+    </div>
+    <p id="edit-a-n-inscripcion" style="font-size:12px;color:var(--text-muted);margin-top:8px"></p>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="imprimirFichaAlumno(parseInt(document.getElementById('edit-a-id').value))">🖨️ Imprimir ficha</button>
       <button class="btn btn-gray" onclick="closeModal('modal-alumno')">Cancelar</button>
@@ -1877,6 +2133,198 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-reserva')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarReserva()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL CORREGIR JORNADA ══════════════════════════════ -->
+<div class="overlay" id="modal-jornada">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+      <h3>Corregir jornada</h3>
+    </div>
+    <input type="hidden" id="jor-edit-id">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Entrada</label>
+        <input type="time" id="jor-edit-entrada" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Salida</label>
+        <input type="time" id="jor-edit-salida" style="width:100%">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Nota</label>
+      <textarea id="jor-edit-nota" rows="3" style="width:100%"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-jornada')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCorreccionJornada()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL VENCIMIENTO ══════════════════════════════ -->
+<div class="overlay" id="modal-vencimiento">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+      <h3 id="venc-modal-titulo">Añadir vencimiento</h3>
+    </div>
+    <input type="hidden" id="venc-edit-id">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Referido a</label>
+        <select id="venc-entidad-tipo" style="width:100%" onchange="actualizarSelectorEntidadVencimiento()">
+          <option value="vehiculo">Vehículo</option>
+          <option value="profesor">Profesor</option>
+          <option value="alumno">Alumno</option>
+          <option value="general">General (no ligado a nadie)</option>
+        </select>
+      </div>
+      <div class="form-group" id="venc-entidad-id-wrap">
+        <label>Entidad</label>
+        <select id="venc-entidad-id" style="width:100%"></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Tipo</label>
+        <input type="text" id="venc-tipo" style="width:100%" placeholder="ITV, Seguro, Psicotécnico...">
+      </div>
+      <div class="form-group">
+        <label>Fecha de vencimiento</label>
+        <input type="date" id="venc-fecha" style="width:100%">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Descripción</label>
+      <input type="text" id="venc-descripcion" style="width:100%">
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Nota</label>
+      <textarea id="venc-nota" rows="3" style="width:100%"></textarea>
+    </div>
+    <div id="vencimiento-alert" class="hidden" style="margin-top:12px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-vencimiento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarVencimiento()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL PRESENTACIÓN A EXAMEN ══════════════════════════════ -->
+<div class="overlay" id="modal-presentacion">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></div>
+      <h3 id="pres-modal-titulo">Registrar presentación</h3>
+    </div>
+    <input type="hidden" id="pres-edit-id">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Alumno</label>
+        <select id="pres-alumno" style="width:100%"></select>
+      </div>
+      <div class="form-group">
+        <label>Tipo de examen</label>
+        <select id="pres-tipo" style="width:100%">
+          <option value="teorico">Teórico</option>
+          <option value="maniobras">Maniobras</option>
+          <option value="circulacion">Circulación</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Fecha</label>
+        <input type="date" id="pres-fecha" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Profesor</label>
+        <select id="pres-profesor" style="width:100%"></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nº de convocatoria</label>
+        <input type="number" id="pres-n-convocatoria" min="1" value="1" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Resultado</label>
+        <select id="pres-resultado" style="width:100%">
+          <option value="pendiente">Pendiente</option>
+          <option value="apto">Apto</option>
+          <option value="no_apto">No apto</option>
+          <option value="aplazado">Aplazado</option>
+          <option value="no_presentado">No presentado</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Nota</label>
+      <textarea id="pres-nota" rows="3" style="width:100%"></textarea>
+    </div>
+    <div id="presentacion-alert" class="hidden" style="margin-top:12px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-presentacion')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarPresentacion()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL TASA ══════════════════════════════ -->
+<div class="overlay" id="modal-tasa">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+      <h3 id="tasa-modal-titulo">Añadir tasa</h3>
+    </div>
+    <input type="hidden" id="tasa-edit-id">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Alumno</label>
+        <select id="tasa-alumno" style="width:100%"></select>
+      </div>
+      <div class="form-group">
+        <label>Concepto</label>
+        <input type="text" id="tasa-concepto" style="width:100%" placeholder="Tasa examen, 2ª convocatoria...">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Fecha de compra</label>
+        <input type="date" id="tasa-fecha-compra" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Fecha de caducidad</label>
+        <input type="date" id="tasa-fecha-caducidad" style="width:100%">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Importe (€)</label>
+        <input type="number" id="tasa-importe" step="0.01" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label>Estado</label>
+        <select id="tasa-estado" style="width:100%">
+          <option value="vigente">Vigente</option>
+          <option value="usada">Usada</option>
+          <option value="caducada">Caducada</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Nota</label>
+      <textarea id="tasa-nota" rows="3" style="width:100%"></textarea>
+    </div>
+    <div id="tasa-alert" class="hidden" style="margin-top:12px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-tasa')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarTasa()">Guardar</button>
     </div>
   </div>
 </div>
@@ -2122,6 +2570,9 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <script src="renderer/datepicker.js"></script>
 <script src="renderer/buscador.js"></script>
 <script src="renderer/reservas.js"></script>
+<script src="renderer/jornada.js"></script>
+<script src="renderer/vencimientos.js"></script>
+<script src="renderer/examenes.js"></script>
 <script src="renderer/arranque.js"></script>
 </body>
 </html>

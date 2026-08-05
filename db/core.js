@@ -30,19 +30,27 @@ function load() {
   if (fs.existsSync(p)) {
     try { _data = JSON.parse(fs.readFileSync(p, 'utf-8')); } catch { _data = null; }
   }
-  if (!_data) _data = { vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], logs: [], _seq: { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1, r: 1 } };
+  if (!_data) _data = { vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], logs: [], _seq: { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1, r: 1, venc: 1, pres: 1, tasa: 1 } };
   if (!_data._seq) _data._seq = { v: 1, pf: 1, a: 1, p: 1 };
   if (!_data._seq.pf) _data._seq.pf = 1;
   if (!_data._seq.t) _data._seq.t = 1;
   if (!_data._seq.pg) _data._seq.pg = 1;
   if (!_data._seq.suc) _data._seq.suc = 1;
   if (!_data._seq.r) _data._seq.r = 1;
+  if (!_data._seq.j) _data._seq.j = 1;
+  if (_data._seq.venc == null) _data._seq.venc = 1;
+  if (_data._seq.pres == null) _data._seq.pres = 1;
+  if (_data._seq.tasa == null) _data._seq.tasa = 1;
   if (!_data.logs) _data.logs = [];
   if (!_data.profesores) _data.profesores = [];
   if (!_data.tarifas) _data.tarifas = [];
   if (!_data.pagos) _data.pagos = [];
   if (!_data.sucursales) _data.sucursales = [];
   if (!_data.reservas) _data.reservas = [];
+  if (!_data.jornadas) _data.jornadas = [];
+  if (!_data.vencimientos) _data.vencimientos = [];
+  if (!_data.presentaciones) _data.presentaciones = [];
+  if (!_data.tasas) _data.tasas = [];
   return _data;
 }
 

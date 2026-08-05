@@ -33,9 +33,14 @@ contextBridge.exposeInMainWorld('api', {
 
   // Alumnos
   getAlumnos:   (sucursalId)                 => ipcRenderer.invoke('get-alumnos', sucursalId),
-  addAlumno:    (n, p, vid, profId, sucursalId, email, datos) => ipcRenderer.invoke('add-alumno', n, p, vid, profId, sucursalId, email, datos),
+  addAlumno:    (n, p, vid, profId, sucursalId, email, datos, libro, permisos) => ipcRenderer.invoke('add-alumno', n, p, vid, profId, sucursalId, email, datos, libro, permisos),
   deleteAlumno: (id)                         => ipcRenderer.invoke('delete-alumno', id),
-  updateAlumno: (id, n, p, vid, profId, email, datos) => ipcRenderer.invoke('update-alumno', id, n, p, vid, profId, email, datos),
+  updateAlumno: (id, n, p, vid, profId, email, datos, libro, permisos) => ipcRenderer.invoke('update-alumno', id, n, p, vid, profId, email, datos, libro, permisos),
+
+  // Libro de registro de alumnos (RD 1295/2003 art. 39)
+  getLibroRegistro:      (sucursalId) => ipcRenderer.invoke('get-libro-registro', sucursalId),
+  asignarNumInscripcion: (id)         => ipcRenderer.invoke('asignar-num-inscripcion', id),
+  backfillNumInscripcion: ()          => ipcRenderer.invoke('backfill-num-inscripcion'),
 
   // Prácticas
   getPracticas:      (alumno_id)             => ipcRenderer.invoke('get-practicas', alumno_id),
@@ -128,6 +133,34 @@ contextBridge.exposeInMainWorld('api', {
   setEstadoReserva:   (id, estado)                => ipcRenderer.invoke('set-estado-reserva', id, estado),
   completarReserva:   (id)                        => ipcRenderer.invoke('completar-reserva', id),
   deleteReserva:      (id)                        => ipcRenderer.invoke('delete-reserva', id),
+
+  // Jornada laboral (fichajes, art. 34.9 ET) — local por puesto, sin sync
+  getJornadas:        (filtros)                   => ipcRenderer.invoke('get-jornadas', filtros),
+  ficharEntrada:      (datos)                     => ipcRenderer.invoke('fichar-entrada', datos),
+  ficharSalida:        (id)                        => ipcRenderer.invoke('fichar-salida', id),
+  jornadaAbiertaDe:   (empleado, sucursalId)      => ipcRenderer.invoke('jornada-abierta-de', empleado, sucursalId),
+  corregirJornada:    (id, campos)                => ipcRenderer.invoke('corregir-jornada', id, campos),
+  borrarJornada:      (id)                        => ipcRenderer.invoke('borrar-jornada', id),
+
+  // Vencimientos / alertas de caducidades — local por puesto, sin sync
+  getVencimientos:            (sucursalId)                 => ipcRenderer.invoke('get-vencimientos', sucursalId),
+  getProximosVencimientos:    (dias, hoy, sucursalId)      => ipcRenderer.invoke('get-proximos-vencimientos', dias, hoy, sucursalId),
+  addVencimiento:              (datos)                      => ipcRenderer.invoke('add-vencimiento', datos),
+  updateVencimiento:           (id, campos)                 => ipcRenderer.invoke('update-vencimiento', id, campos),
+  setCompletadoVencimiento:    (id, completado)             => ipcRenderer.invoke('set-completado-vencimiento', id, completado),
+  deleteVencimiento:           (id)                         => ipcRenderer.invoke('delete-vencimiento', id),
+
+  getPresentaciones:           (sucursalId)                 => ipcRenderer.invoke('get-presentaciones', sucursalId),
+  addPresentacion:              (datos)                      => ipcRenderer.invoke('add-presentacion', datos),
+  updatePresentacion:           (id, campos)                 => ipcRenderer.invoke('update-presentacion', id, campos),
+  setResultadoPresentacion:     (id, resultado)              => ipcRenderer.invoke('set-resultado-presentacion', id, resultado),
+  deletePresentacion:           (id)                         => ipcRenderer.invoke('delete-presentacion', id),
+  getTasas:                     (sucursalId)                 => ipcRenderer.invoke('get-tasas', sucursalId),
+  getTasasAlumno:               (alumnoId)                   => ipcRenderer.invoke('get-tasas-alumno', alumnoId),
+  addTasa:                      (datos)                      => ipcRenderer.invoke('add-tasa', datos),
+  updateTasa:                   (id, campos)                 => ipcRenderer.invoke('update-tasa', id, campos),
+  deleteTasa:                   (id)                         => ipcRenderer.invoke('delete-tasa', id),
+  getEstadisticasAprobados:     (sucursalId)                 => ipcRenderer.invoke('get-estadisticas-aprobados', sucursalId),
 
   // Auto-update
   checkForUpdates:  ()     => ipcRenderer.invoke('check-for-updates'),

@@ -808,6 +808,11 @@
   .form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 0; }
   .form-group { display: flex; flex-direction: column; gap: 5px; }
 
+  /* Checkboxes de "otros permisos que cursa" (alta/edición de alumno) */
+  .permisos-checks { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .permisos-checks label { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; color: var(--text); }
+  .permisos-checks input[type="checkbox"] { width: auto; }
+
   label {
     font-size: 12px;
     color: var(--text-muted);
@@ -1122,7 +1127,10 @@
   .semaforo-verde { background: var(--success-light); color: var(--success-fg); }
   .semaforo-ambar { background: var(--warn-light); color: var(--warn-fg); }
   .semaforo-rojo  { background: var(--danger-light); color: var(--danger-fg); }
-  /* Estado del alumno: activo/aprobado/baja (ver db/alumnos.js, renderer/alumnos.js) */
+  /* Estado del alumno: ciclo ampliado (ver ESTADOS_ALUMNO_VALIDOS en
+     db/alumnos.js, ESTADO_ALUMNO_TEXTO en renderer/alumnos.js). Colores:
+     apto/aprobado/activo en verde, no_apto/baja en rojo, el resto (fases
+     intermedias del ciclo) en gris neutro. */
   .estado-pill {
     display: inline-flex;
     align-items: center;
@@ -1132,9 +1140,16 @@
     font-weight: 700;
     cursor: default;
   }
-  .estado-activo   { background: var(--success-light); color: var(--success-fg); }
-  .estado-aprobado { background: var(--info-bg); color: var(--info-fg); }
-  .estado-baja     { background: var(--gray-light); color: var(--gray); }
+  .estado-activo,
+  .estado-aprobado,
+  .estado-apto      { background: var(--success-light); color: var(--success-fg); }
+  .estado-baja,
+  .estado-no_apto   { background: var(--danger-light); color: var(--danger-fg); }
+  .estado-matriculado,
+  .estado-en_teorica,
+  .estado-apto_teorico,
+  .estado-en_practicas,
+  .estado-presentado { background: var(--gray-light); color: var(--gray); }
 
   .semaforo-leyenda {
     display: flex;
@@ -1772,5 +1787,10 @@
   .ficha-observaciones .ficha-etiqueta { display: block; margin-bottom: 4px; }
   .ficha-observaciones p { margin: 0; font-size: 12.5px; color: #1a1a1a; white-space: pre-wrap; }
   .ficha-sin-datos { font-size: 12.5px; color: #777; }
+  /* Tabla del libro de registro de alumnos (imprimirLibroRegistro), mismo
+     bloque de impresión que la ficha del alumno — misma paleta fija. */
+  .ficha-tabla { width: 100%; border-collapse: collapse; font-size: 10.5px; margin-top: 8px; }
+  .ficha-tabla th, .ficha-tabla td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; }
+  .ficha-tabla th { background: #f2f2f2; color: #1a1a1a; }
 }
   .tutorial-lado-left::after { right: -8px; top: var(--tutorial-flecha-y, 24px); margin-top: -7px; border-left: none; border-bottom: none; }

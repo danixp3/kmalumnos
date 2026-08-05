@@ -259,9 +259,15 @@ ipcMain.handle('set-tarifa', (_, permiso, tipo, precio) => db.setTarifa(permiso,
 ipcMain.handle('delete-tarifa', (_, id) => { db.deleteTarifa(id); return true; });
 
 ipcMain.handle('get-alumnos', (_, sucursalId) => db.getAlumnos(sucursalId));
-ipcMain.handle('add-alumno', (_, nombre, permiso, vehiculo_id, profesor_id, sucursalId, email, datos) => db.addAlumno(nombre, permiso, vehiculo_id, profesor_id, sucursalId, email, datos));
+ipcMain.handle('add-alumno', (_, nombre, permiso, vehiculo_id, profesor_id, sucursalId, email, datos, libro, permisos) => db.addAlumno(nombre, permiso, vehiculo_id, profesor_id, sucursalId, email, datos, libro, permisos));
 ipcMain.handle('delete-alumno', (_, id) => { db.deleteAlumno(id); return true; });
-ipcMain.handle('update-alumno', (_, id, nombre, permiso, vehiculo_id, profesor_id, email, datos) => { db.updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id, email, datos); return true; });
+ipcMain.handle('update-alumno', (_, id, nombre, permiso, vehiculo_id, profesor_id, email, datos, libro, permisos) => { db.updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id, email, datos, libro, permisos); return true; });
+
+// Libro de registro de alumnos (RD 1295/2003 art. 39) — mismo patrón "columna
+// nueva sincronizada" que el resto de la ficha ampliada, ver db/alumnos.js.
+ipcMain.handle('get-libro-registro', (_, sucursalId) => db.getLibroRegistro(sucursalId));
+ipcMain.handle('asignar-num-inscripcion', (_, id) => db.asignarNumInscripcion(id));
+ipcMain.handle('backfill-num-inscripcion', () => db.backfillNumInscripcion());
 
 ipcMain.handle('get-practicas', (_, alumno_id) => db.getPracticasByAlumno(alumno_id));
 ipcMain.handle('get-ultima-practica', (_, alumno_id) => db.getUltimaPractica(alumno_id));
@@ -305,6 +311,38 @@ ipcMain.handle('update-reserva', (_, id, campos) => { db.updateReserva(id, campo
 ipcMain.handle('set-estado-reserva', (_, id, estado) => { db.setEstadoReserva(id, estado); return true; });
 ipcMain.handle('completar-reserva', (_, id) => db.completarReserva(id));
 ipcMain.handle('delete-reserva', (_, id) => { db.deleteReserva(id); return true; });
+
+// Jornada laboral (registro de fichajes, art. 34.9 ET) — local por puesto,
+// NO sincroniza con Supabase (ver db/jornadas.js).
+ipcMain.handle('get-jornadas', (_, filtros) => db.getJornadas(filtros));
+ipcMain.handle('fichar-entrada', (_, datos) => db.ficharEntrada(datos));
+ipcMain.handle('fichar-salida', (_, id) => db.ficharSalida(id));
+ipcMain.handle('jornada-abierta-de', (_, empleado, sucursalId) => db.jornadaAbiertaDe(empleado, sucursalId));
+ipcMain.handle('corregir-jornada', (_, id, campos) => { db.corregirJornada(id, campos); return true; });
+ipcMain.handle('borrar-jornada', (_, id) => { db.borrarJornada(id); return true; });
+
+// Vencimientos / alertas de caducidades (ITV, seguro, psicotécnico, DNI...) —
+// local por puesto, NO sincroniza con Supabase (ver db/vencimientos.js).
+ipcMain.handle('get-vencimientos', (_, sucursalId) => db.getVencimientos(sucursalId));
+ipcMain.handle('get-proximos-vencimientos', (_, dias, hoy, sucursalId) => db.getProximosVencimientos(dias, hoy, sucursalId));
+ipcMain.handle('add-vencimiento', (_, datos) => db.addVencimiento(datos));
+ipcMain.handle('update-vencimiento', (_, id, campos) => { db.updateVencimiento(id, campos); return true; });
+ipcMain.handle('set-completado-vencimiento', (_, id, completado) => { db.setCompletadoVencimiento(id, completado); return true; });
+ipcMain.handle('delete-vencimiento', (_, id) => { db.deleteVencimiento(id); return true; });
+
+// Exámenes: presentaciones a convocatoria, tasas y estadísticas de aprobados —
+// local por puesto, NO sincroniza con Supabase (ver db/convocatorias.js).
+ipcMain.handle('get-presentaciones', (_, sucursalId) => db.getPresentaciones(sucursalId));
+ipcMain.handle('add-presentacion', (_, datos) => db.addPresentacion(datos));
+ipcMain.handle('update-presentacion', (_, id, campos) => { db.updatePresentacion(id, campos); return true; });
+ipcMain.handle('set-resultado-presentacion', (_, id, resultado) => { db.setResultadoPresentacion(id, resultado); return true; });
+ipcMain.handle('delete-presentacion', (_, id) => { db.deletePresentacion(id); return true; });
+ipcMain.handle('get-tasas', (_, sucursalId) => db.getTasas(sucursalId));
+ipcMain.handle('get-tasas-alumno', (_, alumnoId) => db.getTasasAlumno(alumnoId));
+ipcMain.handle('add-tasa', (_, datos) => db.addTasa(datos));
+ipcMain.handle('update-tasa', (_, id, campos) => { db.updateTasa(id, campos); return true; });
+ipcMain.handle('delete-tasa', (_, id) => { db.deleteTasa(id); return true; });
+ipcMain.handle('get-estadisticas-aprobados', (_, sucursalId) => db.getEstadisticasAprobados(sucursalId));
 
 ipcMain.handle('get-solapamientos', () => db.getSolapamientos());
 ipcMain.handle('rellenar-km-masivo', (_, vehiculo_id, kmMin, kmMax, kmInicio, kmFinal) => db.rellenarKmMasivo(vehiculo_id, kmMin, kmMax, kmInicio, kmFinal));
