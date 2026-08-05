@@ -233,3 +233,35 @@ Crea la tabla `reservas` con las mismas garantías que el resto de tablas operat
 ## Cómo revertir
 
 Ejecutar `2026-08-05_reservas_ROLLBACK.sql` (`DROP TABLE ... CASCADE`). Si para entonces ya hay reservas reales dadas de alta, esos datos se pierden — leer la advertencia dentro del propio archivo antes de ejecutarlo.
+
+# Migración: nº de prácticas de una reserva
+
+Fecha: 2026-08-05. Archivos de esta carpeta:
+
+- `2026-08-05_reservas_n_practicas.sql` — la migración.
+- `2026-08-05_reservas_n_practicas_ROLLBACK.sql` — la red de seguridad.
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla. Añade a `reservas` la columna `n_practicas` (integer, default 1): el modal de la agenda ahora pide "nº de prácticas" en vez de minutos, y la duración se calcula sola (n_practicas × minutos por clase, ajuste configurable en Ajustes). Al marcar una reserva como "realizada" la app crea automáticamente esas N prácticas para el alumno.
+
+**Dependencia:** requiere `2026-08-05_reservas.sql` ya aplicada (la tabla `reservas` tiene que existir).
+
+## Qué hace, en llano
+
+Solo añade una columna nueva a una tabla que ya existe — no toca RLS ni el resto de columnas. Mientras no se aplique, la app sigue en modo clásico igual que con el resto de reservas: `_reservasDisponible()` decide si la tabla existe; con la tabla `reservas` aplicada pero sin esta columna, cualquier PC con esta versión del código intentaría subir `n_practicas` en el upsert y Supabase lo rechazaría — por eso esta migración debe aplicarse ANTES de publicar una versión con este cambio a clientes que ya sincronizan reservas con la nube.
+
+## Pasos exactos para aplicarla
+
+1. Confirmar que `2026-08-05_reservas.sql` ya está aplicada (si no, aplicarla primero).
+2. Copia de seguridad: backup de `data.json` desde Ajustes.
+3. Aplicar `2026-08-05_reservas_n_practicas.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado).
+4. Verificar (paso siguiente).
+
+## Qué verificar después
+
+- `SELECT id, n_practicas FROM reservas;` → todas las filas existentes con `n_practicas = 1`.
+- La app de escritorio sigue arrancando y sincronizando con normalidad.
+- Crear una reserva con nº de prácticas > 1, forzar sincronización, y comprobar `SELECT n_practicas FROM reservas WHERE id = ...` en Supabase.
+
+## Cómo revertir
+
+Ejecutar `2026-08-05_reservas_n_practicas_ROLLBACK.sql`. Si para entonces ya hay reservas reales con `n_practicas` distinto de 1, ese dato se pierde — leer la advertencia dentro del propio archivo antes de ejecutarlo.

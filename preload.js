@@ -125,6 +125,7 @@ contextBridge.exposeInMainWorld('api', {
   addReserva:         (datos)                     => ipcRenderer.invoke('add-reserva', datos),
   updateReserva:      (id, campos)                => ipcRenderer.invoke('update-reserva', id, campos),
   setEstadoReserva:   (id, estado)                => ipcRenderer.invoke('set-estado-reserva', id, estado),
+  completarReserva:   (id)                        => ipcRenderer.invoke('completar-reserva', id),
   deleteReserva:      (id)                        => ipcRenderer.invoke('delete-reserva', id),
 
   // Auto-update

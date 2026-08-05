@@ -34,6 +34,29 @@ function guardarRangoPrefDesdeAjustes() {
   guardarRangoPref(min, max);
 }
 
+// Minutos por clase/práctica: usado por la agenda (renderer/reservas.js) para
+// calcular la duración de una reserva a partir del nº de prácticas que pide
+// el modal. Mismo patrón localStorage que PREF_RANGO_KEY.
+const DURACION_CLASE_KEY = 'km_duracion_clase_min';
+
+function getDuracionClaseMin() {
+  try {
+    const raw = localStorage.getItem(DURACION_CLASE_KEY);
+    const n = parseInt(raw);
+    if (!isNaN(n) && n >= 1) return n;
+  } catch (e) {}
+  return 45;
+}
+
+function guardarDuracionClaseMin(min) {
+  try { localStorage.setItem(DURACION_CLASE_KEY, String(Math.max(1, parseInt(min) || 45))); } catch (e) {}
+}
+
+function guardarDuracionClaseDesdeAjustes() {
+  const min = parseInt(document.getElementById('pref-duracion-clase').value) || 45;
+  guardarDuracionClaseMin(min);
+}
+
 const PREF_DASHBOARD_KEY = 'kmalumnos_dashboard_stats';
 const PREF_DASHBOARD_DEFAULT = {
   vehiculos: true, alumnos: true, practicas: true,
@@ -81,6 +104,8 @@ function guardarDashboardPrefDesdeAjustes() {
 // ─── AJUSTES ──────────────────────────────────────────────────────────────────
 async function loadAjustes() {
   aplicarRangoPref('pref-km-min', 'pref-km-max');
+  const elDuracionClase = document.getElementById('pref-duracion-clase');
+  if (elDuracionClase) elDuracionClase.value = getDuracionClaseMin();
   const dashPref = getDashboardPref();
   document.getElementById('pref-dash-vehiculos').checked = dashPref.vehiculos;
   document.getElementById('pref-dash-alumnos').checked = dashPref.alumnos;

@@ -31,7 +31,7 @@ function getReservas(sucursalId) {
     });
 }
 
-function addReserva({ alumno_id, profesor_id, vehiculo_id, fecha, hora_inicio, duracion_min, estado, origen, nota, sucursal_id } = {}) {
+function addReserva({ alumno_id, profesor_id, vehiculo_id, fecha, hora_inicio, duracion_min, estado, origen, nota, sucursal_id, n_practicas } = {}) {
   const d = load();
   if (!d.reservas) d.reservas = [];
   const id = nextId('r');
@@ -46,7 +46,8 @@ function addReserva({ alumno_id, profesor_id, vehiculo_id, fecha, hora_inicio, d
     estado: estado || 'solicitada',
     origen: origen || 'desktop',
     nota: nota || '',
-    sucursal_id: sucursal_id ? parseInt(sucursal_id) : null
+    sucursal_id: sucursal_id ? parseInt(sucursal_id) : null,
+    n_practicas: n_practicas != null ? Math.max(1, parseInt(n_practicas)) : 1
   });
   save();
   const s = _sync(); if (s) s.markDirty('reservas', id);
@@ -66,6 +67,7 @@ function updateReserva(id, campos = {}) {
   if ('duracion_min' in campos) r.duracion_min = campos.duracion_min != null ? parseInt(campos.duracion_min) : 45;
   if ('nota' in campos) r.nota = campos.nota || '';
   if ('sucursal_id' in campos) r.sucursal_id = campos.sucursal_id ? parseInt(campos.sucursal_id) : null;
+  if ('n_practicas' in campos) r.n_practicas = campos.n_practicas != null ? Math.max(1, parseInt(campos.n_practicas)) : 1;
   save();
   const s = _sync(); if (s) s.markDirty('reservas', id);
 }
@@ -83,6 +85,52 @@ function setEstadoReserva(id, estado) {
   const s = _sync(); if (s) s.markDirty('reservas', id);
 }
 
+/**
+ * Completa una reserva: la marca 'realizada' y crea automáticamente las
+ * n_practicas prácticas correspondientes para el alumno (km 0/0, a
+ * rellenar después con relleno masivo, igual que el registro rápido).
+ * Inline en vez de requerir db/practicas.js para no crear un ciclo
+ * (mismo motivo que ajustarPracticasAlumno/registrarPracticasMasivas).
+ * Idempotente: si ya estaba 'realizada' no crea prácticas de nuevo.
+ */
+function completarReserva(id) {
+  const d = load();
+  if (!d.reservas) d.reservas = [];
+  const r = d.reservas.find(x => x.id === id);
+  if (!r) return { ok: false, msg: 'Reserva no encontrada.' };
+
+  if (r.estado === 'realizada') {
+    return { ok: true, yaRealizada: true, creadas: 0 };
+  }
+
+  if (!r.vehiculo_id) {
+    return { ok: false, msg: 'Asigna un vehículo a la reserva para poder completarla.' };
+  }
+
+  const n = r.n_practicas != null ? Math.max(1, parseInt(r.n_practicas)) : 1;
+  if (!d.practicas) d.practicas = [];
+  for (let i = 0; i < n; i++) {
+    const pid = nextId('p');
+    d.practicas.push({
+      id: pid,
+      alumno_id: r.alumno_id,
+      vehiculo_id: r.vehiculo_id,
+      fecha: r.fecha,
+      km_inicial: 0,
+      km_final: 0,
+      profesor_id: r.profesor_id || null,
+      tipo: 'circulacion',
+      sucursal_id: r.sucursal_id || null
+    });
+    const s1 = _sync(); if (s1) s1.markDirty('practicas', pid);
+  }
+
+  r.estado = 'realizada';
+  save();
+  const s2 = _sync(); if (s2) s2.markDirty('reservas', id);
+  return { ok: true, creadas: n };
+}
+
 function deleteReserva(id) {
   const d = load();
   if (!d.reservas) d.reservas = [];
@@ -92,5 +140,5 @@ function deleteReserva(id) {
 }
 
 module.exports = {
-  getReservas, addReserva, updateReserva, setEstadoReserva, deleteReserva,
+  getReservas, addReserva, updateReserva, setEstadoReserva, completarReserva, deleteReserva,
 };

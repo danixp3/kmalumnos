@@ -302,6 +302,7 @@ ipcMain.handle('get-reservas', (_, sucursalId) => db.getReservas(sucursalId));
 ipcMain.handle('add-reserva', (_, datos) => db.addReserva(datos));
 ipcMain.handle('update-reserva', (_, id, campos) => { db.updateReserva(id, campos); return true; });
 ipcMain.handle('set-estado-reserva', (_, id, estado) => { db.setEstadoReserva(id, estado); return true; });
+ipcMain.handle('completar-reserva', (_, id) => db.completarReserva(id));
 ipcMain.handle('delete-reserva', (_, id) => { db.deleteReserva(id); return true; });
 
 ipcMain.handle('get-solapamientos', () => db.getSolapamientos());
