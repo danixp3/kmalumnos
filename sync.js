@@ -502,14 +502,15 @@ async function _alumnosEmailDisponible(sb) {
   return _alumnosEmailDisponibleCache;
 }
 
-// Mismo patrón exacto que _alumnosEmailDisponible de arriba, para los 6 campos
+// Mismo patrón exacto que _alumnosEmailDisponible de arriba, para los campos
 // de ficha ampliada del alumno (teléfono, DNI, fecha de nacimiento, dirección,
-// fecha de alta, observaciones — migración `migraciones/2026-08-06_alumno_datos.sql`,
-// TODAVÍA NO aplicada): si no está aplicada, esas columnas no existen en
-// Supabase y se trata como "modo clásico", nunca como un error real. Basta
-// comprobar una sola columna (`telefono`): las 6 se añaden juntas en la misma
-// migración. Cacheado en memoria durante la sesión; se invalida en los mismos
-// puntos que _alumnosEmailDisponibleCache (setCredentials/registrarEmpresa).
+// fecha de alta, observaciones, estado — migraciones `migraciones/2026-08-06_alumno_datos.sql`
+// y `migraciones/2026-08-06_alumno_estado.sql`, TODAVÍA NO aplicadas): si no
+// están aplicadas, esas columnas no existen en Supabase y se trata como "modo
+// clásico", nunca como un error real. Basta comprobar una sola columna
+// (`telefono`): se aplican juntas. Cacheado en memoria durante la sesión; se
+// invalida en los mismos puntos que _alumnosEmailDisponibleCache
+// (setCredentials/registrarEmpresa).
 let _alumnosDatosDisponibleCache = null;
 
 async function _alumnosDatosDisponible(sb) {
@@ -1193,6 +1194,7 @@ async function sync() {
             payload.direccion = a.direccion || null;
             payload.fecha_alta = a.fecha_alta || null;
             payload.observaciones = a.observaciones || null;
+            payload.estado = a.estado || null;
           }
           await sb.from('alumnos').upsert(payload, { onConflict: 'id' });
         }
@@ -1493,6 +1495,7 @@ async function sync() {
           direccion: ra.direccion != null ? ra.direccion : null,
           fecha_alta: ra.fecha_alta != null ? ra.fecha_alta : null,
           observaciones: ra.observaciones != null ? ra.observaciones : null,
+          estado: ra.estado != null ? ra.estado : null,
           updated_at: ra.updated_at
         };
         if (idx !== -1) {
@@ -1504,7 +1507,7 @@ async function sync() {
           if (remoteUpdated > localUpdated) {
             _detectarYRegistrarConflicto(data, 'alumnos', pending.alumnos, ra.id,
               ['nombre', 'permiso', 'vehiculo_id', 'profesor_id', 'email',
-                'telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones'],
+                'telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones', 'estado'],
               local, alumno, conflictos);
             data.alumnos[idx] = alumno;
             dataChanged = true;
@@ -1863,13 +1866,13 @@ async function pushAll() {
       return { ...obj, email: obj.email ? obj.email : null };
     };
     // datos ampliados de alumno (teléfono, DNI, fecha de nacimiento, dirección,
-    // fecha de alta, observaciones): mismo cuidado que quitarEmail — si la
-    // migración no está aplicada hay que quitarlos del objeto o el upsert de
+    // fecha de alta, observaciones, estado): mismo cuidado que quitarEmail — si
+    // la migración no está aplicada hay que quitarlos del objeto o el upsert de
     // alumnos falla entero (columnas inexistentes en el servidor).
     const datosOn = await _alumnosDatosDisponible(sb);
     const quitarDatos = obj => {
       if (!datosOn) {
-        const { telefono, dni, fecha_nacimiento, direccion, fecha_alta, observaciones, ...resto } = obj;
+        const { telefono, dni, fecha_nacimiento, direccion, fecha_alta, observaciones, estado, ...resto } = obj;
         return resto;
       }
       return {
@@ -1879,7 +1882,8 @@ async function pushAll() {
         fecha_nacimiento: obj.fecha_nacimiento || null,
         direccion: obj.direccion || null,
         fecha_alta: obj.fecha_alta || null,
-        observaciones: obj.observaciones || null
+        observaciones: obj.observaciones || null,
+        estado: obj.estado || null
       };
     };
 
