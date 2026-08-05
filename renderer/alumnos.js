@@ -212,6 +212,7 @@ function renderAlumnosTabla() {
       <td>
         <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Prácticas</button>
         <button class="btn btn-sm" style="background:var(--warn-bg);color:var(--warn-fg);border:1px solid var(--warn-border)" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Anotaciones</button>
+        <button class="btn btn-gray btn-sm" onclick="abrirEconomiaAlumno(${a.id},'${esc(a.nombre)}')" title="Economía del alumno">💶 Economía</button>
         <button class="btn btn-warn btn-sm" onclick="openEditAlumno(${a.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteAlumno(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
       </td>
@@ -337,5 +338,110 @@ async function saveAlumno() {
   await window.api.updateAlumno(id, nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, email || null, datos);
   closeModal('modal-alumno');
   loadAlumnos();
+}
+
+// ─── ECONOMÍA DEL ALUMNO (modal) ───────────────────────────────────────────
+// Trae el resumen ya calculado por el backend (getDesglosePagosAlumno) y la
+// lista de pagos (getPagosAlumno); no recalcula nada aquí. Reutiliza el
+// mismo estilo (badges de estado, colores saldo-pendiente/saldo-ok) que la
+// pantalla de Pagos para que se vea coherente.
+async function abrirEconomiaAlumno(alumnoId, alumnoNombre) {
+  const modal = document.getElementById('modal-economia-alumno');
+  modal.dataset.alumnoId = alumnoId;
+  modal.dataset.alumnoNombre = alumnoNombre;
+  document.getElementById('economia-pago-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('economia-pago-cantidad').value = '';
+  document.getElementById('economia-pago-nota').value = '';
+  await renderEconomiaAlumno();
+  openModal('modal-economia-alumno');
+}
+
+async function renderEconomiaAlumno() {
+  const modal = document.getElementById('modal-economia-alumno');
+  const alumnoId = parseInt(modal.dataset.alumnoId);
+  const [desglose, pagos] = await Promise.all([
+    window.api.getDesglosePagosAlumno(alumnoId),
+    window.api.getPagosAlumno(alumnoId)
+  ]);
+
+  document.getElementById('modal-economia-titulo').textContent = `Economía — ${modal.dataset.alumnoNombre}`;
+  document.getElementById('economia-permiso').innerHTML = desglose ? tagPermiso(desglose.permiso) : '';
+
+  const aviso = document.getElementById('economia-aviso-sin-tarifa');
+  aviso.classList.toggle('hidden', !desglose || !desglose.practicas.some(p => p.estado === 'sin_tarifa'));
+
+  const resumen = document.getElementById('economia-resumen');
+  if (desglose) {
+    const saldoClase = desglose.saldo > 0 ? 'saldo-pendiente' : 'saldo-ok';
+    const saldoTexto = desglose.saldo > 0 ? 'Pendiente de cobro' : 'Al día';
+    resumen.innerHTML = `
+      <div class="stat">
+        <div class="stat-head"><span class="lbl">Generado</span></div>
+        <div class="num">${fmt(desglose.total_generado)} €</div>
+      </div>
+      <div class="stat">
+        <div class="stat-head"><span class="lbl">Pagado</span></div>
+        <div class="num">${fmt(desglose.total_pagado)} €</div>
+      </div>
+      <div class="stat">
+        <div class="stat-head"><span class="lbl">Saldo</span></div>
+        <div class="num"><span class="${saldoClase}">${fmt(desglose.saldo)} €</span></div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${saldoTexto}</div>
+      </div>`;
+  } else {
+    resumen.innerHTML = '';
+  }
+
+  const ESTADO_BADGE = {
+    pagada: () => '<span class="badge-pagada">Pagada</span>',
+    parcial: (p) => `<span class="badge-parcial">${fmt(p.cubierto)} € de ${fmt(p.precio)} €</span>`,
+    pendiente: () => '<span class="badge-pendiente-pago">Pendiente</span>',
+    sin_tarifa: () => '<span class="badge-sin-tarifa">Sin tarifa</span>'
+  };
+  const TIPO_LABEL = { circulacion: 'Circulación', pista: 'Pista' };
+  const tbodyDesglose = document.querySelector('#tabla-economia-desglose tbody');
+  if (!desglose || !desglose.practicas.length) {
+    tbodyDesglose.innerHTML = '<tr><td colspan="4" class="empty">No hay prácticas registradas</td></tr>';
+  } else {
+    tbodyDesglose.innerHTML = desglose.practicas.map(p => `<tr>
+      <td>${fmtFecha(p.fecha)}</td>
+      <td>${esc(TIPO_LABEL[p.tipo] || p.tipo)}</td>
+      <td>${p.precio != null ? fmt(p.precio) + ' €' : '<span style="color:var(--placeholder)">—</span>'}</td>
+      <td>${ESTADO_BADGE[p.estado](p)}</td>
+    </tr>`).join('');
+  }
+
+  const tbodyPagos = document.querySelector('#tabla-economia-pagos tbody');
+  if (!pagos.length) {
+    tbodyPagos.innerHTML = '<tr><td colspan="4" class="empty">No hay pagos registrados</td></tr>';
+  } else {
+    tbodyPagos.innerHTML = pagos.map(p => `<tr>
+      <td>${fmtFecha(p.fecha)}</td>
+      <td>${fmt(p.cantidad)} €</td>
+      <td>${p.nota ? esc(p.nota) : '<span style="color:var(--placeholder)">—</span>'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deletePagoEconomia(${p.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>
+    </tr>`).join('');
+  }
+}
+
+async function addPagoEconomia() {
+  const modal = document.getElementById('modal-economia-alumno');
+  const alumnoId = parseInt(modal.dataset.alumnoId);
+  const fecha = document.getElementById('economia-pago-fecha').value;
+  const cantidad = parseFloat(document.getElementById('economia-pago-cantidad').value);
+  const nota = document.getElementById('economia-pago-nota').value.trim();
+  if (!fecha) { alert('Selecciona una fecha.'); return; }
+  if (isNaN(cantidad) || cantidad <= 0) { alert('Introduce una cantidad válida.'); return; }
+  await window.api.addPago(alumnoId, fecha, cantidad, nota, getSucursalActual());
+  document.getElementById('economia-pago-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('economia-pago-cantidad').value = '';
+  document.getElementById('economia-pago-nota').value = '';
+  await renderEconomiaAlumno();
+}
+
+async function deletePagoEconomia(id) {
+  if (!confirm('¿Borrar este pago?')) return;
+  await window.api.deletePago(id);
+  await renderEconomiaAlumno();
 }
 
