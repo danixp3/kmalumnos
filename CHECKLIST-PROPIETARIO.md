@@ -9,8 +9,7 @@ Se eligió **enlace mágico** (el alumno pulsa un enlace en el correo, no teclea
 - [x] **Supabase → Authentication → Providers → Email:** proveedor de email activado (ya estaba). ✓
 - [x] **Supabase → Authentication → URL Configuration → Redirect URLs:** `https://aulamovil.vercel.app/alumno.html` añadida. ✓ (hecho por el propietario, 2026-08-05)
 - [x] **Poner email a los alumnos:** hecho (al menos un alumno con email para la prueba). ✓ (hecho por el propietario, 2026-08-05)
-- [ ] _(Opcional, futuro)_ **SMTP propio** en Supabase Auth: solo hace falta si algún día quieres el flujo de *código de 6 dígitos* en vez de enlace, o para volumen alto de correos (el SMTP por defecto tiene límite bajo).
-- [ ] _(Opcional, recomendado)_ **Supabase → Authentication:** activar "Leaked Password Protection" (lo marca el linter de seguridad).
+_(Nada más obligatorio aquí: la parte "para que funcione" está completa.)_
 
 ## Para revisar en la app cuando quieras (opcional, no bloquea nada)
 
@@ -24,6 +23,7 @@ Se eligió **enlace mágico** (el alumno pulsa un enlace en el correo, no teclea
 
 ## Futuro (cuando lleguen esas funciones)
 
+- [ ] _(Aplazado por el propietario, posible plan de pago de Supabase)_ **SMTP propio** (para código de 6 dígitos o alto volumen de correo) y **Leaked Password Protection**.
 - [ ] **VeriFactu:** contratar una API certificada (p.ej. VerifactuAPI.es o Facturware) y darme las credenciales para integrarla. Ver `INVESTIGACION-AUES-VERIFACTU.md`.
 - [ ] **Pagos online:** cuenta de Stripe (rápido) y/o alta de TPV Virtual Redsys con tu banco (comisiones más bajas).
 - [ ] **AUES (DGT):** certificado electrónico de la autoescuela + escribir a `soportecau@dgt.es` para el alta en el Web Service. Ver `INVESTIGACION-AUES-VERIFACTU.md`.
