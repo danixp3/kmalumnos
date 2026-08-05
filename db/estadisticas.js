@@ -300,7 +300,55 @@ function getSemaforoAlumno(alumno_id) {
   return { alumno_id: a.id, nombre: a.nombre, nivel, motivo, nPracticas, kmTotales, diasDesdeUltima };
 }
 
+// ─── ALUMNOS EN RIESGO DE ABANDONO ────────────────────────────────────────
+// Heurística v1, determinista y explicable: alumnos que ya empezaron a dar
+// clases pero llevan tiempo sin venir. Umbral ajustable — heurística v1,
+// ajustable. Los alumnos con 0 prácticas no cuentan como riesgo (son "sin
+// empezar", otra categoría distinta).
+const RIESGO_DIAS_INACTIVIDAD = 30;
+
+/**
+ * Alumnos en riesgo de abandono (>= 1 práctica no borrada y la más reciente
+ * hace más de RIESGO_DIAS_INACTIVIDAD días). Solo lectura, no marca sync.
+ * Ordenado por diasSinPractica descendente (los más "fríos" primero).
+ */
+function getAlumnosEnRiesgo() {
+  const d = load();
+  const alumnos = d.alumnos.filter(a => !a.deleted);
+  const practicasPorAlumno = new Map();
+  for (const p of d.practicas) {
+    if (p.deleted) continue;
+    if (!practicasPorAlumno.has(p.alumno_id)) practicasPorAlumno.set(p.alumno_id, []);
+    practicasPorAlumno.get(p.alumno_id).push(p);
+  }
+
+  const msPorDia = 24 * 60 * 60 * 1000;
+  const hoy = new Date();
+  const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+  const enRiesgo = [];
+  for (const a of alumnos) {
+    const propias = practicasPorAlumno.get(a.id) || [];
+    const nPracticas = propias.length;
+    if (nPracticas === 0) continue; // "sin empezar", no es riesgo de abandono
+
+    const ultimaFecha = propias.reduce((max, p) => (p.fecha && (!max || p.fecha > max)) ? p.fecha : max, null);
+    if (!ultimaFecha) continue; // fechas ausentes/raras: no se puede calcular, se descarta sin romper
+
+    const partes = ultimaFecha.split('-').map(Number);
+    if (partes.length !== 3 || partes.some(Number.isNaN)) continue; // fecha rara, se descarta
+    const [y, m, dd] = partes;
+    const ultimaUTC = Date.UTC(y, m - 1, dd);
+    const diasSinPractica = Math.round((hoyUTC - ultimaUTC) / msPorDia);
+    if (!Number.isFinite(diasSinPractica) || diasSinPractica <= RIESGO_DIAS_INACTIVIDAD) continue;
+
+    enRiesgo.push({ alumno_id: a.id, nombre: a.nombre, nPracticas, diasSinPractica, ultimaFecha });
+  }
+
+  return enRiesgo.sort((a, b) => b.diasSinPractica - a.diasSinPractica);
+}
+
 module.exports = {
   getResumen, getStatsDashboard, getStatsProfesores, getDatosGraficos, getTimelineVehiculo,
-  getSemaforoExamen, getSemaforoAlumno,
+  getSemaforoExamen, getSemaforoAlumno, getAlumnosEnRiesgo,
 };

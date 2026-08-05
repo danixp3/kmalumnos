@@ -29,6 +29,7 @@ async function loadDashboard() {
   loadGraficos();
   loadAgendaDashboard();
   loadSemaforoDashboard();
+  loadRiesgoAbandonoDashboard();
 
   const alertas = document.getElementById('dash-alertas');
   const partes = [];
@@ -122,6 +123,43 @@ async function loadSemaforoDashboard() {
   document.getElementById('dash-semaforo-verde').textContent = semaforo.filter(s => s.nivel === 'verde').length;
   document.getElementById('dash-semaforo-ambar').textContent = semaforo.filter(s => s.nivel === 'ambar').length;
   document.getElementById('dash-semaforo-rojo').textContent = semaforo.filter(s => s.nivel === 'rojo').length;
+}
+
+// Tarjeta "Alumnos en riesgo de abandono": alumnos que llevan tiempo sin
+// venir a clase (heurística v1, ver db/estadisticas.js:getAlumnosEnRiesgo).
+// Si falla, se oculta sin romper el resto del dashboard.
+async function loadRiesgoAbandonoDashboard() {
+  const card = document.getElementById('dash-riesgo-card');
+  if (!card) return;
+  let riesgo = [];
+  try {
+    riesgo = await window.api.getAlumnosEnRiesgo();
+  } catch (e) {
+    card.classList.add('hidden');
+    return;
+  }
+  if (!Array.isArray(riesgo)) {
+    card.classList.add('hidden');
+    return;
+  }
+  card.classList.remove('hidden');
+
+  const resumen = document.getElementById('dash-riesgo-resumen');
+  const lista = document.getElementById('dash-riesgo-lista');
+
+  if (riesgo.length === 0) {
+    resumen.innerHTML = '<div class="alert alert-ok"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.27"/></svg>Ningún alumno en riesgo de abandono. Todos siguen dando clases con regularidad.</div>';
+    lista.innerHTML = '';
+    return;
+  }
+
+  resumen.innerHTML =
+    `<div class="alert alert-warn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><strong>${riesgo.length} alumno(s) en riesgo.</strong> Llevan más de un mes sin dar clase.</div>`;
+
+  lista.innerHTML = riesgo.slice(0, 5).map(r => {
+    return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="navegarA('alumnos')" title="Ir a Alumnos">` +
+      `<span>${esc(r.nombre)}</span><span>${r.diasSinPractica} días sin práctica</span></div>`;
+  }).join('');
 }
 
 function navegarA(page, tab) {
