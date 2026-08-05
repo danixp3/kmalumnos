@@ -1654,7 +1654,13 @@ async function sync() {
             };
             if (idx === -1) {
               data.reservas.push(reserva);
-              if (rr.id >= data._seq.r) data._seq.r = rr.id + 1;
+              // Solo avanzar el contador local con ids del rango de ESCRITORIO
+              // (< 1.000.000.000). Las reservas creadas desde el portal usan
+              // ids >= 1e9 (secuencia reservas_portal_id_seq): son un rango
+              // disjunto y NO deben arrastrar _seq.r hacia arriba, o el
+              // escritorio empezaría a chocar con los ids del portal. Ver
+              // migraciones/2026-08-06_portal_reservas.sql.
+              if (rr.id < 1000000000 && rr.id >= data._seq.r) data._seq.r = rr.id + 1;
               dataChanged = true;
               pulled++;
             } else {
