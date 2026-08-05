@@ -17,14 +17,32 @@ function getAlumnos(sucursalId) {
     });
 }
 
-function addAlumno(nombre, permiso, vehiculo_id, profesor_id = null, sucursal_id = null, email = null) {
+// Campos "de ficha" ampliados (todos opcionales, texto libre salvo las dos
+// fechas): teléfono, DNI/NIE, fecha de nacimiento, dirección, fecha de alta y
+// observaciones. Se agrupan en un objeto `datos` como ÚLTIMO parámetro para no
+// alargar más la firma posicional — igual criterio que el resto de campos ya
+// opcionales de esta función. Si no se pasa `datos`, no cambia nada (compat).
+const CAMPOS_DATOS_ALUMNO = ['telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones'];
+
+// Normaliza el objeto `datos`: trim de cada campo y vacío → null.
+function _normalizarDatosAlumno(datos) {
+  const out = {};
+  for (const campo of CAMPOS_DATOS_ALUMNO) {
+    const v = datos && datos[campo] != null ? String(datos[campo]).trim() : '';
+    out[campo] = v || null;
+  }
+  return out;
+}
+
+function addAlumno(nombre, permiso, vehiculo_id, profesor_id = null, sucursal_id = null, email = null, datos = null) {
   const d = load();
   const id = nextId('a');
   d.alumnos.push({
     id, nombre, permiso: permiso || 'B', vehiculo_id: vehiculo_id ? parseInt(vehiculo_id) : null,
     profesor_id: profesor_id ? parseInt(profesor_id) : null,
     sucursal_id: sucursal_id ? parseInt(sucursal_id) : null,
-    email: email ? String(email).trim() : null
+    email: email ? String(email).trim() : null,
+    ..._normalizarDatosAlumno(datos)
   });
   save();
   const s = _sync(); if (s) s.markDirty('alumnos', id);
@@ -46,7 +64,7 @@ function deleteAlumno(id) {
   }
 }
 
-function updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id = null, email = null) {
+function updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id = null, email = null, datos = null) {
   const d = load();
   const a = d.alumnos.find(x => x.id === id);
   if (a) {
@@ -55,6 +73,7 @@ function updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id = null, emai
     a.vehiculo_id = vehiculo_id ? parseInt(vehiculo_id) : null;
     a.profesor_id = profesor_id ? parseInt(profesor_id) : null;
     a.email = email ? String(email).trim() : null;
+    if (datos) Object.assign(a, _normalizarDatosAlumno(datos));
     save();
     const s = _sync(); if (s) s.markDirty('alumnos', id);
   }

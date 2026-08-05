@@ -171,11 +171,11 @@ function renderAlumnosTabla() {
   actualizarIndicadoresOrdenAlumnos();
 
   if (!alumnosCache.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay alumnos registrados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No hay alumnos registrados</td></tr>';
     return;
   }
   if (!filtrados.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">Ningún alumno coincide con los filtros</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Ningún alumno coincide con los filtros</td></tr>';
     return;
   }
 
@@ -188,6 +188,7 @@ function renderAlumnosTabla() {
       : '<span style="color:var(--placeholder)">—</span>';
     return `<tr>
       <td><strong>${esc(a.nombre)}</strong></td>
+      <td>${a.telefono ? esc(a.telefono) : '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${tag}</td>
       <td>${a.vehiculo_nombre ? esc(a.vehiculo_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
       <td>${a.profesor_nombre ? esc(a.profesor_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
@@ -196,7 +197,7 @@ function renderAlumnosTabla() {
       <td>
         <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Prácticas</button>
         <button class="btn btn-sm" style="background:var(--warn-bg);color:var(--warn-fg);border:1px solid var(--warn-border)" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Anotaciones</button>
-        <button class="btn btn-warn btn-sm" onclick="openEditAlumno(${a.id},'${esc(a.nombre)}','${a.permiso}',${a.vehiculo_id || 'null'},${a.profesor_id || 'null'},'${esc(a.email || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
+        <button class="btn btn-warn btn-sm" onclick="openEditAlumno(${a.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteAlumno(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
       </td>
     </tr>`;
@@ -218,6 +219,14 @@ async function addAlumno() {
   const vid = document.getElementById('a-vehiculo').value || null;
   const profId = document.getElementById('a-profesor')?.value || null;
   const email = document.getElementById('a-email')?.value.trim() || '';
+  const datos = {
+    telefono: document.getElementById('a-telefono')?.value.trim() || '',
+    dni: document.getElementById('a-dni')?.value.trim() || '',
+    fecha_nacimiento: document.getElementById('a-fecha-nacimiento')?.value || '',
+    direccion: document.getElementById('a-direccion')?.value.trim() || '',
+    fecha_alta: document.getElementById('a-fecha-alta')?.value || '',
+    observaciones: document.getElementById('a-observaciones')?.value.trim() || ''
+  };
   if (!nombre) {
     showToast('alumno-alert', 'Introduce el nombre del alumno.', 'err');
     document.getElementById('a-nombre').focus();
@@ -229,9 +238,15 @@ async function addAlumno() {
     return;
   }
   hideToast('alumno-alert');
-  await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, getSucursalActual(), email || null);
+  await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, getSucursalActual(), email || null, datos);
   document.getElementById('a-nombre').value = '';
   document.getElementById('a-email').value = '';
+  document.getElementById('a-telefono').value = '';
+  document.getElementById('a-dni').value = '';
+  document.getElementById('a-fecha-nacimiento').value = '';
+  document.getElementById('a-direccion').value = '';
+  document.getElementById('a-fecha-alta').value = '';
+  document.getElementById('a-observaciones').value = '';
   loadAlumnos();
 }
 
@@ -262,13 +277,24 @@ async function verAnotaciones(alumnoId, nombre) {
   modal.classList.add('open');
 }
 
-async function openEditAlumno(id, nombre, permiso, vehiculo_id, profesor_id, email) {
-  document.getElementById('edit-a-id').value = id;
-  document.getElementById('edit-a-nombre').value = nombre;
-  document.getElementById('edit-a-permiso').value = permiso;
-  document.getElementById('edit-a-vehiculo').value = vehiculo_id || '';
-  document.getElementById('edit-a-email').value = email || '';
-  await llenarSelectProfesores('edit-a-profesor', profesor_id);
+// id: se busca en alumnosCache (ya cargada por loadAlumnos) en vez de pasar
+// todos los campos por el onclick — más limpio ahora que la ficha tiene 6
+// campos nuevos, y evita problemas de escapado con comas/comillas en ellos.
+async function openEditAlumno(id) {
+  const a = alumnosCache.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('edit-a-id').value = a.id;
+  document.getElementById('edit-a-nombre').value = a.nombre;
+  document.getElementById('edit-a-permiso').value = a.permiso;
+  document.getElementById('edit-a-vehiculo').value = a.vehiculo_id || '';
+  document.getElementById('edit-a-email').value = a.email || '';
+  document.getElementById('edit-a-telefono').value = a.telefono || '';
+  document.getElementById('edit-a-dni').value = a.dni || '';
+  document.getElementById('edit-a-fecha-nacimiento').value = a.fecha_nacimiento || '';
+  document.getElementById('edit-a-direccion').value = a.direccion || '';
+  document.getElementById('edit-a-fecha-alta').value = a.fecha_alta || '';
+  document.getElementById('edit-a-observaciones').value = a.observaciones || '';
+  await llenarSelectProfesores('edit-a-profesor', a.profesor_id);
   openModal('modal-alumno');
 }
 
@@ -279,9 +305,17 @@ async function saveAlumno() {
   const vid = document.getElementById('edit-a-vehiculo').value || null;
   const profId = document.getElementById('edit-a-profesor')?.value || null;
   const email = document.getElementById('edit-a-email')?.value.trim() || '';
+  const datos = {
+    telefono: document.getElementById('edit-a-telefono')?.value.trim() || '',
+    dni: document.getElementById('edit-a-dni')?.value.trim() || '',
+    fecha_nacimiento: document.getElementById('edit-a-fecha-nacimiento')?.value || '',
+    direccion: document.getElementById('edit-a-direccion')?.value.trim() || '',
+    fecha_alta: document.getElementById('edit-a-fecha-alta')?.value || '',
+    observaciones: document.getElementById('edit-a-observaciones')?.value.trim() || ''
+  };
   if (!nombre) { alert('Introduce un nombre.'); return; }
   if (!emailValido(email)) { alert('El email no tiene un formato válido.'); return; }
-  await window.api.updateAlumno(id, nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, email || null);
+  await window.api.updateAlumno(id, nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, email || null, datos);
   closeModal('modal-alumno');
   loadAlumnos();
 }
