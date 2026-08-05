@@ -57,6 +57,41 @@ function guardarDuracionClaseDesdeAjustes() {
   guardarDuracionClaseMin(min);
 }
 
+// Precio del combustible y consumo medio: usados por el análisis de coste
+// de vehículos (renderer/vehiculos.js, getAnalisisVehiculos) para estimar el
+// gasto en € a partir de los km ya registrados. Mismo patrón localStorage que
+// DURACION_CLASE_KEY.
+const PRECIO_COMBUSTIBLE_KEY = 'km_precio_combustible';
+const CONSUMO_MEDIO_KEY = 'km_consumo_medio';
+
+function getPrecioCombustible() {
+  try {
+    const raw = localStorage.getItem(PRECIO_COMBUSTIBLE_KEY);
+    const n = parseFloat(raw);
+    if (!isNaN(n) && n > 0) return n;
+  } catch (e) {}
+  return 1.60;
+}
+
+function getConsumoMedio() {
+  try {
+    const raw = localStorage.getItem(CONSUMO_MEDIO_KEY);
+    const n = parseFloat(raw);
+    if (!isNaN(n) && n > 0) return n;
+  } catch (e) {}
+  return 6.5;
+}
+
+function guardarCombustiblePrefDesdeAjustes() {
+  const precio = parseFloat(document.getElementById('pref-precio-combustible').value);
+  const consumo = parseFloat(document.getElementById('pref-consumo-medio').value);
+  try {
+    if (!isNaN(precio) && precio > 0) localStorage.setItem(PRECIO_COMBUSTIBLE_KEY, String(precio));
+    if (!isNaN(consumo) && consumo > 0) localStorage.setItem(CONSUMO_MEDIO_KEY, String(consumo));
+  } catch (e) {}
+  if (typeof loadAnalisisVehiculos === 'function') loadAnalisisVehiculos();
+}
+
 const PREF_DASHBOARD_KEY = 'kmalumnos_dashboard_stats';
 const PREF_DASHBOARD_DEFAULT = {
   vehiculos: true, alumnos: true, practicas: true,
@@ -106,6 +141,10 @@ async function loadAjustes() {
   aplicarRangoPref('pref-km-min', 'pref-km-max');
   const elDuracionClase = document.getElementById('pref-duracion-clase');
   if (elDuracionClase) elDuracionClase.value = getDuracionClaseMin();
+  const elPrecioCombustible = document.getElementById('pref-precio-combustible');
+  if (elPrecioCombustible) elPrecioCombustible.value = getPrecioCombustible();
+  const elConsumoMedio = document.getElementById('pref-consumo-medio');
+  if (elConsumoMedio) elConsumoMedio.value = getConsumoMedio();
   const dashPref = getDashboardPref();
   document.getElementById('pref-dash-vehiculos').checked = dashPref.vehiculos;
   document.getElementById('pref-dash-alumnos').checked = dashPref.alumnos;

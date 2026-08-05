@@ -286,6 +286,7 @@ ipcMain.handle('get-todas-practicas', (_, filtros) => db.getTodasPracticas(filtr
 ipcMain.handle('get-semaforo-examen', () => db.getSemaforoExamen());
 ipcMain.handle('get-semaforo-alumno', (_, alumno_id) => db.getSemaforoAlumno(alumno_id));
 ipcMain.handle('get-alumnos-en-riesgo', () => db.getAlumnosEnRiesgo());
+ipcMain.handle('get-analisis-vehiculos', () => db.getAnalisisVehiculos());
 
 // Sucursales (fase 2 multi-empresa): CRUD mecánico, la lógica de
 // compatibilidad hacia atrás vive en db/sucursales.js (data.json) y en el
