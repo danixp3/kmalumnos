@@ -7,15 +7,15 @@ _Registro vivo de tareas que requieren tu cuenta, tus credenciales o una decisi�
 Se eligió **enlace mágico** (el alumno pulsa un enlace en el correo, no teclea código) — funciona sin SMTP propio.
 
 - [x] **Supabase → Authentication → Providers → Email:** proveedor de email activado (ya estaba). ✓
-- [ ] **Supabase → Authentication → URL Configuration → Redirect URLs:** añadir `https://aulamovil.vercel.app/alumno.html` (o el comodín `https://aulamovil.vercel.app/**`). Sin esto, el enlace del correo no vuelve a la página correcta.
-- [ ] **Poner email a los alumnos** que vayan a usar el portal (campo "Email" en el alta/edición del alumno en la app). Para la prueba, pon tu propio correo en un alumno.
+- [x] **Supabase → Authentication → URL Configuration → Redirect URLs:** `https://aulamovil.vercel.app/alumno.html` añadida. ✓ (hecho por el propietario, 2026-08-05)
+- [x] **Poner email a los alumnos:** hecho (al menos un alumno con email para la prueba). ✓ (hecho por el propietario, 2026-08-05)
 - [ ] _(Opcional, futuro)_ **SMTP propio** en Supabase Auth: solo hace falta si algún día quieres el flujo de *código de 6 dígitos* en vez de enlace, o para volumen alto de correos (el SMTP por defecto tiene límite bajo).
 - [ ] _(Opcional, recomendado)_ **Supabase → Authentication:** activar "Leaked Password Protection" (lo marca el linter de seguridad).
 
 ## Para revisar en la app cuando quieras (opcional, no bloquea nada)
 
 - [x] **Agenda** revisada y mejorada con tus peticiones (2026-08-05): duración de clase configurable en Ajustes (45 min por defecto), la reserva se define por "nº de prácticas" (calcula la duración sola), y al marcar "realizada" se crean solas esas prácticas para el alumno (km a 0, para rellenar). ✓
-- [ ] _(Cuando esté el correo del portal configurado)_ Probar el **portal del alumno** de punta a punta: poner tu email en un alumno, entrar en `aulamovil.vercel.app/alumno.html`, recibir el código y ver las prácticas.
+- [x] **Portal del alumno probado de punta a punta y funcionando** ✓ (2026-08-05): correo → enlace → ver prácticas. Confirmado por el propietario.
 
 ## Decisiones de negocio pendientes
 
