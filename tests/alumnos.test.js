@@ -118,6 +118,35 @@ test('addAlumno/updateAlumno guardan y devuelven los 6 campos de ficha ampliada 
   expect(alumnos.find(x => x.id === aid).dni).toBe('12345678A');
 });
 
+test('addAlumno/updateAlumno guardan y validan el estado (activo/aprobado/baja)', () => {
+  const vid = db.addVehiculo('Coche 1', '', 0);
+
+  // addAlumno: con estado válido
+  const aid = db.addAlumno('Ana', 'B', vid, null, null, null, { estado: 'aprobado' });
+  let alumnos = db.getAlumnos();
+  expect(alumnos.find(a => a.id === aid).estado).toBe('aprobado');
+
+  // addAlumno: sin datos/estado → null (la UI lo trata como 'activo' por defecto)
+  const aid2 = db.addAlumno('Luis', 'B', vid);
+  alumnos = db.getAlumnos();
+  expect(alumnos.find(a => a.id === aid2).estado).toBeNull();
+
+  // addAlumno: valor no válido → null, no revienta ni guarda basura
+  const aid3 = db.addAlumno('Marta', 'B', vid, null, null, null, { estado: 'inventado' });
+  alumnos = db.getAlumnos();
+  expect(alumnos.find(a => a.id === aid3).estado).toBeNull();
+
+  // updateAlumno: cambia el estado
+  db.updateAlumno(aid2, 'Luis', 'B', vid, null, null, { estado: 'baja' });
+  alumnos = db.getAlumnos();
+  expect(alumnos.find(a => a.id === aid2).estado).toBe('baja');
+
+  // updateAlumno: vacío → null (quitar el estado, vuelve a 'activo' por defecto)
+  db.updateAlumno(aid, 'Ana', 'B', vid, null, null, { estado: '' });
+  alumnos = db.getAlumnos();
+  expect(alumnos.find(a => a.id === aid).estado).toBeNull();
+});
+
 test('borrar un profesor no borra ni desasigna a sus alumnos: conservan el profesor_id', () => {
   const vid = db.addVehiculo('Coche 1', '', 0);
   const pid = db.addProfesor('Juan', '');

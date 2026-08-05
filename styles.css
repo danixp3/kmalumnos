@@ -1122,6 +1122,20 @@
   .semaforo-verde { background: var(--success-light); color: var(--success-fg); }
   .semaforo-ambar { background: var(--warn-light); color: var(--warn-fg); }
   .semaforo-rojo  { background: var(--danger-light); color: var(--danger-fg); }
+  /* Estado del alumno: activo/aprobado/baja (ver db/alumnos.js, renderer/alumnos.js) */
+  .estado-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: default;
+  }
+  .estado-activo   { background: var(--success-light); color: var(--success-fg); }
+  .estado-aprobado { background: var(--info-bg); color: var(--info-fg); }
+  .estado-baja     { background: var(--gray-light); color: var(--gray); }
+
   .semaforo-leyenda {
     display: flex;
     align-items: center;

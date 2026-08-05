@@ -22,14 +22,23 @@ function getAlumnos(sucursalId) {
 // observaciones. Se agrupan en un objeto `datos` como ÚLTIMO parámetro para no
 // alargar más la firma posicional — igual criterio que el resto de campos ya
 // opcionales de esta función. Si no se pasa `datos`, no cambia nada (compat).
-const CAMPOS_DATOS_ALUMNO = ['telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones'];
+// `estado` sigue el mismo patrón pero con valores cerrados (ver
+// ESTADOS_ALUMNO_VALIDOS): cualquier otro valor (u omitido) se guarda como
+// null y la UI lo trata como 'activo' por defecto.
+const CAMPOS_DATOS_ALUMNO = ['telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones', 'estado'];
+const ESTADOS_ALUMNO_VALIDOS = ['activo', 'aprobado', 'baja'];
 
-// Normaliza el objeto `datos`: trim de cada campo y vacío → null.
+// Normaliza el objeto `datos`: trim de cada campo y vacío → null; `estado`
+// además se valida contra ESTADOS_ALUMNO_VALIDOS (cualquier otro valor → null).
 function _normalizarDatosAlumno(datos) {
   const out = {};
   for (const campo of CAMPOS_DATOS_ALUMNO) {
     const v = datos && datos[campo] != null ? String(datos[campo]).trim() : '';
-    out[campo] = v || null;
+    if (campo === 'estado') {
+      out[campo] = ESTADOS_ALUMNO_VALIDOS.includes(v) ? v : null;
+    } else {
+      out[campo] = v || null;
+    }
   }
   return out;
 }
@@ -103,4 +112,5 @@ function getAnotacionesAlumno(alumno_id) {
 module.exports = {
   getAlumnos, addAlumno, deleteAlumno, updateAlumno,
   getAnotacionesAlumno,
+  ESTADOS_ALUMNO_VALIDOS,
 };

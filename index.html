@@ -683,6 +683,14 @@
               <label>Email (para el portal del alumno)</label>
               <input type="email" id="a-email" placeholder="alumno@email.com" style="width:200px">
             </div>
+            <div class="form-group">
+              <label>Estado</label>
+              <select id="a-estado" style="width:120px">
+                <option value="activo">Activo</option>
+                <option value="aprobado">Aprobado</option>
+                <option value="baja">Baja</option>
+              </select>
+            </div>
           </div>
           <div class="form-row" style="margin-top:10px">
             <div class="form-group">
@@ -726,8 +734,8 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>Buscar por nombre</label>
-              <input type="text" id="f-alumnos-nombre" placeholder="Nombre del alumno..." style="width:200px" oninput="renderAlumnosTabla()">
+              <label>Buscar</label>
+              <input type="text" id="f-alumnos-nombre" placeholder="Buscar por nombre, DNI o teléfono..." style="width:220px" oninput="renderAlumnosTabla()">
             </div>
             <div class="form-group">
               <label>Vehículo asignado</label>
@@ -740,6 +748,15 @@
             <div class="form-group">
               <label>Profesor</label>
               <select id="f-alumnos-profesor" style="width:180px" onchange="renderAlumnosTabla()"><option value="">Todos los profesores</option></select>
+            </div>
+            <div class="form-group">
+              <label>Estado</label>
+              <select id="f-alumnos-estado" style="width:140px" onchange="renderAlumnosTabla()">
+                <option value="">Todos</option>
+                <option value="activo">Activo</option>
+                <option value="aprobado">Aprobado</option>
+                <option value="baja">Baja</option>
+              </select>
             </div>
             <button class="btn btn-gray btn-sm" onclick="limpiarFiltrosAlumnos()" style="align-self:flex-end">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -758,6 +775,7 @@
               <th class="sortable" data-sort="profesor" onclick="ordenarAlumnos('profesor')">Profesor<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="practicas" onclick="ordenarAlumnos('practicas')">Prácticas<span class="sort-ind"></span></th>
               <th title="Semáforo de examen: estimación automática a partir del historial de prácticas — verde listo, ámbar casi, rojo lejos">Examen</th>
+              <th class="sortable" data-sort="estado" onclick="ordenarAlumnos('estado')">Estado<span class="sort-ind"></span></th>
               <th>Acciones</th>
             </tr></thead>
             <tbody></tbody>
@@ -1771,6 +1789,14 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     <div class="form-group" style="margin-top:14px">
       <label>Email (para el portal del alumno)</label>
       <input type="email" id="edit-a-email" placeholder="alumno@email.com" style="width:100%">
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Estado</label>
+      <select id="edit-a-estado" style="width:100%">
+        <option value="activo">Activo</option>
+        <option value="aprobado">Aprobado</option>
+        <option value="baja">Baja</option>
+      </select>
     </div>
     <div class="form-row" style="margin-top:14px">
       <div class="form-group" style="flex:1">

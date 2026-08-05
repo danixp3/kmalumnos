@@ -99,10 +99,12 @@ function limpiarFiltrosAlumnos() {
   const vehiculo = document.getElementById('f-alumnos-vehiculo');
   const permiso = document.getElementById('f-alumnos-permiso');
   const profesor = document.getElementById('f-alumnos-profesor');
+  const estado = document.getElementById('f-alumnos-estado');
   if (nombre) nombre.value = '';
   if (vehiculo) vehiculo.value = '';
   if (permiso) permiso.value = '';
   if (profesor) profesor.value = '';
+  if (estado) estado.value = '';
   renderAlumnosTabla();
 }
 
@@ -139,9 +141,16 @@ function renderAlumnosTabla() {
   const vehiculoFiltro = document.getElementById('f-alumnos-vehiculo')?.value || '';
   const permisoFiltro = document.getElementById('f-alumnos-permiso')?.value || '';
   const profesorFiltro = document.getElementById('f-alumnos-profesor')?.value || '';
+  const estadoFiltro = document.getElementById('f-alumnos-estado')?.value || '';
 
   let filtrados = alumnosCache.filter(a => {
-    if (nombreFiltro && !a.nombre.toLowerCase().includes(nombreFiltro)) return false;
+    // El texto de búsqueda también encuentra por DNI y teléfono, no solo nombre.
+    if (nombreFiltro) {
+      const enNombre = a.nombre.toLowerCase().includes(nombreFiltro);
+      const enDni = (a.dni || '').toLowerCase().includes(nombreFiltro);
+      const enTelefono = (a.telefono || '').toLowerCase().includes(nombreFiltro);
+      if (!enNombre && !enDni && !enTelefono) return false;
+    }
     if (vehiculoFiltro === 'none') {
       if (a.vehiculo_id) return false;
     } else if (vehiculoFiltro && String(a.vehiculo_id || '') !== vehiculoFiltro) {
@@ -153,6 +162,7 @@ function renderAlumnosTabla() {
     } else if (profesorFiltro && String(a.profesor_id || '') !== profesorFiltro) {
       return false;
     }
+    if (estadoFiltro && (a.estado || 'activo') !== estadoFiltro) return false;
     return true;
   });
 
@@ -165,17 +175,18 @@ function renderAlumnosTabla() {
       else if (col === 'permiso') { va = a.permiso || ''; vb = b.permiso || ''; }
       else if (col === 'vehiculo') { va = a.vehiculo_nombre || ''; vb = b.vehiculo_nombre || ''; }
       else if (col === 'profesor') { va = a.profesor_nombre || ''; vb = b.profesor_nombre || ''; }
+      else if (col === 'estado') { va = a.estado || 'activo'; vb = b.estado || 'activo'; }
       return va.localeCompare(vb, 'es', { numeric: true }) * dir;
     });
   }
   actualizarIndicadoresOrdenAlumnos();
 
   if (!alumnosCache.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">No hay alumnos registrados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No hay alumnos registrados</td></tr>';
     return;
   }
   if (!filtrados.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">Ningún alumno coincide con los filtros</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">Ningún alumno coincide con los filtros</td></tr>';
     return;
   }
 
@@ -186,6 +197,9 @@ function renderAlumnosTabla() {
     const pillSemaforo = sem
       ? `<span class="semaforo-pill semaforo-${sem.nivel}" title="${esc(sem.motivo)}">${semTexto[sem.nivel] || sem.nivel}</span>`
       : '<span style="color:var(--placeholder)">—</span>';
+    const estado = a.estado || 'activo';
+    const estadoTexto = { activo: 'Activo', aprobado: 'Aprobado', baja: 'Baja' };
+    const pillEstado = `<span class="estado-pill estado-${estado}">${estadoTexto[estado] || estado}</span>`;
     return `<tr>
       <td><strong>${esc(a.nombre)}</strong></td>
       <td>${a.telefono ? esc(a.telefono) : '<span style="color:var(--placeholder)">—</span>'}</td>
@@ -194,6 +208,7 @@ function renderAlumnosTabla() {
       <td>${a.profesor_nombre ? esc(a.profesor_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
       <td><span style="font-weight:700">${a.num_practicas}</span></td>
       <td>${pillSemaforo}</td>
+      <td>${pillEstado}</td>
       <td>
         <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Prácticas</button>
         <button class="btn btn-sm" style="background:var(--warn-bg);color:var(--warn-fg);border:1px solid var(--warn-border)" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Anotaciones</button>
@@ -225,7 +240,8 @@ async function addAlumno() {
     fecha_nacimiento: document.getElementById('a-fecha-nacimiento')?.value || '',
     direccion: document.getElementById('a-direccion')?.value.trim() || '',
     fecha_alta: document.getElementById('a-fecha-alta')?.value || '',
-    observaciones: document.getElementById('a-observaciones')?.value.trim() || ''
+    observaciones: document.getElementById('a-observaciones')?.value.trim() || '',
+    estado: document.getElementById('a-estado')?.value || ''
   };
   if (!nombre) {
     showToast('alumno-alert', 'Introduce el nombre del alumno.', 'err');
@@ -247,6 +263,7 @@ async function addAlumno() {
   document.getElementById('a-direccion').value = '';
   document.getElementById('a-fecha-alta').value = '';
   document.getElementById('a-observaciones').value = '';
+  document.getElementById('a-estado').value = 'activo';
   loadAlumnos();
 }
 
@@ -294,6 +311,7 @@ async function openEditAlumno(id) {
   document.getElementById('edit-a-direccion').value = a.direccion || '';
   document.getElementById('edit-a-fecha-alta').value = a.fecha_alta || '';
   document.getElementById('edit-a-observaciones').value = a.observaciones || '';
+  document.getElementById('edit-a-estado').value = a.estado || 'activo';
   await llenarSelectProfesores('edit-a-profesor', a.profesor_id);
   openModal('modal-alumno');
 }
@@ -311,7 +329,8 @@ async function saveAlumno() {
     fecha_nacimiento: document.getElementById('edit-a-fecha-nacimiento')?.value || '',
     direccion: document.getElementById('edit-a-direccion')?.value.trim() || '',
     fecha_alta: document.getElementById('edit-a-fecha-alta')?.value || '',
-    observaciones: document.getElementById('edit-a-observaciones')?.value.trim() || ''
+    observaciones: document.getElementById('edit-a-observaciones')?.value.trim() || '',
+    estado: document.getElementById('edit-a-estado')?.value || ''
   };
   if (!nombre) { alert('Introduce un nombre.'); return; }
   if (!emailValido(email)) { alert('El email no tiene un formato válido.'); return; }

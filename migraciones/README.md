@@ -293,3 +293,31 @@ Añade 6 columnas de texto a `alumnos`, todas nullable y opcionales: `telefono`,
 ## Cómo revertir
 
 Ejecutar `2026-08-06_alumno_datos_ROLLBACK.sql`. Si para entonces ya hay datos reales guardados en estos 6 campos, se pierden — leer la advertencia dentro del propio archivo antes de ejecutarlo.
+
+# Migración: estado del alumno (activo / aprobado / baja)
+
+Fecha: 2026-08-06. Archivos de esta carpeta:
+
+- `2026-08-06_alumno_estado.sql` — la migración.
+- `2026-08-06_alumno_estado_ROLLBACK.sql` — la red de seguridad.
+
+**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla.
+
+## Qué hace, en llano
+
+Añade 1 columna de texto a `alumnos`, nullable y opcional: `estado`, con valores `activo`/`aprobado`/`baja` (cualquier otro valor, o vacío, se guarda y se trata como `activo`). Sirve para marcar de un vistazo si un alumno sigue en prácticas, ya se ha sacado el permiso o ha causado baja — la lista de alumnos ya lo muestra como pastilla de color y permite filtrar por él. La app de escritorio ya sabe guardar y editar este campo en el alta y la edición del alumno, y desde antes de aplicar esta migración: en local ya se guarda en `data.json`. Lo único que falta hasta aplicar esta migración es que también se suba a Supabase — `sync.js` reutiliza la misma comprobación de columnas que `2026-08-06_alumno_datos.sql` (comprueba `telefono`, porque está pensada para aplicarse junto a esa) y, mientras la columna no exista, simplemente no la incluye en la subida, sin errores ni sincronización rota.
+
+## Pasos exactos para aplicarla
+
+1. Copia de seguridad (mismo criterio que el resto de migraciones de esta carpeta): backup de `data.json` desde Ajustes y, si se quiere, un `SELECT * FROM alumnos` guardado.
+2. Aplicar `2026-08-06_alumno_estado.sql` (vía el SQL Editor de Supabase, o `node .claude/scripts/sql.js` si ya se ha revisado y aprobado). No depende de otras migraciones de esta carpeta, pero se aplica junto con `2026-08-06_alumno_datos.sql` (sync.js detecta ambas con la misma comprobación de `telefono`).
+3. Verificar (paso siguiente).
+
+## Qué verificar después
+
+- `SELECT estado FROM alumnos LIMIT 5;` → todo `NULL` salvo los alumnos a los que ya se les haya puesto un estado desde la app (esos se sincronizan al primer `sync()`/`pushAll()` tras aplicar la migración).
+- La app de escritorio sigue arrancando y sincronizando con normalidad; cambiar el estado de un alumno y forzar sincronización (`Ajustes → Sincronizar ahora`) debe reflejarlo en `SELECT estado FROM alumnos WHERE id = ...`.
+
+## Cómo revertir
+
+Ejecutar `2026-08-06_alumno_estado_ROLLBACK.sql`. Si para entonces ya hay datos reales guardados en `estado`, se pierden — leer la advertencia dentro del propio archivo antes de ejecutarlo.
