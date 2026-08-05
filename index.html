@@ -2039,6 +2039,58 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
   </div>
 </div>
 
+<!-- ═══ MODAL ECONOMÍA DEL ALUMNO ═══════════════════════════════ -->
+<div class="overlay" id="modal-economia-alumno">
+  <div class="modal" style="width:600px;max-height:85vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <div class="modal-header-icon">💶</div>
+      <h3 id="modal-economia-titulo">Economía del alumno</h3>
+      <span id="economia-permiso" style="margin-left:8px"></span>
+    </div>
+    <div id="economia-aviso-sin-tarifa" class="hidden alert alert-warn" style="margin-bottom:14px">
+      Hay prácticas sin tarifa definida — el importe generado puede estar incompleto. Revisa Pagos → Tarifas.
+    </div>
+    <div class="stats" id="economia-resumen" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px"></div>
+
+    <div style="overflow-y:auto;flex:1">
+      <h4 style="margin:0 0 8px">Pagos registrados</h4>
+      <div class="form-row" style="gap:8px;align-items:flex-end;margin-bottom:12px">
+        <div class="form-group" style="margin:0">
+          <label>Fecha</label>
+          <input type="date" id="economia-pago-fecha" style="width:140px">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Cantidad (€)</label>
+          <input type="number" id="economia-pago-cantidad" min="0" step="0.01" style="width:110px">
+        </div>
+        <div class="form-group" style="margin:0;flex:1">
+          <label>Nota (opcional)</label>
+          <input type="text" id="economia-pago-nota" placeholder="Ej: pago en efectivo, transferencia..." style="width:100%">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addPagoEconomia()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Añadir pago</button>
+      </div>
+      <div class="table-wrap" style="max-height:180px;overflow-y:auto">
+        <table id="tabla-economia-pagos">
+          <thead><tr><th>Fecha</th><th>Cantidad</th><th>Nota</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <h4 style="margin:16px 0 8px">Desglose de prácticas</h4>
+      <div class="table-wrap" style="max-height:200px;overflow-y:auto">
+        <table id="tabla-economia-desglose">
+          <thead><tr><th>Fecha</th><th>Tipo</th><th>Precio</th><th>Estado</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-economia-alumno')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <script src="date-utils.js"></script>
 <script src="renderer/estado.js"></script>
 <script src="renderer/utils-ui.js"></script>
