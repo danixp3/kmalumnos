@@ -52,11 +52,14 @@ contextBridge.exposeInMainWorld('api', {
 
   // Pagos
   getPagosAlumno:    (alumnoId)                   => ipcRenderer.invoke('get-pagos-alumno', alumnoId),
-  addPago:           (alumnoId, fecha, cantidad, nota, sucursalId) => ipcRenderer.invoke('add-pago', alumnoId, fecha, cantidad, nota, sucursalId),
-  updatePago:        (id, fecha, cantidad, nota)  => ipcRenderer.invoke('update-pago', id, fecha, cantidad, nota),
+  addPago:           (alumnoId, fecha, cantidad, nota, sucursalId, formaPago, empleado) => ipcRenderer.invoke('add-pago', alumnoId, fecha, cantidad, nota, sucursalId, formaPago, empleado),
+  updatePago:        (id, fecha, cantidad, nota, formaPago, empleado)  => ipcRenderer.invoke('update-pago', id, fecha, cantidad, nota, formaPago, empleado),
   deletePago:        (id)                         => ipcRenderer.invoke('delete-pago', id),
   getDeudas:         (sucursalId)                 => ipcRenderer.invoke('get-deudas', sucursalId),
   getDesglosePagosAlumno: (alumnoId)               => ipcRenderer.invoke('get-desglose-pagos-alumno', alumnoId),
+  getFichaPracticasAlumno: (alumnoId)              => ipcRenderer.invoke('get-ficha-practicas-alumno', alumnoId),
+  getArqueo:         (desde, hasta, sucursalId)    => ipcRenderer.invoke('get-arqueo', desde, hasta, sucursalId),
+  getMorosos:        (sucursalId)                  => ipcRenderer.invoke('get-morosos', sucursalId),
 
   // Generación y resumen
   generarKm:    (kmInicial, min, max)        => ipcRenderer.invoke('generar-km', kmInicial, min, max),
@@ -68,11 +71,12 @@ contextBridge.exposeInMainWorld('api', {
   getSemaforoAlumno:   (alumnoId)                => ipcRenderer.invoke('get-semaforo-alumno', alumnoId),
   getAlumnosEnRiesgo:  ()                        => ipcRenderer.invoke('get-alumnos-en-riesgo'),
   getAnalisisVehiculos: ()                       => ipcRenderer.invoke('get-analisis-vehiculos'),
+  getInformes:         (desde, hasta, sucursalId) => ipcRenderer.invoke('get-informes', desde, hasta, sucursalId),
   getSolapamientos:    ()                        => ipcRenderer.invoke('get-solapamientos'),
   rellenarKmMasivo:    (vid, min, max, inicio, final) => ipcRenderer.invoke('rellenar-km-masivo', vid, min, max, inicio, final),
   getPracticasSinKm:   (vid)                     => ipcRenderer.invoke('get-practicas-sin-km', vid),
   corregirSolapamientos: (vid, min, max)         => ipcRenderer.invoke('corregir-solapamientos', vid, min, max),
-  getLogs:               ()                      => ipcRenderer.invoke('get-logs'),
+  getLogs:               (filtro)                => ipcRenderer.invoke('get-logs', filtro),
   clearLogs:             ()                      => ipcRenderer.invoke('clear-logs'),
   crearBackup:           ()                      => ipcRenderer.invoke('crear-backup'),
   restaurarBackup:       ()                      => ipcRenderer.invoke('restaurar-backup'),
@@ -150,6 +154,15 @@ contextBridge.exposeInMainWorld('api', {
   setCompletadoVencimiento:    (id, completado)             => ipcRenderer.invoke('set-completado-vencimiento', id, completado),
   deleteVencimiento:           (id)                         => ipcRenderer.invoke('delete-vencimiento', id),
 
+  // CRM de captación (leads) — local por puesto, sin sync
+  getLeads:                    (sucursalId)                 => ipcRenderer.invoke('get-leads', sucursalId),
+  addLead:                     (datos)                      => ipcRenderer.invoke('add-lead', datos),
+  updateLead:                  (id, campos)                 => ipcRenderer.invoke('update-lead', id, campos),
+  setEstadoLead:                (id, estado)                 => ipcRenderer.invoke('set-estado-lead', id, estado),
+  deleteLead:                  (id)                         => ipcRenderer.invoke('delete-lead', id),
+  convertirLead:                (id)                         => ipcRenderer.invoke('convertir-lead', id),
+  getEstadisticasCrm:           (sucursalId)                 => ipcRenderer.invoke('get-estadisticas-crm', sucursalId),
+
   getPresentaciones:           (sucursalId)                 => ipcRenderer.invoke('get-presentaciones', sucursalId),
   addPresentacion:              (datos)                      => ipcRenderer.invoke('add-presentacion', datos),
   updatePresentacion:           (id, campos)                 => ipcRenderer.invoke('update-presentacion', id, campos),
@@ -157,6 +170,26 @@ contextBridge.exposeInMainWorld('api', {
   deletePresentacion:           (id)                         => ipcRenderer.invoke('delete-presentacion', id),
   getTasas:                     (sucursalId)                 => ipcRenderer.invoke('get-tasas', sucursalId),
   getTasasAlumno:               (alumnoId)                   => ipcRenderer.invoke('get-tasas-alumno', alumnoId),
+
+  // Bonos / packs de prácticas — local por puesto, sin sync
+  getBonos:                    (sucursalId)                 => ipcRenderer.invoke('get-bonos', sucursalId),
+  getBonosAlumno:               (alumnoId)                   => ipcRenderer.invoke('get-bonos-alumno', alumnoId),
+  getSaldoBonosAlumno:          (alumnoId)                   => ipcRenderer.invoke('get-saldo-bonos-alumno', alumnoId),
+  addBono:                     (datos)                      => ipcRenderer.invoke('add-bono', datos),
+  updateBono:                  (id, campos)                 => ipcRenderer.invoke('update-bono', id, campos),
+  consumirBono:                (id, n)                      => ipcRenderer.invoke('consumir-bono', id, n),
+  reponerBono:                 (id, n)                      => ipcRenderer.invoke('reponer-bono', id, n),
+  anularBono:                  (id)                         => ipcRenderer.invoke('anular-bono', id),
+  deleteBono:                  (id)                         => ipcRenderer.invoke('delete-bono', id),
+
+  // Cargos y descuentos (matrícula/tasas/cargos/descuentos/promos — tarea D2)
+  getCargos:                    (sucursalId)                 => ipcRenderer.invoke('get-cargos', sucursalId),
+  getCargosAlumno:               (alumnoId)                   => ipcRenderer.invoke('get-cargos-alumno', alumnoId),
+  getTotalCargosAlumno:          (alumnoId)                   => ipcRenderer.invoke('get-total-cargos-alumno', alumnoId),
+  addCargo:                     (datos)                      => ipcRenderer.invoke('add-cargo', datos),
+  updateCargo:                  (id, campos)                 => ipcRenderer.invoke('update-cargo', id, campos),
+  deleteCargo:                  (id)                         => ipcRenderer.invoke('delete-cargo', id),
+
   addTasa:                      (datos)                      => ipcRenderer.invoke('add-tasa', datos),
   updateTasa:                   (id, campos)                 => ipcRenderer.invoke('update-tasa', id, campos),
   deleteTasa:                   (id)                         => ipcRenderer.invoke('delete-tasa', id),

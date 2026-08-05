@@ -30,7 +30,7 @@ function load() {
   if (fs.existsSync(p)) {
     try { _data = JSON.parse(fs.readFileSync(p, 'utf-8')); } catch { _data = null; }
   }
-  if (!_data) _data = { vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], logs: [], _seq: { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1, r: 1, venc: 1, pres: 1, tasa: 1 } };
+  if (!_data) _data = { vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], logs: [], _seq: { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1, r: 1, venc: 1, pres: 1, tasa: 1, bono: 1, cargo: 1, lead: 1 } };
   if (!_data._seq) _data._seq = { v: 1, pf: 1, a: 1, p: 1 };
   if (!_data._seq.pf) _data._seq.pf = 1;
   if (!_data._seq.t) _data._seq.t = 1;
@@ -41,6 +41,9 @@ function load() {
   if (_data._seq.venc == null) _data._seq.venc = 1;
   if (_data._seq.pres == null) _data._seq.pres = 1;
   if (_data._seq.tasa == null) _data._seq.tasa = 1;
+  if (_data._seq.bono == null) _data._seq.bono = 1;
+  if (_data._seq.cargo == null) _data._seq.cargo = 1;
+  if (_data._seq.lead == null) _data._seq.lead = 1;
   if (!_data.logs) _data.logs = [];
   if (!_data.profesores) _data.profesores = [];
   if (!_data.tarifas) _data.tarifas = [];
@@ -51,6 +54,9 @@ function load() {
   if (!_data.vencimientos) _data.vencimientos = [];
   if (!_data.presentaciones) _data.presentaciones = [];
   if (!_data.tasas) _data.tasas = [];
+  if (!_data.bonos) _data.bonos = [];
+  if (!_data.cargos) _data.cargos = [];
+  if (!_data.leads) _data.leads = [];
   return _data;
 }
 
@@ -99,8 +105,29 @@ function registrarLogEnData(data, tipo, descripcion, detalles = []) {
   if (data.logs.length > 500) data.logs = data.logs.slice(0, 500);
 }
 
-function getLogs() {
-  return load().logs;
+// filtro opcional: { texto, tipo, desde, hasta }. Sin filtro (o filtro vacío)
+// devuelve todos los logs, igual que antes de añadir la pantalla de
+// Auditoría — así ningún llamador existente cambia de comportamiento.
+function getLogs(filtro) {
+  const logs = load().logs;
+  if (!filtro) return logs;
+  const { texto, tipo, desde, hasta } = filtro;
+  return logs.filter(log => {
+    if (tipo && log.tipo !== tipo) return false;
+    // log.fecha es un ISO string completo (new Date().toISOString()); los 10
+    // primeros caracteres son la fecha YYYY-MM-DD, comparable como texto con
+    // los límites del filtro (mismas convenciones de fecha del proyecto).
+    const fechaLog = (log.fecha || '').slice(0, 10);
+    if (desde && fechaLog < desde) return false;
+    if (hasta && fechaLog > hasta) return false;
+    if (texto) {
+      const t = texto.toLowerCase();
+      const enDescripcion = (log.descripcion || '').toLowerCase().includes(t);
+      const enDetalles = Array.isArray(log.detalles) && log.detalles.some(d => String(d).toLowerCase().includes(t));
+      if (!enDescripcion && !enDetalles) return false;
+    }
+    return true;
+  });
 }
 
 function clearLogs() {

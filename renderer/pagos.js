@@ -140,17 +140,19 @@ function abrirModalPago(alumnoId, alumnoNombre) {
   document.getElementById('edit-pago-alumno-id').value = alumnoId;
   document.getElementById('edit-pago-cantidad').value = '';
   document.getElementById('edit-pago-nota').value = '';
+  document.getElementById('edit-pago-forma').value = '';
   document.getElementById('edit-pago-fecha').value = new Date().toISOString().split('T')[0];
   document.getElementById('modal-pago-titulo').textContent = `Anotar pago — ${alumnoNombre}`;
   openModal('modal-pago');
 }
 
-function openEditPago(id, alumnoId, alumnoNombre, fecha, cantidad, nota) {
+function openEditPago(id, alumnoId, alumnoNombre, fecha, cantidad, nota, formaPago) {
   document.getElementById('edit-pago-id').value = id;
   document.getElementById('edit-pago-alumno-id').value = alumnoId;
   document.getElementById('edit-pago-fecha').value = fecha;
   document.getElementById('edit-pago-cantidad').value = cantidad;
   document.getElementById('edit-pago-nota').value = nota || '';
+  document.getElementById('edit-pago-forma').value = formaPago || '';
   document.getElementById('modal-pago-titulo').textContent = `Editar pago — ${alumnoNombre}`;
   openModal('modal-pago');
 }
@@ -161,13 +163,16 @@ async function savePago() {
   const fecha = document.getElementById('edit-pago-fecha').value;
   const cantidad = parseFloat(document.getElementById('edit-pago-cantidad').value);
   const nota = document.getElementById('edit-pago-nota').value.trim();
+  const formaPago = document.getElementById('edit-pago-forma').value || null;
   if (!fecha) { alert('Selecciona una fecha.'); return; }
   if (isNaN(cantidad) || cantidad <= 0) { alert('Introduce una cantidad válida.'); return; }
 
   if (id) {
-    await window.api.updatePago(parseInt(id), fecha, cantidad, nota);
+    // Edición: no se toca el empleado original (undefined = updatePago no lo modifica).
+    await window.api.updatePago(parseInt(id), fecha, cantidad, nota, formaPago, undefined);
   } else {
-    await window.api.addPago(alumnoId, fecha, cantidad, nota, getSucursalActual());
+    const empleado = (typeof perfilActual !== 'undefined' && perfilActual?.nombre) || null;
+    await window.api.addPago(alumnoId, fecha, cantidad, nota, getSucursalActual(), formaPago, empleado);
   }
   closeModal('modal-pago');
   loadDeudas();
@@ -187,14 +192,16 @@ async function abrirHistorialPagos(alumnoId, alumnoNombre) {
   document.getElementById('modal-historial-pagos-titulo').textContent = `Historial de pagos — ${alumnoNombre}`;
   const tbody = document.querySelector('#tabla-historial-pagos tbody');
   if (!pagos.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty">No hay pagos registrados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">No hay pagos registrados</td></tr>';
   } else {
+    const FORMA_LABEL = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia', bizum: 'Bizum', otro: 'Otro' };
     tbody.innerHTML = pagos.map(p => `<tr>
       <td>${fmtFecha(p.fecha)}</td>
       <td>${fmt(p.cantidad)} €</td>
+      <td>${p.forma_pago ? esc(FORMA_LABEL[p.forma_pago] || p.forma_pago) : '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${p.nota ? esc(p.nota) : '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>
-        <button class="btn btn-warn btn-sm" onclick="openEditPago(${p.id},${alumnoId},'${esc(alumnoNombre)}','${p.fecha}',${p.cantidad},'${esc(p.nota || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+        <button class="btn btn-warn btn-sm" onclick="openEditPago(${p.id},${alumnoId},'${esc(alumnoNombre)}','${p.fecha}',${p.cantidad},'${esc(p.nota || '')}','${esc(p.forma_pago || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
         <button class="btn btn-danger btn-sm" onclick="deletePagoUI(${p.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </td>
     </tr>`).join('');

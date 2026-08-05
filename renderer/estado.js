@@ -58,6 +58,8 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     if (page === 'reservas') loadReservas();
     if (page === 'jornada') loadJornadas();
     if (page === 'vencimientos') loadVencimientos();
+    if (page === 'crm') loadCrm();
+    if (page === 'bonos') loadBonos();
     if (page === 'examenes') loadExamenes();
     if (page === 'practicas-global') loadPracticasGlobal();
     if (page === 'kilometros') {
@@ -68,7 +70,9 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
       const activeTab = document.querySelector('#page-datos .page-tab.active')?.dataset.tab || 'importar';
       cambiarTabDatos(activeTab);
     }
+    if (page === 'caja') loadCaja();
     if (page === 'logs') loadLogs();
+    if (page === 'informes') loadInformes();
     if (page === 'registro-rapido') loadRegistroRapidoInit();
     if (page === 'ajustes') loadAjustes();
     dashboardListo.then(() => comprobarTutorial(page));

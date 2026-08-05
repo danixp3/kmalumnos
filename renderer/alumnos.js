@@ -432,10 +432,15 @@ async function renderEconomiaAlumno() {
   if (desglose) {
     const saldoClase = desglose.saldo > 0 ? 'saldo-pendiente' : 'saldo-ok';
     const saldoTexto = desglose.saldo > 0 ? 'Pendiente de cobro' : 'Al día';
+    const totalCargos = (desglose.cargos || []).reduce((sum, c) => sum + (c.importe || 0), 0);
     resumen.innerHTML = `
       <div class="stat">
         <div class="stat-head"><span class="lbl">Generado</span></div>
         <div class="num">${fmt(desglose.total_generado)} €</div>
+      </div>
+      <div class="stat">
+        <div class="stat-head"><span class="lbl">Cargos/descuentos</span></div>
+        <div class="num">${fmt(totalCargos)} €</div>
       </div>
       <div class="stat">
         <div class="stat-head"><span class="lbl">Pagado</span></div>
@@ -480,6 +485,68 @@ async function renderEconomiaAlumno() {
       <td><button class="btn btn-danger btn-sm" onclick="deletePagoEconomia(${p.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>
     </tr>`).join('');
   }
+
+  const TIPO_CARGO_LABEL = { matricula: 'Matrícula', tasa: 'Tasa', cargo: 'Cargo', descuento: 'Descuento', promo: 'Promoción' };
+  const tbodyCargos = document.querySelector('#tabla-economia-cargos tbody');
+  const cargos = (desglose && desglose.cargos) || [];
+  if (!cargos.length) {
+    tbodyCargos.innerHTML = '<tr><td colspan="5" class="empty">No hay cargos ni descuentos registrados</td></tr>';
+  } else {
+    tbodyCargos.innerHTML = cargos.map(c => `<tr>
+      <td>${fmtFecha(c.fecha)}</td>
+      <td>${c.concepto ? esc(c.concepto) : '<span style="color:var(--placeholder)">—</span>'}</td>
+      <td>${esc(TIPO_CARGO_LABEL[c.tipo] || c.tipo)}</td>
+      <td><span class="${c.importe < 0 ? 'saldo-ok' : 'saldo-pendiente'}">${fmt(c.importe)} €</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteCargoEconomia(${c.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button></td>
+    </tr>`).join('');
+  }
+}
+
+// ─── CARGOS Y DESCUENTOS DEL ALUMNO (modal, tarea D2) ──────────────────────
+// Vive dentro del modal de economía: abrirModalCargo()/guardarCargo() lo
+// rellenan y lo guardan, addCargoRapido() precarga tipo+importe con la
+// preferencia de Ajustes (getMatriculaImporte/getTasaImporte, renderer/
+// ajustes.js). Al guardar, refresca renderEconomiaAlumno() para que el
+// resumen (total_generado/saldo, ya recalculados en db/pagos.js) se
+// actualice al instante.
+function abrirModalCargo() {
+  document.getElementById('cargo-tipo').value = 'cargo';
+  document.getElementById('cargo-concepto').value = '';
+  document.getElementById('cargo-importe').value = '';
+  document.getElementById('cargo-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('cargo-nota').value = '';
+  openModal('modal-cargo');
+}
+
+function addCargoRapido(tipo) {
+  const importe = tipo === 'matricula' ? getMatriculaImporte() : getTasaImporte();
+  document.getElementById('cargo-tipo').value = tipo;
+  document.getElementById('cargo-concepto').value = tipo === 'matricula' ? 'Matrícula' : 'Tasa';
+  document.getElementById('cargo-importe').value = importe;
+  document.getElementById('cargo-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('cargo-nota').value = '';
+  openModal('modal-cargo');
+}
+
+async function guardarCargo() {
+  const modalEco = document.getElementById('modal-economia-alumno');
+  const alumnoId = parseInt(modalEco.dataset.alumnoId);
+  const tipo = document.getElementById('cargo-tipo').value;
+  const concepto = document.getElementById('cargo-concepto').value.trim();
+  const importe = parseFloat(document.getElementById('cargo-importe').value);
+  const fecha = document.getElementById('cargo-fecha').value;
+  const nota = document.getElementById('cargo-nota').value.trim();
+  if (isNaN(importe)) { alert('Introduce un importe válido.'); return; }
+  if (!fecha) { alert('Selecciona una fecha.'); return; }
+  await window.api.addCargo({ alumno_id: alumnoId, concepto, tipo, importe, fecha, sucursal_id: getSucursalActual(), nota });
+  closeModal('modal-cargo');
+  await renderEconomiaAlumno();
+}
+
+async function deleteCargoEconomia(id) {
+  if (!confirm('¿Borrar este cargo/descuento?')) return;
+  await window.api.deleteCargo(id);
+  await renderEconomiaAlumno();
 }
 
 async function addPagoEconomia() {
@@ -574,6 +641,79 @@ async function imprimirFichaAlumno(id) {
       ${filaFicha('Pagado', `${fmtEuros(desglose.total_pagado)} €`)}
       ${filaFicha('Saldo', `${fmtEuros(desglose.saldo)} €`)}
     </div>` : '<p class="ficha-sin-datos">No hay datos de economía disponibles.</p>'}
+  `;
+
+  window.print();
+}
+
+// ─── FICHA DE CLASES PRÁCTICAS FIRMABLE (RD 1295/2003 art. 40) ─────────────
+// Mismo mecanismo de impresión que imprimirFichaAlumno/imprimirLibroRegistro
+// (#ficha-print oculto en pantalla, visible solo en @media print).
+const TIPO_PRACTICA_TEXTO = { circulacion: 'Circulación', pista: 'Pista' };
+
+async function imprimirFichaPracticas(alumnoId) {
+  const datos = await window.api.getFichaPracticasAlumno(alumnoId);
+  if (!datos) return;
+
+  const { alumno, practicas, totales } = datos;
+  const PERMISO_TEXTO = { B: 'B (Coche)', A: 'A (Moto)', A2: 'A2', AM: 'AM', C: 'C (Camión)' };
+
+  const filas = practicas.map((p, i) => `<tr>
+      <td>${i + 1}</td>
+      <td>${fmtFecha(p.fecha)}</td>
+      <td>${esc(p.vehiculo_nombre || '—')}${p.matricula ? ` (${esc(p.matricula)})` : ''}</td>
+      <td>${esc(p.profesor_nombre || '—')}</td>
+      <td>${esc(TIPO_PRACTICA_TEXTO[p.tipo] || p.tipo)}</td>
+      <td>${p.km_inicial}</td>
+      <td>${p.km_final}</td>
+      <td>${p.km_recorridos}</td>
+      <td class="ficha-firma-celda"></td>
+      <td class="ficha-firma-celda"></td>
+    </tr>`).join('');
+
+  const ficha = document.getElementById('ficha-print');
+  ficha.innerHTML = `
+    <div class="ficha-cabecera">
+      <img src="icon.png" alt="AulaMovil" class="ficha-logo">
+      <div>
+        <h1>AulaMovil — Ficha de clases prácticas</h1>
+        <div class="ficha-fecha">Impresa el ${fmtFecha(new Date().toISOString().split('T')[0])}</div>
+      </div>
+    </div>
+
+    <div class="ficha-grid">
+      ${filaFicha('Alumno', alumno.nombre)}
+      ${filaFicha('DNI/NIE', alumno.dni)}
+      ${filaFicha('Permiso', PERMISO_TEXTO[alumno.permiso] || alumno.permiso)}
+    </div>
+
+    <table class="ficha-tabla">
+      <thead><tr>
+        <th>Nº</th><th>Fecha</th><th>Vehículo</th><th>Profesor</th><th>Tipo</th>
+        <th>Km inicial</th><th>Km final</th><th>Km recorridos</th><th>Firma alumno</th><th>Firma profesor</th>
+      </tr></thead>
+      <tbody>${filas || '<tr><td colspan="10" style="text-align:center">No hay clases prácticas registradas</td></tr>'}</tbody>
+      <tfoot><tr>
+        <td colspan="7" style="text-align:right"><strong>Totales</strong></td>
+        <td><strong>${totales.nClases} clase${totales.nClases === 1 ? '' : 's'}</strong></td>
+        <td colspan="2"><strong>${totales.kmTotales} km</strong></td>
+      </tr></tfoot>
+    </table>
+
+    <div class="ficha-firmas-final">
+      <div class="ficha-firma-bloque">
+        <div class="ficha-firma-linea"></div>
+        <span>Firma y sello del centro</span>
+      </div>
+      <div class="ficha-firma-bloque">
+        <div class="ficha-firma-linea"></div>
+        <span>Firma del alumno</span>
+      </div>
+      <div class="ficha-firma-bloque">
+        <div class="ficha-firma-linea"></div>
+        <span>Fecha</span>
+      </div>
+    </div>
   `;
 
   window.print();
