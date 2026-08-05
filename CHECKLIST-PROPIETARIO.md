@@ -14,7 +14,7 @@ Se eligió **enlace mágico** (el alumno pulsa un enlace en el correo, no teclea
 
 ## Para revisar en la app cuando quieras (opcional, no bloquea nada)
 
-- [ ] **Abrir la app** y mirar la nueva pestaña **"Agenda"** en la barra lateral: crear una reserva, confirmarla/cancelarla/marcarla realizada. También aparece un resumen de agenda en el panel principal y se encuentra desde el buscador (Ctrl/⌘+K → "agenda").
+- [x] **Agenda** revisada y mejorada con tus peticiones (2026-08-05): duración de clase configurable en Ajustes (45 min por defecto), la reserva se define por "nº de prácticas" (calcula la duración sola), y al marcar "realizada" se crean solas esas prácticas para el alumno (km a 0, para rellenar). ✓
 - [ ] _(Cuando esté el correo del portal configurado)_ Probar el **portal del alumno** de punta a punta: poner tu email en un alumno, entrar en `aulamovil.vercel.app/alumno.html`, recibir el código y ver las prácticas.
 
 ## Decisiones de negocio pendientes

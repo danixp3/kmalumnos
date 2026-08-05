@@ -1242,6 +1242,7 @@ async function sync() {
             vehiculo_id: r.vehiculo_id || null, fecha: r.fecha || null, hora_inicio: r.hora_inicio || null,
             duracion_min: r.duracion_min || 45, estado: r.estado || 'solicitada',
             origen: r.origen || 'desktop', nota: r.nota || '',
+            n_practicas: r.n_practicas != null ? r.n_practicas : 1,
             deleted: false, updated_at: new Date().toISOString()
           };
           if (_empresaId) payload.empresa_id = _empresaId;
@@ -1648,6 +1649,7 @@ async function sync() {
               estado: rr.estado || 'solicitada', origen: rr.origen || 'desktop',
               nota: rr.nota || '',
               sucursal_id: rr.sucursal_id != null ? rr.sucursal_id : null,
+              n_practicas: rr.n_practicas != null ? rr.n_practicas : 1,
               updated_at: rr.updated_at
             };
             if (idx === -1) {
@@ -1660,7 +1662,7 @@ async function sync() {
               const remoteUpdated = rr.updated_at || '1970-01-01T00:00:00.000Z';
               if (remoteUpdated > localUpdated) {
                 _detectarYRegistrarConflicto(data, 'reservas', pending.reservas, rr.id,
-                  ['estado', 'fecha', 'hora_inicio', 'profesor_id'], data.reservas[idx], reserva, conflictos);
+                  ['estado', 'fecha', 'hora_inicio', 'profesor_id', 'n_practicas'], data.reservas[idx], reserva, conflictos);
                 data.reservas[idx] = reserva;
                 dataChanged = true;
                 pulled++;

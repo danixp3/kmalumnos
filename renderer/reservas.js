@@ -78,13 +78,29 @@ function renderReservasLista() {
   }).join('');
 }
 
+// Recalcula y pinta la duración a partir de "Nº de prácticas" × minutos por
+// clase (ajuste de Ajustes, getDuracionClaseMin() en renderer/ajustes.js).
+function actualizarDuracionReserva() {
+  const n = Math.max(1, parseInt(document.getElementById('res-npracticas').value) || 1);
+  const minutosClase = getDuracionClaseMin();
+  const totalMin = n * minutosClase;
+  const horas = Math.floor(totalMin / 60);
+  const restoMin = totalMin % 60;
+  const partes = [];
+  if (horas) partes.push(`${horas} h`);
+  if (restoMin || !horas) partes.push(`${restoMin} min`);
+  const info = document.getElementById('res-duracion-info');
+  if (info) info.textContent = `Duración: ${totalMin} min (${partes.join(' ')})`;
+}
+
 async function abrirNuevaReserva() {
   document.getElementById('modal-reserva-titulo').textContent = 'Nueva reserva';
   document.getElementById('res-id').value = '';
   document.getElementById('res-fecha').value = '';
   document.getElementById('res-hora').value = '';
-  document.getElementById('res-duracion').value = 45;
+  document.getElementById('res-npracticas').value = 1;
   document.getElementById('res-nota').value = '';
+  actualizarDuracionReserva();
   alumnosCache = await window.api.getAlumnos(getSucursalActual());
   vehiculosCache = await window.api.getVehiculos(getSucursalActual());
   llenarSelectAlumnosReserva(null);
@@ -101,8 +117,9 @@ async function abrirEditarReserva(id) {
   document.getElementById('res-id').value = r.id;
   document.getElementById('res-fecha').value = r.fecha || '';
   document.getElementById('res-hora').value = r.hora_inicio || '';
-  document.getElementById('res-duracion').value = r.duracion_min || 45;
+  document.getElementById('res-npracticas').value = r.n_practicas || 1;
   document.getElementById('res-nota').value = r.nota || '';
+  actualizarDuracionReserva();
   alumnosCache = await window.api.getAlumnos(getSucursalActual());
   vehiculosCache = await window.api.getVehiculos(getSucursalActual());
   llenarSelectAlumnosReserva(r.alumno_id);
@@ -119,7 +136,8 @@ async function guardarReserva() {
   const vehiculo_id = document.getElementById('res-vehiculo').value || null;
   const fecha = document.getElementById('res-fecha').value;
   const hora_inicio = document.getElementById('res-hora').value || null;
-  const duracion_min = parseInt(document.getElementById('res-duracion').value) || 45;
+  const n_practicas = Math.max(1, parseInt(document.getElementById('res-npracticas').value) || 1);
+  const duracion_min = n_practicas * getDuracionClaseMin();
   const nota = document.getElementById('res-nota').value.trim();
 
   if (!alumno_id || !fecha) {
@@ -128,13 +146,13 @@ async function guardarReserva() {
   }
 
   if (id) {
-    await window.api.updateReserva(parseInt(id), { alumno_id, profesor_id, vehiculo_id, fecha, hora_inicio, duracion_min, nota });
+    await window.api.updateReserva(parseInt(id), { alumno_id, profesor_id, vehiculo_id, fecha, hora_inicio, duracion_min, n_practicas, nota });
   } else {
     // Reserva creada directamente desde la app: la autoescuela ya la está
     // concertando ella misma, así que arranca 'confirmada' (no 'solicitada',
     // que es el estado de las peticiones que llegan desde fuera, p. ej. la
     // futura web del alumno). origen='desktop' identifica su procedencia.
-    await window.api.addReserva({ alumno_id, profesor_id, vehiculo_id, fecha, hora_inicio, duracion_min, estado: 'confirmada', origen: 'desktop', nota, sucursal_id: getSucursalActual() });
+    await window.api.addReserva({ alumno_id, profesor_id, vehiculo_id, fecha, hora_inicio, duracion_min, n_practicas, estado: 'confirmada', origen: 'desktop', nota, sucursal_id: getSucursalActual() });
   }
   closeModal('modal-reserva');
   loadReservas();
@@ -152,8 +170,15 @@ async function cancelarReserva(id) {
 }
 
 async function marcarRealizadaReserva(id) {
-  await window.api.setEstadoReserva(id, 'realizada');
+  const res = await window.api.completarReserva(id);
+  if (!res || !res.ok) {
+    showToast('reservas-toast', (res && res.msg) || 'No se pudo completar la reserva.', 'err');
+    return;
+  }
   loadReservas();
+  if (res.creadas > 0) {
+    showToast('reservas-toast', `${res.creadas} práctica${res.creadas === 1 ? '' : 's'} añadida${res.creadas === 1 ? '' : 's'} al alumno.`, 'ok');
+  }
 }
 
 async function borrarReserva(id) {
