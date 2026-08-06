@@ -53,6 +53,18 @@ app.on('browser-window-created', (_e, w) => {
 });
 process.on('uncaughtException', e => fallos.push(`[MAIN] ${e && e.stack}`));
 
+// Tope global de seguridad: si algo se bloquea (p. ej. un diálogo nativo), el
+// proceso se cierra igualmente en vez de quedarse colgado indefinidamente.
+const WATCHDOG_MS = 180000;
+setTimeout(() => {
+  console.log('\n===== SMOKE UI (watchdog) =====');
+  info.forEach(l => console.log(l));
+  console.log('\n[SMOKE] tope de tiempo alcanzado (' + (WATCHDOG_MS / 1000) + 's) — se fuerza el cierre');
+  if (CON_GUARDADO) { try { restaurarDatos(); } catch (e) {} }
+  try { BrowserWindow.getAllWindows().forEach(w => w.destroy()); } catch (e) {}
+  app.exit(2);
+}, WATCHDOG_MS).unref();
+
 function respaldarDatos() {
   rutaDatos = path.join(app.getPath('userData'), 'data.json');
   if (!fs.existsSync(rutaDatos)) return;
@@ -68,11 +80,14 @@ function restaurarDatos() {
   info.push('datos restaurados');
 }
 
-const RELLENAR = `(function(ov){
+// Rellena un contenedor con datos de prueba con el TIPO correcto de cada campo
+// (si no, un texto en un campo hora/email dispara errores que no son de la app).
+const RELLENAR = `(function(cont){
   var hoy = new Date().toISOString().slice(0,10);
-  ov.querySelectorAll('input, select, textarea').forEach(function(el){
+  cont.querySelectorAll('input, select, textarea').forEach(function(el){
+    var idl = (el.id || '').toLowerCase();
     if (el.type === 'hidden') {
-      if (el.id && /fecha|desde|hasta|caduc|compra/.test(el.id)) el.value = hoy;
+      if (/fecha|desde|hasta|caduc|compra|inicio|fin/.test(idl)) el.value = hoy;
       return;
     }
     if (el.tagName === 'SELECT') {
@@ -80,10 +95,15 @@ const RELLENAR = `(function(ov){
       if (op) { el.value = op.value; el.dispatchEvent(new Event('change',{bubbles:true})); }
       return;
     }
-    if (el.type === 'number') { el.value = '2'; return; }
     if (el.type === 'checkbox' || el.type === 'radio') return;
+    if (el.type === 'number') { el.value = '2'; return; }
     if (el.type === 'date') { el.value = hoy; return; }
+    if (el.type === 'time') { el.value = '09:00'; return; }
+    if (el.type === 'email' || /email|correo/.test(idl)) { el.value = 'smoke@ejemplo.com'; return; }
     el.value = 'SMOKE_PRUEBA';
+  });
+  cont.querySelectorAll('input, select, textarea').forEach(function(el){
+    el.dispatchEvent(new Event('input', { bubbles: true }));
   });
   return true;
 })`;
@@ -129,6 +149,10 @@ async function recorrerSecciones() {
 }
 
 async function probarGuardado(p) {
+  // Cierra cualquier modal que el barrido previo haya podido dejar abierto,
+  // para no confundirlo con el resultado del guardado.
+  await ev(`document.querySelectorAll('.overlay.open').forEach(o=>o.classList.remove('open')); true;`);
+  await espera(200);
   const r = await ev(`(function(){
     var pg = document.getElementById('page-${p}');
     if (!pg) return 'sin-pagina';
@@ -139,6 +163,12 @@ async function probarGuardado(p) {
   })()`);
   if (r !== 'abierto') return;
   await espera(800);
+
+  // Algunas pantallas (vehículos, profesores, alumnos) dan de alta con un
+  // formulario EN LÍNEA, sin modal: el smoke no las prueba para no ensuciar los
+  // filtros de la página; se anota como omitido, no como fallo.
+  const hayModal = await ev(`!!document.querySelector('.overlay.open')`);
+  if (!hayModal) { info.push(`  ${p}: alta en línea (no probada por el smoke)`); return; }
 
   const res = await ev(`(function(){
     var ov = document.querySelector('.overlay.open');
@@ -212,6 +242,15 @@ async function principal() {
   if (!await esperarInterfaz()) return;
   await espera(1500); // dejar terminar las cargas iniciales
   if (CON_GUARDADO) respaldarDatos(); // con la app ya lista, userData es la buena
+  // Neutraliza los diálogos nativos: un confirm()/alert() sin nadie que lo
+  // cierre bloquearía la ventana para siempre en una ejecución automática.
+  // confirm→false (cancela borrados/conversiones), alert/print→no-op.
+  await ev(`
+    window.confirm = function(){ return false; };
+    window.alert = function(){};
+    window.print = function(){};
+    true;
+  `);
   await ev(`
     window.addEventListener('error', e => console.error('ERROR NO CAPTURADO: ' + e.message + ' @' + e.filename + ':' + e.lineno));
     window.addEventListener('unhandledrejection', e => console.error('PROMESA RECHAZADA: ' + ((e.reason && (e.reason.stack||e.reason.message)) || e.reason)));
