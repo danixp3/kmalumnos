@@ -56,6 +56,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     }
     if (page === 'alumnos') { loadVehiculosSelect(); llenarSelectProfesores('a-profesor'); loadAlumnos(); }
     if (page === 'reservas') loadReservas();
+    if (page === 'agenda-visual') loadAgendaVisual();
     if (page === 'jornada') loadJornadas();
     if (page === 'vencimientos') loadVencimientos();
     if (page === 'crm') loadCrm();

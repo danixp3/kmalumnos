@@ -94,6 +94,12 @@
         </span>
         Agenda
       </a>
+      <a data-page="agenda-visual">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        </span>
+        Agenda visual
+      </a>
       <a data-page="jornada">
         <span class="nav-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -1050,6 +1056,28 @@
           <tbody></tbody>
         </table>
       </div>
+    </div>
+
+    <!-- ── AGENDA VISUAL (REJILLA SEMANAL DRAG&DROP) ── -->
+    <div id="page-agenda-visual" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Agenda visual</div>
+          <div class="page-subtitle">Vista semanal de las reservas, arrastra para cambiar de día</div>
+        </div>
+      </div>
+
+      <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="avSemana(-1)">◀ Semana anterior</button>
+        <button class="btn btn-sm" onclick="avHoy()">Hoy</button>
+        <button class="btn btn-sm" onclick="avSemana(1)">Semana siguiente ▶</button>
+        <span id="av-rango" style="font-weight:600"></span>
+        <button class="btn btn-sm" style="margin-left:auto" onclick="loadAgendaVisual()">Actualizar</button>
+      </div>
+
+      <div id="av-toast" class="hidden" style="margin-bottom:12px"></div>
+
+      <div id="av-grid"></div>
     </div>
 
     <!-- ── JORNADA LABORAL (FICHAJES, ART. 34.9 ET) ── -->
@@ -2964,6 +2992,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
 <script src="renderer/examenes.js"></script>
 <script src="renderer/informes.js"></script>
 <script src="renderer/caja.js"></script>
+<script src="renderer/agenda-visual.js"></script>
 <script src="renderer/arranque.js"></script>
 </body>
 </html>
