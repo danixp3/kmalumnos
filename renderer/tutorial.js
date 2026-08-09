@@ -1,6 +1,8 @@
 // ─── TUTORIAL INTERACTIVO ───────────────────────────────────────────────────
-// Tutorial guiado por secciones (27 pasos): foco visual, bocadillo, navegación
-// entre pasos y persistencia de qué tutoriales ya se han visto.
+// Tutorial guiado por secciones: foco visual, bocadillo, navegación entre pasos
+// y persistencia de qué tutoriales ya se han visto. Cubre el panel y todas las
+// secciones, incluidas las nuevas (jornada, caducidades, captación/CRM, bonos,
+// exámenes, caja, informes y agenda visual), centrándose en lo no evidente.
 
 // ─── TUTORIAL ───────────────────────────────────────────────────────────────
 const TUTORIAL_VISTO_KEY = 'kmalumnos_tutorial_visto';
@@ -125,6 +127,61 @@ const TUTORIAL_PASOS = {
     { sel: '#pref-km-min', pos: 'bottom',
       titulo: 'Tus preferencias',
       texto: 'Aquí fijas el rango de km por defecto, qué tarjetas ver en el panel principal, y puedes volver a lanzar estos tutoriales cuando quieras.' }
+  ],
+  jornada: [
+    { sel: '#jor-empleado', pos: 'bottom',
+      titulo: 'Fichar por empleado',
+      texto: 'Escribe el nombre y el botón cambia solo entre "Fichar entrada" y "Fichar salida" según si esa persona ya tiene una jornada abierta hoy.' },
+    { sel: '#tabla-jornadas', pos: 'top',
+      titulo: 'Correcciones auditadas',
+      texto: 'Puedes corregir una entrada o salida, pero cada cambio queda registrado (columna de correcciones) para cumplir el art. 34.9. El botón Exportar CSV genera el registro para Inspección.' }
+  ],
+  vencimientos: [
+    { sel: '#vencimientos-lista', pos: 'top',
+      titulo: 'Caducidades de todo',
+      texto: 'ITV y seguro de vehículos, psicotécnico o DNI de alumnos, certificado del profesor… Cada vencimiento se liga a un vehículo, alumno, profesor, o es general. Lo que esté a punto de caducar aparece como alerta en el panel de inicio.' }
+  ],
+  crm: [
+    { sel: '#crm-stats', pos: 'bottom',
+      titulo: 'Embudo de captación',
+      texto: 'Mide cuántos contactos tienes en cada estado, tu ratio de conversión y de qué origen vienen los que acaban matriculándose.' },
+    { sel: '#leads-lista', pos: 'top',
+      titulo: 'Convertir en alumno',
+      texto: 'Cuando un contacto se matricula, el botón Convertir le crea la ficha de alumno automáticamente y marca el lead como ganado.' }
+  ],
+  bonos: [
+    { sel: '#bonos-lista', pos: 'top',
+      titulo: 'Bonos de clases',
+      texto: 'Un bono son varias clases prepagadas. Con los botones +1 / −1 consumes o repones clases del saldo. El plazo y la devolución al cancelar se configuran en Ajustes.' }
+  ],
+  examenes: [
+    { sel: '#examenes-stats', pos: 'bottom',
+      titulo: 'Ratio de aprobados',
+      texto: 'Se calcula solo sobre las presentaciones con resultado apto o no apto, desglosado por tipo y por profesor. Las pendientes o aplazadas no cuentan.' },
+    { sel: '#presentaciones-lista', pos: 'top',
+      titulo: 'Resultado rápido',
+      texto: 'El desplegable de cada fila cambia el resultado (apto, no apto, aplazado, no presentado) al momento, sin abrir la ficha.' }
+  ],
+  caja: [
+    { sel: '#caja-desde', pos: 'bottom',
+      titulo: 'Arqueo por fechas',
+      texto: 'Elige un rango y pulsa Generar: verás el total cobrado desglosado por forma de pago, por empleado y por sede, además de la lista de morosos. La forma de pago se elige al anotar cada cobro en Pagos.' }
+  ],
+  informes: [
+    { sel: '#inf-print', pos: 'bottom',
+      titulo: 'Guardar en PDF',
+      texto: 'Genera el informe con las fechas de arriba y usa este botón para imprimir: elige "Guardar como PDF" como impresora. Exportar CSV descarga los datos para Excel.' },
+    { sel: '#btn-libro-ventas', pos: 'top',
+      titulo: 'Libro de ventas / IVA',
+      texto: 'Genera el desglose de base imponible e IVA de los cobros para tu gestoría. El tipo de IVA se ajusta en Ajustes (consúltalo con tu asesor).' }
+  ],
+  'agenda-visual': [
+    { sel: '#av-rango', pos: 'bottom',
+      titulo: 'Semana a la vista',
+      texto: 'Muévete entre semanas con las flechas; el día de hoy aparece resaltado. Es la misma agenda de reservas, vista como calendario.' },
+    { sel: '#av-grid', pos: 'top',
+      titulo: 'Arrastrar para reprogramar',
+      texto: 'Arrastra una clase de un día a otro para cambiarle la fecha. Haz clic en una clase para confirmarla, cancelarla o marcarla como realizada.' }
   ]
 };
 
@@ -133,6 +190,12 @@ let tutorialBocadilloEl = null;
 let tutorialActivo = false;
 let tutorialPage = null;
 let tutorialPasoIdx = 0;
+
+// Lo usa la navegación del sidebar (renderer/estado.js) para NO cambiar de
+// sección mientras el tutorial está en marcha: al navegar, el DOM cambia y los
+// recuadros/bocadillos del tutorial quedaban apuntando a elementos que ya no
+// existen. Durante el tutorial la navegación queda inerte; se sale con "Saltar".
+function tutorialEnCurso() { return tutorialActivo; }
 
 function crearDomTutorial() {
   if (tutorialFocoEl) return;
@@ -145,7 +208,7 @@ function crearDomTutorial() {
   document.body.appendChild(tutorialBocadilloEl);
 }
 
-function comprobarTutorial(page) {
+function comprobarTutorial(page, _intento) {
   if (!page) return;
   const pasos = TUTORIAL_PASOS[page];
   if (!pasos || !pasos.length) return;
@@ -153,8 +216,22 @@ function comprobarTutorial(page) {
   if (getTutorialVisto()[page]) return;
   if (document.querySelector('.overlay.open')) return;
 
+  // El contenido de muchas secciones se pinta de forma asíncrona (una consulta
+  // por IPC). Si arrancáramos antes de que exista un paso mostrable, un tutorial
+  // de un solo paso se autocerraría y quedaría marcado como visto sin haberse
+  // mostrado nunca. Por eso, si aún no hay nada que señalar, reintentamos unas
+  // cuantas veces (sin marcar visto) hasta que la sección esté lista.
+  tutorialPage = page; // buscarPasoMostrable() se apoya en tutorialPage
+  if (buscarPasoMostrable(0, +1) < 0) {
+    const intento = _intento || 0;
+    const sigueEnLaSeccion = document.getElementById('page-' + page)?.classList.contains('active') !== false;
+    if (intento < 15 && sigueEnLaSeccion) {
+      setTimeout(() => { if (!tutorialActivo) comprobarTutorial(page, intento + 1); }, 150);
+    }
+    return;
+  }
+
   tutorialActivo = true;
-  tutorialPage = page;
   tutorialPasoIdx = 0;
   crearDomTutorial();
   window.addEventListener('resize', tutorialAlRedimensionar);
