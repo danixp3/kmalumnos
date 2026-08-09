@@ -29,6 +29,10 @@ let reservasCache = [];
 // ─── NAVEGACIÓN ──────────────────────────────────────────────────────────────
 document.querySelectorAll('#sidebar nav a').forEach(link => {
   link.addEventListener('click', () => {
+    // Durante el tutorial la navegación queda bloqueada: cambiar de sección
+    // dejaría los recuadros del tutorial apuntando a elementos inexistentes.
+    // Cubre también navegarA(), que internamente hace click() sobre el sidebar.
+    if (typeof tutorialEnCurso === 'function' && tutorialEnCurso()) return;
     const page = link.dataset.page;
     document.querySelectorAll('#sidebar nav a').forEach(a => a.classList.remove('active'));
     link.classList.add('active');

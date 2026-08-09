@@ -253,6 +253,11 @@ async function principal() {
     window.addEventListener('error', e => console.error('ERROR NO CAPTURADO: ' + e.message + ' @' + e.filename + ':' + e.lineno));
     window.addEventListener('unhandledrejection', e => console.error('PROMESA RECHAZADA: ' + ((e.reason && (e.reason.stack||e.reason.message)) || e.reason)));
     document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open'));
+    // Desactiva el tutorial durante el barrido: ahora bloquea la navegación
+    // (a propósito), y eso impediría recorrer las secciones. No se toca la
+    // marca de "vistos" del usuario; solo se neutraliza en esta ejecución.
+    try { if (typeof cerrarTutorial === 'function') cerrarTutorial(false); } catch(e){}
+    try { comprobarTutorial = function(){}; } catch(e){}
     true;
   `);
   await probarDialogos();
