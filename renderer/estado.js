@@ -3,13 +3,11 @@
 // del renderer, constantes de dominio y la navegación entre pestañas del sidebar.
 // Debe cargarse PRIMERO: el resto de módulos asume que este estado ya existe.
 
-// ─── DIÁLOGOS NATIVOS (fix de foco) ────────────────────────────────────────────
-// Los diálogos nativos de Chromium dejan los inputs sin foco en Electron
-// (bug conocido): tras cada confirm/alert forzamos blur+focus de la ventana.
-const _confirm = window.confirm.bind(window);
-const _alert = window.alert.bind(window);
-window.confirm = (msg) => { const r = _confirm(msg); window.api.refocus(); return r; };
-window.alert = (msg) => { _alert(msg); window.api.refocus(); };
+// ─── DIÁLOGOS ──────────────────────────────────────────────────────────────────
+// La app ya NO usa diálogos nativos de Windows (confirm/alert/prompt): se
+// sustituyeron por modales propios en renderer/dialogos.js (confirmar/avisar/
+// pedirTexto). Ese módulo, que se carga después, también intercepta window.alert
+// y neutraliza window.confirm/window.prompt como red de seguridad.
 
 // ─── ESTADO ──────────────────────────────────────────────────────────────────
 let currentAlumnoId = null;

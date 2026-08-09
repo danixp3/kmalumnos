@@ -118,7 +118,7 @@ function pintarAccesoJefe() {
 // Cambiar de la sesión de empleado actual a la del jefe: cierra sesión y abre
 // el modal de login habitual con otras credenciales.
 async function cambiarAJefe() {
-  if (!confirm('Vas a cerrar la sesión de empleado y a iniciar sesión con la cuenta de jefe (con otro email y contraseña). ¿Continuar?')) return;
+  if (!await confirmar('Vas a cerrar la sesión de empleado y a iniciar sesión con la cuenta de jefe (con otro email y contraseña). ¿Continuar?')) return;
   await window.api.clearSyncCreds();
   refrescarEstadoCuenta();
   abrirCredsSync();
@@ -183,7 +183,7 @@ async function cambiarRolEmpleadoUI(userId, rol) {
 }
 
 async function quitarEmpleadoUI(userId) {
-  if (!confirm('¿Quitar a este empleado de la empresa? Perderá el acceso a los datos.')) return;
+  if (!await confirmar('¿Quitar a este empleado de la empresa? Perderá el acceso a los datos.', { peligro: true, textoAceptar: 'Quitar' })) return;
   const res = await window.api.quitarEmpleado(userId);
   if (!res || !res.ok) alert((res && res.msg) || 'No se pudo quitar al empleado.');
   loadEmpleados();

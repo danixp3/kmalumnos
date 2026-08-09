@@ -210,7 +210,7 @@ async function abrirHistorialPagos(alumnoId, alumnoNombre) {
 }
 
 async function deletePagoUI(id) {
-  if (!confirm('¿Borrar este pago?')) return;
+  if (!await confirmar('¿Borrar este pago?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deletePago(id);
   const modal = document.getElementById('modal-historial-pagos');
   const alumnoId = parseInt(modal.dataset.alumnoId);

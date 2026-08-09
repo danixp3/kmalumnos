@@ -137,7 +137,7 @@ async function guardarCorreccionJornada() {
 }
 
 async function borrarJornadaUI(id) {
-  if (!confirm('¿Borrar esta jornada?')) return;
+  if (!await confirmar('¿Borrar esta jornada?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.borrarJornada(id);
   loadJornadas();
 }

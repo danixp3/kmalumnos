@@ -313,7 +313,7 @@ async function addAlumno() {
 }
 
 async function deleteAlumno(id, nombre) {
-  if (!confirm(`¿Borrar al alumno "${nombre}" y todas sus prácticas?`)) return;
+  if (!await confirmar(`¿Borrar al alumno "${nombre}" y todas sus prácticas?`, { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deleteAlumno(id);
   loadAlumnos();
 }
@@ -444,7 +444,7 @@ async function cambiarFotoAlumno(id, file) {
 
 async function quitarFotoAlumno(id) {
   if (!id) return;
-  if (!confirm('¿Quitar la foto de este alumno?')) return;
+  if (!await confirmar('¿Quitar la foto de este alumno?', { peligro: true, textoAceptar: 'Quitar' })) return;
   try {
     await window.api.borrarFotoAlumno(id);
     await cargarFotoDocsAlumno(id);
@@ -474,7 +474,7 @@ async function abrirDocAlumno(ruta) {
 }
 
 async function borrarDocAlumno(id, ruta) {
-  if (!confirm('¿Borrar este documento?')) return;
+  if (!await confirmar('¿Borrar este documento?', { peligro: true, textoAceptar: 'Borrar' })) return;
   try {
     await window.api.borrarDocumentoAlumno(ruta);
     await cargarFotoDocsAlumno(id);
@@ -659,7 +659,7 @@ async function guardarCargo() {
 }
 
 async function deleteCargoEconomia(id) {
-  if (!confirm('¿Borrar este cargo/descuento?')) return;
+  if (!await confirmar('¿Borrar este cargo/descuento?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deleteCargo(id);
   await renderEconomiaAlumno();
 }
@@ -680,7 +680,7 @@ async function addPagoEconomia() {
 }
 
 async function deletePagoEconomia(id) {
-  if (!confirm('¿Borrar este pago?')) return;
+  if (!await confirmar('¿Borrar este pago?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deletePago(id);
   await renderEconomiaAlumno();
 }
