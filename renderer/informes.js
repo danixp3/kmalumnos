@@ -246,3 +246,83 @@ function exportarInformeCSV() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// ─── LIBRO DE VENTAS / IVA (tarea D5, exportación contable) ───────────────
+// Desglose fiscal de los pagos del periodo (getLibroVentas en
+// db/estadisticas.js). NO es una factura ni sustituye a la gestoría — solo
+// lectura sobre los pagos ya registrados, para exportar a la contabilidad.
+let _ultimoLibroVentas = null;
+
+const FORMA_LABEL_LIBRO = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia', bizum: 'Bizum', otro: 'Otro' };
+
+async function loadLibroVentas() {
+  const desde = document.getElementById('inf-desde').value || null;
+  const hasta = document.getElementById('inf-hasta').value || null;
+  const libro = await window.api.getLibroVentas(desde, hasta, getSucursalActual(), getIvaPorcentaje());
+  _ultimoLibroVentas = libro;
+  renderLibroVentas(libro);
+}
+
+function renderLibroVentas(libro) {
+  const cont = document.getElementById('libro-ventas-contenido');
+  if (!cont) return;
+
+  const filas = libro.lineas.length
+    ? libro.lineas.map(l => `<tr>
+        <td>${fmtFecha(l.fecha)}</td>
+        <td>${esc(l.alumno_nombre)}</td>
+        <td>${esc(l.dni || '—')}</td>
+        <td>${esc(l.concepto)}</td>
+        <td>${esc(l.forma_pago ? (FORMA_LABEL_LIBRO[l.forma_pago] || l.forma_pago) : '—')}</td>
+        <td>${fmt(l.base)} €</td>
+        <td>${l.iva_porcentaje}%</td>
+        <td>${fmt(l.cuota_iva)} €</td>
+        <td>${fmt(l.total)} €</td>
+      </tr>`).join('')
+    : '<tr><td colspan="9" class="empty">Sin pagos en el periodo</td></tr>';
+
+  cont.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th>Alumno</th><th>DNI</th><th>Concepto</th><th>Forma de pago</th><th>Base</th><th>% IVA</th><th>Cuota IVA</th><th>Total</th></tr></thead>
+        <tbody>${filas}</tbody>
+        <tfoot><tr style="font-weight:600">
+          <td colspan="5">Totales (${libro.totales.nLineas} línea${libro.totales.nLineas === 1 ? '' : 's'})</td>
+          <td>${fmt(libro.totales.base)} €</td>
+          <td></td>
+          <td>${fmt(libro.totales.cuota_iva)} €</td>
+          <td>${fmt(libro.totales.total)} €</td>
+        </tr></tfoot>
+      </table>
+    </div>
+  `;
+}
+
+function exportarLibroVentasCSV() {
+  if (!_ultimoLibroVentas || !_ultimoLibroVentas.lineas.length) {
+    showToast('libro-ventas-toast', 'Genera el libro de ventas antes de exportar (o no hay pagos en el periodo).', 'warn');
+    return;
+  }
+  const libro = _ultimoLibroVentas;
+  let csv = '﻿';
+
+  csv += _csvLinea(['Fecha', 'Alumno', 'DNI', 'Concepto', 'Forma de pago', 'Base', '% IVA', 'Cuota IVA', 'Total']);
+  for (const l of libro.lineas) {
+    csv += _csvLinea([
+      l.fecha, l.alumno_nombre, l.dni || '', l.concepto,
+      l.forma_pago ? (FORMA_LABEL_LIBRO[l.forma_pago] || l.forma_pago) : '',
+      l.base, l.iva_porcentaje, l.cuota_iva, l.total
+    ]);
+  }
+  csv += _csvLinea(['Totales', '', '', '', '', libro.totales.base, '', libro.totales.cuota_iva, libro.totales.total]);
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `libro_ventas_${libro.periodo.desde || 'todo'}_${libro.periodo.hasta || 'todo'}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

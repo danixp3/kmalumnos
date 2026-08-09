@@ -166,6 +166,31 @@ function guardarCargosPrefDesdeAjustes() {
   } catch (e) {}
 }
 
+// % de IVA para el libro de ventas (tarea D5, exportación contable): usado
+// por renderer/informes.js (loadLibroVentas) para desglosar base/cuota de
+// los pagos ya registrados. Mismo patrón localStorage que DURACION_CLASE_KEY.
+const IVA_PORCENTAJE_KEY = 'km_iva_porcentaje';
+
+function getIvaPorcentaje() {
+  try {
+    const raw = localStorage.getItem(IVA_PORCENTAJE_KEY);
+    const n = parseFloat(raw);
+    if (!isNaN(n) && n >= 0) return n;
+  } catch (e) {}
+  return 21;
+}
+
+function guardarIvaPorcentaje(iva) {
+  try {
+    const n = parseFloat(iva);
+    localStorage.setItem(IVA_PORCENTAJE_KEY, String((!isNaN(n) && n >= 0) ? n : 21));
+  } catch (e) {}
+}
+
+function guardarIvaPrefDesdeAjustes() {
+  guardarIvaPorcentaje(document.getElementById('pref-iva').value);
+}
+
 const PREF_DASHBOARD_KEY = 'kmalumnos_dashboard_stats';
 const PREF_DASHBOARD_DEFAULT = {
   vehiculos: true, alumnos: true, practicas: true,
@@ -227,6 +252,8 @@ async function loadAjustes() {
   if (elMatricula) elMatricula.value = getMatriculaImporte();
   const elTasa = document.getElementById('pref-tasa');
   if (elTasa) elTasa.value = getTasaImporte();
+  const elIva = document.getElementById('pref-iva');
+  if (elIva) elIva.value = getIvaPorcentaje();
   const dashPref = getDashboardPref();
   document.getElementById('pref-dash-vehiculos').checked = dashPref.vehiculos;
   document.getElementById('pref-dash-alumnos').checked = dashPref.alumnos;

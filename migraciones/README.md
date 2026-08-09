@@ -326,7 +326,7 @@ Ejecutar `2026-08-06_alumno_estado_ROLLBACK.sql`. Si para entonces ya hay datos 
 
 Fecha: 2026-08-06. Archivo de esta carpeta: `2026-08-06_alumno_libro.sql` (rollback comentado dentro del propio archivo).
 
-**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla.
+**ESTADO: APLICADA en producción el 2026-08-06 (verificada, datos intactos).**
 
 ## Qué hace, en llano
 
@@ -351,7 +351,7 @@ Ejecutar el bloque `ROLLBACK` comentado al final de `2026-08-06_alumno_libro.sql
 
 Fecha: 2026-08-06. Archivo de esta carpeta: `2026-08-06_alumno_permisos.sql` (rollback comentado dentro del propio archivo).
 
-**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla.
+**ESTADO: APLICADA en producción el 2026-08-06 (verificada, datos intactos).**
 
 ## Qué hace, en llano
 
@@ -376,7 +376,7 @@ Ejecutar el bloque `ROLLBACK` comentado al final de `2026-08-06_alumno_permisos.
 
 Fecha: 2026-08-06. Archivo de esta carpeta: `2026-08-06_pago_forma_empleado.sql` (rollback comentado dentro del propio archivo).
 
-**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla.
+**ESTADO: APLICADA en producción el 2026-08-06 (verificada, datos intactos).**
 
 ## Qué hace, en llano
 
@@ -404,7 +404,7 @@ Fecha: 2026-08-06. Archivos de esta carpeta:
 - `2026-08-06_cargos.sql` — la migración.
 - `2026-08-06_cargos_ROLLBACK.sql` — la red de seguridad.
 
-**No se ha aplicado a Supabase.** Solo un archivo en el repositorio, a la espera de que decidas aplicarla. Es la capa de datos de la tarea D2 del PLAN-MAESTRO: descuentos/promociones + cargos automáticos de matrícula/tasas.
+**ESTADO: APLICADA en producción el 2026-08-06 (verificada, datos intactos).** Es la capa de datos de la tarea D2 del PLAN-MAESTRO: descuentos/promociones + cargos automáticos de matrícula/tasas.
 
 **Dependencia:** requiere `2026-08-01_roles_y_sucursales.sql` ya aplicada (usa `empresa_actual()` y `rol_actual()`).
 

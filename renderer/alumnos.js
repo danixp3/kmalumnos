@@ -365,7 +365,122 @@ async function openEditAlumno(id) {
   const nInsc = document.getElementById('edit-a-n-inscripcion');
   nInsc.textContent = a.n_inscripcion != null ? `Nº inscripción libro: ${a.n_inscripcion}` : '';
   await llenarSelectProfesores('edit-a-profesor', a.profesor_id);
+  await cargarFotoDocsAlumno(id);
   openModal('modal-alumno');
+}
+
+// ─── FOTO Y DOCUMENTOS DEL ALUMNO (D7, almacenamiento local sin sync) ──────
+let docsAlumnoCache = [];
+
+function leerFicheroComoDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function cargarFotoDocsAlumno(id) {
+  const preview = document.getElementById('edit-a-foto-preview');
+  const placeholder = document.getElementById('edit-a-foto-placeholder');
+  try {
+    const dataUrl = await window.api.getFotoAlumno(id);
+    if (dataUrl) {
+      preview.src = dataUrl;
+      preview.style.display = 'block';
+      placeholder.style.display = 'none';
+    } else {
+      preview.src = '';
+      preview.style.display = 'none';
+      placeholder.style.display = 'flex';
+    }
+  } catch (e) {
+    preview.style.display = 'none';
+    placeholder.style.display = 'flex';
+  }
+
+  const lista = document.getElementById('edit-a-documentos-lista');
+  try {
+    docsAlumnoCache = await window.api.getDocumentosAlumno(id) || [];
+  } catch (e) {
+    docsAlumnoCache = [];
+  }
+  if (!docsAlumnoCache.length) {
+    lista.innerHTML = '<span class="text-muted">Sin documentos</span>';
+    return;
+  }
+  lista.innerHTML = docsAlumnoCache.map((d, i) => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span>${esc(d.nombre)}</span>
+      <span class="text-muted">(${Math.round(d.tamano / 1024)} KB)</span>
+      <button type="button" class="btn btn-gray btn-sm doc-abrir" data-idx="${i}">Abrir</button>
+      <button type="button" class="btn btn-gray btn-sm doc-borrar" data-idx="${i}">Borrar</button>
+    </div>
+  `).join('');
+  lista.querySelectorAll('.doc-abrir').forEach(btn => {
+    btn.addEventListener('click', () => abrirDocAlumno(docsAlumnoCache[parseInt(btn.dataset.idx)].ruta));
+  });
+  lista.querySelectorAll('.doc-borrar').forEach(btn => {
+    btn.addEventListener('click', () => borrarDocAlumno(id, docsAlumnoCache[parseInt(btn.dataset.idx)].ruta));
+  });
+}
+
+async function cambiarFotoAlumno(id, file) {
+  if (!id || !file) return;
+  try {
+    const dataUrl = await leerFicheroComoDataUrl(file);
+    const res = await window.api.guardarFotoAlumno(id, dataUrl);
+    if (res && res.ok) {
+      await cargarFotoDocsAlumno(id);
+      showToast('edit-a-foto-alert', 'Foto actualizada.', 'ok');
+    } else {
+      showToast('edit-a-foto-alert', (res && res.msg) || 'No se pudo guardar la foto.', 'err');
+    }
+  } catch (e) {
+    showToast('edit-a-foto-alert', 'No se pudo guardar la foto.', 'err');
+  }
+}
+
+async function quitarFotoAlumno(id) {
+  if (!id) return;
+  if (!confirm('¿Quitar la foto de este alumno?')) return;
+  try {
+    await window.api.borrarFotoAlumno(id);
+    await cargarFotoDocsAlumno(id);
+  } catch (e) {
+    showToast('edit-a-foto-alert', 'No se pudo quitar la foto.', 'err');
+  }
+}
+
+async function adjuntarDocAlumno(id, file) {
+  if (!id || !file) return;
+  try {
+    const dataUrl = await leerFicheroComoDataUrl(file);
+    const res = await window.api.adjuntarDocumentoAlumno(id, file.name, dataUrl);
+    if (res && res.ok) {
+      await cargarFotoDocsAlumno(id);
+      showToast('edit-a-foto-alert', 'Documento adjuntado.', 'ok');
+    } else {
+      showToast('edit-a-foto-alert', (res && res.msg) || 'No se pudo adjuntar el documento.', 'err');
+    }
+  } catch (e) {
+    showToast('edit-a-foto-alert', 'No se pudo adjuntar el documento.', 'err');
+  }
+}
+
+async function abrirDocAlumno(ruta) {
+  try { await window.api.abrirDocumentoAlumno(ruta); } catch (e) {}
+}
+
+async function borrarDocAlumno(id, ruta) {
+  if (!confirm('¿Borrar este documento?')) return;
+  try {
+    await window.api.borrarDocumentoAlumno(ruta);
+    await cargarFotoDocsAlumno(id);
+  } catch (e) {
+    showToast('edit-a-foto-alert', 'No se pudo borrar el documento.', 'err');
+  }
 }
 
 async function saveAlumno() {
@@ -591,8 +706,10 @@ async function imprimirFichaAlumno(id) {
 
   let desglose = null;
   let semaforo = null;
+  let fotoAlumno = null;
   try { desglose = await window.api.getDesglosePagosAlumno(id); } catch (e) { /* sin economía disponible */ }
   try { semaforo = await window.api.getSemaforoAlumno(id); } catch (e) { /* sin semáforo disponible */ }
+  try { fotoAlumno = await window.api.getFotoAlumno(id); } catch (e) { /* sin foto disponible */ }
 
   const SEM_TEXTO = { verde: 'Listo para examen', ambar: 'Casi listo', rojo: 'Aún lejos' };
   const PERMISO_TEXTO = { B: 'B (Coche)', A: 'A (Moto)', A2: 'A2', AM: 'AM', C: 'C (Camión)' };
@@ -607,6 +724,7 @@ async function imprimirFichaAlumno(id) {
         <h1>AulaMovil — Ficha del alumno</h1>
         <div class="ficha-fecha">Impresa el ${fmtFecha(new Date().toISOString().split('T')[0])}</div>
       </div>
+      ${fotoAlumno ? `<img src="${fotoAlumno}" alt="Foto del alumno" style="width:60px;height:60px;object-fit:cover;border-radius:6px;margin-left:auto">` : ''}
     </div>
 
     <h2>Datos personales</h2>

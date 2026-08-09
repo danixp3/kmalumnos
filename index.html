@@ -1492,6 +1492,20 @@
       <div id="inf-toast" class="alert hidden" style="margin-bottom:16px"></div>
 
       <div id="informes-contenido"></div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#ecfdf5;color:#059669"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+          Libro de ventas / IVA
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" id="btn-libro-ventas" onclick="loadLibroVentas()">Generar libro de ventas</button>
+          <button class="btn btn-outline btn-sm" id="btn-libro-ventas-csv" onclick="exportarLibroVentasCSV()">Exportar libro de ventas (CSV)</button>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:12px">El tipo de IVA se configura en Ajustes. Consulta con tu gestoría el tratamiento correcto (las clases de autoescuela suelen ir al 21%).</div>
+        <div id="libro-ventas-toast" class="alert hidden" style="margin-bottom:12px"></div>
+        <div id="libro-ventas-contenido"></div>
+      </div>
     </div>
 
     <!-- ── AJUSTES ────────────────────────────── -->
@@ -1707,6 +1721,10 @@
         <div class="form-group">
           <label>Importe por defecto de tasa (€)</label>
           <input type="number" id="pref-tasa" min="0" step="0.01" style="width:110px" title="Importe que precarga el botón 'Añadir tasa' en la ficha económica del alumno" onchange="guardarCargosPrefDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label>% de IVA (libro de ventas)</label>
+          <input type="number" id="pref-iva" min="0" step="0.1" style="width:100px" title="Tipo de IVA usado para desglosar el libro de ventas en Informes" onchange="guardarIvaPrefDesdeAjustes()">
         </div>
         <div class="form-group">
           <label>Tarjetas del panel principal</label>
@@ -2281,6 +2299,22 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <label>Observaciones</label>
       <textarea id="edit-a-observaciones" rows="2" style="width:100%" placeholder="Notas sobre el alumno..."></textarea>
     </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Foto</label>
+      <div style="display:flex;align-items:center;gap:12px">
+        <img id="edit-a-foto-preview" src="" alt="Sin foto" style="width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--bg-alt,#eee);display:none">
+        <div id="edit-a-foto-placeholder" style="width:64px;height:64px;border-radius:8px;background:var(--bg-alt,#eee);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-muted)">Sin foto</div>
+        <input type="file" id="edit-a-foto-input" accept="image/*" style="display:none" onchange="cambiarFotoAlumno(parseInt(document.getElementById('edit-a-id').value), this.files[0])">
+        <button type="button" class="btn btn-gray btn-sm" onclick="document.getElementById('edit-a-foto-input').click()">Cambiar foto</button>
+        <button type="button" class="btn btn-gray btn-sm" onclick="quitarFotoAlumno(parseInt(document.getElementById('edit-a-id').value))">Quitar foto</button>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Documentos</label>
+      <div id="edit-a-documentos-lista" style="margin-bottom:8px;font-size:13px"></div>
+      <input type="file" id="edit-a-doc-input" style="display:none" onchange="adjuntarDocAlumno(parseInt(document.getElementById('edit-a-id').value), this.files[0])">
+      <button type="button" class="btn btn-gray btn-sm" onclick="document.getElementById('edit-a-doc-input').click()">Adjuntar documento</button>
+    </div>
     <!-- Libro de registro de alumnos (RD 1295/2003 art. 39) -->
     <div class="form-row" style="margin-top:14px">
       <div class="form-group" style="flex:1">
@@ -2308,6 +2342,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       </div>
     </div>
     <p id="edit-a-n-inscripcion" style="font-size:12px;color:var(--text-muted);margin-top:8px"></p>
+    <div id="edit-a-foto-alert" class="hidden" style="margin-top:12px"></div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="imprimirFichaAlumno(parseInt(document.getElementById('edit-a-id').value))">🖨️ Imprimir ficha</button>
       <button class="btn btn-gray" onclick="imprimirFichaPracticas(parseInt(document.getElementById('edit-a-id').value))" title="Ficha de clases prácticas firmable (RD 1295/2003 art. 40)">🖨️ Ficha de prácticas (firmable)</button>

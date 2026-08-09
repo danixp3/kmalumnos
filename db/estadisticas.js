@@ -494,8 +494,63 @@ function getInformes(desde, hasta, sucursalId) {
   };
 }
 
+// ─── LIBRO DE VENTAS / IVA (tarea D5, exportación contable) ───────────────
+// Desglose fiscal de los pagos ya registrados (solo lectura, no marca sync):
+// trata `cantidad` como importe TOTAL con IVA incluido y calcula base+cuota
+// hacia atrás. NO es una factura ni sustituye a la gestoría — es un apoyo
+// para exportar a la contabilidad. Redondeo a 2 decimales en cada línea y en
+// los totales (evita errores de coma flotante al sumar céntimos).
+function round2(x) {
+  return Math.round(x * 100) / 100;
+}
+
+function getLibroVentas(desde, hasta, sucursalId, ivaPorcentaje) {
+  const d = load();
+  const iva = (ivaPorcentaje === null || ivaPorcentaje === undefined || isNaN(ivaPorcentaje)) ? 21 : ivaPorcentaje;
+
+  const pagosPeriodo = filtrarPorSucursal(d.pagos, sucursalId)
+    .filter(p => !p.deleted && _enRango(p.fecha, desde, hasta));
+
+  const lineas = pagosPeriodo.map(p => {
+    const alumno = d.alumnos.find(a => a.id === p.alumno_id);
+    const total = p.cantidad;
+    const base = round2(total / (1 + iva / 100));
+    const cuota_iva = round2(total - base);
+    return {
+      fecha: p.fecha,
+      alumno_id: p.alumno_id,
+      alumno_nombre: alumno ? alumno.nombre : '?',
+      dni: alumno ? (alumno.dni || null) : null,
+      concepto: p.nota || 'Cobro',
+      forma_pago: p.forma_pago || null,
+      base,
+      iva_porcentaje: iva,
+      cuota_iva,
+      total
+    };
+  });
+
+  const totales = lineas.reduce((acc, l) => {
+    acc.base += l.base;
+    acc.cuota_iva += l.cuota_iva;
+    acc.total += l.total;
+    acc.nLineas += 1;
+    return acc;
+  }, { base: 0, cuota_iva: 0, total: 0, nLineas: 0 });
+  totales.base = round2(totales.base);
+  totales.cuota_iva = round2(totales.cuota_iva);
+  totales.total = round2(totales.total);
+
+  return {
+    periodo: { desde: desde || null, hasta: hasta || null },
+    iva_porcentaje: iva,
+    lineas,
+    totales
+  };
+}
+
 module.exports = {
   getResumen, getStatsDashboard, getStatsProfesores, getDatosGraficos, getTimelineVehiculo,
   getSemaforoExamen, getSemaforoAlumno, getAlumnosEnRiesgo, getAnalisisVehiculos,
-  getInformes,
+  getInformes, getLibroVentas,
 };
