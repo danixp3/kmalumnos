@@ -384,6 +384,7 @@
     <button class="tab active" data-tab="practica" onclick="switchTab('practica')">Registrar</button>
     <button class="tab" data-tab="alumno" onclick="switchTab('alumno')">Nuevo Alumno</button>
     <button class="tab" data-tab="historial" onclick="switchTab('historial')">Historial</button>
+    <button class="tab" data-tab="agenda" onclick="switchTab('agenda')">Agenda</button>
   </div>
 
   <!-- SECCIÓN: REGISTRAR PRÁCTICA -->
@@ -498,6 +499,33 @@
       </div>
     </div>
     <button class="btn btn-secondary" onclick="cargarHistorial()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Actualizar</button>
+  </div>
+
+  <!-- SECCIÓN: AGENDA DEL PROFESOR (solo lectura) -->
+  <div id="section-agenda" class="section">
+    <div class="card">
+      <div class="field-gap">
+        <label>Profesor</label>
+        <div class="select-wrap">
+          <select id="agenda-profesor" onchange="cargarAgendaProfesor()">
+            <option value="">— Selecciona un profesor —</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-gap">
+        <label>Fecha</label>
+        <input type="date" id="agenda-fecha" onchange="cargarAgendaProfesor()">
+      </div>
+    </div>
+
+    <button class="btn btn-secondary" onclick="cargarAgendaProfesor()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Ver agenda</button>
+
+    <div class="card" style="margin-top:16px">
+      <div id="agenda-lista">
+        <div class="historial-empty">Elige un profesor y una fecha para ver su agenda.</div>
+      </div>
+    </div>
   </div>
 
   <!-- SECCIÓN: DETALLE DE ALUMNO (solo lectura, no es una pestaña del tab bar) -->
@@ -709,7 +737,7 @@
   }
 
   // ─── TABS (indicador deslizante + transición direccional) ──────────────────
-  const TAB_ORDER = ['practica', 'alumno', 'historial'];
+  const TAB_ORDER = ['practica', 'alumno', 'historial', 'agenda'];
 
   // Desliza el "pill" hasta la pestaña activa (llamar tras mostrar la app y al redimensionar)
   function moveIndicator() {
@@ -754,6 +782,11 @@
     animateSection(document.getElementById('section-' + tab), dir);
 
     if (tab === 'historial') cargarHistorial();
+    if (tab === 'agenda') {
+      document.getElementById('agenda-fecha').value = new Date().toLocaleDateString('sv-SE');
+      llenarSelectAgendaProfesores();
+      if (document.getElementById('agenda-profesor').value) cargarAgendaProfesor();
+    }
   }
 
   // ─── DETALLE DE ALUMNO (solo lectura) ─────────────────────────────────────
@@ -761,10 +794,12 @@
 
   function verPracticasAlumno(id) {
     tabAntesDeDetalle = document.querySelector('.tab.active')?.textContent.includes('Registrar') ? 'practica'
-      : document.querySelector('.tab.active')?.textContent.includes('Nuevo') ? 'alumno' : 'historial';
+      : document.querySelector('.tab.active')?.textContent.includes('Nuevo') ? 'alumno'
+      : document.querySelector('.tab.active')?.textContent.includes('Agenda') ? 'agenda' : 'historial';
     document.getElementById('section-practica').classList.remove('active');
     document.getElementById('section-alumno').classList.remove('active');
     document.getElementById('section-historial').classList.remove('active');
+    document.getElementById('section-agenda').classList.remove('active');
     document.getElementById('section-detalle-alumno').classList.add('active');
     cargarDetalleAlumno(id);
   }
@@ -1140,6 +1175,78 @@
       }
     } catch (e) {
       alert('Error de conexión');
+    }
+  }
+
+  // ─── AGENDA DEL PROFESOR (solo lectura) ────────────────────────────────────
+  const ESTADO_AGENDA_TXT = {
+    solicitada: 'Solicitada',
+    confirmada: 'Confirmada',
+    realizada: 'Realizada'
+  };
+
+  // Reutiliza profesoresDisponibles, ya cargado en showProfiles() al iniciar sesión.
+  function llenarSelectAgendaProfesores() {
+    const sel = document.getElementById('agenda-profesor');
+    const actual = sel.value;
+    if (!profesoresDisponibles.length) {
+      sel.innerHTML = '<option value="">No hay profesores dados de alta</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">— Selecciona un profesor —</option>' +
+      profesoresDisponibles.map(p => `<option value="${p.id}">${escapeHtml(p.nombre)}</option>`).join('');
+    // Si ya hay un profesor activo (perfil elegido al entrar), preselecciónalo.
+    if (actual) {
+      sel.value = actual;
+    } else if (perfilActivo && perfilActivo.id) {
+      sel.value = perfilActivo.id;
+    }
+  }
+
+  async function cargarAgendaProfesor() {
+    const pid = document.getElementById('agenda-profesor').value;
+    const fecha = document.getElementById('agenda-fecha').value;
+    const lista = document.getElementById('agenda-lista');
+
+    if (!pid) {
+      lista.innerHTML = '<div class="historial-empty">Elige un profesor y una fecha para ver su agenda.</div>';
+      return;
+    }
+    if (!fecha) {
+      lista.innerHTML = '<div class="historial-empty">Elige una fecha.</div>';
+      return;
+    }
+
+    lista.innerHTML = '<div class="historial-empty">Cargando...</div>';
+
+    try {
+      const res = await apiFetch('/api/agenda-profesor?profesor_id=' + encodeURIComponent(pid) + '&fecha=' + encodeURIComponent(fecha));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error cargando la agenda');
+
+      const reservas = data.reservas || [];
+      if (!reservas.length) {
+        lista.innerHTML = '<div class="historial-empty">No hay clases ese día.</div>';
+        return;
+      }
+
+      lista.innerHTML = reservas.map(r => {
+        const vehiculoTxt = r.vehiculo_nombre
+          ? escapeHtml(r.vehiculo_nombre) + (r.matricula ? ' (' + escapeHtml(r.matricula) + ')' : '')
+          : 'Sin vehículo';
+        const estadoTxt = ESTADO_AGENDA_TXT[r.estado] || escapeHtml(r.estado || '');
+        return `
+          <div class="historial-item">
+            <div class="historial-info">
+              <div class="historial-nombre">${escapeHtml(r.hora_inicio || '')} · ${escapeHtml(r.alumno_nombre || 'Alumno')} <span class="tag">${estadoTxt}</span></div>
+              <div class="historial-fecha">${vehiculoTxt}${r.duracion_min ? ' · ' + r.duracion_min + ' min' : ''}</div>
+              ${r.nota ? `<div class="historial-fecha">${escapeHtml(r.nota)}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      lista.innerHTML = `<div class="historial-empty">${escapeHtml(e.message || 'Error cargando la agenda.')}</div>`;
     }
   }
 
