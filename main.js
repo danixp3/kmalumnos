@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, safeStorage, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -11,6 +11,7 @@ app.setPath('userData', path.join(app.getPath('appData'), 'KMAlumnos'));
 const db = require('./db');
 const sync = require('./sync');
 const { autoUpdater } = require('electron-updater');
+const { sanitizarNombre, extensionDeDataUrl } = require('./utils-ficheros');
 
 // ─── CREDENCIALES DE SINCRONIZACIÓN ────────────────────────────────────────────
 // Se guardan en userData (nunca en el código). La contraseña se cifra con
@@ -299,6 +300,7 @@ ipcMain.handle('get-semaforo-alumno', (_, alumno_id) => db.getSemaforoAlumno(alu
 ipcMain.handle('get-alumnos-en-riesgo', () => db.getAlumnosEnRiesgo());
 ipcMain.handle('get-analisis-vehiculos', () => db.getAnalisisVehiculos());
 ipcMain.handle('get-informes', (_, desde, hasta, sucursalId) => db.getInformes(desde, hasta, sucursalId));
+ipcMain.handle('get-libro-ventas', (_, desde, hasta, sucursalId, iva) => db.getLibroVentas(desde, hasta, sucursalId, iva));
 
 // Sucursales (fase 2 multi-empresa): CRUD mecánico, la lógica de
 // compatibilidad hacia atrás vive en db/sucursales.js (data.json) y en el
@@ -508,6 +510,134 @@ ipcMain.handle('generar-km', (_, kmInicial, min = 40, max = 45) => {
   const diff = Math.random() * (max - min) + min;
   const kmFinal = Math.round((kmInicial + diff) * 10) / 10;
   return { km_inicial: kmInicial, km_final: kmFinal, diff: Math.round(diff * 10) / 10 };
+});
+
+// ─── FICHEROS DE ALUMNO (D7) ────────────────────────────────────────────────────
+// Foto y documentos del alumno, almacenados solo en local (sin sync, sin Supabase Storage).
+function _dirUserData() {
+  return app.getPath('userData');
+}
+function _dirFotos() {
+  return path.join(_dirUserData(), 'fotos');
+}
+function _dirDocumentosAlumno(id) {
+  return path.join(_dirUserData(), 'documentos', 'alumno_' + id);
+}
+
+ipcMain.handle('guardar-foto-alumno', (_, id, dataUrl) => {
+  try {
+    if (!Number.isInteger(id)) return { ok: false, msg: 'Id de alumno no válido' };
+    const ext = extensionDeDataUrl(dataUrl);
+    if (!ext) return { ok: false, msg: 'Formato de imagen no soportado' };
+    const dir = _dirFotos();
+    fs.mkdirSync(dir, { recursive: true });
+    // Borra cualquier foto previa de este alumno (puede tener otra extensión)
+    const prefijo = 'alumno_' + id + '.';
+    for (const f of fs.readdirSync(dir)) {
+      if (f.startsWith(prefijo)) {
+        try { fs.unlinkSync(path.join(dir, f)); } catch (e) {}
+      }
+    }
+    const b64 = dataUrl.split(',')[1];
+    fs.writeFileSync(path.join(dir, 'alumno_' + id + '.' + ext), Buffer.from(b64, 'base64'));
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+});
+
+ipcMain.handle('get-foto-alumno', (_, id) => {
+  try {
+    if (!Number.isInteger(id)) return null;
+    const dir = _dirFotos();
+    if (!fs.existsSync(dir)) return null;
+    const prefijo = 'alumno_' + id + '.';
+    const f = fs.readdirSync(dir).find(n => n.startsWith(prefijo));
+    if (!f) return null;
+    const ext = f.split('.').pop().toLowerCase();
+    const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    const buf = fs.readFileSync(path.join(dir, f));
+    return 'data:' + mime + ';base64,' + buf.toString('base64');
+  } catch (e) {
+    return null;
+  }
+});
+
+ipcMain.handle('borrar-foto-alumno', (_, id) => {
+  try {
+    if (!Number.isInteger(id)) return { ok: false, msg: 'Id de alumno no válido' };
+    const dir = _dirFotos();
+    if (!fs.existsSync(dir)) return { ok: true };
+    const prefijo = 'alumno_' + id + '.';
+    for (const f of fs.readdirSync(dir)) {
+      if (f.startsWith(prefijo)) {
+        try { fs.unlinkSync(path.join(dir, f)); } catch (e) {}
+      }
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+});
+
+ipcMain.handle('adjuntar-documento-alumno', (_, id, nombre, dataUrl) => {
+  try {
+    if (!Number.isInteger(id)) return { ok: false, msg: 'Id de alumno no válido' };
+    if (typeof dataUrl !== 'string' || dataUrl.indexOf(',') === -1) {
+      return { ok: false, msg: 'Fichero inválido' };
+    }
+    const b64 = dataUrl.split(',')[1];
+    const buf = Buffer.from(b64, 'base64');
+    if (buf.length > 15 * 1024 * 1024) {
+      return { ok: false, msg: 'El fichero supera el tamaño máximo permitido (15 MB)' };
+    }
+    const dir = _dirDocumentosAlumno(id);
+    fs.mkdirSync(dir, { recursive: true });
+    const nombreFinal = Date.now() + '_' + sanitizarNombre(nombre);
+    fs.writeFileSync(path.join(dir, nombreFinal), buf);
+    return { ok: true, fichero: nombreFinal };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+});
+
+ipcMain.handle('get-documentos-alumno', (_, id) => {
+  try {
+    if (!Number.isInteger(id)) return [];
+    const dir = _dirDocumentosAlumno(id);
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir).map(f => {
+      const ruta = path.join(dir, f);
+      const st = fs.statSync(ruta);
+      return { nombre: f.replace(/^\d+_/, ''), ruta, tamano: st.size };
+    });
+  } catch (e) {
+    return [];
+  }
+});
+
+ipcMain.handle('abrir-documento-alumno', (_, ruta) => {
+  try {
+    const base = path.resolve(_dirUserData(), 'documentos') + path.sep;
+    const resuelta = path.resolve(String(ruta || ''));
+    if (!resuelta.startsWith(base)) return { ok: false, msg: 'Ruta no permitida' };
+    shell.openPath(resuelta);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+});
+
+ipcMain.handle('borrar-documento-alumno', (_, ruta) => {
+  try {
+    const base = path.resolve(_dirUserData(), 'documentos') + path.sep;
+    const resuelta = path.resolve(String(ruta || ''));
+    if (!resuelta.startsWith(base)) return { ok: false, msg: 'Ruta no permitida' };
+    if (fs.existsSync(resuelta)) fs.unlinkSync(resuelta);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
 });
 
 // ─── UPDATER IPC ──────────────────────────────────────────────────────────────

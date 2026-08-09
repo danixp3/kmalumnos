@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld('api', {
   getAlumnosEnRiesgo:  ()                        => ipcRenderer.invoke('get-alumnos-en-riesgo'),
   getAnalisisVehiculos: ()                       => ipcRenderer.invoke('get-analisis-vehiculos'),
   getInformes:         (desde, hasta, sucursalId) => ipcRenderer.invoke('get-informes', desde, hasta, sucursalId),
+  getLibroVentas:      (desde, hasta, sucursalId, iva) => ipcRenderer.invoke('get-libro-ventas', desde, hasta, sucursalId, iva),
   getSolapamientos:    ()                        => ipcRenderer.invoke('get-solapamientos'),
   rellenarKmMasivo:    (vid, min, max, inicio, final) => ipcRenderer.invoke('rellenar-km-masivo', vid, min, max, inicio, final),
   getPracticasSinKm:   (vid)                     => ipcRenderer.invoke('get-practicas-sin-km', vid),
@@ -204,4 +205,13 @@ contextBridge.exposeInMainWorld('api', {
   onUpdateDownloadProgress: (cb) => ipcRenderer.on('update-download-progress', (_, pct) => cb(pct)),
   onUpdateDownloaded:    (cb) => ipcRenderer.on('update-downloaded',       ()     => cb()),
   onUpdateError:         (cb) => ipcRenderer.on('update-error',            (_, m) => cb(m)),
+
+  // Ficheros de alumno (foto + documentos, D7 — almacenamiento local, sin sync)
+  guardarFotoAlumno:      (id, dataUrl)         => ipcRenderer.invoke('guardar-foto-alumno', id, dataUrl),
+  getFotoAlumno:          (id)                  => ipcRenderer.invoke('get-foto-alumno', id),
+  borrarFotoAlumno:       (id)                  => ipcRenderer.invoke('borrar-foto-alumno', id),
+  adjuntarDocumentoAlumno:(id, nombre, dataUrl) => ipcRenderer.invoke('adjuntar-documento-alumno', id, nombre, dataUrl),
+  getDocumentosAlumno:    (id)                  => ipcRenderer.invoke('get-documentos-alumno', id),
+  abrirDocumentoAlumno:   (ruta)                => ipcRenderer.invoke('abrir-documento-alumno', ruta),
+  borrarDocumentoAlumno:  (ruta)                => ipcRenderer.invoke('borrar-documento-alumno', ruta),
 });
