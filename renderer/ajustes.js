@@ -338,8 +338,8 @@ window.api.onUpdateDownloaded(() => {
   label.textContent = '✓ Descargada — clic para instalar';
   bar.style.color = 'rgba(16,185,129,.8)';
   bar.style.pointerEvents = '';
-  bar.onclick = () => {
-    if (confirm('¿Instalar la actualización ahora?\n\nLa aplicación se cerrará y reiniciará.')) {
+  bar.onclick = async () => {
+    if (await confirmar('¿Instalar la actualización ahora?\n\nLa aplicación se cerrará y reiniciará.')) {
       window.api.installUpdate();
     }
   };

@@ -159,13 +159,13 @@ async function reponerBonoUI(id) {
 }
 
 async function anularBonoUI(id) {
-  if (!confirm('¿Anular este bono?')) return;
+  if (!await confirmar('¿Anular este bono?', { peligro: true, textoAceptar: 'Anular' })) return;
   await window.api.anularBono(id);
   loadBonos();
 }
 
 async function borrarBonoUI(id) {
-  if (!confirm('¿Borrar este bono?')) return;
+  if (!await confirmar('¿Borrar este bono?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deleteBono(id);
   loadBonos();
 }

@@ -172,7 +172,7 @@ async function toggleCompletadoVencimientoUI(id) {
 }
 
 async function borrarVencimientoUI(id) {
-  if (!confirm('¿Borrar este vencimiento?')) return;
+  if (!await confirmar('¿Borrar este vencimiento?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deleteVencimiento(id);
   loadVencimientos();
 }

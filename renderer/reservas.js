@@ -184,7 +184,7 @@ async function cancelarReserva(id) {
     }
   }
 
-  if (!confirm(mensaje)) return;
+  if (!await confirmar(mensaje, { peligro: true, textoAceptar: 'Cancelar reserva' })) return;
   await window.api.setEstadoReserva(id, 'cancelada');
   loadReservas();
 }
@@ -207,7 +207,7 @@ async function marcarRealizadaReserva(id) {
   try {
     if (r && r.alumno_id) {
       const saldo = await window.api.getSaldoBonosAlumno(r.alumno_id);
-      if (saldo > 0 && confirm('El alumno tiene bonos con saldo. ¿Consumir 1 clase del bono?')) {
+      if (saldo > 0 && await confirmar('El alumno tiene bonos con saldo. ¿Consumir 1 clase del bono?')) {
         const bonos = await window.api.getBonosAlumno(r.alumno_id);
         const bono = bonos.find(b => b.estado === 'activo' && b.saldo > 0 && !b.caducado);
         if (bono) {
@@ -222,7 +222,7 @@ async function marcarRealizadaReserva(id) {
 }
 
 async function borrarReserva(id) {
-  if (!confirm('¿Borrar esta reserva?')) return;
+  if (!await confirmar('¿Borrar esta reserva?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deleteReserva(id);
   loadReservas();
 }

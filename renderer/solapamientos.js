@@ -62,7 +62,7 @@ async function corregirTodosSolapamientos() {
 
   const vehiculosAfectados = [...new Set(conflictos.map(c => c.vehiculo_id))];
 
-  if (!confirm(`Se van a reordenar los kilómetros de ${vehiculosAfectados.length} vehículo(s) para eliminar todos los solapamientos.\n\nEl programa respetará la duración real de cada práctica y las reencadenará en orden cronológico.\n\n¿Continuar?`)) return;
+  if (!await confirmar(`Se van a reordenar los kilómetros de ${vehiculosAfectados.length} vehículo(s) para eliminar todos los solapamientos.\n\nEl programa respetará la duración real de cada práctica y las reencadenará en orden cronológico.\n\n¿Continuar?`)) return;
 
   let totalCorregidas = 0;
   for (const vid of vehiculosAfectados) {

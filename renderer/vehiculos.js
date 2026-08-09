@@ -106,7 +106,7 @@ async function rellenarMasivo() {
   }
 
   const topeInfo = (inicio || final) ? `\n\nTope odómetro: ${inicio || '(auto)'} → ${final || '(sin límite)'}` : '';
-  if (!confirm(`Se van a generar km para ${n} práctica(s) con km en blanco del vehículo seleccionado.\n\nRango por práctica: ${min}-${max} km${topeInfo}\n\n¿Continuar?`)) return;
+  if (!await confirmar(`Se van a generar km para ${n} práctica(s) con km en blanco del vehículo seleccionado.\n\nRango por práctica: ${min}-${max} km${topeInfo}\n\n¿Continuar?`)) return;
 
   const result = await window.api.rellenarKmMasivo(vid, min, max, inicio, final);
   const el = document.getElementById('relleno-alert');
@@ -133,7 +133,7 @@ async function addVehiculo() {
 }
 
 async function deleteVehiculo(id, nombre) {
-  if (!confirm(`¿Borrar el vehículo "${nombre}"? Se eliminará de todos los alumnos asignados.`)) return;
+  if (!await confirmar(`¿Borrar el vehículo "${nombre}"? Se eliminará de todos los alumnos asignados.`, { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deleteVehiculo(id);
   loadVehiculos();
 }

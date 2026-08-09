@@ -113,7 +113,7 @@ async function addPractica() {
 }
 
 async function deletePractica(id) {
-  if (!confirm('¿Borrar esta práctica?')) return;
+  if (!await confirmar('¿Borrar esta práctica?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deletePractica(id);
   loadPracticas();
 }
@@ -146,7 +146,7 @@ async function savePractica() {
       const detalle = conflictos.map(c =>
         `• ${c.alumno} — ${fmtFecha(c.fecha)}: ${fmt(c.km_inicial)} → ${fmt(c.km_final)}`
       ).join('\n');
-      const continuar = confirm(
+      const continuar = await confirmar(
         `Estos km se solapan con ${conflictos.length} práctica(s) del mismo vehículo:\n\n${detalle}\n\n¿Guardar igualmente?`
       );
       if (!continuar) return;

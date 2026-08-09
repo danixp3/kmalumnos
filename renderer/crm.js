@@ -177,7 +177,7 @@ async function guardarLead() {
 }
 
 async function convertirLeadUI(id) {
-  if (!confirm('¿Convertir este lead en alumno? Se creará una ficha de alumno nueva.')) return;
+  if (!await confirmar('¿Convertir este lead en alumno? Se creará una ficha de alumno nueva.')) return;
   const res = await window.api.convertirLead(id);
   if (!res || !res.ok) {
     alert(res && res.msg ? res.msg : 'No se pudo convertir el lead.');
@@ -188,7 +188,7 @@ async function convertirLeadUI(id) {
 }
 
 async function borrarLeadUI(id) {
-  if (!confirm('¿Borrar este lead?')) return;
+  if (!await confirmar('¿Borrar este lead?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deleteLead(id);
   loadCrm();
 }

@@ -107,7 +107,7 @@ async function addSucursalUI() {
 }
 
 async function renombrarSucursalUI(id, nombreActual) {
-  const nombre = prompt('Nuevo nombre de la sucursal:', nombreActual);
+  const nombre = await pedirTexto('Nuevo nombre de la sucursal:', { valor: nombreActual });
   if (!nombre || !nombre.trim()) return;
   await window.api.renombrarSucursal(id, nombre.trim());
   await loadSucursalesAjustes();
@@ -115,7 +115,7 @@ async function renombrarSucursalUI(id, nombreActual) {
 }
 
 async function activarSucursalUI(id, activar) {
-  if (!activar && !confirm('¿Desactivar esta sucursal? Sus datos no se borran, solo dejará de ofrecerse en el selector.')) return;
+  if (!activar && !await confirmar('¿Desactivar esta sucursal? Sus datos no se borran, solo dejará de ofrecerse en el selector.', { peligro: true, textoAceptar: 'Desactivar' })) return;
   await window.api.activarSucursal(id, activar);
   await loadSucursalesAjustes();
   await aplicarSelectorSucursales();

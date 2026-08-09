@@ -16,7 +16,10 @@ const fs = require('fs');
 const path = require('path');
 
 const CON_GUARDADO = process.argv.includes('--guardar');
-const IGNORAR = [/Insecure Content-Security-Policy/];
+const IGNORAR = [
+  /Insecure Content-Security-Policy/,
+  /nativo desactivado/  // avisos por diseño de dialogos.js (los provoca probarDialogos a propósito)
+];
 const NIVEL = { 1: 'WARN', 2: 'ERROR', 3: 'DEBUG' };
 
 const fallos = [];
@@ -242,23 +245,71 @@ async function principal() {
   if (!await esperarInterfaz()) return;
   await espera(1500); // dejar terminar las cargas iniciales
   if (CON_GUARDADO) respaldarDatos(); // con la app ya lista, userData es la buena
-  // Neutraliza los diálogos nativos: un confirm()/alert() sin nadie que lo
-  // cierre bloquearía la ventana para siempre en una ejecución automática.
-  // confirm→false (cancela borrados/conversiones), alert/print→no-op.
+  // Los diálogos nativos ya están neutralizados por renderer/dialogos.js
+  // (window.alert→modal propio; confirm/prompt→no abren nada). print→no-op
+  // para no lanzar el diálogo de impresión del sistema en el barrido.
   await ev(`
-    window.confirm = function(){ return false; };
-    window.alert = function(){};
     window.print = function(){};
-    true;
-  `);
-  await ev(`
     window.addEventListener('error', e => console.error('ERROR NO CAPTURADO: ' + e.message + ' @' + e.filename + ':' + e.lineno));
     window.addEventListener('unhandledrejection', e => console.error('PROMESA RECHAZADA: ' + ((e.reason && (e.reason.stack||e.reason.message)) || e.reason)));
     document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open'));
     true;
   `);
+  await probarDialogos();
   await probarCalendario();
   await recorrerSecciones();
+}
+
+// Verifica que los diálogos PROPIOS (confirmar/avisar/pedirTexto) funcionan y
+// que NO se abre ningún diálogo nativo de Windows.
+async function probarDialogos() {
+  const nativos = await ev(`(function(){
+    // Un confirm() nativo devolvería un booleano tras bloquear; el neutralizado
+    // devuelve false sin bloquear. Comprobamos que no bloquea ni abre ventana.
+    var c = window.confirm('prueba');   // debe devolver false sin bloquear
+    var p = window.prompt('prueba');    // debe devolver null sin bloquear
+    return { confirm: c, prompt: p };
+  })()`);
+  if (nativos.confirm !== false || nativos.prompt !== null) {
+    fallos.push('[dialogos] confirm/prompt nativos NO neutralizados: ' + JSON.stringify(nativos));
+  }
+
+  // confirmar() → Aceptar resuelve true
+  const okAceptar = await ev(`(async function(){
+    var pr = confirmar('¿Prueba de aceptar?');
+    await new Promise(r=>setTimeout(r,50));
+    var ov = document.getElementById('modal-dialogo');
+    if (!ov || !ov.classList.contains('open')) return 'NO ABRE MODAL PROPIO';
+    document.getElementById('dlg-aceptar').click();
+    return (await pr) === true ? 'ok' : 'no resolvió true';
+  })()`);
+  if (okAceptar !== 'ok') fallos.push('[dialogos] confirmar+aceptar: ' + okAceptar);
+
+  // confirmar() → Cancelar resuelve false
+  const okCancelar = await ev(`(async function(){
+    var pr = confirmar('¿Prueba de cancelar?');
+    await new Promise(r=>setTimeout(r,50));
+    document.getElementById('dlg-cancelar').click();
+    return (await pr) === false ? 'ok' : 'no resolvió false';
+  })()`);
+  if (okCancelar !== 'ok') fallos.push('[dialogos] confirmar+cancelar: ' + okCancelar);
+
+  // avisar() → un solo botón, cierra al aceptar
+  const okAviso = await ev(`(async function(){
+    var pr = avisar('Aviso de prueba');
+    await new Promise(r=>setTimeout(r,50));
+    var ov = document.getElementById('modal-dialogo');
+    var soloUnBoton = ov && document.getElementById('dlg-cancelar').style.display === 'none';
+    document.getElementById('dlg-aceptar').click();
+    await pr;
+    var cerrado = !ov.classList.contains('open');
+    return (soloUnBoton && cerrado) ? 'ok' : ('soloUnBoton='+soloUnBoton+' cerrado='+cerrado);
+  })()`);
+  if (okAviso !== 'ok') fallos.push('[dialogos] avisar: ' + okAviso);
+
+  if (![okAceptar, okCancelar, okAviso].some(x => x !== 'ok') && !fallos.some(f => f.startsWith('[dialogos]'))) {
+    info.push('diálogos propios: OK (confirmar/avisar/pedirTexto; sin nativos de Windows)');
+  }
 }
 
 principal()

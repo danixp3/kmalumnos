@@ -32,7 +32,7 @@ function updateSyncBar(status, reason) {
 
 async function pushAllToCloud() {
   const bar = document.getElementById('push-all-bar');
-  if (!confirm('¿Subir TODOS los datos (vehículos, alumnos y prácticas) a Supabase ahora?\n\nHaz esto la primera vez para que la web del móvil tenga acceso a los datos.')) return;
+  if (!await confirmar('¿Subir TODOS los datos (vehículos, alumnos y prácticas) a Supabase ahora?\n\nHaz esto la primera vez para que la web del móvil tenga acceso a los datos.')) return;
   if (bar) bar.style.color = 'rgba(99,102,241,.7)';
   updateSyncBar('syncing');
   const res = await window.api.syncPushAll();
@@ -374,7 +374,7 @@ function cancelarCrearEmpresa() {
 }
 
 async function cerrarSesionEmpresa() {
-  if (!confirm('¿Cerrar sesión de la cuenta de empresa? Necesitarás iniciar sesión o crear una cuenta para seguir usando la aplicación.')) return;
+  if (!await confirmar('¿Cerrar sesión de la cuenta de empresa? Necesitarás iniciar sesión o crear una cuenta para seguir usando la aplicación.')) return;
   await window.api.clearSyncCreds();
   refrescarEstadoCuenta();
   aplicarPermisosPorRol();

@@ -31,7 +31,7 @@ async function addProfesor() {
 }
 
 async function deleteProfesor(id, nombre) {
-  if (!confirm(`¿Borrar el profesor "${nombre}"? Las prácticas ya registradas conservarán a este profesor en su historial.`)) return;
+  if (!await confirmar(`¿Borrar el profesor "${nombre}"? Las prácticas ya registradas conservarán a este profesor en su historial.`, { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deleteProfesor(id);
   loadProfesores();
 }

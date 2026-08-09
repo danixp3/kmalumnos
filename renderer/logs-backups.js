@@ -89,7 +89,7 @@ function exportarLogsCSV() {
 }
 
 async function borrarLogs() {
-  if (!confirm('¿Borrar todo el historial de operaciones automáticas?')) return;
+  if (!await confirmar('¿Borrar todo el historial de operaciones automáticas?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.clearLogs();
   loadLogs();
 }
@@ -130,7 +130,7 @@ async function loadUltimoBackup() {
 
 async function restaurarUltimoBackup() {
   if (!ultimoBackupInfo) return;
-  if (!confirm(`Esto reemplazará todos los datos actuales por la copia "${ultimoBackupInfo.nombre}". ¿Continuar?`)) return;
+  if (!await confirmar(`Esto reemplazará todos los datos actuales por la copia "${ultimoBackupInfo.nombre}". ¿Continuar?`, { peligro: true })) return;
   const result = await window.api.restaurarUltimoBackup();
   if (!result.ok) {
     alert('Error al restaurar: ' + (result.msg || 'Error desconocido.'));

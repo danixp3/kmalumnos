@@ -241,7 +241,7 @@ async function cambiarResultadoPresentacionUI(id, resultado) {
 }
 
 async function borrarPresentacionUI(id) {
-  if (!confirm('¿Borrar esta presentación?')) return;
+  if (!await confirmar('¿Borrar esta presentación?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deletePresentacion(id);
   loadExamenes();
 }
@@ -310,7 +310,7 @@ async function guardarTasa() {
 }
 
 async function borrarTasaUI(id) {
-  if (!confirm('¿Borrar esta tasa?')) return;
+  if (!await confirmar('¿Borrar esta tasa?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deleteTasa(id);
   loadExamenes();
 }
