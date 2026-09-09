@@ -27,8 +27,8 @@ function getUltimaPractica(alumno_id) {
 function addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id = null, tipo = 'circulacion', sucursal_id = null, hora_inicio = null) {
   const d = load();
   const id = nextId('p');
-  const ki = parseFloat(km_inicial);
-  const kf = parseFloat(km_final);
+  const ki = Math.round(parseFloat(km_inicial));
+  const kf = Math.round(parseFloat(km_final));
   d.practicas.push({
     id, alumno_id: parseInt(alumno_id), vehiculo_id: parseInt(vehiculo_id), fecha, km_inicial: ki, km_final: kf,
     profesor_id: profesor_id ? parseInt(profesor_id) : null,
@@ -56,8 +56,8 @@ function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tip
   const p = d.practicas.find(x => x.id === id);
   if (p) {
     p.fecha = fecha;
-    p.km_inicial = parseFloat(km_inicial);
-    p.km_final = parseFloat(km_final);
+    p.km_inicial = Math.round(parseFloat(km_inicial));
+    p.km_final = Math.round(parseFloat(km_final));
     p.profesor_id = profesor_id ? parseInt(profesor_id) : null;
     p.tipo = tipo || 'circulacion';
     p.hora_inicio = hora_inicio || null;

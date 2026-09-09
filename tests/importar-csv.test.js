@@ -45,7 +45,7 @@ test('rechaza las filas defectuosas indicando fila y motivo, sin frenar las vál
 });
 
 test('si las filas no traen km, los genera encadenados dentro del rango configurado', () => {
-  jest.spyOn(Math, 'random').mockReturnValue(0.5); // incremento fijo de 42.5 km (rango 40-45)
+  jest.spyOn(Math, 'random').mockReturnValue(0.5); // incremento fijo de 43 km enteros (rango 40-45)
 
   const res = db.importarCSV([
     { alumno: 'Ana', vehiculo: 'Coche 1', fecha: '2026-07-01' },
@@ -57,8 +57,9 @@ test('si las filas no traen km, los genera encadenados dentro del rango configur
   expect(res.insertados).toBe(2);
   const ana = db.getAlumnos()[0];
   const practicas = db.getPracticasByAlumno(ana.id);
-  expect(practicas[0]).toMatchObject({ km_inicial: 0, km_final: 42.5 });
-  expect(practicas[1]).toMatchObject({ km_inicial: 42.5, km_final: 85 });
+  // Km enteros (sin decimales) y encadenados
+  expect(practicas[0]).toMatchObject({ km_inicial: 0, km_final: 43 });
+  expect(practicas[1]).toMatchObject({ km_inicial: 43, km_final: 86 });
 });
 
 test('la exportación devuelve un CSV con cabecera y una línea por práctica', () => {

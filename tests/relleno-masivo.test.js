@@ -1,6 +1,6 @@
 // Tests del relleno masivo de km en prácticas pendientes (km 0,0).
-// Se fija Math.random a 0.5 para que el incremento sea siempre 42.5 km
-// (punto medio del rango 40-45) y los resultados sean comprobables.
+// Se fija Math.random a 0.5 para que el incremento sea siempre 43 km enteros
+// (punto medio del rango 40-45, redondeado) y los resultados sean comprobables.
 const db = require('../db');
 const { resetData } = require('./helpers');
 
@@ -24,11 +24,11 @@ test('rellena las prácticas pendientes de forma encadenada desde el odómetro d
 
   expect(res).toEqual({ rellenadas: 3, saltadas: 0 });
   const practicas = db.getPracticasByAlumno(aid);
-  expect(practicas[0]).toMatchObject({ km_inicial: 1000, km_final: 1042.5 });
-  expect(practicas[1]).toMatchObject({ km_inicial: 1042.5, km_final: 1085 });
-  expect(practicas[2]).toMatchObject({ km_inicial: 1085, km_final: 1127.5 });
+  expect(practicas[0]).toMatchObject({ km_inicial: 1000, km_final: 1043 });
+  expect(practicas[1]).toMatchObject({ km_inicial: 1043, km_final: 1086 });
+  expect(practicas[2]).toMatchObject({ km_inicial: 1086, km_final: 1129 });
   // El odómetro del vehículo avanza hasta el último km generado
-  expect(db.getVehiculos()[0].km_actual).toBe(1127.5);
+  expect(db.getVehiculos()[0].km_actual).toBe(1129);
   // Y no queda ninguna práctica pendiente ni solapada
   expect(db.getPracticasSinKm(vid)).toBe(0);
   expect(db.getSolapamientos()).toHaveLength(0);
@@ -44,7 +44,7 @@ test('continúa a partir del último km ya registrado en el vehículo', () => {
 
   expect(res).toEqual({ rellenadas: 1, saltadas: 0 });
   const practicas = db.getPracticasByAlumno(aid);
-  expect(practicas[1]).toMatchObject({ km_inicial: 140, km_final: 182.5 });
+  expect(practicas[1]).toMatchObject({ km_inicial: 140, km_final: 183 });
 });
 
 test('respeta el tope de odómetro: salta las prácticas que lo superarían', () => {
