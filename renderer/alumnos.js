@@ -271,7 +271,13 @@ async function addAlumno() {
     direccion: document.getElementById('a-direccion')?.value.trim() || '',
     fecha_alta: document.getElementById('a-fecha-alta')?.value || '',
     observaciones: document.getElementById('a-observaciones')?.value.trim() || '',
-    estado: document.getElementById('a-estado')?.value || ''
+    estado: document.getElementById('a-estado')?.value || '',
+    // Ficha DGT (tarea "Ficha alumno – formación práctica"): mismo grupo
+    // datos que el resto de arriba (ver CAMPOS_DATOS_ALUMNO en db/alumnos.js).
+    primer_apellido: document.getElementById('a-primer-apellido')?.value.trim() || '',
+    segundo_apellido: document.getElementById('a-segundo-apellido')?.value.trim() || '',
+    codigo_postal: document.getElementById('a-cp')?.value.trim() || '',
+    poblacion: document.getElementById('a-poblacion')?.value.trim() || ''
   };
   // Libro de registro de alumnos (RD 1295/2003 art. 39): permisos que ya
   // posee, fechas de la enseñanza y resultado. El nº de inscripción no se
@@ -296,11 +302,15 @@ async function addAlumno() {
   const permisos = leerPermisosCheckboxes('a-permisos');
   await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, getSucursalActual(), email || null, datos, libro, permisos);
   document.getElementById('a-nombre').value = '';
+  document.getElementById('a-primer-apellido').value = '';
+  document.getElementById('a-segundo-apellido').value = '';
   document.getElementById('a-email').value = '';
   document.getElementById('a-telefono').value = '';
   document.getElementById('a-dni').value = '';
   document.getElementById('a-fecha-nacimiento').value = '';
   document.getElementById('a-direccion').value = '';
+  document.getElementById('a-cp').value = '';
+  document.getElementById('a-poblacion').value = '';
   document.getElementById('a-fecha-alta').value = '';
   document.getElementById('a-observaciones').value = '';
   document.getElementById('a-estado').value = 'activo';
@@ -347,6 +357,8 @@ async function openEditAlumno(id) {
   if (!a) return;
   document.getElementById('edit-a-id').value = a.id;
   document.getElementById('edit-a-nombre').value = a.nombre;
+  document.getElementById('edit-a-primer-apellido').value = a.primer_apellido || '';
+  document.getElementById('edit-a-segundo-apellido').value = a.segundo_apellido || '';
   document.getElementById('edit-a-permiso').value = a.permiso;
   document.getElementById('edit-a-vehiculo').value = a.vehiculo_id || '';
   document.getElementById('edit-a-email').value = a.email || '';
@@ -354,6 +366,8 @@ async function openEditAlumno(id) {
   document.getElementById('edit-a-dni').value = a.dni || '';
   document.getElementById('edit-a-fecha-nacimiento').value = a.fecha_nacimiento || '';
   document.getElementById('edit-a-direccion').value = a.direccion || '';
+  document.getElementById('edit-a-cp').value = a.codigo_postal || '';
+  document.getElementById('edit-a-poblacion').value = a.poblacion || '';
   document.getElementById('edit-a-fecha-alta').value = a.fecha_alta || '';
   document.getElementById('edit-a-observaciones').value = a.observaciones || '';
   document.getElementById('edit-a-estado').value = a.estado || 'activo';
@@ -497,7 +511,11 @@ async function saveAlumno() {
     direccion: document.getElementById('edit-a-direccion')?.value.trim() || '',
     fecha_alta: document.getElementById('edit-a-fecha-alta')?.value || '',
     observaciones: document.getElementById('edit-a-observaciones')?.value.trim() || '',
-    estado: document.getElementById('edit-a-estado')?.value || ''
+    estado: document.getElementById('edit-a-estado')?.value || '',
+    primer_apellido: document.getElementById('edit-a-primer-apellido')?.value.trim() || '',
+    segundo_apellido: document.getElementById('edit-a-segundo-apellido')?.value.trim() || '',
+    codigo_postal: document.getElementById('edit-a-cp')?.value.trim() || '',
+    poblacion: document.getElementById('edit-a-poblacion')?.value.trim() || ''
   };
   const libro = {
     permisos_posee: document.getElementById('edit-a-permisos-posee')?.value.trim() || '',
@@ -835,6 +853,38 @@ async function imprimirFichaPracticas(alumnoId) {
   `;
 
   window.print();
+}
+
+// ─── FICHA DGT (impreso oficial de formación práctica) ─────────────────────
+// Modal pequeño para elegir destreza/circulación (#modal-ficha-dgt) y llamar
+// a window.api.generarFichaDGT (IPC 'generar-ficha-dgt' → fichas-dgt.js). Los
+// datos del centro se leen de Ajustes (getCentroDatos, renderer/ajustes.js);
+// si están vacíos se avisa pero se deja continuar igualmente.
+async function abrirFichaDGT(alumnoId) {
+  document.getElementById('ficha-dgt-alumno-id').value = alumnoId;
+  document.getElementById('ficha-dgt-tipo').value = 'destreza';
+  const aviso = document.getElementById('ficha-dgt-aviso');
+  const centro = (typeof getCentroDatos === 'function') ? getCentroDatos() : {};
+  if (!centro.denominacion) {
+    aviso.textContent = 'No has rellenado "Datos del centro (DGT)" en Ajustes. Puedes generar la ficha igualmente, pero saldrá sin esos datos.';
+    aviso.classList.remove('hidden');
+  } else {
+    aviso.classList.add('hidden');
+  }
+  openModal('modal-ficha-dgt');
+}
+
+async function generarFichaDGTUI() {
+  const alumnoId = parseInt(document.getElementById('ficha-dgt-alumno-id').value);
+  const tipo = document.getElementById('ficha-dgt-tipo').value;
+  const centro = (typeof getCentroDatos === 'function') ? getCentroDatos() : {};
+  const r = await window.api.generarFichaDGT({ alumnoId, tipo, centro });
+  if (r && r.ok) {
+    closeModal('modal-ficha-dgt');
+    await avisar(`Ficha generada (${r.nClases} clase${r.nClases === 1 ? '' : 's'}).`);
+  } else if (!r || !r.canceled) {
+    await avisar((r && r.msg) || 'No se pudo generar la ficha.');
+  }
 }
 
 // ─── LIBRO DE REGISTRO DE ALUMNOS (RD 1295/2003 art. 39) ──────────────────

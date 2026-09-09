@@ -191,6 +191,37 @@ function guardarIvaPrefDesdeAjustes() {
   guardarIvaPorcentaje(document.getElementById('pref-iva').value);
 }
 
+// Datos del centro (DGT), cabecera del impreso oficial de formación práctica
+// (ficha DGT, ver window.api.generarFichaDGT / fichas-dgt.js). Mismo patrón
+// localStorage que el resto de preferencias de arriba (getPrecioCombustible):
+// objeto JSON con try/catch, {} por defecto si no hay nada guardado o el
+// contenido no es válido.
+const CENTRO_DATOS_KEY = 'km_centro_datos';
+
+function getCentroDatos() {
+  try {
+    const raw = localStorage.getItem(CENTRO_DATOS_KEY);
+    if (raw) {
+      const c = JSON.parse(raw);
+      if (c && typeof c === 'object') return c;
+    }
+  } catch (e) {}
+  return {};
+}
+
+function guardarCentroDatosDesdeAjustes() {
+  const centro = {
+    numero: document.getElementById('centro-numero')?.value.trim() || '',
+    seccion: document.getElementById('centro-seccion')?.value.trim() || '',
+    digito_control: document.getElementById('centro-digito')?.value.trim() || '',
+    denominacion: document.getElementById('centro-denominacion')?.value.trim() || '',
+    direccion: document.getElementById('centro-direccion')?.value.trim() || '',
+    codigo_postal: document.getElementById('centro-cp')?.value.trim() || '',
+    poblacion: document.getElementById('centro-poblacion')?.value.trim() || ''
+  };
+  try { localStorage.setItem(CENTRO_DATOS_KEY, JSON.stringify(centro)); } catch (e) {}
+}
+
 const PREF_DASHBOARD_KEY = 'kmalumnos_dashboard_stats';
 const PREF_DASHBOARD_DEFAULT = {
   vehiculos: true, alumnos: true, practicas: true,
@@ -254,6 +285,21 @@ async function loadAjustes() {
   if (elTasa) elTasa.value = getTasaImporte();
   const elIva = document.getElementById('pref-iva');
   if (elIva) elIva.value = getIvaPorcentaje();
+  const centroDatos = getCentroDatos();
+  const elCentroNumero = document.getElementById('centro-numero');
+  if (elCentroNumero) elCentroNumero.value = centroDatos.numero || '';
+  const elCentroSeccion = document.getElementById('centro-seccion');
+  if (elCentroSeccion) elCentroSeccion.value = centroDatos.seccion || '';
+  const elCentroDigito = document.getElementById('centro-digito');
+  if (elCentroDigito) elCentroDigito.value = centroDatos.digito_control || '';
+  const elCentroDenominacion = document.getElementById('centro-denominacion');
+  if (elCentroDenominacion) elCentroDenominacion.value = centroDatos.denominacion || '';
+  const elCentroDireccion = document.getElementById('centro-direccion');
+  if (elCentroDireccion) elCentroDireccion.value = centroDatos.direccion || '';
+  const elCentroCp = document.getElementById('centro-cp');
+  if (elCentroCp) elCentroCp.value = centroDatos.codigo_postal || '';
+  const elCentroPoblacion = document.getElementById('centro-poblacion');
+  if (elCentroPoblacion) elCentroPoblacion.value = centroDatos.poblacion || '';
   const dashPref = getDashboardPref();
   document.getElementById('pref-dash-vehiculos').checked = dashPref.vehiculos;
   document.getElementById('pref-dash-alumnos').checked = dashPref.alumnos;

@@ -1,0 +1,65 @@
+{
+  "_descripcion": "Mapa de coordenadas VALIDADO de los impresos oficiales DGT 'FICHA ALUMNO - FORMACION PRACTICA' (MOD 12/2016-01-ES). Origen de coordenadas ARRIBA-IZQUIERDA (yTop = puntos desde el borde superior), en puntos PDF (1/72 pulgada). Para pdf-lib (origen abajo-izquierda) usar: y = pageHeight - (yTop + offsetTexto). offsetTexto ~12 centra el texto en la casilla. Fuente sugerida: Helvetica 9-10pt (cabecera) y 8-9pt (tabla).",
+  "pagina1": {
+    "archivo": "ficha_practicas_dgt.pdf",
+    "ancho": 595.28,
+    "alto": 841.89,
+    "offsetTexto": 12,
+    "fuenteCabecera": 10,
+    "fuenteTabla": 9,
+    "checkboxes": {
+      "destreza":    { "x": 127, "yTop": 96, "marca": "X" },
+      "circulacion": { "x": 396, "yTop": 97, "marca": "X" }
+    },
+    "escuela": {
+      "numero":         { "x": 30,  "yTop": 154 },
+      "seccion":        { "x": 93,  "yTop": 154 },
+      "digito_control": { "x": 155, "yTop": 154 },
+      "denominacion":   { "x": 212, "yTop": 154 },
+      "direccion":      { "x": 30,  "yTop": 181 },
+      "codigo_postal":  { "x": 306, "yTop": 181 },
+      "poblacion":      { "x": 398, "yTop": 181 },
+      "profesor":       { "x": 30,  "yTop": 209 },
+      "profesor_dni":   { "x": 438, "yTop": 209 }
+    },
+    "alumno": {
+      "dni":              { "x": 29,  "yTop": 258 },
+      "permiso":          { "x": 166, "yTop": 258 },
+      "nombre":           { "x": 306, "yTop": 258 },
+      "primer_apellido":  { "x": 30,  "yTop": 287 },
+      "segundo_apellido": { "x": 306, "yTop": 287 },
+      "direccion":        { "x": 30,  "yTop": 314 },
+      "codigo_postal":    { "x": 306, "yTop": 314 },
+      "poblacion":        { "x": 398, "yTop": 314 }
+    },
+    "tablaColumnas": {
+      "fecha":       { "x": 28 },
+      "hora":        { "x": 76 },
+      "ejercicio":   { "x": 160, "centrar": true },
+      "km_inicial":  { "x": 238 },
+      "km_final":    { "x": 271 }
+    },
+    "tablaFilasYTop": [370, 389, 409, 429, 448, 468, 488, 507, 527, 547, 566],
+    "footer": {
+      "lugar": { "x": 138, "yTop": 683 },
+      "dia":   { "x": 243, "yTop": 683 },
+      "mes":   { "x": 283, "yTop": 683 },
+      "anio":  { "x": 366, "yTop": 683 }
+    }
+  },
+  "paginaContinuacion": {
+    "archivo": "ficha_practicas_dgt_cont.pdf",
+    "ancho": 552.96,
+    "alto": 761.76,
+    "offsetTexto": 13,
+    "fuenteTabla": 9,
+    "tablaColumnas": {
+      "fecha":       { "x": 7 },
+      "hora":        { "x": 62 },
+      "ejercicio":   { "x": 145, "centrar": true },
+      "km_inicial":  { "x": 220 },
+      "km_final":    { "x": 255 }
+    },
+    "tablaFilasYTop": [40, 62, 85, 108, 130, 153, 175, 197, 220, 243, 265, 288, 312, 334, 357, 378, 400, 423, 445, 468, 491, 513, 535, 558, 581, 603, 626, 649, 671, 694, 717, 740]
+  }
+}

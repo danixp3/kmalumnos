@@ -186,6 +186,9 @@ function setCredentials(email, password) {
   _alumnosLibroDisponibleCache = null; // idem: reconsultar si las columnas del libro de registro están disponibles
   _alumnosPermisosDisponibleCache = null; // idem: reconsultar si la columna permisos está disponible
   _pagosCamposDisponibleCache = null; // idem: reconsultar si forma_pago/empleado están disponibles
+  _profesoresDniDisponibleCache = null; // idem: reconsultar si la columna dni de profesores está disponible
+  _alumnosFichaDgtDisponibleCache = null; // idem: reconsultar si las columnas de la ficha DGT están disponibles
+  _practicasHoraInicioDisponibleCache = null; // idem: reconsultar si la columna hora_inicio está disponible
   _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
   // Entrada fresca de credenciales (login manual, registro, o logout): nunca
   // se da por buena hasta que un login real lo confirme. Distinto de
@@ -331,6 +334,9 @@ async function registrarEmpresa(email, password) {
       _alumnosLibroDisponibleCache = null; // idem: reconsultar si las columnas del libro de registro están disponibles
   _alumnosPermisosDisponibleCache = null; // idem: reconsultar si la columna permisos está disponible
   _pagosCamposDisponibleCache = null; // idem: reconsultar si forma_pago/empleado están disponibles
+  _profesoresDniDisponibleCache = null; // idem: reconsultar si la columna dni de profesores está disponible
+  _alumnosFichaDgtDisponibleCache = null; // idem: reconsultar si las columnas de la ficha DGT están disponibles
+  _practicasHoraInicioDisponibleCache = null; // idem: reconsultar si la columna hora_inicio está disponible
       _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
       _authOk = true;
       _guardarAuthOk(true);
@@ -618,6 +624,69 @@ async function _pagosCamposDisponible(sb) {
     _pagosCamposDisponibleCache = false;
   }
   return _pagosCamposDisponibleCache;
+}
+
+// Mismo patrón exacto que _pagosCamposDisponible de arriba, para la columna
+// NUEVA `dni` de profesores (tarea "Ficha alumno – formación práctica" DGT) —
+// migración `migraciones/2026-09-09_profesor_dni.sql`, TODAVÍA NO aplicada.
+// Si no está aplicada, la columna no existe en Supabase y se trata como
+// "modo clásico", nunca como un error real. Cacheado en memoria durante la
+// sesión; se invalida en los mismos puntos que _pagosCamposDisponibleCache
+// (setCredentials/registrarEmpresa).
+let _profesoresDniDisponibleCache = null;
+
+async function _profesoresDniDisponible(sb) {
+  if (_profesoresDniDisponibleCache !== null) return _profesoresDniDisponibleCache;
+  try {
+    const { error } = await sb.from('profesores').select('dni').limit(1);
+    _profesoresDniDisponibleCache = !error;
+  } catch {
+    _profesoresDniDisponibleCache = false;
+  }
+  return _profesoresDniDisponibleCache;
+}
+
+// Mismo patrón exacto que _alumnosLibroDisponible, pero para el grupo APARTE
+// de la ficha DGT del alumno (primer_apellido, segundo_apellido,
+// codigo_postal, poblacion — mismo grupo de tarea que profesores.dni y
+// practicas.hora_inicio, ver comentario junto a CAMPOS_DATOS_ALUMNO en
+// db/alumnos.js) — migración `migraciones/2026-09-09_alumno_ficha_dgt.sql`,
+// TODAVÍA NO aplicada. Si no está aplicada, esas 4 columnas no existen en
+// Supabase y se trata como "modo clásico", nunca como un error real. Basta
+// comprobar una sola columna (`primer_apellido`): se aplican juntas.
+// Cacheado en memoria durante la sesión; se invalida en los mismos puntos
+// que _alumnosLibroDisponibleCache (setCredentials/registrarEmpresa).
+let _alumnosFichaDgtDisponibleCache = null;
+
+async function _alumnosFichaDgtDisponible(sb) {
+  if (_alumnosFichaDgtDisponibleCache !== null) return _alumnosFichaDgtDisponibleCache;
+  try {
+    const { error } = await sb.from('alumnos').select('primer_apellido').limit(1);
+    _alumnosFichaDgtDisponibleCache = !error;
+  } catch {
+    _alumnosFichaDgtDisponibleCache = false;
+  }
+  return _alumnosFichaDgtDisponibleCache;
+}
+
+// Mismo patrón exacto que las anteriores, para la columna NUEVA
+// `hora_inicio` de prácticas (misma tarea "Ficha alumno – formación práctica"
+// DGT) — migración `migraciones/2026-09-09_practica_hora_inicio.sql`,
+// TODAVÍA NO aplicada. Si no está aplicada, la columna no existe en Supabase
+// y se trata como "modo clásico", nunca como un error real. Cacheado en
+// memoria durante la sesión; se invalida en los mismos puntos que
+// _alumnosFichaDgtDisponibleCache (setCredentials/registrarEmpresa).
+let _practicasHoraInicioDisponibleCache = null;
+
+async function _practicasHoraInicioDisponible(sb) {
+  if (_practicasHoraInicioDisponibleCache !== null) return _practicasHoraInicioDisponibleCache;
+  try {
+    const { error } = await sb.from('practicas').select('hora_inicio').limit(1);
+    _practicasHoraInicioDisponibleCache = !error;
+  } catch {
+    _practicasHoraInicioDisponibleCache = false;
+  }
+  return _practicasHoraInicioDisponibleCache;
 }
 
 // ─── MÓDULOS CONTRATADOS (fase 0 SaaS, entitlements por empresa) ─────────────
@@ -1185,6 +1254,21 @@ async function sync() {
     // permisosOn, si la migración no está aplicada esas 2 columnas no se
     // estampan en el payload de subida de pagos.
     const pagosCamposOn = await _pagosCamposDisponible(sb);
+    // DNI de profesor (tarea "Ficha alumno – formación práctica" DGT) — ver
+    // comentario junto a _profesoresDniDisponible: mismo patrón que
+    // pagosCamposOn, si la migración no está aplicada la columna `dni` no se
+    // estampa en el payload de subida de profesores.
+    const profesoresDniOn = await _profesoresDniDisponible(sb);
+    // Ficha DGT del alumno (primer_apellido/segundo_apellido/codigo_postal/
+    // poblacion) — ver comentario junto a _alumnosFichaDgtDisponible: mismo
+    // patrón que profesoresDniOn, si la migración no está aplicada esas 4
+    // columnas no se estampan en el payload de subida de alumnos.
+    const fichaDgtOn = await _alumnosFichaDgtDisponible(sb);
+    // Hora de inicio de práctica — ver comentario junto a
+    // _practicasHoraInicioDisponible: mismo patrón que fichaDgtOn, si la
+    // migración no está aplicada la columna `hora_inicio` no se estampa en
+    // el payload de subida de prácticas.
+    const horaInicioOn = await _practicasHoraInicioDisponible(sb);
     // Conflicto de empresa sin resolver (ver sección "PROPIETARIO DE LOS DATOS
     // LOCALES"): el login de ensureClient() acaba de revelar que data.json
     // pertenece a otra cuenta. No tocar nada — ni subir lo que hay en local
@@ -1271,6 +1355,7 @@ async function sync() {
           };
           if (_empresaId) payload.empresa_id = _empresaId;
           if (sucursalesOn) payload.sucursal_id = pr.sucursal_id != null ? pr.sucursal_id : null;
+          if (profesoresDniOn) payload.dni = pr.dni || null;
           await sb.from('profesores').upsert(payload, { onConflict: 'id' });
         }
       }
@@ -1321,6 +1406,12 @@ async function sync() {
             payload.resultado = a.resultado || null;
           }
           if (permisosOn) payload.permisos = JSON.stringify(a.permisos || []);
+          if (fichaDgtOn) {
+            payload.primer_apellido = a.primer_apellido || null;
+            payload.segundo_apellido = a.segundo_apellido || null;
+            payload.codigo_postal = a.codigo_postal || null;
+            payload.poblacion = a.poblacion || null;
+          }
           await sb.from('alumnos').upsert(payload, { onConflict: 'id' });
         }
       }
@@ -1342,6 +1433,7 @@ async function sync() {
           };
           if (_empresaId) payload.empresa_id = _empresaId;
           if (sucursalesOn) payload.sucursal_id = p.sucursal_id != null ? p.sucursal_id : null;
+          if (horaInicioOn) payload.hora_inicio = p.hora_inicio || null;
           await sb.from('practicas').upsert(payload, { onConflict: 'id' });
         }
       }
@@ -1563,6 +1655,7 @@ async function sync() {
           data.profesores.push({
             id: rp.id, nombre: rp.nombre, nota: rp.nota || '',
             sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null,
+            dni: rp.dni != null ? rp.dni : null,
             updated_at: rp.updated_at
           });
           if (rp.id >= data._seq.pf) data._seq.pf = rp.id + 1;
@@ -1572,9 +1665,9 @@ async function sync() {
           const localUpdated  = data.profesores[idx].updated_at || '1970-01-01T00:00:00.000Z';
           const remoteUpdated = rp.updated_at || '1970-01-01T00:00:00.000Z';
           if (remoteUpdated > localUpdated) {
-            const nuevo = { nombre: rp.nombre, nota: rp.nota || '', sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null };
+            const nuevo = { nombre: rp.nombre, nota: rp.nota || '', sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null, dni: rp.dni != null ? rp.dni : null };
             _detectarYRegistrarConflicto(data, 'profesores', pending.profesores,
-              rp.id, ['nombre', 'nota'], data.profesores[idx], nuevo, conflictos);
+              rp.id, ['nombre', 'nota', 'dni'], data.profesores[idx], nuevo, conflictos);
             Object.assign(data.profesores[idx], nuevo, { updated_at: rp.updated_at });
             dataChanged = true;
             pulled++;
@@ -1661,6 +1754,12 @@ async function sync() {
           // tolera también texto (JSON.stringify en la subida) — parsea si
           // llega como string, pasa tal cual si ya llega como array/null.
           permisos: ra.permisos ? (typeof ra.permisos === 'string' ? JSON.parse(ra.permisos) : ra.permisos) : [],
+          // Ficha DGT (tarea "Ficha alumno – formación práctica"): mismo
+          // patrón que el resto de campos opcionales de arriba.
+          primer_apellido: ra.primer_apellido != null ? ra.primer_apellido : null,
+          segundo_apellido: ra.segundo_apellido != null ? ra.segundo_apellido : null,
+          codigo_postal: ra.codigo_postal != null ? ra.codigo_postal : null,
+          poblacion: ra.poblacion != null ? ra.poblacion : null,
           updated_at: ra.updated_at
         };
         if (idx !== -1) {
@@ -1673,7 +1772,8 @@ async function sync() {
             _detectarYRegistrarConflicto(data, 'alumnos', pending.alumnos, ra.id,
               ['nombre', 'permiso', 'vehiculo_id', 'profesor_id', 'email',
                 'telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones', 'estado',
-                'n_inscripcion', 'permisos_posee', 'fecha_inicio', 'fecha_fin', 'resultado', 'permisos'],
+                'n_inscripcion', 'permisos_posee', 'fecha_inicio', 'fecha_fin', 'resultado', 'permisos',
+                'primer_apellido', 'segundo_apellido', 'codigo_postal', 'poblacion'],
               local, alumno, conflictos);
             data.alumnos[idx] = alumno;
             dataChanged = true;
@@ -1713,6 +1813,7 @@ async function sync() {
                 nota: rp.nota || '', profesor_id: rp.profesor_id != null ? rp.profesor_id : null,
                 tipo: rp.tipo != null ? rp.tipo : null,
                 sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null,
+                hora_inicio: rp.hora_inicio != null ? rp.hora_inicio : null,
                 updated_at: rp.updated_at
               };
               if (idx !== -1) {
@@ -1720,10 +1821,10 @@ async function sync() {
                 const local = data.practicas[idx];
                 const localUpdated = local.updated_at || '1970-01-01T00:00:00.000Z';
                 const remoteUpdated = rp.updated_at || '1970-01-01T00:00:00.000Z';
-            
+
                 if (remoteUpdated > localUpdated) {
                   _detectarYRegistrarConflicto(data, 'practicas', pending.practicas, rp.id,
-                    ['alumno_id', 'vehiculo_id', 'fecha', 'km_inicial', 'km_final', 'nota', 'profesor_id', 'tipo'],
+                    ['alumno_id', 'vehiculo_id', 'fecha', 'km_inicial', 'km_final', 'nota', 'profesor_id', 'tipo', 'hora_inicio'],
                     local, practica, conflictos);
                   data.practicas[idx] = practica;
                   dataChanged = true;
@@ -2147,6 +2248,37 @@ async function pushAll() {
       }
       return { ...obj, permisos: JSON.stringify(obj.permisos || []) };
     };
+    // dni de profesor (tarea "Ficha alumno – formación práctica" DGT): mismo
+    // cuidado que quitarPermisos — si la migración no está aplicada hay que
+    // quitar la columna del objeto o el upsert de profesores falla entero
+    // (columna inexistente en el servidor).
+    const profesoresDniOn = await _profesoresDniDisponible(sb);
+    const quitarDniProfesor = obj => {
+      if (!profesoresDniOn) { const { dni, ...resto } = obj; return resto; }
+      return { ...obj, dni: obj.dni || null };
+    };
+    // ficha DGT del alumno (primer_apellido/segundo_apellido/codigo_postal/
+    // poblacion), mismo cuidado que quitarPermisos.
+    const fichaDgtOn = await _alumnosFichaDgtDisponible(sb);
+    const quitarFichaDgt = obj => {
+      if (!fichaDgtOn) {
+        const { primer_apellido, segundo_apellido, codigo_postal, poblacion, ...resto } = obj;
+        return resto;
+      }
+      return {
+        ...obj,
+        primer_apellido: obj.primer_apellido || null,
+        segundo_apellido: obj.segundo_apellido || null,
+        codigo_postal: obj.codigo_postal || null,
+        poblacion: obj.poblacion || null
+      };
+    };
+    // hora_inicio de práctica, mismo cuidado que quitarFichaDgt.
+    const horaInicioOn = await _practicasHoraInicioDisponible(sb);
+    const quitarHoraInicio = obj => {
+      if (!horaInicioOn) { const { hora_inicio, ...resto } = obj; return resto; }
+      return { ...obj, hora_inicio: obj.hora_inicio || null };
+    };
 
     // Subir en orden: vehiculos → profesores → tarifas → alumnos → practicas → pagos
     if (data.vehiculos.length) {
@@ -2157,7 +2289,7 @@ async function pushAll() {
     }
     if (data.profesores.length) {
       await sb.from('profesores').upsert(
-        data.profesores.map(p => quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })),
+        data.profesores.map(p => quitarDniProfesor(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now }))),
         { onConflict: 'id' }
       );
     }
@@ -2169,13 +2301,13 @@ async function pushAll() {
     }
     if (data.alumnos.length) {
       await sb.from('alumnos').upsert(
-        data.alumnos.map(a => quitarPermisos(quitarLibro(quitarDatos(quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now })))))),
+        data.alumnos.map(a => quitarFichaDgt(quitarPermisos(quitarLibro(quitarDatos(quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now }))))))),
         { onConflict: 'id' }
       );
     }
     if (data.practicas.length) {
       await sb.from('practicas').upsert(
-        data.practicas.map(p => quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })),
+        data.practicas.map(p => quitarHoraInicio(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now }))),
         { onConflict: 'id' }
       );
     }

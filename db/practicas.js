@@ -21,7 +21,10 @@ function getUltimaPractica(alumno_id) {
   return practicas.length ? practicas[practicas.length - 1] : null;
 }
 
-function addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id = null, tipo = 'circulacion', sucursal_id = null) {
+// hora_inicio (tarea "Ficha alumno – formación práctica" DGT): string
+// "HH:MM" opcional, nullable. Va al final para no romper llamadas existentes
+// (mismo criterio que profesor_id/tipo/sucursal_id).
+function addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id = null, tipo = 'circulacion', sucursal_id = null, hora_inicio = null) {
   const d = load();
   const id = nextId('p');
   const ki = parseFloat(km_inicial);
@@ -30,7 +33,8 @@ function addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profes
     id, alumno_id: parseInt(alumno_id), vehiculo_id: parseInt(vehiculo_id), fecha, km_inicial: ki, km_final: kf,
     profesor_id: profesor_id ? parseInt(profesor_id) : null,
     tipo: tipo || 'circulacion',
-    sucursal_id: sucursal_id ? parseInt(sucursal_id) : null
+    sucursal_id: sucursal_id ? parseInt(sucursal_id) : null,
+    hora_inicio: hora_inicio || null
   });
   // Actualizar km vehículo si corresponde
   const v = d.vehiculos.find(x => x.id === parseInt(vehiculo_id));
@@ -47,7 +51,7 @@ function deletePractica(id) {
   const s = _sync(); if (s) s.markDeleted('practicas', id);
 }
 
-function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tipo = 'circulacion') {
+function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tipo = 'circulacion', hora_inicio = null) {
   const d = load();
   const p = d.practicas.find(x => x.id === id);
   if (p) {
@@ -56,6 +60,7 @@ function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tip
     p.km_final = parseFloat(km_final);
     p.profesor_id = profesor_id ? parseInt(profesor_id) : null;
     p.tipo = tipo || 'circulacion';
+    p.hora_inicio = hora_inicio || null;
     save();
     const s = _sync(); if (s) s.markDirty('practicas', id);
   }
@@ -150,6 +155,7 @@ function getTodasPracticas(filtros = {}) {
         km_final: p.km_final,
         km_recorridos: sinKm ? 0 : p.km_final - p.km_inicial,
         tipo: p.tipo || 'circulacion',
+        hora_inicio: p.hora_inicio || null,
         sin_km: sinKm,
       };
     });
@@ -349,8 +355,44 @@ function eliminarPracticaPorFecha(vehiculo_id, fecha, alumno_id) {
   return { eliminada: false };
 }
 
+// ─── DATOS PARA LA FICHA DGT (impreso oficial de formación práctica) ─────────
+/**
+ * Prepara los datos de un alumno para generar la ficha oficial DGT, ya
+ * ordenados y formateados. `tipo` es 'destreza' | 'circulacion' y filtra las
+ * prácticas: 'destreza' → prácticas de pista (tipo 'pista'); 'circulacion' →
+ * prácticas de circulación. Fechas a dd/mm/aaaa; km como enteros. No incluye
+ * datos del centro (esos vienen de Ajustes, en el proceso principal). Alumno
+ * inexistente → null. Solo lectura, no marca sync.
+ */
+function getDatosFichaDGT(alumno_id, tipo) {
+  const d = load();
+  const aid = parseInt(alumno_id);
+  const a = d.alumnos.find(x => x.id === aid);
+  if (!a) return null;
+
+  const prof = a.profesor_id ? d.profesores.find(x => x.id === a.profesor_id) : null;
+  const tipoPractica = tipo === 'destreza' ? 'pista' : 'circulacion';
+  const fmt = (f) => { if (!f) return ''; const [y, m, dd] = String(f).split('-'); return (y && m && dd) ? `${dd}/${m}/${y}` : String(f); };
+  const km = (n) => (n == null ? '' : String(Number.isInteger(n) ? n : n));
+
+  const practicas = d.practicas
+    .filter(p => p.alumno_id === aid && !p.deleted && (p.tipo || 'circulacion') === tipoPractica)
+    .sort((x, y) => x.fecha.localeCompare(y.fecha) || x.id - y.id)
+    .map(p => ({ fecha: fmt(p.fecha), hora: p.hora_inicio || '', km_inicial: km(p.km_inicial), km_final: km(p.km_final) }));
+
+  return {
+    alumno: {
+      dni: a.dni || '', permiso: a.permiso || '', nombre: a.nombre || '',
+      primer_apellido: a.primer_apellido || '', segundo_apellido: a.segundo_apellido || '',
+      direccion: a.direccion || '', codigo_postal: a.codigo_postal || '', poblacion: a.poblacion || '',
+    },
+    profesor: { nombre: prof ? prof.nombre : '', dni: prof ? (prof.dni || '') : '' },
+    practicas,
+  };
+}
+
 module.exports = {
   getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica, getTodasPracticas,
   getAlumnosPorVehiculo, registrarPracticasMasivas, eliminarPracticaPorFecha, ajustarPracticasAlumno, guardarNotaAlumno,
-  getFichaPracticasAlumno,
+  getFichaPracticasAlumno, getDatosFichaDGT,
 };

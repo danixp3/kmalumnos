@@ -71,8 +71,23 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
         kmF = Math.round((kmI + _randomKm(kmMin, kmMax)) * 10) / 10;
       }
 
+      // Columnas OPCIONALES: hora de inicio y profesor (pueden ir en blanco o no existir).
+      const horaInicio = (row.hora_inicio || '').trim() || null;
+      let profesorId = null;
+      const profesorNombre = (row.profesor || '').trim();
+      if (profesorNombre) {
+        let prof = d.profesores.find(x => (x.nombre || '').toLowerCase() === profesorNombre.toLowerCase());
+        if (!prof) {
+          const profId = nextId('pf');
+          prof = { id: profId, nombre: profesorNombre, nota: '', sucursal_id: null, dni: null };
+          d.profesores.push(prof);
+          const s2 = _sync(); if (s2) s2.markDirty('profesores', profId);
+        }
+        profesorId = prof.id;
+      }
+
       const pid = nextId('p');
-      d.practicas.push({ id: pid, alumno_id: a.id, vehiculo_id: v.id, fecha, km_inicial: kmI, km_final: kmF });
+      d.practicas.push({ id: pid, alumno_id: a.id, vehiculo_id: v.id, fecha, km_inicial: kmI, km_final: kmF, profesor_id: profesorId, hora_inicio: horaInicio });
       const s = _sync(); if (s) s.markDirty('practicas', pid);
       if (kmF > v.km_actual) {
         v.km_actual = kmF;
@@ -107,17 +122,22 @@ function exportarCSV(opciones = {}) {
 
   practicas.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
 
-  const lineas = ['alumno,vehiculo,fecha,km_inicial,km_final'];
+  // hora_inicio y profesor son columnas OPCIONALES (compatibles con importarCSV):
+  // se exportan siempre pero quedan en blanco cuando la práctica no tiene ese dato.
+  const lineas = ['alumno,vehiculo,fecha,km_inicial,km_final,hora_inicio,profesor'];
   for (const p of practicas) {
     const alumno = d.alumnos.find(a => a.id === p.alumno_id);
     const vehiculo = d.vehiculos.find(v => v.id === p.vehiculo_id);
-    const escapar = s => s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+    const profesor = p.profesor_id ? d.profesores.find(pr => pr.id === p.profesor_id) : null;
+    const escapar = s => String(s).includes(',') || String(s).includes('"') ? `"${String(s).replace(/"/g, '""')}"` : String(s);
     lineas.push([
       escapar(alumno ? alumno.nombre : '?'),
       escapar(vehiculo ? vehiculo.nombre : '?'),
       p.fecha,
       p.km_inicial,
-      p.km_final
+      p.km_final,
+      escapar(p.hora_inicio || ''),
+      escapar(profesor ? profesor.nombre : '')
     ].join(','));
   }
   return { csv: lineas.join('\n'), total: practicas.length };

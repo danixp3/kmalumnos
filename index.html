@@ -546,6 +546,10 @@
             <label>Nota (opcional)</label>
             <input type="text" id="pf-nota" placeholder="Ej: mañanas, permiso B" style="width:220px">
           </div>
+          <div class="form-group">
+            <label>DNI/NIE (opcional)</label>
+            <input type="text" id="pf-dni" placeholder="12345678A" style="width:130px">
+          </div>
           <button class="btn btn-primary" onclick="addProfesor()" style="align-self:flex-end">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Añadir profesor
@@ -759,6 +763,14 @@
               <input type="text" id="a-nombre" placeholder="Nombre del alumno" style="width:200px">
             </div>
             <div class="form-group">
+              <label>Primer apellido</label>
+              <input type="text" id="a-primer-apellido" placeholder="Primer apellido" style="width:150px">
+            </div>
+            <div class="form-group">
+              <label>Segundo apellido</label>
+              <input type="text" id="a-segundo-apellido" placeholder="Segundo apellido" style="width:150px">
+            </div>
+            <div class="form-group">
               <label>Permiso</label>
               <select id="a-permiso" style="width:100px">
                 <option value="B">B (Coche)</option>
@@ -835,6 +847,14 @@
             <div class="form-group" style="flex:1;min-width:200px">
               <label>Dirección</label>
               <input type="text" id="a-direccion" placeholder="Calle, número, ciudad" style="width:100%">
+            </div>
+            <div class="form-group">
+              <label>Código postal</label>
+              <input type="text" id="a-cp" placeholder="28001" style="width:110px">
+            </div>
+            <div class="form-group">
+              <label>Población</label>
+              <input type="text" id="a-poblacion" placeholder="Población" style="width:160px">
             </div>
           </div>
           <div class="form-row" style="margin-top:10px">
@@ -991,6 +1011,10 @@
                 <option value="pista">Pista</option>
               </select>
             </div>
+            <div class="form-group">
+              <label>Hora de inicio</label>
+              <input type="time" id="p-hora-inicio" style="width:110px">
+            </div>
             <button class="btn btn-warn" onclick="generarKmPractica()" style="align-self:flex-end"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar km</button>
             <button class="btn btn-success" onclick="addPractica()" style="align-self:flex-end">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1002,7 +1026,7 @@
 
         <div class="table-wrap">
           <table id="tabla-practicas">
-            <thead><tr><th>#</th><th>Fecha</th><th>Km inicial</th><th>Km final</th><th>Recorrido</th><th>Profesor</th><th>Tipo</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>#</th><th>Fecha</th><th>Hora</th><th>Km inicial</th><th>Km final</th><th>Recorrido</th><th>Profesor</th><th>Tipo</th><th>Acciones</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -1782,6 +1806,43 @@
           <div id="tutorial-reset-toast" class="hidden alert" style="margin-top:12px"></div>
         </div>
       </div>
+
+      <!-- DATOS DEL CENTRO (DGT) -->
+      <div class="card" id="aj-centro-dgt">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg></div>
+          Datos del centro (DGT)
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">Cabecera del impreso oficial de formación práctica (ficha DGT). Todos los campos son opcionales.</p>
+        <div class="form-group">
+          <label>Número de autoescuela</label>
+          <input type="text" id="centro-numero" style="width:150px" onchange="guardarCentroDatosDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label>Sección</label>
+          <input type="text" id="centro-seccion" style="width:150px" onchange="guardarCentroDatosDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label>Dígito de control</label>
+          <input type="text" id="centro-digito" style="width:100px" onchange="guardarCentroDatosDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label>Denominación del centro</label>
+          <input type="text" id="centro-denominacion" style="width:100%" onchange="guardarCentroDatosDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label>Dirección</label>
+          <input type="text" id="centro-direccion" style="width:100%" onchange="guardarCentroDatosDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label>Código postal</label>
+          <input type="text" id="centro-cp" style="width:120px" onchange="guardarCentroDatosDesdeAjustes()">
+        </div>
+        <div class="form-group">
+          <label>Población</label>
+          <input type="text" id="centro-poblacion" style="width:200px" onchange="guardarCentroDatosDesdeAjustes()">
+        </div>
+      </div>
     </div>
 
     <!-- ── DATOS (IMPORTAR / EXPORTAR / COMPARAR) ── -->
@@ -1806,12 +1867,12 @@
             <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
             Formato requerido del CSV
           </div>
-          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px">La primera fila debe ser la cabecera con exactamente estas columnas:</p>
-          <pre>alumno,vehiculo,fecha,km_inicial,km_final
-Juan García,Coche 1,2026-01-15,45230,45274
-Ana López,Coche 1,2026-01-16,45274,45312
-Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
-          <p style="font-size:12px;color:var(--text-faint);margin-top:10px">• <code>fecha</code> en formato AAAA-MM-DD &nbsp;|&nbsp; <code>km_inicial</code> y <code>km_final</code> pueden dejarse <strong>vacíos</strong> para generarlos automáticamente</p>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px">La primera fila debe ser la cabecera. Columnas obligatorias: <code>alumno,vehiculo,fecha,km_inicial,km_final</code>. Opcionalmente puedes añadir <code>hora_inicio</code> y <code>profesor</code>:</p>
+          <pre>alumno,vehiculo,fecha,km_inicial,km_final,hora_inicio,profesor
+Juan García,Coche 1,2026-01-15,45230,45274,09:00,Luis Marín
+Ana López,Coche 1,2026-01-16,45274,45312,,
+Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
+          <p style="font-size:12px;color:var(--text-faint);margin-top:10px">• <code>fecha</code> en formato AAAA-MM-DD &nbsp;|&nbsp; <code>km_inicial</code> y <code>km_final</code> pueden dejarse <strong>vacíos</strong> para generarlos automáticamente &nbsp;|&nbsp; <code>hora_inicio</code> (HH:MM) y <code>profesor</code> son <strong>opcionales</strong>: se pueden omitir o dejar en blanco</p>
         </div>
 
         <div class="card">
@@ -2217,6 +2278,16 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <label>Nombre</label>
       <input type="text" id="edit-a-nombre" style="width:100%">
     </div>
+    <div class="form-row" style="margin-bottom:14px">
+      <div class="form-group" style="flex:1">
+        <label>Primer apellido</label>
+        <input type="text" id="edit-a-primer-apellido" style="width:100%">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label>Segundo apellido</label>
+        <input type="text" id="edit-a-segundo-apellido" style="width:100%">
+      </div>
+    </div>
     <div class="form-group" style="margin-bottom:14px">
       <label>Permiso</label>
       <select id="edit-a-permiso" style="width:100%">
@@ -2295,6 +2366,16 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <label>Dirección</label>
       <input type="text" id="edit-a-direccion" placeholder="Calle, número, ciudad" style="width:100%">
     </div>
+    <div class="form-row" style="margin-top:14px">
+      <div class="form-group" style="flex:1">
+        <label>Código postal</label>
+        <input type="text" id="edit-a-cp" placeholder="28001" style="width:100%">
+      </div>
+      <div class="form-group" style="flex:2">
+        <label>Población</label>
+        <input type="text" id="edit-a-poblacion" placeholder="Población" style="width:100%">
+      </div>
+    </div>
     <div class="form-group" style="margin-top:14px">
       <label>Observaciones</label>
       <textarea id="edit-a-observaciones" rows="2" style="width:100%" placeholder="Notas sobre el alumno..."></textarea>
@@ -2346,8 +2427,32 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="imprimirFichaAlumno(parseInt(document.getElementById('edit-a-id').value))">🖨️ Imprimir ficha</button>
       <button class="btn btn-gray" onclick="imprimirFichaPracticas(parseInt(document.getElementById('edit-a-id').value))" title="Ficha de clases prácticas firmable (RD 1295/2003 art. 40)">🖨️ Ficha de prácticas (firmable)</button>
+      <button class="btn btn-gray" onclick="abrirFichaDGT(parseInt(document.getElementById('edit-a-id').value))" title="Ficha oficial DGT de formación práctica">🖨️ Ficha DGT</button>
       <button class="btn btn-gray" onclick="closeModal('modal-alumno')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveAlumno()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL FICHA DGT (elegir destreza/circulación) ═══════ -->
+<div class="overlay" id="modal-ficha-dgt">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+      <h3>Ficha DGT</h3>
+    </div>
+    <input type="hidden" id="ficha-dgt-alumno-id">
+    <div class="form-group">
+      <label>Tipo de ficha</label>
+      <select id="ficha-dgt-tipo" style="width:100%">
+        <option value="destreza">Destreza (pista)</option>
+        <option value="circulacion">Circulación</option>
+      </select>
+    </div>
+    <div id="ficha-dgt-aviso" class="hidden alert alert-warn" style="margin-top:12px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-ficha-dgt')">Cancelar</button>
+      <button class="btn btn-primary" onclick="generarFichaDGTUI()">Generar</button>
     </div>
   </div>
 </div>
@@ -2738,12 +2843,16 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <label>Profesor</label>
       <select id="edit-p-profesor" style="width:100%"><option value="">— Sin profesor —</option></select>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="margin-bottom:14px">
       <label>Tipo de práctica</label>
       <select id="edit-p-tipo">
         <option value="circulacion">Circulación</option>
         <option value="pista">Pista</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label>Hora de inicio</label>
+      <input type="time" id="edit-p-hora-inicio" style="width:100%">
     </div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-practica')">Cancelar</button>
@@ -2764,9 +2873,13 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043</pre>
       <label>Nombre</label>
       <input type="text" id="edit-pf-nombre" style="width:100%">
     </div>
-    <div class="form-group">
+    <div class="form-group" style="margin-bottom:14px">
       <label>Nota</label>
       <input type="text" id="edit-pf-nota" style="width:100%">
+    </div>
+    <div class="form-group">
+      <label>DNI/NIE</label>
+      <input type="text" id="edit-pf-dni" placeholder="12345678A" style="width:100%">
     </div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-profesor')">Cancelar</button>
