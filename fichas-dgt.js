@@ -3,7 +3,7 @@
 // los impresos oficiales (como si se rellenaran a mano), no texto superpuesto.
 //
 // Se usa desde el proceso principal (main.js) vía IPC. Reglas de negocio fijadas:
-//   - "Ejercicio" siempre "2" (máximo de clases/sesión que admite la DGT).
+//   - "Ejercicio" siempre "2 CLASES" (máximo de clases/sesión que admite la DGT).
 //   - Observaciones y firmas se dejan en blanco.
 //   - Página 1 lleva cabecera (escuela + alumno) + 11 clases; el resto de clases
 //     van en tantas páginas de "continuación" (32 clases/pág) como haga falta.
@@ -142,9 +142,9 @@ async function generarFichaDGT(datos) {
     mes: datos.mes || MESES[hoy.getMonth()],
     anio: datos.anio || String(hoy.getFullYear()),
   };
-  // "Ejercicio" siempre "2"
+  // "Ejercicio" siempre "2 CLASES" (máximo de clases/sesión que admite la DGT)
   const practicas = (datos.practicas || []).map(p => ({
-    fecha: p.fecha, hora: p.hora, ejercicio: '2',
+    fecha: p.fecha, hora: p.hora, ejercicio: '2 CLASES',
     km_inicial: p.km_inicial, km_final: p.km_final,
   }));
 
