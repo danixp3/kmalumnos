@@ -544,11 +544,12 @@ ipcMain.handle('comparar-csvs', async (_, pathA, pathB, opciones) => {
   }
 });
 
-// Generar km aleatorio entre min y max con decimales reducidos
+// Generar km aleatorio entre min y max, SIN decimales (kilómetros enteros)
 ipcMain.handle('generar-km', (_, kmInicial, min = 40, max = 45) => {
-  const diff = Math.random() * (max - min) + min;
-  const kmFinal = Math.round((kmInicial + diff) * 10) / 10;
-  return { km_inicial: kmInicial, km_final: kmFinal, diff: Math.round(diff * 10) / 10 };
+  const kmI = Math.round(kmInicial);
+  const diff = Math.round(Math.random() * (max - min) + min);
+  const kmFinal = kmI + diff;
+  return { km_inicial: kmI, km_final: kmFinal, diff };
 });
 
 // ─── FICHEROS DE ALUMNO (D7) ────────────────────────────────────────────────────

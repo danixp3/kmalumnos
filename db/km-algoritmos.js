@@ -66,7 +66,8 @@ function rellenarKmMasivo(vehiculo_id, kmMin = 40, kmMax = 45, kmInicio = null, 
   if (!sinKm.length) return { rellenadas: 0, errores: [] };
 
   function _randomKm(min, max) {
-    return Math.round((Math.random() * (max - min) + min) * 10) / 10;
+    // Incremento de km SIN decimales (la app trabaja con kilómetros enteros).
+    return Math.round(Math.random() * (max - min) + min);
   }
 
   // Cursor inicial: usar kmInicio si se proporciona, sino km_actual del vehículo
@@ -96,9 +97,9 @@ function rellenarKmMasivo(vehiculo_id, kmMin = 40, kmMax = 45, kmInicio = null, 
 
     // Rellenar las prácticas sin km de este día
     for (const p of sinKmHoy) {
-      const kmI = cursor;
+      const kmI = Math.round(cursor);
       const incremento = _randomKm(kmMin, kmMax);
-      let kmF = Math.round((kmI + incremento) * 10) / 10;
+      let kmF = kmI + incremento;
 
       // Si hay tope final y lo superaríamos, saltar esta práctica
       if (topeFinal !== null && kmF > topeFinal) {

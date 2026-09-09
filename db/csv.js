@@ -5,15 +5,21 @@
 const { load, save, nextId, _sync, addLog } = require('./core');
 
 function _randomKm(min, max) {
-  return Math.round((Math.random() * (max - min) + min) * 10) / 10;
+  // Incremento de km SIN decimales (la app trabaja con kilómetros enteros).
+  return Math.round(Math.random() * (max - min) + min);
 }
 
 function importarCSV(rows, kmMin = 40, kmMax = 45) {
   const d = load();
   let insertados = 0;
   const erroresDetalle = [];
-  // Cache: último km_final por alumno_id para encadenar prácticas generadas
-  const ultimoKmPorAlumno = {};
+
+  // Se importa en DOS pasadas para que la generación de km de las prácticas vacías
+  // sea coherente: primero las filas que traen km reales (fijan el odómetro), y
+  // después las vacías, encadenadas desde el km más alto ya conocido — nunca desde 0
+  // si el alumno o el vehículo ya tienen lecturas.
+  const conKm = [];  // { fila, a, v, fecha, kmI, kmF, profesorId, horaInicio }
+  const sinKm = [];  // { fila, a, v, fecha, profesorId, horaInicio }
 
   rows.forEach((row, idx) => {
     try {
@@ -49,26 +55,18 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
         const s = _sync(); if (s) s.markDirty('alumnos', aid);
       }
 
-      // Kilómetros
+      // Kilómetros (enteros: sin decimales)
       let kmI = parseFloat(row.km_inicial);
       let kmF = parseFloat(row.km_final);
       const tieneKms = !isNaN(kmI) && !isNaN(kmF);
 
-      if (tieneKms && kmF <= kmI) {
-        erroresDetalle.push({ fila: idx + 2, motivo: `Km final (${kmF}) debe ser mayor que km inicial (${kmI})`, datos: `${alumno} / ${fecha}` });
-        return;
-      }
-
-      if (!tieneKms) {
-        let base = ultimoKmPorAlumno[a.id];
-        if (base === undefined) {
-          const practicasAlumno = d.practicas
-            .filter(p => p.alumno_id === a.id)
-            .sort((x, y) => x.fecha.localeCompare(y.fecha) || x.id - y.id);
-          base = practicasAlumno.length ? practicasAlumno[practicasAlumno.length - 1].km_final : v.km_actual;
+      if (tieneKms) {
+        kmI = Math.round(kmI);
+        kmF = Math.round(kmF);
+        if (kmF <= kmI) {
+          erroresDetalle.push({ fila: idx + 2, motivo: `Km final (${kmF}) debe ser mayor que km inicial (${kmI})`, datos: `${alumno} / ${fecha}` });
+          return;
         }
-        kmI = base;
-        kmF = Math.round((kmI + _randomKm(kmMin, kmMax)) * 10) / 10;
       }
 
       // Columnas OPCIONALES: hora de inicio y profesor (pueden ir en blanco o no existir).
@@ -86,19 +84,45 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
         profesorId = prof.id;
       }
 
-      const pid = nextId('p');
-      d.practicas.push({ id: pid, alumno_id: a.id, vehiculo_id: v.id, fecha, km_inicial: kmI, km_final: kmF, profesor_id: profesorId, hora_inicio: horaInicio });
-      const s = _sync(); if (s) s.markDirty('practicas', pid);
-      if (kmF > v.km_actual) {
-        v.km_actual = kmF;
-        if (s) s.markDirty('vehiculos', v.id);
-      }
-      ultimoKmPorAlumno[a.id] = kmF;
-      insertados++;
+      if (tieneKms) conKm.push({ fila: idx + 2, a, v, fecha, kmI, kmF, profesorId, horaInicio });
+      else          sinKm.push({ fila: idx + 2, a, v, fecha, profesorId, horaInicio });
     } catch (e) {
       erroresDetalle.push({ fila: idx + 2, motivo: `Error inesperado: ${e.message}`, datos: JSON.stringify(row) });
     }
   });
+
+  // Cache del km_final más alto ya insertado por alumno_id (encadena las prácticas sin km).
+  const ultimoKmPorAlumno = {};
+  const insertar = (r, kmI, kmF) => {
+    const pid = nextId('p');
+    d.practicas.push({ id: pid, alumno_id: r.a.id, vehiculo_id: r.v.id, fecha: r.fecha, km_inicial: kmI, km_final: kmF, profesor_id: r.profesorId, hora_inicio: r.horaInicio });
+    const s = _sync(); if (s) s.markDirty('practicas', pid);
+    if (kmF > r.v.km_actual) {
+      r.v.km_actual = kmF;
+      if (s) s.markDirty('vehiculos', r.v.id);
+    }
+    if (ultimoKmPorAlumno[r.a.id] === undefined || kmF > ultimoKmPorAlumno[r.a.id]) ultimoKmPorAlumno[r.a.id] = kmF;
+    insertados++;
+  };
+
+  // 1ª pasada: prácticas con km reales (fijan el odómetro del alumno y del vehículo).
+  for (const r of conKm) insertar(r, r.kmI, r.kmF);
+
+  // 2ª pasada: prácticas sin km, encadenadas por fecha desde el km más alto conocido.
+  sinKm.sort((x, y) => x.fecha.localeCompare(y.fecha));
+  for (const r of sinKm) {
+    let base = ultimoKmPorAlumno[r.a.id];
+    if (base === undefined) {
+      // Mayor km_final real del alumno o, en su defecto, el odómetro del vehículo.
+      const maxAlumno = d.practicas
+        .filter(p => p.alumno_id === r.a.id && !(p.km_inicial === 0 && p.km_final === 0))
+        .reduce((m, p) => Math.max(m, p.km_final), 0);
+      base = Math.max(maxAlumno, r.v.km_actual || 0);
+    }
+    const kmI = Math.round(base);
+    const kmF = kmI + _randomKm(kmMin, kmMax);
+    insertar(r, kmI, kmF);
+  }
 
   addLog('importacion', `Importación CSV: ${insertados} prácticas insertadas, ${erroresDetalle.length} errores`,
     erroresDetalle.map(e => `⚠ Fila ${e.fila}: ${e.motivo} [${e.datos}]`)
