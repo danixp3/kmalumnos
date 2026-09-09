@@ -70,6 +70,43 @@ test('la exportación devuelve un CSV con cabecera y una línea por práctica', 
 
   expect(res.total).toBe(1);
   const lineas = res.csv.split('\n');
-  expect(lineas[0]).toBe('alumno,vehiculo,fecha,km_inicial,km_final');
-  expect(lineas[1]).toBe('Ana,Coche 1,2026-07-01,100,140');
+  expect(lineas[0]).toBe('alumno,vehiculo,fecha,km_inicial,km_final,hora_inicio,profesor');
+  // hora_inicio y profesor van al final y quedan en blanco si la práctica no los tiene
+  expect(lineas[1]).toBe('Ana,Coche 1,2026-07-01,100,140,,');
+});
+
+test('importa hora_inicio y profesor opcionales (crea el profesor por nombre)', () => {
+  const res = db.importarCSV([
+    { alumno: 'Ana', vehiculo: 'Coche 1', fecha: '2026-07-01', km_inicial: '100', km_final: '140', hora_inicio: '09:00', profesor: 'Luis Marín' }
+  ]);
+  expect(res.insertados).toBe(1);
+  const prof = db.getProfesores().find(p => p.nombre === 'Luis Marín');
+  expect(prof).toBeTruthy();
+  const ana = db.getAlumnos()[0];
+  const practicas = db.getPracticasByAlumno(ana.id);
+  expect(practicas[0].hora_inicio).toBe('09:00');
+  expect(practicas[0].profesor_id).toBe(prof.id);
+});
+
+test('hora_inicio y profesor son opcionales: en blanco o ausentes quedan a null', () => {
+  db.importarCSV([
+    { alumno: 'Ana', vehiculo: 'Coche 1', fecha: '2026-07-01', km_inicial: '100', km_final: '140', hora_inicio: '', profesor: '' },
+    { alumno: 'Eva', vehiculo: 'Coche 1', fecha: '2026-07-02', km_inicial: '140', km_final: '180' }
+  ]);
+  const practicas = db.getTodasPracticas();
+  expect(practicas).toHaveLength(2);
+  practicas.forEach(p => {
+    expect(p.hora_inicio == null || p.hora_inicio === null).toBe(true);
+  });
+  // no se ha creado ningún profesor
+  expect(db.getProfesores()).toHaveLength(0);
+});
+
+test('exporta la hora y el nombre del profesor cuando la práctica los tiene', () => {
+  const res = db.importarCSV([
+    { alumno: 'Ana', vehiculo: 'Coche 1', fecha: '2026-07-01', km_inicial: '100', km_final: '140', hora_inicio: '08:30', profesor: 'Luis Marín' }
+  ]);
+  expect(res.insertados).toBe(1);
+  const linea = db.exportarCSV().csv.split('\n')[1];
+  expect(linea).toBe('Ana,Coche 1,2026-07-01,100,140,08:30,Luis Marín');
 });

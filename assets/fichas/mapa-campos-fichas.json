@@ -1,0 +1,338 @@
+{
+ "ficha1": {
+  "checkboxes": {
+   "destreza": "checkbox_89gxkc",
+   "circulacion": "checkbox_90wihx"
+  },
+  "cabecera": {
+   "esc_numero": "text_1gfeu",
+   "esc_seccion": "text_3lsjt",
+   "esc_digito": "text_4faww",
+   "esc_denominacion": "text_5qvtd",
+   "esc_direccion": "text_7fcnk",
+   "esc_cp": "text_8fksi",
+   "esc_poblacion": "text_9qjuh",
+   "esc_profesor": "text_10xwqz",
+   "esc_profesor_dni": "text_11xgil",
+   "al_dni": "text_18boju",
+   "al_permiso": "text_19kzrq",
+   "al_nombre": "text_17bzkp",
+   "al_primer_apellido": "text_12gzpl",
+   "al_segundo_apellido": "text_13okov",
+   "al_direccion": "text_14zycg",
+   "al_cp": "text_15mah",
+   "al_poblacion": "text_16jxfb",
+   "foot_lugar": "text_89uevz",
+   "foot_dia": "text_90ttpp",
+   "foot_mes": "text_91bkdo",
+   "foot_anio": "text_92gvzk"
+  },
+  "filas": [
+   {
+    "fecha": "text_20cmyt",
+    "hora": "text_21pwzo",
+    "ejercicio": "text_22iep",
+    "km_inicial": "text_23fejj",
+    "km_final": "text_24pgkq"
+   },
+   {
+    "fecha": "text_28jkdx",
+    "hora": "text_28pfof",
+    "ejercicio": "text_28odqn",
+    "km_inicial": "text_28alxp",
+    "km_final": "text_28veqv"
+   },
+   {
+    "fecha": "text_34agwu",
+    "hora": "text_34nfkp",
+    "ejercicio": "text_34wwb",
+    "km_inicial": "text_34ehjt",
+    "km_final": "text_34xryb"
+   },
+   {
+    "fecha": "text_34pcda",
+    "hora": "text_34sl",
+    "ejercicio": "text_34twmw",
+    "km_inicial": "text_34svok",
+    "km_final": "text_34tqfi"
+   },
+   {
+    "fecha": "text_46fquk",
+    "hora": "text_46gsvq",
+    "ejercicio": "text_46k",
+    "km_inicial": "text_46tmep",
+    "km_final": "text_46mlpc"
+   },
+   {
+    "fecha": "text_46tjct",
+    "hora": "text_46baqc",
+    "ejercicio": "text_46ozgs",
+    "km_inicial": "text_46hael",
+    "km_final": "text_46rlrs"
+   },
+   {
+    "fecha": "text_46dyzk",
+    "hora": "text_46eaco",
+    "ejercicio": "text_46vlrx",
+    "km_inicial": "text_46nhkw",
+    "km_final": "text_46txe"
+   },
+   {
+    "fecha": "text_46qivo",
+    "hora": "text_46mwfh",
+    "ejercicio": "text_68tydl",
+    "km_inicial": "text_46yzzd",
+    "km_final": "text_46ctnp"
+   },
+   {
+    "fecha": "text_71dciu",
+    "hora": "text_71bfkx",
+    "ejercicio": "text_71pjsf",
+    "km_inicial": "text_71ypvh",
+    "km_final": "text_71ccgo"
+   },
+   {
+    "fecha": "text_71tspy",
+    "hora": "text_71wodm",
+    "ejercicio": "text_71v",
+    "km_inicial": "text_71xhmh",
+    "km_final": "text_71lql"
+   },
+   {
+    "fecha": "text_71vpfp",
+    "hora": "text_71dois",
+    "ejercicio": "text_71urlm",
+    "km_inicial": "text_71ngjk",
+    "km_final": "text_71bqjm"
+   }
+  ]
+ },
+ "ficha2": {
+  "filas": [
+   {
+    "fecha": "text_1xkjv",
+    "hora": "text_2ypas",
+    "ejercicio": "text_3judf",
+    "km_inicial": "text_3gdrf",
+    "km_final": "text_5qtiq"
+   },
+   {
+    "fecha": "text_10rakl",
+    "hora": "text_10ynwa",
+    "ejercicio": "text_10queh",
+    "km_inicial": "text_10cmcu",
+    "km_final": "text_10xbhz"
+   },
+   {
+    "fecha": "text_18zeyo",
+    "hora": "text_18bkha",
+    "ejercicio": "text_18yihb",
+    "km_inicial": "text_18jndz",
+    "km_final": "text_18hxla"
+   },
+   {
+    "fecha": "text_26mgdy",
+    "hora": "text_26uoal",
+    "ejercicio": "text_26gbga",
+    "km_inicial": "text_26dtbm",
+    "km_final": "text_26slhi"
+   },
+   {
+    "fecha": "text_26zgww",
+    "hora": "text_26trmp",
+    "ejercicio": "text_26bhfr",
+    "km_inicial": "text_26ztzm",
+    "km_final": "text_26etoj"
+   },
+   {
+    "fecha": "text_26dxzc",
+    "hora": "text_26rdtz",
+    "ejercicio": "text_26nqmy",
+    "km_inicial": "text_26cwfm",
+    "km_final": "text_26mvor"
+   },
+   {
+    "fecha": "text_50wxzw",
+    "hora": "text_50uvly",
+    "ejercicio": "text_50fepp",
+    "km_inicial": "text_50sxjx",
+    "km_final": "text_50zqif"
+   },
+   {
+    "fecha": "text_50sygf",
+    "hora": "text_50rlaf",
+    "ejercicio": "text_50khiq",
+    "km_inicial": "text_50dwey",
+    "km_final": "text_50mgoa"
+   },
+   {
+    "fecha": "text_50egsa",
+    "hora": "text_50ayyo",
+    "ejercicio": "text_50xdck",
+    "km_inicial": "text_50hsep",
+    "km_final": "text_50ybhz"
+   },
+   {
+    "fecha": "text_50ihoi",
+    "hora": "text_50urvv",
+    "ejercicio": "text_50pdwg",
+    "km_inicial": "text_50ibad",
+    "km_final": "text_50wlyu"
+   },
+   {
+    "fecha": "text_50scst",
+    "hora": "text_50jrkc",
+    "ejercicio": "text_50xaxy",
+    "km_inicial": "text_50evls",
+    "km_final": "text_50wlno"
+   },
+   {
+    "fecha": "text_50owfb",
+    "hora": "text_50uhkc",
+    "ejercicio": "text_50utwe",
+    "km_inicial": "text_50vlkj",
+    "km_final": "text_50swo"
+   },
+   {
+    "fecha": "text_98dcih",
+    "hora": "text_98iiko",
+    "ejercicio": "text_98muwf",
+    "km_inicial": "text_98oef",
+    "km_final": "text_98rjpj"
+   },
+   {
+    "fecha": "text_98xzwl",
+    "hora": "text_98fgib",
+    "ejercicio": "text_98vdpi",
+    "km_inicial": "text_98caid",
+    "km_final": "text_98ahjb"
+   },
+   {
+    "fecha": "text_98hthr",
+    "hora": "text_98pqwf",
+    "ejercicio": "text_98ibbf",
+    "km_inicial": "text_98xmtg",
+    "km_final": "text_98drrp"
+   },
+   {
+    "fecha": "text_196yhyv",
+    "hora": "text_196nrff",
+    "ejercicio": "text_196shoc",
+    "km_inicial": "text_196rlqe",
+    "km_final": "text_196lzgm"
+   },
+   {
+    "fecha": "text_196azcs",
+    "hora": "text_196hh",
+    "ejercicio": "text_196mgjm",
+    "km_inicial": "text_196iobg",
+    "km_final": "text_196rbpe"
+   },
+   {
+    "fecha": "text_196ztxj",
+    "hora": "text_196ynub",
+    "ejercicio": "text_196fqju",
+    "km_inicial": "text_196nt",
+    "km_final": "text_196dgfv"
+   },
+   {
+    "fecha": "text_196swic",
+    "hora": "text_196okdn",
+    "ejercicio": "text_196jjlq",
+    "km_inicial": "text_196ynho",
+    "km_final": "text_196ircy"
+   },
+   {
+    "fecha": "text_196vwka",
+    "hora": "text_196lobh",
+    "ejercicio": "text_196yvzy",
+    "km_inicial": "text_196wnso",
+    "km_final": "text_196gpsr"
+   },
+   {
+    "fecha": "text_196ibiq",
+    "hora": "text_196nrxu",
+    "ejercicio": "text_196nzwo",
+    "km_inicial": "text_196iumc",
+    "km_final": "text_196uwbr"
+   },
+   {
+    "fecha": "text_196pvee",
+    "hora": "text_196nujp",
+    "ejercicio": "text_196nswc",
+    "km_inicial": "text_196dwhm",
+    "km_final": "text_196lbsp"
+   },
+   {
+    "fecha": "text_196mhdv",
+    "hora": "text_196mkww",
+    "ejercicio": "text_196zaac",
+    "km_inicial": "text_196knfi",
+    "km_final": "text_196nfql"
+   },
+   {
+    "fecha": "text_196qfkt",
+    "hora": "text_196xqyw",
+    "ejercicio": "text_196nrpx",
+    "km_inicial": "text_196lgdr",
+    "km_final": "text_196pnr"
+   },
+   {
+    "fecha": "text_196oita",
+    "hora": "text_196qimq",
+    "ejercicio": "text_196dlga",
+    "km_inicial": "text_196ixlh",
+    "km_final": "text_196gdct"
+   },
+   {
+    "fecha": "text_196yebb",
+    "hora": "text_196repn",
+    "ejercicio": "text_196zrhc",
+    "km_inicial": "text_196vbbt",
+    "km_final": "text_196cqwm"
+   },
+   {
+    "fecha": "text_196dfvv",
+    "hora": "text_196svgz",
+    "ejercicio": "text_196khvm",
+    "km_inicial": "text_196nkve",
+    "km_final": "text_196ndmb"
+   },
+   {
+    "fecha": "text_196ebsr",
+    "hora": "text_196idil",
+    "ejercicio": "text_196kgx",
+    "km_inicial": "text_196xxth",
+    "km_final": "text_196cner"
+   },
+   {
+    "fecha": "text_196xkyo",
+    "hora": "text_196gbpb",
+    "ejercicio": "text_196ipix",
+    "km_inicial": "text_196sbhk",
+    "km_final": "text_196vfpt"
+   },
+   {
+    "fecha": "text_196mqpz",
+    "hora": "text_196ihag",
+    "ejercicio": "text_196lnan",
+    "km_inicial": "text_196gpbd",
+    "km_final": "text_196ltyp"
+   },
+   {
+    "fecha": "text_316unig",
+    "hora": "text_316woyz",
+    "ejercicio": "text_316ojbh",
+    "km_inicial": "text_316qxhb",
+    "km_final": "text_316zidc"
+   },
+   {
+    "fecha": "text_316ruki",
+    "hora": "text_316boza",
+    "ejercicio": "text_316plfi",
+    "km_inicial": "text_316oejm",
+    "km_final": "text_316gzpc"
+   }
+  ]
+ }
+}

@@ -13,21 +13,24 @@ function getProfesores(sucursalId) {
     .map(p => ({ ...p, num_practicas: d.practicas.filter(x => x.profesor_id === p.id).length }));
 }
 
-function addProfesor(nombre, nota, sucursal_id = null) {
+// dni (tarea "Ficha alumno – formación práctica" DGT): string opcional,
+// nullable, al final para no romper llamadas existentes.
+function addProfesor(nombre, nota, sucursal_id = null, dni = null) {
   const d = load();
   const id = nextId('pf');
-  d.profesores.push({ id, nombre, nota: nota || '', sucursal_id: sucursal_id ? parseInt(sucursal_id) : null });
+  d.profesores.push({ id, nombre, nota: nota || '', sucursal_id: sucursal_id ? parseInt(sucursal_id) : null, dni: dni ? String(dni).trim() : null });
   save();
   const s = _sync(); if (s) s.markDirty('profesores', id);
   return id;
 }
 
-function updateProfesor(id, nombre, nota) {
+function updateProfesor(id, nombre, nota, dni = null) {
   const d = load();
   const p = d.profesores.find(x => x.id === id);
   if (p) {
     p.nombre = nombre;
     p.nota = nota || '';
+    p.dni = dni ? String(dni).trim() : null;
     save();
     const s = _sync(); if (s) s.markDirty('profesores', id);
   }

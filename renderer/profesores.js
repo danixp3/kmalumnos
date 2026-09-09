@@ -14,7 +14,7 @@ async function loadProfesores() {
       <td>${esc(p.nota) || '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${p.num_practicas}</td>
       <td>
-        <button class="btn btn-warn btn-sm" onclick="openEditProfesor(${p.id},'${esc(p.nombre)}','${esc(p.nota || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
+        <button class="btn btn-warn btn-sm" onclick="openEditProfesor(${p.id},'${esc(p.nombre)}','${esc(p.nota || '')}','${esc(p.dni || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProfesor(${p.id},'${esc(p.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
       </td>
     </tr>`).join('');
@@ -23,10 +23,12 @@ async function loadProfesores() {
 async function addProfesor() {
   const nombre = document.getElementById('pf-nombre').value.trim();
   const nota = document.getElementById('pf-nota').value.trim();
+  const dni = document.getElementById('pf-dni')?.value.trim() || null;
   if (!nombre) { alert('Introduce un nombre para el profesor.'); return; }
-  await window.api.addProfesor(nombre, nota, getSucursalActual());
+  await window.api.addProfesor(nombre, nota, getSucursalActual(), dni);
   document.getElementById('pf-nombre').value = '';
   document.getElementById('pf-nota').value = '';
+  document.getElementById('pf-dni').value = '';
   loadProfesores();
 }
 
@@ -36,10 +38,11 @@ async function deleteProfesor(id, nombre) {
   loadProfesores();
 }
 
-function openEditProfesor(id, nombre, nota) {
+function openEditProfesor(id, nombre, nota, dni) {
   document.getElementById('edit-pf-id').value = id;
   document.getElementById('edit-pf-nombre').value = nombre;
   document.getElementById('edit-pf-nota').value = nota;
+  document.getElementById('edit-pf-dni').value = dni || '';
   openModal('modal-profesor');
 }
 
@@ -47,8 +50,9 @@ async function saveProfesor() {
   const id = parseInt(document.getElementById('edit-pf-id').value);
   const nombre = document.getElementById('edit-pf-nombre').value.trim();
   const nota = document.getElementById('edit-pf-nota').value.trim();
+  const dni = document.getElementById('edit-pf-dni')?.value.trim() || null;
   if (!nombre) { alert('Introduce un nombre para el profesor.'); return; }
-  await window.api.updateProfesor(id, nombre, nota);
+  await window.api.updateProfesor(id, nombre, nota, dni);
   closeModal('modal-profesor');
   loadProfesores();
 }

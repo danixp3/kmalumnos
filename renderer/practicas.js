@@ -13,6 +13,7 @@ function verPracticas(alumnoId, vehiculoId, nombre) {
   document.getElementById('p-fecha').value = hoy;
   document.getElementById('p-ki').value = '';
   document.getElementById('p-kf').value = '';
+  document.getElementById('p-hora-inicio').value = '';
   document.getElementById('km-preview').classList.add('hidden');
   aplicarRangoPref('p-min', 'p-max');
   loadPracticas();
@@ -30,7 +31,7 @@ async function loadPracticas() {
   const practicas = await window.api.getPracticas(currentAlumnoId);
   const tbody = document.querySelector('#tabla-practicas tbody');
   if (!practicas.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">No hay prácticas registradas para este alumno</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No hay prácticas registradas para este alumno</td></tr>';
     return;
   }
   tbody.innerHTML = practicas.map((p, i) => {
@@ -43,16 +44,19 @@ async function loadPracticas() {
     const profesorIdArg = p.profesor_id != null ? p.profesor_id : 'null';
     const tipo = p.tipo || 'circulacion';
     const tipoCell = tipo === 'pista' ? 'Pista' : 'Circulación';
+    const horaCell = p.hora_inicio ? esc(p.hora_inicio) : '<span style="color:var(--placeholder)">—</span>';
+    const horaArg = p.hora_inicio ? `'${p.hora_inicio}'` : 'null';
     return `<tr${sinKm ? ' style="background:var(--warn-bg-soft)"' : ''}>
       <td>${i + 1}</td>
       <td>${fmtFecha(p.fecha)}</td>
+      <td>${horaCell}</td>
       <td>${kmICell}</td>
       <td>${kmFCell}</td>
       <td>${diffCell}</td>
       <td>${profesorCell}</td>
       <td>${tipoCell}</td>
       <td>
-        <button class="btn btn-warn btn-sm" onclick="openEditPractica(${p.id},'${p.fecha}',${p.km_inicial},${p.km_final},${profesorIdArg},'${tipo}')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+        <button class="btn btn-warn btn-sm" onclick="openEditPractica(${p.id},'${p.fecha}',${p.km_inicial},${p.km_final},${profesorIdArg},'${tipo}',${horaArg})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
         <button class="btn btn-danger btn-sm" onclick="deletePractica(${p.id})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </td>
     </tr>`;
@@ -105,9 +109,11 @@ async function addPractica() {
   if (sinKm) { ki = 0; kf = 0; }
 
   const tipo = document.getElementById('p-tipo')?.value || 'circulacion';
-  await window.api.addPractica(currentAlumnoId, vid, fecha, ki, kf, null, tipo, getSucursalActual());
+  const horaInicio = document.getElementById('p-hora-inicio')?.value || null;
+  await window.api.addPractica(currentAlumnoId, vid, fecha, ki, kf, null, tipo, getSucursalActual(), horaInicio);
   document.getElementById('p-ki').value = '';
   document.getElementById('p-kf').value = '';
+  document.getElementById('p-hora-inicio').value = '';
   document.getElementById('km-preview').classList.add('hidden');
   loadPracticas();
 }
@@ -118,12 +124,13 @@ async function deletePractica(id) {
   loadPracticas();
 }
 
-async function openEditPractica(id, fecha, ki, kf, profesorId, tipo) {
+async function openEditPractica(id, fecha, ki, kf, profesorId, tipo, horaInicio) {
   document.getElementById('edit-p-id').value = id;
   document.getElementById('edit-p-fecha').value = fecha;
   document.getElementById('edit-p-ki').value = ki;
   document.getElementById('edit-p-kf').value = kf;
   document.getElementById('edit-p-tipo').value = tipo || 'circulacion';
+  document.getElementById('edit-p-hora-inicio').value = horaInicio || '';
   await llenarSelectProfesores('edit-p-profesor', profesorId);
   openModal('modal-practica');
 }
@@ -135,6 +142,7 @@ async function savePractica() {
   const kf = parseFloat(document.getElementById('edit-p-kf').value);
   const profesorId = document.getElementById('edit-p-profesor').value;
   const tipo = document.getElementById('edit-p-tipo').value || 'circulacion';
+  const horaInicio = document.getElementById('edit-p-hora-inicio').value || null;
   if (!fecha || isNaN(ki) || isNaN(kf)) { alert('Rellena todos los campos.'); return; }
   if (kf <= ki) { alert('El km final debe ser mayor que el inicial.'); return; }
 
@@ -153,7 +161,7 @@ async function savePractica() {
     }
   }
 
-  await window.api.updatePractica(id, fecha, ki, kf, profesorId, tipo);
+  await window.api.updatePractica(id, fecha, ki, kf, profesorId, tipo, horaInicio);
   closeModal('modal-practica');
   // Si venimos de la pestaña Conflictos (Kilómetros), recargar esa vista; si no, las prácticas del alumno
   const kilometrosPage = document.getElementById('page-kilometros');

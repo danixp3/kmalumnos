@@ -253,9 +253,9 @@ ipcMain.handle('update-vehiculo-km', (_, id, km) => { db.updateVehiculoKm(id, km
 ipcMain.handle('update-vehiculo', (_, id, nombre, matricula) => { db.updateVehiculo(id, nombre, matricula); return true; });
 
 ipcMain.handle('get-profesores', (_, sucursalId) => db.getProfesores(sucursalId));
-ipcMain.handle('add-profesor', (_, nombre, nota, sucursalId) => db.addProfesor(nombre, nota, sucursalId));
+ipcMain.handle('add-profesor', (_, nombre, nota, sucursalId, dni) => db.addProfesor(nombre, nota, sucursalId, dni));
 ipcMain.handle('delete-profesor', (_, id) => { db.deleteProfesor(id); return true; });
-ipcMain.handle('update-profesor', (_, id, nombre, nota) => { db.updateProfesor(id, nombre, nota); return true; });
+ipcMain.handle('update-profesor', (_, id, nombre, nota, dni) => { db.updateProfesor(id, nombre, nota, dni); return true; });
 
 ipcMain.handle('get-tarifas', () => db.getTarifas());
 ipcMain.handle('set-tarifa', (_, permiso, tipo, precio) => db.setTarifa(permiso, tipo, precio));
@@ -274,11 +274,11 @@ ipcMain.handle('backfill-num-inscripcion', () => db.backfillNumInscripcion());
 
 ipcMain.handle('get-practicas', (_, alumno_id) => db.getPracticasByAlumno(alumno_id));
 ipcMain.handle('get-ultima-practica', (_, alumno_id) => db.getUltimaPractica(alumno_id));
-ipcMain.handle('add-practica', (_, alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo, sucursalId) =>
-  db.addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo, sucursalId)
+ipcMain.handle('add-practica', (_, alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo, sucursalId, hora_inicio) =>
+  db.addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo, sucursalId, hora_inicio)
 );
 ipcMain.handle('delete-practica', (_, id) => { db.deletePractica(id); return true; });
-ipcMain.handle('update-practica', (_, id, fecha, km_inicial, km_final, profesor_id, tipo) => { db.updatePractica(id, fecha, km_inicial, km_final, profesor_id, tipo); return true; });
+ipcMain.handle('update-practica', (_, id, fecha, km_inicial, km_final, profesor_id, tipo, hora_inicio) => { db.updatePractica(id, fecha, km_inicial, km_final, profesor_id, tipo, hora_inicio); return true; });
 
 ipcMain.handle('get-pagos-alumno', (_, alumno_id) => db.getPagosByAlumno(alumno_id));
 ipcMain.handle('add-pago', (_, alumno_id, fecha, cantidad, nota, sucursalId, forma_pago, empleado) => db.addPago(alumno_id, fecha, cantidad, nota, sucursalId, forma_pago, empleado));
@@ -475,6 +475,45 @@ ipcMain.handle('exportar-csv', async (_, opciones) => {
     if (result.canceled || !result.filePath) return { ok: false, canceled: true };
     fs.writeFileSync(result.filePath, res.csv, 'utf-8');
     return { ok: true, total: res.total, path: result.filePath };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+});
+
+// ─── FICHA OFICIAL DGT (formación práctica) ──────────────────────────────────
+// Rellena los campos de formulario del impreso oficial de la DGT con los datos
+// del alumno (cabecera de escuela desde Ajustes, que llega en `centro`) y sus
+// prácticas. Devuelve el PDF por diálogo de guardado y lo abre al terminar.
+ipcMain.handle('generar-ficha-dgt', async (_, opciones) => {
+  try {
+    const { alumnoId, tipo, centro } = opciones || {};
+    const datosAlumno = db.getDatosFichaDGT(alumnoId, tipo === 'destreza' ? 'destreza' : 'circulacion');
+    if (!datosAlumno) return { ok: false, msg: 'Alumno no encontrado.' };
+    if (!datosAlumno.practicas.length) {
+      return { ok: false, msg: 'Este alumno no tiene prácticas de ' + (tipo === 'destreza' ? 'destreza/pista' : 'circulación') + ' registradas.' };
+    }
+    const { generarFichaDGT } = require('./fichas-dgt');
+    const bytes = await generarFichaDGT({
+      tipo: tipo === 'destreza' ? 'destreza' : 'circulacion',
+      centro: centro || {},
+      alumno: datosAlumno.alumno,
+      profesor: datosAlumno.profesor,
+      practicas: datosAlumno.practicas,
+    });
+
+    const nombreArchivo = 'Ficha_DGT_' + sanitizarNombre(
+      [datosAlumno.alumno.primer_apellido, datosAlumno.alumno.segundo_apellido, datosAlumno.alumno.nombre]
+        .filter(Boolean).join('_') || ('alumno_' + alumnoId)
+    ) + '.pdf';
+    const result = await dialog.showSaveDialog(mainWin, {
+      title: 'Guardar ficha DGT',
+      defaultPath: nombreArchivo,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+    fs.writeFileSync(result.filePath, Buffer.from(bytes));
+    shell.openPath(result.filePath);
+    return { ok: true, path: result.filePath, nClases: datosAlumno.practicas.length };
   } catch (e) {
     return { ok: false, msg: e.message };
   }

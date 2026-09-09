@@ -25,7 +25,14 @@ function getAlumnos(sucursalId) {
 // `estado` sigue el mismo patrón pero con valores cerrados (ver
 // ESTADOS_ALUMNO_VALIDOS): cualquier otro valor (u omitido) se guarda como
 // null y la UI lo trata como 'activo' por defecto.
-const CAMPOS_DATOS_ALUMNO = ['telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones', 'estado'];
+// primer_apellido/segundo_apellido/codigo_postal/poblacion (tarea "Ficha
+// alumno – formación práctica" DGT): añadidos al MISMO grupo y mecanismo que
+// el resto de campos de ficha de arriba (normalización, sync gateado en
+// db/alumnos.js). La sincronización, sin embargo, los trata como un grupo
+// APARTE con su propia caché de disponibilidad en sync.js (ver comentario
+// junto a _alumnosFichaDgtDisponible) porque las columnas de telefono/dni ya
+// están aplicadas en producción y estas 4 aún no.
+const CAMPOS_DATOS_ALUMNO = ['telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones', 'estado', 'primer_apellido', 'segundo_apellido', 'codigo_postal', 'poblacion'];
 // Ciclo de estados ampliado (tarea B1 del PLAN-MAESTRO): matriculado → en
 // teórica → apto teórico → en prácticas → presentado a examen → apto/no apto,
 // más 'baja' en cualquier punto. 'activo'/'aprobado' se conservan al final por

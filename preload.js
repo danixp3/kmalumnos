@@ -22,9 +22,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // Profesores
   getProfesores:    (sucursalId)             => ipcRenderer.invoke('get-profesores', sucursalId),
-  addProfesor:      (n, nota, sucursalId)    => ipcRenderer.invoke('add-profesor', n, nota, sucursalId),
+  addProfesor:      (n, nota, sucursalId, dni) => ipcRenderer.invoke('add-profesor', n, nota, sucursalId, dni),
   deleteProfesor:   (id)                     => ipcRenderer.invoke('delete-profesor', id),
-  updateProfesor:   (id, n, nota)            => ipcRenderer.invoke('update-profesor', id, n, nota),
+  updateProfesor:   (id, n, nota, dni)       => ipcRenderer.invoke('update-profesor', id, n, nota, dni),
 
   // Tarifas
   getTarifas:        ()                          => ipcRenderer.invoke('get-tarifas'),
@@ -45,9 +45,9 @@ contextBridge.exposeInMainWorld('api', {
   // Prácticas
   getPracticas:      (alumno_id)             => ipcRenderer.invoke('get-practicas', alumno_id),
   getUltimaPractica: (alumno_id)             => ipcRenderer.invoke('get-ultima-practica', alumno_id),
-  addPractica:       (aid, vid, f, ki, kf, pid, tipo, sucursalId) => ipcRenderer.invoke('add-practica', aid, vid, f, ki, kf, pid, tipo, sucursalId),
+  addPractica:       (aid, vid, f, ki, kf, pid, tipo, sucursalId, horaInicio) => ipcRenderer.invoke('add-practica', aid, vid, f, ki, kf, pid, tipo, sucursalId, horaInicio),
   deletePractica:    (id)                    => ipcRenderer.invoke('delete-practica', id),
-  updatePractica:    (id, f, ki, kf, pid, tipo) => ipcRenderer.invoke('update-practica', id, f, ki, kf, pid, tipo),
+  updatePractica:    (id, f, ki, kf, pid, tipo, horaInicio) => ipcRenderer.invoke('update-practica', id, f, ki, kf, pid, tipo, horaInicio),
   getTodasPracticas: (filtros)                => ipcRenderer.invoke('get-todas-practicas', filtros),
 
   // Pagos
@@ -98,6 +98,9 @@ contextBridge.exposeInMainWorld('api', {
   openCsvDialog: ()                          => ipcRenderer.invoke('open-csv-dialog'),
   importarCsv:   (path, kmMin, kmMax)        => ipcRenderer.invoke('importar-csv', path, kmMin, kmMax),
   
+  // Ficha oficial DGT (formación práctica) — rellena el impreso oficial
+  generarFichaDGT:   (opciones)              => ipcRenderer.invoke('generar-ficha-dgt', opciones),
+
   // Exportación y comparación CSV
   exportarCsv:       (opciones)              => ipcRenderer.invoke('exportar-csv', opciones),
   compararCsvs:      (pathA, pathB, opts)    => ipcRenderer.invoke('comparar-csvs', pathA, pathB, opts),
