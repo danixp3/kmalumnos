@@ -878,7 +878,10 @@ async function generarFichaDGTUI() {
   const alumnoId = parseInt(document.getElementById('ficha-dgt-alumno-id').value);
   const tipo = document.getElementById('ficha-dgt-tipo').value;
   const centro = (typeof getCentroDatos === 'function') ? getCentroDatos() : {};
-  const r = await window.api.generarFichaDGT({ alumnoId, tipo, centro });
+  // Preferencia de Ajustes: rellenar o no la fecha del documento (pie de la
+  // ficha; por defecto true, solo se omite si el usuario la desmarcó).
+  const rellenarFecha = centro.rellenar_fecha !== false;
+  const r = await window.api.generarFichaDGT({ alumnoId, tipo, centro, rellenarFecha });
   if (r && r.ok) {
     closeModal('modal-ficha-dgt');
     await avisar(`Ficha generada (${r.nClases} clase${r.nClases === 1 ? '' : 's'}).`);

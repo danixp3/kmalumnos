@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld('api', {
   getUltimaPractica: (alumno_id)             => ipcRenderer.invoke('get-ultima-practica', alumno_id),
   addPractica:       (aid, vid, f, ki, kf, pid, tipo, sucursalId, horaInicio) => ipcRenderer.invoke('add-practica', aid, vid, f, ki, kf, pid, tipo, sucursalId, horaInicio),
   deletePractica:    (id)                    => ipcRenderer.invoke('delete-practica', id),
+  getPracticasDuplicadas:    (alumnoId)              => ipcRenderer.invoke('get-practicas-duplicadas', alumnoId),
+  eliminarPracticasDuplicadas: (ids)                 => ipcRenderer.invoke('eliminar-practicas-duplicadas', ids),
   updatePractica:    (id, f, ki, kf, pid, tipo, horaInicio) => ipcRenderer.invoke('update-practica', id, f, ki, kf, pid, tipo, horaInicio),
   getTodasPracticas: (filtros)                => ipcRenderer.invoke('get-todas-practicas', filtros),
 
