@@ -391,8 +391,61 @@ function getDatosFichaDGT(alumno_id, tipo) {
   };
 }
 
+// ─── DUPLICADOS ──────────────────────────────────────────────────────────────
+/**
+ * Detecta prácticas duplicadas de un alumno: mismas fecha + km_inicial + km_final
+ * (repeticiones idénticas). Devuelve solo los grupos con 2+ prácticas; cada grupo
+ * lleva su lista ordenada por id ascendente (la más antigua primero → la que se
+ * conserva por defecto), con vehículo/profesor resueltos. Solo prácticas no
+ * borradas. Solo lectura, no marca sync.
+ */
+function getPracticasDuplicadas(alumno_id) {
+  const d = load();
+  const aid = parseInt(alumno_id);
+  const grupos = new Map();
+  d.practicas
+    .filter(p => p.alumno_id === aid && !p.deleted)
+    .forEach(p => {
+      const key = `${p.fecha}|${p.km_inicial}|${p.km_final}`;
+      if (!grupos.has(key)) grupos.set(key, []);
+      grupos.get(key).push(p);
+    });
+  const out = [];
+  for (const arr of grupos.values()) {
+    if (arr.length < 2) continue;
+    const practicas = arr.slice().sort((a, b) => a.id - b.id).map(p => {
+      const v = d.vehiculos.find(x => x.id === p.vehiculo_id);
+      const prof = d.profesores.find(x => x.id === p.profesor_id);
+      return {
+        id: p.id, fecha: p.fecha, km_inicial: p.km_inicial, km_final: p.km_final,
+        hora_inicio: p.hora_inicio || null, tipo: p.tipo || 'circulacion',
+        vehiculo_nombre: v ? v.nombre : null, profesor_nombre: prof ? prof.nombre : null,
+      };
+    });
+    out.push({ fecha: arr[0].fecha, km_inicial: arr[0].km_inicial, km_final: arr[0].km_final, practicas });
+  }
+  out.sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+  return out;
+}
+
+/**
+ * Borra en bloque varias prácticas por id (mismo criterio que deletePractica:
+ * borra local + soft-delete remoto vía markDeleted). Devuelve nº borradas.
+ */
+function deletePracticasBulk(ids) {
+  const d = load();
+  const set = new Set((ids || []).map(x => parseInt(x)));
+  if (!set.size) return 0;
+  const borradas = d.practicas.filter(p => set.has(p.id)).map(p => p.id);
+  d.practicas = d.practicas.filter(p => !set.has(p.id));
+  save();
+  const s = _sync();
+  if (s) borradas.forEach(id => s.markDeleted('practicas', id));
+  return borradas.length;
+}
+
 module.exports = {
   getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica, getTodasPracticas,
   getAlumnosPorVehiculo, registrarPracticasMasivas, eliminarPracticaPorFecha, ajustarPracticasAlumno, guardarNotaAlumno,
-  getFichaPracticasAlumno, getDatosFichaDGT,
+  getFichaPracticasAlumno, getDatosFichaDGT, getPracticasDuplicadas, deletePracticasBulk,
 };

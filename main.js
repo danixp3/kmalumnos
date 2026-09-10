@@ -278,6 +278,8 @@ ipcMain.handle('add-practica', (_, alumno_id, vehiculo_id, fecha, km_inicial, km
   db.addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profesor_id, tipo, sucursalId, hora_inicio)
 );
 ipcMain.handle('delete-practica', (_, id) => { db.deletePractica(id); return true; });
+ipcMain.handle('get-practicas-duplicadas', (_, alumno_id) => db.getPracticasDuplicadas(alumno_id));
+ipcMain.handle('eliminar-practicas-duplicadas', (_, ids) => db.deletePracticasBulk(ids));
 ipcMain.handle('update-practica', (_, id, fecha, km_inicial, km_final, profesor_id, tipo, hora_inicio) => { db.updatePractica(id, fecha, km_inicial, km_final, profesor_id, tipo, hora_inicio); return true; });
 
 ipcMain.handle('get-pagos-alumno', (_, alumno_id) => db.getPagosByAlumno(alumno_id));
@@ -486,7 +488,7 @@ ipcMain.handle('exportar-csv', async (_, opciones) => {
 // prácticas. Devuelve el PDF por diálogo de guardado y lo abre al terminar.
 ipcMain.handle('generar-ficha-dgt', async (_, opciones) => {
   try {
-    const { alumnoId, tipo, centro } = opciones || {};
+    const { alumnoId, tipo, centro, rellenarFecha } = opciones || {};
     const datosAlumno = db.getDatosFichaDGT(alumnoId, tipo === 'destreza' ? 'destreza' : 'circulacion');
     if (!datosAlumno) return { ok: false, msg: 'Alumno no encontrado.' };
     if (!datosAlumno.practicas.length) {
@@ -499,6 +501,7 @@ ipcMain.handle('generar-ficha-dgt', async (_, opciones) => {
       alumno: datosAlumno.alumno,
       profesor: datosAlumno.profesor,
       practicas: datosAlumno.practicas,
+      rellenarFecha: rellenarFecha !== false,
     });
 
     const nombreArchivo = 'Ficha_DGT_' + sanitizarNombre(

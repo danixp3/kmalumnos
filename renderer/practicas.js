@@ -32,6 +32,7 @@ async function loadPracticas() {
   const tbody = document.querySelector('#tabla-practicas tbody');
   if (!practicas.length) {
     tbody.innerHTML = '<tr><td colspan="9" class="empty">No hay prácticas registradas para este alumno</td></tr>';
+    document.getElementById('dup-aviso')?.classList.add('hidden');
     return;
   }
   tbody.innerHTML = practicas.map((p, i) => {
@@ -61,6 +62,7 @@ async function loadPracticas() {
       </td>
     </tr>`;
   }).join('');
+  actualizarAvisoDuplicados();
 }
 
 async function generarKmPractica() {
@@ -171,5 +173,50 @@ async function savePractica() {
   } else {
     loadPracticas();
   }
+}
+
+// ─── DUPLICADOS ──────────────────────────────────────────────────────────────
+let _dupGrupos = [];
+
+async function actualizarAvisoDuplicados() {
+  const aviso = document.getElementById('dup-aviso');
+  if (!aviso || !currentAlumnoId) return;
+  _dupGrupos = await window.api.getPracticasDuplicadas(currentAlumnoId);
+  if (!_dupGrupos.length) { aviso.classList.add('hidden'); return; }
+  const nSobrantes = _dupGrupos.reduce((s, g) => s + (g.practicas.length - 1), 0);
+  document.getElementById('dup-aviso-texto').innerHTML =
+    `⚠️ Este alumno tiene <strong>${_dupGrupos.length}</strong> grupo(s) de prácticas duplicadas (${nSobrantes} repetida(s) sobrante(s)).`;
+  aviso.classList.remove('hidden');
+}
+
+function revisarDuplicados() {
+  if (!_dupGrupos.length) return;
+  const cont = document.getElementById('dup-lista');
+  cont.innerHTML = _dupGrupos.map((g, gi) => {
+    const filas = g.practicas.map((p, pi) => {
+      const sinKm = p.km_inicial === 0 && p.km_final === 0;
+      const km = sinKm ? 'Sin km' : `${fmt(p.km_inicial)} → ${fmt(p.km_final)}`;
+      const extra = [p.hora_inicio, p.profesor_nombre, p.vehiculo_nombre].filter(Boolean).map(esc).join(' · ');
+      const conserva = pi === 0;
+      return `<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer">
+        <input type="checkbox" class="dup-chk" value="${p.id}" ${conserva ? '' : 'checked'}>
+        <span>${fmtFecha(p.fecha)} — ${km}${extra ? ` <span style="color:var(--placeholder)">(${extra})</span>` : ''}${conserva ? ' <span style="color:#16a34a;font-weight:600">· se conserva</span>' : ''}</span>
+      </label>`;
+    }).join('');
+    return `<div class="card" style="margin-bottom:10px;padding:10px 12px">
+      <div style="font-weight:600;margin-bottom:6px">Grupo ${gi + 1}: ${fmtFecha(g.fecha)} · ${g.practicas.length} iguales</div>
+      ${filas}
+    </div>`;
+  }).join('');
+  openModal('modal-duplicados');
+}
+
+async function borrarDuplicadosSeleccionados() {
+  const ids = Array.from(document.querySelectorAll('#dup-lista .dup-chk:checked')).map(c => parseInt(c.value));
+  if (!ids.length) { alert('No has marcado ninguna práctica para borrar.'); return; }
+  if (!await confirmar(`¿Borrar ${ids.length} práctica(s) duplicada(s)? Se sincroniza con la nube.`, { peligro: true, textoAceptar: 'Borrar' })) return;
+  await window.api.eliminarPracticasDuplicadas(ids);
+  closeModal('modal-duplicados');
+  loadPracticas();
 }
 

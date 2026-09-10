@@ -1394,6 +1394,8 @@
     padding: 26px 28px;
     width: 440px;
     max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
     box-shadow: 0 24px 64px rgba(16,24,40,.18), 0 4px 12px rgba(16,24,40,.08);
     border: 1px solid var(--border);
     animation: modalIn .22s ease;

@@ -130,17 +130,22 @@ async function _rellenarContinuacion(out, mapa, filas) {
  *   alumno: { dni, permiso, nombre, primer_apellido, segundo_apellido, direccion, codigo_postal, poblacion },
  *   profesor: { nombre, dni },
  *   practicas: [ { fecha, hora, km_inicial, km_final } ],  // ya ordenadas y formateadas
+ *   rellenarFecha?: boolean,    // preferencia Ajustes; false = fecha del documento (pie) en blanco (por defecto true)
  *   lugar?, dia?, mes?, anio?   // pie; por defecto la fecha de hoy y la población del centro
  * }
  */
 async function generarFichaDGT(datos) {
   const mapa = cargarMapa();
   const hoy = new Date();
+  // rellenarFecha (preferencia de Ajustes, por defecto true): si es false, la
+  // FECHA DEL DOCUMENTO (pie "a __ de __ de __") se deja en blanco para
+  // rellenarla a mano. NO afecta a la columna "Fecha" de cada clase.
+  const rellenarFecha = datos.rellenarFecha !== false;
   const d = {
     ...datos,
-    dia: datos.dia || String(hoy.getDate()),
-    mes: datos.mes || MESES[hoy.getMonth()],
-    anio: datos.anio || String(hoy.getFullYear()),
+    dia: rellenarFecha ? (datos.dia || String(hoy.getDate())) : '',
+    mes: rellenarFecha ? (datos.mes || MESES[hoy.getMonth()]) : '',
+    anio: rellenarFecha ? (datos.anio || String(hoy.getFullYear())) : '',
   };
   // "Ejercicio" siempre "2 CLASES" (máximo de clases/sesión que admite la DGT)
   const practicas = (datos.practicas || []).map(p => ({

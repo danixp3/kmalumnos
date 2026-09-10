@@ -217,7 +217,10 @@ function guardarCentroDatosDesdeAjustes() {
     denominacion: document.getElementById('centro-denominacion')?.value.trim() || '',
     direccion: document.getElementById('centro-direccion')?.value.trim() || '',
     codigo_postal: document.getElementById('centro-cp')?.value.trim() || '',
-    poblacion: document.getElementById('centro-poblacion')?.value.trim() || ''
+    poblacion: document.getElementById('centro-poblacion')?.value.trim() || '',
+    // Preferencia ficha DGT: rellenar la fecha del documento (pie "a __ de __
+    // de __"); por defecto true, false = se deja en blanco para rellenar a mano.
+    rellenar_fecha: document.getElementById('centro-rellenar-fecha')?.checked !== false
   };
   try { localStorage.setItem(CENTRO_DATOS_KEY, JSON.stringify(centro)); } catch (e) {}
 }
@@ -300,6 +303,8 @@ async function loadAjustes() {
   if (elCentroCp) elCentroCp.value = centroDatos.codigo_postal || '';
   const elCentroPoblacion = document.getElementById('centro-poblacion');
   if (elCentroPoblacion) elCentroPoblacion.value = centroDatos.poblacion || '';
+  const elCentroRellenarFecha = document.getElementById('centro-rellenar-fecha');
+  if (elCentroRellenarFecha) elCentroRellenarFecha.checked = centroDatos.rellenar_fecha !== false;
   const dashPref = getDashboardPref();
   document.getElementById('pref-dash-vehiculos').checked = dashPref.vehiculos;
   document.getElementById('pref-dash-alumnos').checked = dashPref.alumnos;
