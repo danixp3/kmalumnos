@@ -157,7 +157,8 @@ function renderAlumnosTabla() {
   let filtrados = alumnosCache.filter(a => {
     // El texto de búsqueda también encuentra por DNI y teléfono, no solo nombre.
     if (nombreFiltro) {
-      const enNombre = a.nombre.toLowerCase().includes(nombreFiltro);
+      const nombreCompleto = [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ').toLowerCase();
+      const enNombre = nombreCompleto.includes(nombreFiltro);
       const enDni = (a.dni || '').toLowerCase().includes(nombreFiltro);
       const enTelefono = (a.telefono || '').toLowerCase().includes(nombreFiltro);
       if (!enNombre && !enDni && !enTelefono) return false;
@@ -211,8 +212,10 @@ function renderAlumnosTabla() {
     const estado = a.estado || 'activo';
     const pillEstado = `<span class="estado-pill estado-${estado}">${ESTADO_ALUMNO_TEXTO[estado] || estado}</span>`;
     const otrosPermisos = (a.permisos || []).map(p => tagPermiso(p)).join(' ');
+    const apellidos = [a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
+    const nombreCompleto = apellidos ? `${a.nombre} ${apellidos}` : a.nombre;
     return `<tr>
-      <td><strong>${esc(a.nombre)}</strong></td>
+      <td><strong>${esc(nombreCompleto)}</strong></td>
       <td>${a.telefono ? esc(a.telefono) : '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${tag}${otrosPermisos ? ' ' + otrosPermisos : ''}</td>
       <td>${a.vehiculo_nombre ? esc(a.vehiculo_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
@@ -862,7 +865,8 @@ async function imprimirFichaPracticas(alumnoId) {
 // si están vacíos se avisa pero se deja continuar igualmente.
 async function abrirFichaDGT(alumnoId) {
   document.getElementById('ficha-dgt-alumno-id').value = alumnoId;
-  document.getElementById('ficha-dgt-tipo').value = 'destreza';
+  const rDestreza = document.querySelector('input[name="ficha-dgt-tipo"][value="destreza"]');
+  if (rDestreza) rDestreza.checked = true;
   const aviso = document.getElementById('ficha-dgt-aviso');
   const centro = (typeof getCentroDatos === 'function') ? getCentroDatos() : {};
   if (!centro.denominacion) {
@@ -876,7 +880,7 @@ async function abrirFichaDGT(alumnoId) {
 
 async function generarFichaDGTUI() {
   const alumnoId = parseInt(document.getElementById('ficha-dgt-alumno-id').value);
-  const tipo = document.getElementById('ficha-dgt-tipo').value;
+  const tipo = document.querySelector('input[name="ficha-dgt-tipo"]:checked')?.value || 'destreza';
   const centro = (typeof getCentroDatos === 'function') ? getCentroDatos() : {};
   // Preferencia de Ajustes: rellenar o no la fecha del documento (pie de la
   // ficha; por defecto true, solo se omite si el usuario la desmarcó).

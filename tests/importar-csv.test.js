@@ -62,6 +62,44 @@ test('si las filas no traen km, los genera encadenados dentro del rango configur
   expect(practicas[1]).toMatchObject({ km_inicial: 43, km_final: 86 });
 });
 
+test('con rango por defecto (sin pasar min/max), las filas sin km SÍ se encadenan', () => {
+  const res = db.importarCSV([
+    { alumno: 'Ana', vehiculo: 'Coche 1', fecha: '2026-07-01' }
+  ]);
+  expect(res.insertados).toBe(1);
+  const ana = db.getAlumnos()[0];
+  const practicas = db.getPracticasByAlumno(ana.id);
+  expect(practicas[0].km_final).toBeGreaterThan(0);
+});
+
+test('rango 0-0 respeta el 0 (no cae al valor por defecto) y deja las filas sin km realmente vacías', () => {
+  const res = db.importarCSV([
+    { alumno: 'Ana', vehiculo: 'Coche 1', fecha: '2026-07-01' },
+    { alumno: 'Ana', vehiculo: 'Coche 1', fecha: '2026-07-02' }
+  ], 0, 0);
+
+  expect(res.insertados).toBe(2);
+  const ana = db.getAlumnos()[0];
+  const practicas = db.getPracticasByAlumno(ana.id);
+  expect(practicas[0]).toMatchObject({ km_inicial: 0, km_final: 0 });
+  expect(practicas[1]).toMatchObject({ km_inicial: 0, km_final: 0 });
+});
+
+test('rango 0-0: una fila con km real fija el odómetro pero la fila sin km queda en 0/0 (no encadenada)', () => {
+  const res = db.importarCSV([
+    { alumno: 'Ana', vehiculo: 'Coche 1', fecha: '2026-07-01', km_inicial: '100', km_final: '189000' },
+    { alumno: 'Ana', vehiculo: 'Coche 1', fecha: '2026-07-02' }
+  ], 0, 0);
+
+  expect(res.insertados).toBe(2);
+  const ana = db.getAlumnos()[0];
+  const practicas = db.getPracticasByAlumno(ana.id);
+  const conKm = practicas.find(p => p.km_inicial === 100);
+  const sinKm = practicas.find(p => p.fecha === '2026-07-02');
+  expect(conKm).toMatchObject({ km_inicial: 100, km_final: 189000 });
+  expect(sinKm).toMatchObject({ km_inicial: 0, km_final: 0 });
+});
+
 test('la exportación devuelve un CSV con cabecera y una línea por práctica', () => {
   db.importarCSV([
     { alumno: 'Ana', vehiculo: 'Coche 1', fecha: '2026-07-01', km_inicial: '100', km_final: '140' }

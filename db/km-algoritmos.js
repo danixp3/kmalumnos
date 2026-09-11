@@ -136,6 +136,242 @@ function rellenarKmMasivo(vehiculo_id, kmMin = 40, kmMax = 45, kmInicio = null, 
   return { rellenadas, saltadas };
 }
 
+// ─── HELPERS COMPARTIDOS DE GENERACIÓN ──────────────────────────────────────
+// Incremento de km SIN decimales (la app trabaja siempre con kilómetros enteros).
+function _randomKmEntero(min, max) {
+  return Math.round(Math.random() * (max - min) + min);
+}
+
+// Prácticas en blanco (0,0) de un vehículo, ordenadas cronológicamente
+// (desempate por id para que el orden sea estable dentro del mismo día).
+function _blancasOrdenadas(d, vid) {
+  return d.practicas
+    .filter(p => p.vehiculo_id === vid && p.km_inicial === 0 && p.km_final === 0)
+    .sort((a, b) => {
+      const dc = a.fecha.localeCompare(b.fecha);
+      return dc !== 0 ? dc : a.id - b.id;
+    });
+}
+
+// Cuenta cuántas de las asignaciones propuestas se solaparían con las prácticas
+// que YA tienen km reales del mismo vehículo (para avisar sin bloquear: el usuario
+// puede aplicar igualmente y luego usar "Corregir solapamientos").
+function _contarSolapamientos(asignaciones, reales) {
+  let n = 0;
+  for (const a of asignaciones) {
+    for (const r of reales) {
+      if (a.km_inicial < r.km_final && r.km_inicial < a.km_final) { n++; break; }
+    }
+  }
+  return n;
+}
+
+// Reparte `total` km en `n` incrementos ENTEROS que suman exactamente `total`,
+// centrados en la media (total/n) con una variación aleatoria ± `variacion` km,
+// para que las prácticas no queden todas iguales. Cada incremento es >= 1.
+// Devuelve null si no cabe (total < n, es decir menos de 1 km por práctica).
+function _repartirConVariacion(total, n, variacion) {
+  if (n <= 0) return [];
+  if (total < n) return null;
+  const media = total / n;
+  const v = Math.max(0, Math.round(variacion || 0));
+  const incs = [];
+  for (let i = 0; i < n; i++) {
+    const jitter = v > 0 ? (Math.random() * 2 - 1) * v : 0; // [-v, +v]
+    incs.push(Math.max(1, Math.round(media + jitter)));
+  }
+  // Ajuste fino: forzar que la suma sea EXACTAMENTE `total` manteniendo cada uno >= 1.
+  let suma = incs.reduce((a, b) => a + b, 0);
+  let diff = total - suma;
+  let guard = 0;
+  while (diff !== 0 && guard < 1000000) {
+    for (let i = 0; i < n && diff !== 0; i++) {
+      if (diff > 0) { incs[i]++; diff--; }
+      else if (incs[i] > 1) { incs[i]--; diff++; }
+    }
+    guard++;
+  }
+  return incs;
+}
+
+// Persiste un plan de asignaciones (array de {p, ki, kf}) sobre las prácticas,
+// marca los cambios para la nube, actualiza el odómetro del vehículo y registra
+// el log. Devuelve el número de prácticas rellenadas.
+function _aplicarPlan(d, v, plan, tipoLog, tituloLog) {
+  const s = _sync();
+  for (const { p, ki, kf } of plan) {
+    p.km_inicial = ki;
+    p.km_final   = kf;
+    if (s) s.markDirty('practicas', p.id);
+  }
+  // Actualizar odómetro del vehículo si creció
+  let maxKm = v.km_actual;
+  d.practicas.filter(p => p.vehiculo_id === v.id).forEach(p => { if (p.km_final > maxKm) maxKm = p.km_final; });
+  if (maxKm !== v.km_actual) {
+    v.km_actual = maxKm;
+    if (s) s.markDirty('vehiculos', v.id);
+  }
+  const detalles = plan.map(({ p, ki, kf }) => {
+    const alumno = d.alumnos.find(a => a.id === p.alumno_id);
+    return `${alumno ? alumno.nombre : '?'} / ${fmtFechaLog(p.fecha)}: ${ki} → ${kf} km`;
+  });
+  addLog(tipoLog, tituloLog, detalles);
+  save();
+}
+
+/**
+ * MODO "HASTA UN MÁXIMO (HACIA ATRÁS)".
+ * Las prácticas en blanco del vehículo se calculan de modo que la MÁS RECIENTE
+ * termine justo en `kmMaximo`, encadenando hacia atrás: cada práctica anterior
+ * acaba donde empieza la siguiente, restando un incremento aleatorio [kmMin,kmMax].
+ * Respeta las prácticas que ya tienen km reales (no las toca; solo avisa de
+ * posibles solapamientos).
+ *
+ * @param aplicar  false = previsualizar (no guarda); true = aplicar y guardar.
+ * @returns { asignaciones:[{practica_id,alumno,fecha,km_inicial,km_final}],
+ *            rellenadas, solapamientos, errores:[] }
+ */
+function generarKmHastaMaximo(vehiculo_id, kmMin = 40, kmMax = 45, kmMaximo = null, aplicar = false) {
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  const v = d.vehiculos.find(x => x.id === vid);
+  if (!v) return { asignaciones: [], rellenadas: 0, solapamientos: 0, errores: ['Vehículo no encontrado'] };
+  if (kmMaximo === null || kmMaximo === '' || isNaN(kmMaximo) || kmMaximo <= 0) {
+    return { asignaciones: [], rellenadas: 0, solapamientos: 0, errores: ['Indica un kilometraje máximo válido.'] };
+  }
+  if (kmMax <= kmMin) {
+    return { asignaciones: [], rellenadas: 0, solapamientos: 0, errores: ['El máximo por práctica debe ser mayor que el mínimo.'] };
+  }
+
+  const blancas = _blancasOrdenadas(d, vid);
+  if (!blancas.length) return { asignaciones: [], rellenadas: 0, solapamientos: 0, errores: ['Este vehículo no tiene prácticas con km en blanco.'] };
+
+  // Encadenar hacia atrás desde kmMaximo (de la más reciente a la más antigua).
+  const plan = new Array(blancas.length);
+  let cursor = Math.round(kmMaximo);
+  for (let i = blancas.length - 1; i >= 0; i--) {
+    const kf = cursor;
+    const inc = _randomKmEntero(kmMin, kmMax);
+    const ki = kf - inc;
+    plan[i] = { p: blancas[i], ki, kf };
+    cursor = ki;
+  }
+
+  // La práctica más antigua no puede empezar por debajo de 0.
+  if (plan[0].ki < 0) {
+    return {
+      asignaciones: [], rellenadas: 0, solapamientos: 0,
+      errores: [`El máximo (${Math.round(kmMaximo)} km) es demasiado bajo para ${blancas.length} práctica(s): el odómetro se iría por debajo de 0. Sube el máximo o reduce el rango por práctica.`]
+    };
+  }
+
+  const reales = d.practicas.filter(p => p.vehiculo_id === vid && !(p.km_inicial === 0 && p.km_final === 0));
+  const solapamientos = _contarSolapamientos(plan.map(x => ({ km_inicial: x.ki, km_final: x.kf })), reales);
+
+  const asignaciones = plan.map(({ p, ki, kf }) => {
+    const alumno = d.alumnos.find(a => a.id === p.alumno_id);
+    return { practica_id: p.id, alumno: alumno ? alumno.nombre : '?', fecha: p.fecha, km_inicial: ki, km_final: kf };
+  });
+
+  if (aplicar) {
+    _aplicarPlan(d, v, plan, 'relleno', `Generación hasta máximo ${v.nombre}: ${plan.length} práctica(s) (máx ${Math.round(kmMaximo)} km, rango ${kmMin}-${kmMax} km)`);
+  }
+
+  return { asignaciones, rellenadas: plan.length, solapamientos, errores: [] };
+}
+
+/**
+ * MODO "POR RANGO [desde → hasta]".
+ * Reparte las prácticas en blanco del vehículo para que ocupen exactamente el
+ * tramo [kmDesde, kmHasta]: la primera empieza en kmDesde y la última acaba en
+ * kmHasta. El km por práctica es la media del tramo con una variación aleatoria
+ * ± `variacion` km, para que no queden todas iguales.
+ *
+ * @param aplicar  false = previsualizar (no guarda); true = aplicar y guardar.
+ * @returns { asignaciones:[...], rellenadas, solapamientos, errores:[] }
+ */
+function generarKmPorRango(vehiculo_id, kmDesde = null, kmHasta = null, variacion = 5, aplicar = false) {
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  const v = d.vehiculos.find(x => x.id === vid);
+  if (!v) return { asignaciones: [], rellenadas: 0, solapamientos: 0, errores: ['Vehículo no encontrado'] };
+
+  const desde = Math.round(Number(kmDesde));
+  const hasta = Math.round(Number(kmHasta));
+  if (kmDesde === null || kmDesde === '' || isNaN(desde) || desde < 0) {
+    return { asignaciones: [], rellenadas: 0, solapamientos: 0, errores: ['Indica el km inicial del rango.'] };
+  }
+  if (kmHasta === null || kmHasta === '' || isNaN(hasta) || hasta <= desde) {
+    return { asignaciones: [], rellenadas: 0, solapamientos: 0, errores: ['El km final del rango debe ser mayor que el inicial.'] };
+  }
+
+  const blancas = _blancasOrdenadas(d, vid);
+  if (!blancas.length) return { asignaciones: [], rellenadas: 0, solapamientos: 0, errores: ['Este vehículo no tiene prácticas con km en blanco.'] };
+
+  const total = hasta - desde;
+  const incs = _repartirConVariacion(total, blancas.length, variacion);
+  if (!incs) {
+    return {
+      asignaciones: [], rellenadas: 0, solapamientos: 0,
+      errores: [`El rango (${total} km) es demasiado pequeño para ${blancas.length} práctica(s): no llega ni a 1 km por práctica. Amplía el rango.`]
+    };
+  }
+
+  const plan = [];
+  let cursor = desde;
+  for (let i = 0; i < blancas.length; i++) {
+    const ki = cursor;
+    const kf = cursor + incs[i];
+    plan.push({ p: blancas[i], ki, kf });
+    cursor = kf;
+  }
+
+  const reales = d.practicas.filter(p => p.vehiculo_id === vid && !(p.km_inicial === 0 && p.km_final === 0));
+  const solapamientos = _contarSolapamientos(plan.map(x => ({ km_inicial: x.ki, km_final: x.kf })), reales);
+
+  const asignaciones = plan.map(({ p, ki, kf }) => {
+    const alumno = d.alumnos.find(a => a.id === p.alumno_id);
+    return { practica_id: p.id, alumno: alumno ? alumno.nombre : '?', fecha: p.fecha, km_inicial: ki, km_final: kf };
+  });
+
+  if (aplicar) {
+    _aplicarPlan(d, v, plan, 'relleno', `Generación por rango ${v.nombre}: ${plan.length} práctica(s) (${desde} → ${hasta} km, variación ±${Math.round(variacion || 0)})`);
+  }
+
+  return { asignaciones, rellenadas: plan.length, solapamientos, errores: [] };
+}
+
+/**
+ * Persiste EXACTAMENTE un plan previamente previsualizado (WYSIWYG). Como los
+ * modos "máximo" y "rango" usan aleatoriedad, aplicar debe guardar lo que el
+ * usuario vio, no volver a generar. Solo escribe sobre prácticas que SIGUEN en
+ * blanco (protege frente a cambios entre previsualizar y aplicar).
+ * @param asignaciones [{practica_id, km_inicial, km_final}]
+ */
+function aplicarPlanKm(vehiculo_id, asignaciones) {
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  const v = d.vehiculos.find(x => x.id === vid);
+  if (!v) return { aplicadas: 0, errores: ['Vehículo no encontrado'] };
+  if (!Array.isArray(asignaciones) || !asignaciones.length) return { aplicadas: 0, errores: ['No hay nada que aplicar.'] };
+
+  const plan = [];
+  for (const a of asignaciones) {
+    const p = d.practicas.find(x => x.id === a.practica_id && x.vehiculo_id === vid);
+    if (!p) continue;
+    if (!(p.km_inicial === 0 && p.km_final === 0)) continue; // ya no está en blanco
+    const ki = Math.round(Number(a.km_inicial));
+    const kf = Math.round(Number(a.km_final));
+    if (isNaN(ki) || isNaN(kf) || kf <= ki || ki < 0) continue;
+    plan.push({ p, ki, kf });
+  }
+  if (!plan.length) {
+    return { aplicadas: 0, errores: ['Las prácticas ya no están en blanco o los km no son válidos. Vuelve a previsualizar.'] };
+  }
+  _aplicarPlan(d, v, plan, 'relleno', `Generación de km ${v.nombre}: ${plan.length} práctica(s) aplicadas`);
+  return { aplicadas: plan.length, errores: [] };
+}
+
 function getPracticasSinKm(vehiculo_id) {
   const d = load();
   return d.practicas
@@ -265,4 +501,5 @@ function getSolapamientos() {
 
 module.exports = {
   validarSolapamiento, rellenarKmMasivo, getPracticasSinKm, corregirSolapamientos, getSolapamientos,
+  generarKmHastaMaximo, generarKmPorRango, aplicarPlanKm,
 };

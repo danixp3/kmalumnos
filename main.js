@@ -391,6 +391,9 @@ ipcMain.handle('get-solapamientos', () => db.getSolapamientos());
 ipcMain.handle('rellenar-km-masivo', (_, vehiculo_id, kmMin, kmMax, kmInicio, kmFinal) => db.rellenarKmMasivo(vehiculo_id, kmMin, kmMax, kmInicio, kmFinal));
 ipcMain.handle('get-practicas-sin-km', (_, vehiculo_id) => db.getPracticasSinKm(vehiculo_id));
 ipcMain.handle('corregir-solapamientos', (_, vehiculo_id, kmMin, kmMax) => db.corregirSolapamientos(vehiculo_id, kmMin, kmMax));
+ipcMain.handle('generar-km-hasta-maximo', (_, vehiculo_id, kmMin, kmMax, kmMaximo, aplicar) => db.generarKmHastaMaximo(vehiculo_id, kmMin, kmMax, kmMaximo, aplicar));
+ipcMain.handle('generar-km-por-rango', (_, vehiculo_id, kmDesde, kmHasta, variacion, aplicar) => db.generarKmPorRango(vehiculo_id, kmDesde, kmHasta, variacion, aplicar));
+ipcMain.handle('aplicar-plan-km', (_, vehiculo_id, asignaciones) => db.aplicarPlanKm(vehiculo_id, asignaciones));
 ipcMain.handle('get-timeline-vehiculo', (_, vehiculo_id) => db.getTimelineVehiculo(vehiculo_id));
 
 // Registro rápido
@@ -455,8 +458,10 @@ ipcMain.handle('importar-csv', (_, filePath, kmMin, kmMax) => {
       if (row.alumno && row.vehiculo && row.fecha) rows.push(row);
     }
 
-    const min = parseFloat(kmMin) || 40;
-    const max = parseFloat(kmMax) || 45;
+    const _min = parseFloat(kmMin);
+    const _max = parseFloat(kmMax);
+    const min = Number.isFinite(_min) ? _min : 40;
+    const max = Number.isFinite(_max) ? _max : 45;
     const res = db.importarCSV(rows, min, max);
     return { ok: true, ...res };
   } catch (e) {

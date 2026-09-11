@@ -1429,11 +1429,35 @@
 
   .modal-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     justify-content: flex-end;
     margin-top: 22px;
     padding-top: 18px;
     border-top: 1px solid var(--border);
+  }
+
+  /* ── SELECTOR DE TIPO DE FICHA DGT (destreza/circulación) ──── */
+  .tipo-cards { display: flex; gap: 10px; }
+  .tipo-cards .tipo-card {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card);
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text);
+    transition: border-color .15s, background .15s;
+  }
+  .tipo-cards .tipo-card:hover { border-color: var(--primary); }
+  .tipo-cards .tipo-card input[type="radio"] { width: auto; margin: 0; accent-color: var(--primary); }
+  .tipo-cards .tipo-card:has(input:checked) {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, var(--card));
   }
 
   /* ── ALERTS ─────────────────────────────────── */
