@@ -43,6 +43,11 @@ const BUSCADOR_DESTINOS = [
   { titulo: 'Mapa del vehículo', sub: 'Kilómetros', page: 'kilometros', tab: 'mapa', kw: 'kilometros km mapa vehiculo timeline linea tiempo odometro' },
   { titulo: 'Conflictos de km', sub: 'Kilómetros', page: 'kilometros', tab: 'conflictos', kw: 'kilometros conflictos solapamientos errores km incoherencias' },
 
+  // Generar km
+  { titulo: 'Generar km', sub: 'Generación de kilómetros', page: 'generar-km', kw: 'generar generacion kilometros km rellenar relleno masivo blanco encadenado maximo rango odometro' },
+  { titulo: 'Generar hasta un máximo', sub: 'Generar km', page: 'generar-km', tab: 'maximo', kw: 'generar km maximo tope final odometro hacia atras' },
+  { titulo: 'Generar por rango', sub: 'Generar km', page: 'generar-km', tab: 'rango', kw: 'generar km rango desde hasta media variacion repartir distribuir' },
+
   // Historial
   { titulo: 'Historial', sub: 'Registro de operaciones', page: 'logs', kw: 'historial logs registro operaciones cambios' },
   { titulo: 'Borrar historial', sub: 'Historial', page: 'logs', kw: 'borrar limpiar vaciar historial logs' },

@@ -203,6 +203,7 @@ function navegarA(page, tab) {
   if (tab) {
     if (page === 'kilometros') cambiarTabKilometros(tab);
     if (page === 'datos') cambiarTabDatos(tab);
+    if (page === 'generar-km') cambiarTabGenerarKm(tab);
   }
 }
 

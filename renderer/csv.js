@@ -14,8 +14,10 @@ async function seleccionarCSV() {
 
 async function importarCSV() {
   if (!selectedCsvPath) return;
-  const kmMin = parseFloat(document.getElementById('imp-min').value) || 40;
-  const kmMax = parseFloat(document.getElementById('imp-max').value) || 45;
+  const _min = parseFloat(document.getElementById('imp-min').value);
+  const _max = parseFloat(document.getElementById('imp-max').value);
+  const kmMin = Number.isFinite(_min) ? _min : 40;
+  const kmMax = Number.isFinite(_max) ? _max : 45;
   const result = await window.api.importarCsv(selectedCsvPath, kmMin, kmMax);
   if (!result.ok) {
     showImportAlert('Error: ' + result.msg, 'err');

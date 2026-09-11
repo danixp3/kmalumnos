@@ -174,6 +174,12 @@
         </span>
         Kilómetros
       </a>
+      <a data-page="generar-km">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </span>
+        Generar km
+      </a>
       <a data-page="logs">
         <span class="nav-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -1426,6 +1432,112 @@
       </div>
     </div>
 
+    <!-- ── GENERAR KM (sección unificada de generación de kilómetros) ──── -->
+    <div id="page-generar-km" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Generar km</div>
+          <div class="page-subtitle">Rellena los kilómetros de las prácticas en blanco de un vehículo con distintos métodos</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="form-row" style="align-items:flex-end;gap:12px">
+          <div class="form-group">
+            <label>Vehículo</label>
+            <select id="gk-vehiculo" style="width:220px" onchange="gkCambioVehiculo()"></select>
+          </div>
+          <span id="gk-sinKm" style="font-size:12.5px;color:var(--text-muted);align-self:center"></span>
+        </div>
+      </div>
+
+      <div class="page-tabs" id="generar-km-tabs">
+        <button class="page-tab active" data-tab="encadenado" onclick="cambiarTabGenerarKm('encadenado')">Encadenado</button>
+        <button class="page-tab" data-tab="maximo" onclick="cambiarTabGenerarKm('maximo')">Hasta un máximo</button>
+        <button class="page-tab" data-tab="rango" onclick="cambiarTabGenerarKm('rango')">Por rango</button>
+      </div>
+
+      <!-- MODO ENCADENADO: desde el odómetro actual hacia delante -->
+      <div class="tab-content active" id="tab-generar-km-encadenado">
+        <div class="card">
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Rellena las prácticas en blanco <strong>hacia delante</strong>, empezando en el odómetro actual del vehículo (o en el tope inicial que indiques). A cada práctica le suma un incremento aleatorio dentro del rango.</p>
+          <div class="form-row" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
+            <div class="form-group">
+              <label>Km por práctica (mín — máx)</label>
+              <div class="range-group">
+                <input type="number" id="gk-enc-min" value="40" min="1" max="999">
+                <span class="range-sep">—</span>
+                <input type="number" id="gk-enc-max" value="45" min="1" max="999">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Tope odómetro (opcional)</label>
+              <div class="range-group">
+                <input type="number" id="gk-enc-inicio" placeholder="Inicio" min="0" style="width:90px" title="Km inicial del odómetro (vacío = usar el del vehículo)">
+                <span class="range-sep">→</span>
+                <input type="number" id="gk-enc-final" placeholder="Final" min="0" style="width:90px" title="Km máximo del odómetro (vacío = sin límite)">
+              </div>
+            </div>
+            <button class="btn btn-warn" onclick="gkGenerarEncadenado()" style="align-self:flex-end">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar
+            </button>
+          </div>
+          <div id="gk-enc-alert" class="hidden" style="margin-top:12px"></div>
+        </div>
+      </div>
+
+      <!-- MODO HASTA UN MÁXIMO: hacia atrás desde un km máximo -->
+      <div class="tab-content" id="tab-generar-km-maximo">
+        <div class="card">
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Indica el <strong>kilometraje máximo</strong> donde debe terminar el odómetro. La práctica en blanco más reciente acabará justo en ese número y las anteriores se calculan <strong>restando hacia atrás</strong>, con un incremento aleatorio por práctica.</p>
+          <div class="form-row" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
+            <div class="form-group">
+              <label>Km máximo (odómetro final)</label>
+              <input type="number" id="gk-max-maximo" placeholder="Ej. 189000" min="1" style="width:140px">
+            </div>
+            <div class="form-group">
+              <label>Km por práctica (mín — máx)</label>
+              <div class="range-group">
+                <input type="number" id="gk-max-min" value="40" min="1" max="999">
+                <span class="range-sep">—</span>
+                <input type="number" id="gk-max-max" value="45" min="1" max="999">
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="gkPreview('maximo')" style="align-self:flex-end">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Previsualizar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODO POR RANGO: distribuir entre desde y hasta con media + variación -->
+      <div class="tab-content" id="tab-generar-km-rango">
+        <div class="card">
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Reparte las prácticas en blanco para que el odómetro vaya <strong>desde</strong> un km <strong>hasta</strong> otro. Cada práctica recibe la media del tramo con una <strong>variación</strong> aleatoria (±) para que no queden todas iguales; el total cuadra exactamente en el km final.</p>
+          <div class="form-row" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
+            <div class="form-group">
+              <label>Rango del odómetro (desde → hasta)</label>
+              <div class="range-group">
+                <input type="number" id="gk-rango-desde" placeholder="Desde" min="0" style="width:110px">
+                <span class="range-sep">→</span>
+                <input type="number" id="gk-rango-hasta" placeholder="Hasta" min="0" style="width:110px">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Variación ± (km)</label>
+              <input type="number" id="gk-rango-variacion" value="5" min="0" max="999" style="width:90px" title="Cuánto puede subir o bajar cada práctica respecto a la media">
+            </div>
+            <button class="btn btn-primary" onclick="gkPreview('rango')" style="align-self:flex-end">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Previsualizar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Previsualización + aplicar (compartido por los modos máximo y rango) -->
+      <div id="gk-preview" class="hidden"></div>
+    </div>
+
     <!-- ── HISTORIAL / AUDITORÍA (solo jefe) ──────────────────────────── -->
     <div id="page-logs" class="page">
       <div class="page-header">
@@ -2456,10 +2568,16 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
     <input type="hidden" id="ficha-dgt-alumno-id">
     <div class="form-group">
       <label>Tipo de ficha</label>
-      <select id="ficha-dgt-tipo" style="width:100%">
-        <option value="destreza">Destreza (pista)</option>
-        <option value="circulacion">Circulación</option>
-      </select>
+      <div class="tipo-cards">
+        <label class="tipo-card">
+          <input type="radio" name="ficha-dgt-tipo" value="destreza" checked>
+          <span>Destreza (pista)</span>
+        </label>
+        <label class="tipo-card">
+          <input type="radio" name="ficha-dgt-tipo" value="circulacion">
+          <span>Circulación</span>
+        </label>
+      </div>
     </div>
     <div id="ficha-dgt-aviso" class="hidden alert alert-warn" style="margin-top:12px"></div>
     <div class="modal-actions">
@@ -3169,6 +3287,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/informes.js"></script>
 <script src="renderer/caja.js"></script>
 <script src="renderer/agenda-visual.js"></script>
+<script src="renderer/generar-km.js"></script>
 <script src="renderer/arranque.js"></script>
 </body>
 </html>

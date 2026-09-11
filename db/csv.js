@@ -111,6 +111,8 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
   // 2ª pasada: prácticas sin km, encadenadas por fecha desde el km más alto conocido.
   sinKm.sort((x, y) => x.fecha.localeCompare(y.fecha));
   for (const r of sinKm) {
+    // Rango 0-0: las prácticas sin km se dejan realmente vacías (no se encadenan).
+    if (kmMin === 0 && kmMax === 0) { insertar(r, 0, 0); continue; }
     let base = ultimoKmPorAlumno[r.a.id];
     if (base === undefined) {
       // Mayor km_final real del alumno o, en su defecto, el odómetro del vehículo.
