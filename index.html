@@ -234,12 +234,118 @@
     <div id="page-dashboard" class="page active">
       <div class="page-header">
         <div>
-          <div class="page-title">Panel Principal</div>
-          <div class="page-subtitle">Resumen general de la autoescuela</div>
+          <div class="page-title">Panel</div>
+          <div class="page-subtitle" id="panel-fecha"></div>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-outline" onclick="navegarA('datos','exportar')" title="Exportar datos"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Exportar</button>
         </div>
       </div>
 
-      <div class="stats">
+      <!-- Resumen del día (renderer/dashboard.js:loadDashboard, db/estadisticas.js:getPanel) -->
+      <div class="stats panel-kpis" id="panel-kpis">
+        <div class="stat kpi" id="kpi-hoy">
+          <span class="lbl">Prácticas hoy</span>
+          <div class="kpi-val"><span class="num" id="kpi-hoy-num">0</span><span class="kpi-unit" id="kpi-hoy-unit">de 0 programadas</span></div>
+          <span class="kpi-sub" id="kpi-hoy-sub"></span>
+        </div>
+        <div class="stat kpi" id="kpi-km">
+          <span class="lbl" id="kpi-km-lbl">Km este mes</span>
+          <div class="kpi-val"><span class="num" id="kpi-km-num">0</span><span class="kpi-unit">km</span></div>
+          <span class="kpi-sub" id="kpi-km-sub"></span>
+        </div>
+        <div class="stat kpi" id="kpi-alumnos">
+          <span class="lbl">Alumnos en prácticas</span>
+          <div class="kpi-val"><span class="num" id="kpi-alumnos-num">0</span><span class="kpi-unit">activos</span></div>
+          <span class="kpi-sub" id="kpi-alumnos-sub"></span>
+        </div>
+        <div class="stat kpi" id="kpi-revisar">
+          <div class="stat-head"><span class="lbl">Por revisar</span><span class="pill pill-warn hidden" id="kpi-revisar-flag"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="stroke-width:2.2"><path d="M10.3 4.2L2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17h.01"/></svg>Atención</span></div>
+          <div class="kpi-val"><span class="num" id="kpi-revisar-num">0</span><span class="kpi-unit" id="kpi-revisar-unit">incidencias</span></div>
+          <span class="kpi-sub" id="kpi-revisar-sub"></span>
+          <button type="button" class="kpi-link hidden" id="kpi-revisar-link">Revisar<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="stroke-width:2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </div>
+      </div>
+
+      <div class="panel-grid">
+        <section class="card panel-span-2" id="panel-dias-card" aria-labelledby="h-dias">
+          <div class="card-head" style="align-items:flex-start">
+            <div>
+              <h2 id="h-dias">Prácticas por día</h2>
+              <div class="card-note" id="panel-dias-nota" style="margin-top:2px"></div>
+            </div>
+            <div class="seg" role="group" aria-label="Vista del gráfico">
+              <button type="button" id="panel-vista-grafico" aria-pressed="true" onclick="panelVista('grafico')">Gráfico</button>
+              <button type="button" id="panel-vista-tabla" aria-pressed="false" onclick="panelVista('tabla')">Tabla</button>
+            </div>
+          </div>
+          <div id="panel-dias-body"></div>
+        </section>
+        <section class="card" id="panel-ruta-card" aria-labelledby="h-ruta">
+          <div class="card-head"><h2 id="h-ruta">Ahora en ruta</h2><span class="card-note" id="panel-ruta-nota"></span></div>
+          <div id="panel-ruta-lista"></div>
+        </section>
+      </div>
+
+      <div class="panel-grid">
+        <section class="card panel-span-2" aria-labelledby="h-avisos">
+          <div class="card-head"><h2 id="h-avisos">Avisos</h2><span class="card-note" id="panel-avisos-nota"></span></div>
+          <ul class="avisos" id="dash-alertas"></ul>
+        </section>
+        <section class="card" aria-labelledby="h-examenes">
+          <div class="card-head"><h2 id="h-examenes">Próximos exámenes</h2><span class="card-note" id="panel-examenes-nota"></span></div>
+          <div id="panel-examenes"></div>
+        </section>
+      </div>
+
+      <div class="panel-grid-2">
+      <!-- Agenda: solicitudes pendientes y próximas reservas confirmadas (renderer/dashboard.js) -->
+      <div class="card hidden" id="dash-agenda-card" style="margin-bottom:20px">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:var(--primary-light);color:var(--primary)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+          Agenda
+        </div>
+        <div id="dash-agenda-solicitudes" style="margin-bottom:10px"></div>
+        <div id="dash-agenda-proximas"></div>
+      </div>
+
+      <!-- Semáforo de examen: mini-resumen listos/casi/lejos (renderer/dashboard.js) -->
+      <div class="card hidden" id="dash-semaforo-card" style="margin-bottom:20px">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:var(--success-bg-selected);color:var(--success-fg-soft)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+          Semáforo de examen
+        </div>
+        <div id="dash-semaforo-resumen" style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:14px">
+          <span><span class="semaforo-pill semaforo-verde">Listos</span> <strong id="dash-semaforo-verde">0</strong></span>
+          <span><span class="semaforo-pill semaforo-ambar">Casi</span> <strong id="dash-semaforo-ambar">0</strong></span>
+          <span><span class="semaforo-pill semaforo-rojo">Lejos</span> <strong id="dash-semaforo-rojo">0</strong></span>
+        </div>
+      </div>
+
+      <!-- Alumnos en riesgo de abandono: heurística v1, ver db/estadisticas.js:getAlumnosEnRiesgo (renderer/dashboard.js) -->
+      <div class="card hidden" id="dash-riesgo-card" style="margin-bottom:20px">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:var(--danger-light);color:var(--danger-fg-soft)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          Alumnos en riesgo de abandono
+        </div>
+        <div id="dash-riesgo-resumen" style="margin-bottom:10px"></div>
+        <div id="dash-riesgo-lista"></div>
+      </div>
+
+      <!-- Vencimientos próximos: ITV, seguros, psicotécnicos... (renderer/dashboard.js, db/vencimientos.js) -->
+      <div class="card hidden" id="dash-venc-card" style="margin-bottom:20px">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:var(--danger-light);color:var(--danger-fg-soft)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          Caducidades próximas
+        </div>
+        <div id="dash-venc-resumen" style="margin-bottom:10px"></div>
+        <div id="dash-venc-lista"></div>
+      </div>
+      </div>
+
+      <!-- Resumen personalizado: las tarjetas que se eligen en Ajustes → Preferencias -->
+      <div class="section-label" id="dash-stats-extra-label">Resumen personalizado</div>
+      <div class="stats" id="dash-stats-extra">
         <div class="stat" id="stat-card-vehiculos">
           <div class="stat-head">
             <span class="lbl">Vehículos</span>
@@ -303,52 +409,6 @@
           </div>
           <div class="num" id="stat-alumnos-deuda">0</div>
         </div>
-      </div>
-
-      <!-- Alertas de estado -->
-      <div id="dash-alertas" style="margin-bottom:4px"></div>
-
-      <!-- Agenda: solicitudes pendientes y próximas reservas confirmadas (renderer/dashboard.js) -->
-      <div class="card hidden" id="dash-agenda-card" style="margin-bottom:20px">
-        <div class="card-title">
-          <div class="card-title-icon" style="background:var(--primary-light);color:var(--primary)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-          Agenda
-        </div>
-        <div id="dash-agenda-solicitudes" style="margin-bottom:10px"></div>
-        <div id="dash-agenda-proximas"></div>
-      </div>
-
-      <!-- Semáforo de examen: mini-resumen listos/casi/lejos (renderer/dashboard.js) -->
-      <div class="card hidden" id="dash-semaforo-card" style="margin-bottom:20px">
-        <div class="card-title">
-          <div class="card-title-icon" style="background:var(--success-bg-selected);color:var(--success-fg-soft)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
-          Semáforo de examen
-        </div>
-        <div id="dash-semaforo-resumen" style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:14px">
-          <span><span class="semaforo-pill semaforo-verde">Listos</span> <strong id="dash-semaforo-verde">0</strong></span>
-          <span><span class="semaforo-pill semaforo-ambar">Casi</span> <strong id="dash-semaforo-ambar">0</strong></span>
-          <span><span class="semaforo-pill semaforo-rojo">Lejos</span> <strong id="dash-semaforo-rojo">0</strong></span>
-        </div>
-      </div>
-
-      <!-- Alumnos en riesgo de abandono: heurística v1, ver db/estadisticas.js:getAlumnosEnRiesgo (renderer/dashboard.js) -->
-      <div class="card hidden" id="dash-riesgo-card" style="margin-bottom:20px">
-        <div class="card-title">
-          <div class="card-title-icon" style="background:var(--danger-light);color:var(--danger-fg-soft)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-          Alumnos en riesgo de abandono
-        </div>
-        <div id="dash-riesgo-resumen" style="margin-bottom:10px"></div>
-        <div id="dash-riesgo-lista"></div>
-      </div>
-
-      <!-- Vencimientos próximos: ITV, seguros, psicotécnicos... (renderer/dashboard.js, db/vencimientos.js) -->
-      <div class="card hidden" id="dash-venc-card" style="margin-bottom:20px">
-        <div class="card-title">
-          <div class="card-title-icon" style="background:var(--danger-light);color:var(--danger-fg-soft)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-          Caducidades próximas
-        </div>
-        <div id="dash-venc-resumen" style="margin-bottom:10px"></div>
-        <div id="dash-venc-lista"></div>
       </div>
 
       <!-- Gráficos configurables (renderer/graficos.js, activados desde Ajustes) -->
