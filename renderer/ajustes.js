@@ -373,7 +373,7 @@ function showUpdateProgress(pct) {
     const bar = document.getElementById('update-bar');
     progressBar = document.createElement('div');
     progressBar.id = 'update-progress-bar';
-    progressBar.style.cssText = 'position:absolute;bottom:0;left:0;height:3px;background:#6366f1;border-radius:0 2px 2px 0;transition:width .2s';
+    progressBar.style.cssText = 'position:absolute;bottom:0;left:0;height:3px;background:var(--accent);border-radius:0 2px 2px 0;transition:width .2s';
     bar.style.position = 'relative';
     bar.appendChild(progressBar);
   }

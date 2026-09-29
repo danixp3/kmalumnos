@@ -102,8 +102,8 @@ async function compararCSVs() {
       <div style="font-size:24px;font-weight:700">${r.totalB}</div>
       <div style="font-size:11px;color:var(--text-muted)">Prácticas CSV B</div>
     </div>
-    <div style="background:#e0e7ff;padding:12px;border-radius:8px;text-align:center">
-      <div style="font-size:24px;font-weight:700;color:#4f46e5">${r.alumnosTotal}</div>
+    <div style="background:var(--info-bg);padding:12px;border-radius:8px;text-align:center">
+      <div style="font-size:24px;font-weight:700;color:var(--info-fg)">${r.alumnosTotal}</div>
       <div style="font-size:11px;color:#3730a3">Alumnos totales</div>
     </div>
     <div style="background:#d1fae5;padding:12px;border-radius:8px;text-align:center">

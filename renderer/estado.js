@@ -26,6 +26,36 @@ let practicasGlobalCache = [];
 let practicasGlobalSort = { col: 'fecha', dir: -1 };
 let reservasCache = [];
 
+// ─── GRUPOS PLEGABLES DEL MENÚ LATERAL ───────────────────────────────────────
+// Las 4 secciones principales van siempre visibles; el resto se agrupa (Agenda,
+// Gestión, Análisis, Sistema) y cada grupo se pliega desde su cabecera. El estado
+// se recuerda en localStorage; por defecto solo "Agenda" arranca desplegado y el
+// grupo de la sección activa se abre solo al navegar (ver el listener de abajo).
+const NAV_GRUPOS_CLAVE = 'kmalumnos_nav_grupos';
+const NAV_GRUPOS_PLEGADOS_INICIAL = { 2: true, 3: true, 4: true };
+function navGruposGuardados() {
+  try { return JSON.parse(localStorage.getItem(NAV_GRUPOS_CLAVE) || '{}') || {}; } catch (e) { return {}; }
+}
+function navPlegarGrupo(gi, plegado, recordar) {
+  const grupo = document.querySelector(`#sidebar .nav-group[data-grupo="${gi}"]`);
+  const cab = document.querySelector(`#sidebar .nav-section[data-grupo="${gi}"]`);
+  if (!grupo || !cab) return;
+  grupo.classList.toggle('plegado', plegado);
+  cab.setAttribute('aria-expanded', plegado ? 'false' : 'true');
+  if (recordar) {
+    const g = navGruposGuardados(); g[gi] = plegado;
+    try { localStorage.setItem(NAV_GRUPOS_CLAVE, JSON.stringify(g)); } catch (e) {}
+  }
+}
+document.querySelectorAll('#sidebar .nav-section').forEach(cab => {
+  const gi = cab.dataset.grupo;
+  const guardado = navGruposGuardados();
+  navPlegarGrupo(gi, gi in guardado ? !!guardado[gi] : !!NAV_GRUPOS_PLEGADOS_INICIAL[gi], false);
+  const alternar = () => navPlegarGrupo(gi, cab.getAttribute('aria-expanded') === 'true', true);
+  cab.addEventListener('click', alternar);
+  cab.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternar(); } });
+});
+
 // ─── NAVEGACIÓN ──────────────────────────────────────────────────────────────
 document.querySelectorAll('#sidebar nav a').forEach(link => {
   link.addEventListener('click', () => {
@@ -36,6 +66,8 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     const page = link.dataset.page;
     document.querySelectorAll('#sidebar nav a').forEach(a => a.classList.remove('active'));
     link.classList.add('active');
+    const grupoDelEnlace = link.closest('.nav-group');
+    if (grupoDelEnlace) navPlegarGrupo(grupoDelEnlace.dataset.grupo, false, false);
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     const pageEl = document.getElementById('page-' + page);
     pageEl.classList.add('active');

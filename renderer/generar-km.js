@@ -149,7 +149,7 @@ function gkRenderPreview(res, titulo) {
   el.innerHTML = `
     <div class="card">
       <div class="card-title">
-        <div class="card-title-icon" style="background:#eef2ff;color:#4f46e5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <div class="card-title-icon" style="background:var(--accent-light);color:var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
         Previsualización — ${esc(titulo)}
       </div>
       <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:6px">Se van a rellenar <strong>${res.rellenadas}</strong> práctica(s). Revisa los km y pulsa <strong>Aplicar</strong> para guardarlos tal cual se muestran.</p>

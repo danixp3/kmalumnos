@@ -11,7 +11,7 @@ const SYNC_LABELS = {
   error:   '✕ Error de sync'
 };
 
-const AJUSTES_SYNC_COLORS = { ok: '#10b981', syncing: '#6366f1', pending: '#f59e0b', offline: '#64748b', error: '#ef4444' };
+const AJUSTES_SYNC_COLORS = { ok: '#2E9E6B', syncing: '#FFB81C', pending: '#E09A00', offline: '#8C8F97', error: '#D0392B' };
 
 function updateSyncBar(status, reason) {
   const bar   = document.getElementById('sync-bar');

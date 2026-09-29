@@ -78,8 +78,8 @@ async function loadTimeline() {
 
 // Paleta de colores para alumnos
 const CHART_PALETTE = [
-  '#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6',
-  '#06b6d4','#f97316','#84cc16','#ec4899','#14b8a6','#a855f7'
+  '#1E4FB8','#2E9E6B','#E09A00','#B42318','#5A5E68','#6B4FB8',
+  '#0E8A8A','#F97316','#84CC16','#C2487D','#14B8A6','#A855F7'
 ];
 
 function renderTimelineChart(practicas) {
