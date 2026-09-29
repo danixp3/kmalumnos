@@ -56,9 +56,12 @@ const TUTORIAL_PASOS = {
       texto: 'El botón Prácticas abre su historial de km; Anotaciones guarda notas sueltas del alumno sin crear una práctica.' }
   ],
   vehiculos: [
-    { sel: '#tabla-vehiculos', pos: 'top',
+    { sel: '#veh-tarjetas', pos: 'bottom',
       titulo: 'El odómetro real',
-      texto: 'La columna Km actual es el odómetro del vehículo: se actualiza solo con cada práctica y puedes corregirlo a mano con Editar.' },
+      texto: 'Cada tarjeta muestra el odómetro del vehículo, que se actualiza solo con cada práctica. Corrígelo a mano con el menú ⋯ → Editar.' },
+    { sel: '#veh-continuidad', pos: 'top',
+      titulo: 'Continuidad del cuentakilómetros',
+      texto: 'Cada práctica debe empezar en el km donde acabó la anterior. Los tramos rayados en rojo son kilómetros que nadie ha registrado.' },
     { sel: '.card-banner', pos: 'bottom',
       titulo: 'Relleno masivo de km',
       texto: 'Para las prácticas que se quedaron sin kilómetros, esto los genera automáticamente respetando el rango por defecto de Ajustes.' }

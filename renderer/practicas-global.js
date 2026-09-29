@@ -56,20 +56,11 @@ async function fetchPracticasGlobal() {
 }
 
 function limpiarFiltrosPracticasGlobal() {
-  const desde = document.getElementById('pg-desde');
-  const hasta = document.getElementById('pg-hasta');
-  const alumno = document.getElementById('pg-alumno');
-  const vehiculo = document.getElementById('pg-vehiculo');
-  const profesor = document.getElementById('pg-profesor');
-  const tipo = document.getElementById('pg-tipo');
-  const buscar = document.getElementById('pg-buscar');
-  if (desde) desde.value = '';
-  if (hasta) hasta.value = '';
-  if (alumno) alumno.value = '';
-  if (vehiculo) vehiculo.value = '';
-  if (profesor) profesor.value = '';
-  if (tipo) tipo.value = '';
-  if (buscar) buscar.value = '';
+  ['pg-desde', 'pg-hasta', 'pg-alumno', 'pg-vehiculo', 'pg-profesor', 'pg-tipo', 'pg-buscar'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  pgPagina = 1;
   fetchPracticasGlobal();
 }
 
@@ -80,6 +71,7 @@ function ordenarPracticasGlobal(col) {
     practicasGlobalSort.col = col;
     practicasGlobalSort.dir = 1;
   }
+  pgPagina = 1;
   renderPracticasGlobalTabla();
 }
 
@@ -97,18 +89,94 @@ function actualizarIndicadoresOrdenPracticasGlobal() {
   });
 }
 
+// ── Pestañas (Todas / Hoy / Esta semana / Sin km / En curso), paginación y filas desplegables ──
+let pgTab = 'todas';
+let pgPagina = 1;
+const PG_TAM_PAGINA = 25;
+const pgAbiertas = new Set();
+
+function inicioSemanaISO() {
+  const n = new Date();
+  const lunes = new Date(n.getFullYear(), n.getMonth(), n.getDate() - ((n.getDay() + 6) % 7));
+  return `${lunes.getFullYear()}-${String(lunes.getMonth() + 1).padStart(2, '0')}-${String(lunes.getDate()).padStart(2, '0')}`;
+}
+const PG_PREDICADOS = {
+  todas: () => true,
+  hoy: p => p.fecha === hoyISO(),
+  semana: p => p.fecha >= inicioSemanaISO(),
+  sinkm: p => p.sin_km && !p.en_curso,
+  curso: p => p.en_curso
+};
+
+function cambiarTabPracticasGlobal(tab) {
+  pgTab = tab;
+  pgPagina = 1;
+  renderPracticasGlobalTabla();
+}
+
+function irPaginaPracticasGlobal(n) {
+  pgPagina = n;
+  renderPracticasGlobalTabla();
+}
+
+function togglePracticaGlobal(id) {
+  if (pgAbiertas.has(id)) pgAbiertas.delete(id); else pgAbiertas.add(id);
+  renderPracticasGlobalTabla();
+}
+
+async function editarPracticaGlobal(id) {
+  const p = practicasGlobalCache.find(x => x.id === id);
+  if (!p) return;
+  currentAlumnoVehiculoId = p.vehiculo_id;   // para la validación de solapamientos al guardar
+  await openEditPractica(p.id, p.fecha, p.km_inicial, p.km_final, p.profesor_id, p.tipo, p.hora_inicio);
+}
+
+function verFichaDesdePracticas(alumnoId, vehiculoId, nombre) {
+  navegarA('alumnos');
+  setTimeout(() => verPracticas(alumnoId, vehiculoId, nombre), 60);
+}
+
+function detallePracticaGlobal(p) {
+  let km;
+  if (p.en_curso) km = '<span class="pill pill-dark"><span class="pill-dot"></span>En curso — el km final se fija al terminar</span>';
+  else if (p.sin_km) km = '<span class="pill pill-warn">Sin kilómetros: rellénalos en Generar km</span>';
+  else {
+    km = `<div class="num-mono" style="font-size:16px"><b>${fmtMiles(p.km_inicial)}</b> → <b>${fmtMiles(p.km_final)}</b> <span style="color:var(--text-muted);font-weight:400">· ${fmtDec(p.km_recorridos)} km</span></div>`;
+    const c = p.continuidad;
+    if (c) {
+      const cuando = `${esc(c.alumno)}${c.hora_inicio ? ', ' + esc(c.hora_inicio) : ''}`;
+      km += c.diferencia === 0
+        ? `<div class="cont-ok">${svgMini('ficha').replace(SVG_MINI.ficha, '<path d="M5 12.5l4.5 4.5L19 7.5"/>')} Km inicial igual al final anterior (${cuando}).</div>`
+        : `<div class="cont-aviso">${c.diferencia > 0 ? `Hueco de ${fmtMiles(c.diferencia)} km` : `Se solapa ${fmtMiles(-c.diferencia)} km`} respecto al final anterior (${cuando}: ${fmtMiles(c.km_final_anterior)}).</div>`;
+    }
+  }
+  return `<div class="pg-detalle">
+    <div><div class="eyebrow">Kilometraje</div>${km}</div>
+    <div><div class="eyebrow">Observación del profesor</div><div class="pg-obs">${p.nota ? esc(p.nota) : '<span style="color:var(--text-faint)">Sin observaciones</span>'}</div></div>
+    <div class="pg-detalle-acc">
+      <button class="btn btn-outline btn-sm" onclick="editarPracticaGlobal(${p.id})">${svgMini('editar')} Editar</button>
+      <button class="btn btn-outline btn-sm" onclick="verFichaDesdePracticas(${p.alumno_id},${p.vehiculo_id || 'null'},'${esc(p.alumno_nombre)}')">${svgMini('ficha')} Ficha del alumno</button>
+    </div>
+  </div>`;
+}
+
 function renderPracticasGlobalTabla() {
   const tbody = document.querySelector('#tabla-practicas-global tbody');
   const buscarFiltro = (document.getElementById('pg-buscar')?.value || '').trim().toLowerCase();
 
-  let filtradas = practicasGlobalCache.filter(p =>
-    !buscarFiltro || p.alumno_nombre.toLowerCase().includes(buscarFiltro)
-  );
+  const base = practicasGlobalCache.filter(p => !buscarFiltro || p.alumno_nombre.toLowerCase().includes(buscarFiltro));
+  document.querySelectorAll('#pg-tabs button').forEach(btn => {
+    const t = btn.dataset.tab;
+    const nombres = { todas: 'Todas', hoy: 'Hoy', semana: 'Esta semana', sinkm: 'Sin km', curso: 'En curso' };
+    btn.innerHTML = `${nombres[t]} <span class="seg-n">· ${base.filter(PG_PREDICADOS[t]).length}</span>`;
+    btn.setAttribute('aria-pressed', t === pgTab ? 'true' : 'false');
+  });
+  let filtradas = base.filter(PG_PREDICADOS[pgTab]);
 
   const { col, dir } = practicasGlobalSort;
   filtradas = [...filtradas].sort((a, b) => {
     if (col === 'km') return (a.km_recorridos - b.km_recorridos) * dir;
-    if (col === 'fecha') return (a.fecha.localeCompare(b.fecha) || a.id - b.id) * dir;
+    if (col === 'fecha') return (a.fecha.localeCompare(b.fecha) || (a.hora_inicio || '').localeCompare(b.hora_inicio || '') || a.id - b.id) * dir;
     let va = '', vb = '';
     if (col === 'alumno') { va = a.alumno_nombre || ''; vb = b.alumno_nombre || ''; }
     else if (col === 'vehiculo') { va = a.vehiculo_nombre || ''; vb = b.vehiculo_nombre || ''; }
@@ -118,28 +186,54 @@ function renderPracticasGlobalTabla() {
   });
   actualizarIndicadoresOrdenPracticasGlobal();
 
-  // Resumen: nº de prácticas mostradas + suma de km recorridos, sobre lo filtrado
-  animarContador(document.getElementById('practicas-global-resumen-num'), filtradas.length, null, true);
+  // Resumen de la cabecera: rango de fechas, nº de prácticas, km y horas al volante (sobre lo filtrado)
   const kmTotales = filtradas.reduce((sum, p) => sum + p.km_recorridos, 0);
-  animarContador(document.getElementById('practicas-global-resumen-km'), Math.round(kmTotales * 10) / 10, v => fmt(v) + ' km', true);
+  const minutos = filtradas.filter(p => !p.en_curso).length * getDuracionClaseMin();
+  const fechas = filtradas.map(p => p.fecha).sort();
+  const rango = fechas.length ? (fechas[0] === fechas[fechas.length - 1] ? diaMes(fechas[0]) : `${diaMes(fechas[0])} – ${diaMes(fechas[fechas.length - 1])}`) : '';
+  const resumen = document.getElementById('pg-resumen');
+  if (resumen) resumen.textContent = filtradas.length
+    ? [rango, `${fmtMiles(filtradas.length)} ${filtradas.length === 1 ? 'práctica' : 'prácticas'}`, `${fmtMiles(kmTotales)} km`, `${Math.round(minutos / 60)} h al volante`].filter(Boolean).join(' · ')
+    : 'No hay prácticas con estos filtros';
 
+  const pie = document.getElementById('pg-pie');
   if (!filtradas.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">No hay prácticas que coincidan con los filtros</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">No hay prácticas que coincidan con los filtros</td></tr>';
+    if (pie) pie.innerHTML = '';
     return;
   }
 
-  tbody.innerHTML = filtradas.map(p => {
-    const tipoCell = p.tipo === 'pista' ? 'Pista' : 'Circulación';
-    const kmCell = p.sin_km
-      ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>'
-      : `<span class="km-badge">+${fmt(p.km_recorridos)} km</span>`;
-    return `<tr${p.sin_km ? ' style="background:var(--warn-bg-soft)"' : ''}>
-      <td>${fmtFecha(p.fecha)}</td>
-      <td>${esc(p.alumno_nombre)}</td>
-      <td>${esc(p.vehiculo_nombre)}</td>
+  const paginas = Math.max(1, Math.ceil(filtradas.length / PG_TAM_PAGINA));
+  if (pgPagina > paginas) pgPagina = paginas;
+  const visibles = filtradas.slice((pgPagina - 1) * PG_TAM_PAGINA, pgPagina * PG_TAM_PAGINA);
+  const guion = '<span style="color:var(--text-faint)">—</span>';
+  const chev = abierta => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${abierta ? '<path d="m6 15 6-6 6 6"/>' : '<path d="m6 9 6 6 6-6"/>'}</svg>`;
+
+  tbody.innerHTML = visibles.map(p => {
+    const abierta = pgAbiertas.has(p.id);
+    const fechaTxt = p.fecha === hoyISO() ? 'Hoy' : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase());
+    const kmIni = p.en_curso || !p.sin_km ? fmtMiles(p.km_inicial) : '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>';
+    const kmFin = p.en_curso ? guion : (p.sin_km ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : fmtMiles(p.km_final));
+    const kmRec = p.en_curso ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>' : (p.sin_km ? guion : `<b>${fmtDec(p.km_recorridos)}</b>`);
+    const aviso = p.continuidad && p.continuidad.diferencia !== 0
+      ? `<div class="pg-hueco" title="Respecto al final de la práctica anterior de este coche">${p.continuidad.diferencia > 0 ? '+' + fmtMiles(p.continuidad.diferencia) + ' km sin asignar' : 'solapa ' + fmtMiles(-p.continuidad.diferencia) + ' km'}</div>` : '';
+    return `<tr class="fila-pg${abierta ? ' abierta' : ''}" onclick="togglePracticaGlobal(${p.id})"${p.sin_km && !p.en_curso ? ' style="background:var(--warn-bg-soft)"' : ''}>
+      <td>${esc(fechaTxt)}<div class="al-sub">${fmtFecha(p.fecha)}</div></td>
+      <td class="num-mono">${p.hora_inicio ? esc(p.hora_inicio) : guion}</td>
+      <td><b>${esc(p.alumno_nombre)}</b>${p.clase_n ? `<div class="al-sub">Clase ${p.clase_n}</div>` : ''}</td>
       <td>${esc(p.profesor_nombre)}</td>
-      <td>${tipoCell}</td>
-      <td>${kmCell}</td>
-    </tr>`;
+      <td>${p.vehiculo_matricula ? placaHTML(p.vehiculo_matricula) : esc(p.vehiculo_nombre)}</td>
+      <td class="col-num num-mono">${kmIni}${aviso}</td>
+      <td class="col-num num-mono">${kmFin}</td>
+      <td class="col-num num-mono">${kmRec}</td>
+      <td>${p.tipo === 'pista' ? 'Pista' : 'Circulación'}</td>
+      <td class="pg-chev">${chev(abierta)}</td>
+    </tr>${abierta ? `<tr class="fila-detalle"><td colspan="10">${detallePracticaGlobal(p)}</td></tr>` : ''}`;
   }).join('');
+
+  if (pie) {
+    const desde = (pgPagina - 1) * PG_TAM_PAGINA + 1, hasta = desde + visibles.length - 1;
+    pie.innerHTML = `<span>Mostrando ${desde}–${hasta} de ${filtradas.length} ${filtradas.length === 1 ? 'práctica' : 'prácticas'}</span>` +
+      (paginas > 1 ? `<span class="paginador"><button class="btn btn-outline btn-sm btn-icon" ${pgPagina <= 1 ? 'disabled' : ''} onclick="irPaginaPracticasGlobal(${pgPagina - 1})" aria-label="Página anterior">‹</button> Página ${pgPagina} de ${paginas} <button class="btn btn-outline btn-sm btn-icon" ${pgPagina >= paginas ? 'disabled' : ''} onclick="irPaginaPracticasGlobal(${pgPagina + 1})" aria-label="Página siguiente">›</button></span>` : '');
+  }
 }

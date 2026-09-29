@@ -147,3 +147,31 @@ test('ordena por fecha descendente y, a igualdad de fecha, por id descendente', 
   const todas = db.getTodasPracticas();
   expect(todas.map(p => p.id)).toEqual([p2, p3, p1]);
 });
+
+describe('campos añadidos para la tabla del rediseño', () => {
+  test('clase_n cuenta dentro del historial COMPLETO del alumno aunque se filtre por fecha, y trae matrícula y nota', () => {
+    const vid = db.addVehiculo('Ibiza', '4821 LKM', 0);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    db.addPractica(aid, vid, '2026-09-01', 0, 10);
+    const p2 = db.addPractica(aid, vid, '2026-09-10', 10, 25);
+    db.addPractica(aid, vid, '2026-09-20', 25, 40);
+    require('../db/core').load().practicas.find(x => x.id === p2).nota = 'Buen trabajo';
+    const lista = db.getTodasPracticas({ desde: '2026-09-10', hasta: '2026-09-10' });
+    expect(lista).toHaveLength(1);
+    expect(lista[0]).toMatchObject({ clase_n: 2, vehiculo_matricula: '4821 LKM', nota: 'Buen trabajo', en_curso: false });
+  });
+
+  test('continuidad: compara con el km final de la práctica anterior del mismo coche (0 = encaja, >0 = hueco)', () => {
+    const vid = db.addVehiculo('Ibiza', '', 0);
+    const a1 = db.addAlumno('Ana', 'B', vid);
+    const a2 = db.addAlumno('Beto', 'B', vid);
+    db.addPractica(a1, vid, '2026-09-10', 100, 120, null, 'circulacion', null, '09:00');
+    db.addPractica(a2, vid, '2026-09-10', 120, 135, null, 'circulacion', null, '10:00');   // encaja
+    db.addPractica(a1, vid, '2026-09-10', 141, 160, null, 'circulacion', null, '11:00');   // hueco de 6 km
+    const lista = db.getTodasPracticas({});
+    const porHora = Object.fromEntries(lista.map(p => [p.hora_inicio, p]));
+    expect(porHora['09:00'].continuidad).toBeNull();
+    expect(porHora['10:00'].continuidad).toMatchObject({ alumno: 'Ana', km_final_anterior: 120, diferencia: 0 });
+    expect(porHora['11:00'].continuidad).toMatchObject({ alumno: 'Beto', km_final_anterior: 135, diferencia: 6 });
+  });
+});

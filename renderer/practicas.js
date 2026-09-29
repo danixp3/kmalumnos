@@ -379,8 +379,11 @@ async function savePractica() {
   // Si venimos de la pestaña Conflictos (Kilómetros), recargar esa vista; si no, las prácticas del alumno
   const kilometrosPage = document.getElementById('page-kilometros');
   const conflictosTab = document.getElementById('tab-kilometros-conflictos');
+  const practicasGlobalPage = document.getElementById('page-practicas-global');
   if (kilometrosPage && kilometrosPage.classList.contains('active') && conflictosTab && conflictosTab.classList.contains('active')) {
     loadSolapamientos();
+  } else if (practicasGlobalPage && practicasGlobalPage.classList.contains('active')) {
+    fetchPracticasGlobal();
   } else {
     loadPracticas();
   }
