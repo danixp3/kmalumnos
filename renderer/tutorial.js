@@ -28,12 +28,12 @@ function marcarTutorialVisto(page) {
 
 const TUTORIAL_PASOS = {
   dashboard: [
-    { sel: '#page-dashboard .stats', pos: 'bottom',
-      titulo: 'Tus estadísticas de un vistazo',
-      texto: 'Estas tarjetas resumen vehículos, alumnos y prácticas. En Ajustes → Preferencias puedes elegir cuáles ver aquí.' },
-    { sel: '#dash-alertas', pos: 'bottom',
-      titulo: 'Alertas que puedes seguir',
-      texto: 'Si aparece un aviso de km sin rellenar o de solapamientos, haz clic en él: te lleva directo a la pantalla donde resolverlo.' },
+    { sel: '#panel-kpis', pos: 'bottom',
+      titulo: 'Tu día de un vistazo',
+      texto: 'Prácticas de hoy, kilómetros del mes, alumnos en prácticas y lo que queda por revisar. Debajo, en Ajustes → Preferencias, puedes añadir más tarjetas.' },
+    { sel: '#dash-alertas', pos: 'top',
+      titulo: 'Avisos que puedes seguir',
+      texto: 'Km sin rellenar, solapamientos, caducidades, bonos casi agotados o solicitudes de reserva: cada aviso tiene un botón que te lleva directo a la pantalla donde resolverlo.' },
     { sel: '#graficos-dashboard', pos: 'bottom',
       titulo: 'Gráficos del panel',
       texto: 'Activa los que te interesen desde Ajustes → Preferencias: kilómetros y prácticas por mes, por profesor, por vehículo o ingresos.' },

@@ -294,6 +294,7 @@ ipcMain.handle('get-morosos', (_, sucursalId) => db.getMorosos(sucursalId));
 
 ipcMain.handle('get-resumen', (_, sucursalId) => db.getResumen(sucursalId));
 ipcMain.handle('get-stats-dashboard', (_, hoy, sucursalId) => db.getStatsDashboard(hoy, sucursalId));
+ipcMain.handle('get-panel', (_, hoy, sucursalId) => db.getPanel(hoy, sucursalId));
 ipcMain.handle('get-stats-profesores', (_, desde, hasta) => db.getStatsProfesores(desde, hasta));
 ipcMain.handle('get-datos-graficos', (_, meses, sucursalId) => db.getDatosGraficos(meses, sucursalId));
 ipcMain.handle('get-todas-practicas', (_, filtros) => db.getTodasPracticas(filtros));

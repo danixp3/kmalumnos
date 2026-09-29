@@ -549,8 +549,127 @@ function getLibroVentas(desde, hasta, sucursalId, ivaPorcentaje) {
   };
 }
 
+
+// ─── PANEL (pantalla de inicio del rediseño) ────────────────────────────────
+// Datos agregados de la pantalla "Panel" en UNA llamada: cifras del día y del
+// mes, prácticas por día, coches en ruta, bonos a punto de agotarse y próximos
+// exámenes. Solo lectura, no marca sync.
+//  · "en curso" = práctica con estado 'en_curso' (la crea el flujo móvil al
+//    empezar una clase y se cierra al fijar el km final).
+//  · "programadas hoy" = reservas de hoy no canceladas (agenda); si hay más
+//    prácticas hechas que reservas, se toma el mayor de los dos.
+const ESTADOS_ALUMNO_FUERA_PANEL = ['baja', 'aprobado', 'apto', 'no_apto'];
+
+function getPanel(hoy, sucursalId) {
+  const d = load();
+  const pad = n => String(n).padStart(2, '0');
+  if (!hoy) {
+    const now = new Date();
+    hoy = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+  const mes = hoy.slice(0, 7);
+  const [anio, nMes, diaHoy] = hoy.split('-').map(Number);
+
+  const practicas = filtrarPorSucursal(d.practicas, sucursalId).filter(p => !p.deleted);
+  const alumnos = filtrarPorSucursal(d.alumnos, sucursalId).filter(a => !a.deleted);
+  const nombreAlumno = new Map(d.alumnos.map(a => [a.id, a.nombre]));
+  const veh = new Map(d.vehiculos.map(v => [v.id, v]));
+  const prof = new Map(d.profesores.map(x => [x.id, x.nombre]));
+  const conKm = p => !(p.km_inicial === 0 && p.km_final === 0);
+  const kmDe = p => (p.estado === 'en_curso' || !conKm(p)) ? 0 : Math.max(0, (p.km_final || 0) - (p.km_inicial || 0));
+
+  const delDia = practicas.filter(p => p.fecha === hoy);
+  const delMes = practicas.filter(p => p.fecha && p.fecha.slice(0, 7) === mes);
+  const kmMes = Math.round(delMes.reduce((s, p) => s + kmDe(p), 0) * 10) / 10;
+  const mediaKmPractica = delMes.length ? Math.round((kmMes / delMes.length) * 10) / 10 : 0;
+
+  const reservasHoy = (d.reservas || []).filter(r => !r.deleted && r.fecha === hoy && r.estado !== 'cancelada'
+    && (!sucursalId || r.sucursal_id === parseInt(sucursalId))).length;
+  const programadasHoy = Math.max(reservasHoy, delDia.length);
+
+  // Hueco de km antes de empezar: km_inicial menos el mayor km_final ya cerrado del mismo coche.
+  const hueco = p => {
+    const previos = practicas
+      .filter(x => x.id !== p.id && x.vehiculo_id === p.vehiculo_id && x.estado !== 'en_curso' && conKm(x) && x.km_final <= p.km_inicial)
+      .map(x => x.km_final);
+    return previos.length ? Math.max(0, p.km_inicial - Math.max(...previos)) : 0;
+  };
+  const enCurso = delDia.filter(p => p.estado === 'en_curso').map(p => {
+    const v = veh.get(p.vehiculo_id) || {};
+    return {
+      practica_id: p.id, alumno_id: p.alumno_id, alumno: nombreAlumno.get(p.alumno_id) || '—',
+      matricula: v.matricula || '', vehiculo: v.nombre || '',
+      profesor: prof.get(p.profesor_id) || '', hora_inicio: p.hora_inicio || null,
+      km_inicial: p.km_inicial, duracion_min: p.duracion_min || 45, hueco_km: hueco(p)
+    };
+  }).sort((a, b) => (a.hora_inicio || '').localeCompare(b.hora_inicio || ''));
+
+  // Prácticas por día del mes (hasta hoy). Los fines de semana solo cuentan si hubo actividad.
+  const porDia = [];
+  let sumaLaborables = 0, diasLaborables = 0;
+  for (let dia = 1; dia <= diaHoy; dia++) {
+    const fecha = `${anio}-${pad(nMes)}-${pad(dia)}`;
+    const dow = new Date(anio, nMes - 1, dia).getDay();
+    const n = practicas.filter(p => p.fecha === fecha).length;
+    const finde = dow === 0 || dow === 6;
+    if (finde && n === 0) continue;
+    porDia.push({ dia, fecha, n, finde, hoy: dia === diaHoy });
+    if (!finde && dia < diaHoy) { sumaLaborables += n; diasLaborables++; }
+  }
+  const mediaPorDia = diasLaborables ? Math.round((sumaLaborables / diasLaborables) * 10) / 10 : 0;
+
+  const pendientes = (d.presentaciones || []).filter(x => !x.deleted && x.resultado === 'pendiente' && x.fecha >= hoy);
+  const idsConExamen = new Set(pendientes.map(x => x.alumno_id));
+  const alumnosActivos = alumnos.filter(a => !ESTADOS_ALUMNO_FUERA_PANEL.includes(a.estado || 'activo'));
+
+  const nPracticasAlumno = new Map();
+  for (const p of practicas) nPracticasAlumno.set(p.alumno_id, (nPracticasAlumno.get(p.alumno_id) || 0) + 1);
+  const proximosExamenes = pendientes.slice()
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    .slice(0, 6)
+    .map(x => ({
+      id: x.id, fecha: x.fecha, tipo: x.tipo, alumno_id: x.alumno_id,
+      alumno: nombreAlumno.get(x.alumno_id) || '—',
+      profesor: prof.get(x.profesor_id) || '',
+      clases: nPracticasAlumno.get(x.alumno_id) || 0
+    }));
+
+  const bonosCasiAgotados = [];
+  for (const b of (d.bonos || []).filter(x => !x.deleted && x.estado === 'activo')) {
+    const saldo = b.n_clases - b.n_usadas;
+    if (b.fecha_caducidad && b.fecha_caducidad < hoy) continue;
+    if (saldo > 2 || b.n_clases <= 0) continue;
+    const al = alumnos.find(a => a.id === b.alumno_id);
+    if (!al) continue;
+    const ex = pendientes.filter(x => x.alumno_id === al.id).sort((a, c) => a.fecha.localeCompare(c.fecha))[0];
+    bonosCasiAgotados.push({
+      bono_id: b.id, alumno_id: al.id, alumno: al.nombre,
+      usadas: b.n_usadas, total: b.n_clases, saldo,
+      examen: ex ? ex.fecha : null
+    });
+  }
+
+  const resumen = getResumen(sucursalId);
+  return {
+    hoy,
+    vehiculos: resumen.vehiculos,
+    practicasHoy: delDia.length,
+    programadasHoy,
+    enCursoAhora: enCurso.length,
+    enCurso,
+    kmMes, practicasMes: delMes.length, mediaKmPractica,
+    alumnosActivos: alumnosActivos.length,
+    alumnosConExamen: idsConExamen.size,
+    sinKm: resumen.sinKm,
+    solapamientos: resumen.solapamientos,
+    porDia, mediaPorDia,
+    proximosExamenes,
+    bonosCasiAgotados
+  };
+}
+
 module.exports = {
   getResumen, getStatsDashboard, getStatsProfesores, getDatosGraficos, getTimelineVehiculo,
   getSemaforoExamen, getSemaforoAlumno, getAlumnosEnRiesgo, getAnalisisVehiculos,
-  getInformes, getLibroVentas,
+  getInformes, getLibroVentas, getPanel,
 };
