@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git add *)",
       "Bash(sed -i 's/mailbox/mailbox|dconf/' /tmp/claude-0/-home-user-kmalumnos/a4301bc6-3620-5b88-8deb-a01936797921/scratchpad/smoke.sh)",
-      "Bash(python3 -)"
+      "Bash(python3 -)",
+      "Bash(cat)"
     ]
   }
 }

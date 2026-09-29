@@ -71,6 +71,21 @@ function filtrarPorSucursal(arr, sucursalId) {
   return arr.filter(x => x.sucursal_id === sid);
 }
 
+// Práctica "en curso": la abre el móvil al empezar la clase (con el km inicial
+// real del cuentakilómetros y km_final 0) y se cierra al fijar el km final.
+// Solo cuenta si es de HOY; una sin cerrar de días anteriores es "sin cerrar".
+// Ojo: NO es lo mismo que "sin km" (km_inicial 0 y km_final 0 = en blanco).
+function esPracticaEnCurso(p, hoy) {
+  return !!p && !p.deleted && p.km_inicial > 0 && !p.km_final && p.fecha === hoy;
+}
+function esPracticaSinCerrar(p, hoy) {
+  return !!p && !p.deleted && p.km_inicial > 0 && !p.km_final && !!p.fecha && p.fecha < hoy;
+}
+function hoyLocalISO() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+}
+
 function fmtFechaLog(str) {
   if (!str) return str;
   const [y, m, d] = str.split('-');
@@ -261,6 +276,9 @@ module.exports = {
   addLog,
   getLastSaveError,
   filtrarPorSucursal,
+  esPracticaEnCurso,
+  esPracticaSinCerrar,
+  hoyLocalISO,
   // Superficie pública (re-exportada tal cual por db.js)
   _clearCache,
   getLogs,

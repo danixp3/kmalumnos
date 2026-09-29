@@ -58,13 +58,11 @@ test('prácticas por día: solo hasta hoy, fines de semana solo con actividad, h
   expect(p.porDia.every(x => x.dia <= 29)).toBe(true);
 });
 
-test('en curso: solo prácticas de hoy con estado en_curso, con matrícula y profesor', () => {
+test('en curso: solo prácticas de hoy con km inicial y sin km final, con matrícula y profesor', () => {
   const vid = db.addVehiculo('Ibiza', '4821 LKM', 0);
   const pid = db.addProfesor('Javier Ruiz', 8);
   const aid = db.addAlumno('Pablo Ortega', 'B', vid, pid);
   const id = db.addPractica(aid, vid, HOY, 48204, 0, pid, 'circulacion', null, '10:03');
-  const d = require('../db/core').load();
-  d.practicas.find(x => x.id === id).estado = 'en_curso';
   db.addPractica(aid, vid, HOY, 48180, 48198, pid);   // termina 6 km antes de donde empieza la de curso
 
   const p = db.getPanel(HOY);

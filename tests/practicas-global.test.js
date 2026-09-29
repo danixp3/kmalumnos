@@ -175,3 +175,18 @@ describe('campos añadidos para la tabla del rediseño', () => {
     expect(porHora['11:00'].continuidad).toMatchObject({ alumno: 'Beto', km_final_anterior: 135, diferencia: 6 });
   });
 });
+
+describe('práctica en curso / sin cerrar (abierta desde el móvil)', () => {
+  test('km inicial > 0 y sin km final: en curso si es de hoy, sin cerrar si es de un día anterior; no computan km', () => {
+    const vid = db.addVehiculo('Ibiza', '4821 LKM', 0);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    db.addPractica(aid, vid, '2026-09-28', 500, 0);           // de ayer
+    db.addPractica(aid, vid, '2026-09-29', 520, 0);           // de hoy
+    db.addPractica(aid, vid, '2026-09-27', 0, 0);             // en blanco: NO es en curso
+    const lista = db.getTodasPracticas({ hoy: '2026-09-29' });
+    const por = Object.fromEntries(lista.map(p => [p.fecha, p]));
+    expect(por['2026-09-29']).toMatchObject({ en_curso: true, sin_cerrar: false, km_recorridos: 0, sin_km: false });
+    expect(por['2026-09-28']).toMatchObject({ en_curso: false, sin_cerrar: true, km_recorridos: 0 });
+    expect(por['2026-09-27']).toMatchObject({ en_curso: false, sin_cerrar: false, sin_km: true });
+  });
+});

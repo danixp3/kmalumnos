@@ -189,6 +189,7 @@ function setCredentials(email, password) {
   _profesoresDniDisponibleCache = null; // idem: reconsultar si la columna dni de profesores está disponible
   _alumnosFichaDgtDisponibleCache = null; // idem: reconsultar si las columnas de la ficha DGT están disponibles
   _practicasHoraInicioDisponibleCache = null; // idem: reconsultar si la columna hora_inicio está disponible
+  _practicasMovilDisponibleCache = null; // idem: reconsultar si las columnas del flujo móvil (firma...) están disponibles
   _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
   // Entrada fresca de credenciales (login manual, registro, o logout): nunca
   // se da por buena hasta que un login real lo confirme. Distinto de
@@ -337,6 +338,7 @@ async function registrarEmpresa(email, password) {
   _profesoresDniDisponibleCache = null; // idem: reconsultar si la columna dni de profesores está disponible
   _alumnosFichaDgtDisponibleCache = null; // idem: reconsultar si las columnas de la ficha DGT están disponibles
   _practicasHoraInicioDisponibleCache = null; // idem: reconsultar si la columna hora_inicio está disponible
+  _practicasMovilDisponibleCache = null; // idem: reconsultar si las columnas del flujo móvil (firma...) están disponibles
       _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
       _authOk = true;
       _guardarAuthOk(true);
@@ -687,6 +689,25 @@ async function _practicasHoraInicioDisponible(sb) {
     _practicasHoraInicioDisponibleCache = false;
   }
   return _practicasHoraInicioDisponibleCache;
+}
+
+// Mismo patrón exacto que las anteriores, para las columnas NUEVAS del flujo
+// móvil de prácticas (rediseño 2026-09): `firma` (imagen de la firma del alumno),
+// `trabajado` (qué se ha practicado), `tipo_detalle` (tipo elegido en el móvil) y
+// `hora_fin` — migración `migraciones/2026-09-29_practica_movil.sql`, TODAVÍA NO
+// aplicada. Sin ella, esas columnas no se estampan ni se piden: se trata como
+// "modo clásico", nunca como un error real.
+let _practicasMovilDisponibleCache = null;
+
+async function _practicasMovilDisponible(sb) {
+  if (_practicasMovilDisponibleCache !== null) return _practicasMovilDisponibleCache;
+  try {
+    const { error } = await sb.from('practicas').select('firma, trabajado, tipo_detalle, hora_fin').limit(1);
+    _practicasMovilDisponibleCache = !error;
+  } catch {
+    _practicasMovilDisponibleCache = false;
+  }
+  return _practicasMovilDisponibleCache;
 }
 
 // ─── MÓDULOS CONTRATADOS (fase 0 SaaS, entitlements por empresa) ─────────────
@@ -1269,6 +1290,8 @@ async function sync() {
     // migración no está aplicada la columna `hora_inicio` no se estampa en
     // el payload de subida de prácticas.
     const horaInicioOn = await _practicasHoraInicioDisponible(sb);
+    // Columnas del flujo móvil (firma, trabajado, tipo_detalle, hora_fin): ver _practicasMovilDisponible.
+    const movilOn = await _practicasMovilDisponible(sb);
     // Conflicto de empresa sin resolver (ver sección "PROPIETARIO DE LOS DATOS
     // LOCALES"): el login de ensureClient() acaba de revelar que data.json
     // pertenece a otra cuenta. No tocar nada — ni subir lo que hay en local
@@ -1434,6 +1457,10 @@ async function sync() {
           if (_empresaId) payload.empresa_id = _empresaId;
           if (sucursalesOn) payload.sucursal_id = p.sucursal_id != null ? p.sucursal_id : null;
           if (horaInicioOn) payload.hora_inicio = p.hora_inicio || null;
+          if (movilOn) {
+            payload.firma = p.firma || null; payload.trabajado = p.trabajado || null;
+            payload.tipo_detalle = p.tipo_detalle || null; payload.hora_fin = p.hora_fin || null;
+          }
           await sb.from('practicas').upsert(payload, { onConflict: 'id' });
         }
       }
@@ -1814,6 +1841,10 @@ async function sync() {
                 tipo: rp.tipo != null ? rp.tipo : null,
                 sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null,
                 hora_inicio: rp.hora_inicio != null ? rp.hora_inicio : null,
+                firma: rp.firma != null ? rp.firma : null,
+                trabajado: rp.trabajado != null ? rp.trabajado : null,
+                tipo_detalle: rp.tipo_detalle != null ? rp.tipo_detalle : null,
+                hora_fin: rp.hora_fin != null ? rp.hora_fin : null,
                 updated_at: rp.updated_at
               };
               if (idx !== -1) {
@@ -2280,6 +2311,13 @@ async function pushAll() {
       return { ...obj, hora_inicio: obj.hora_inicio || null };
     };
 
+    // Columnas del flujo móvil de prácticas, mismo cuidado que quitarHoraInicio.
+    const movilOnCompleta = await _practicasMovilDisponible(sb);
+    const quitarMovil = obj => {
+      if (!movilOnCompleta) { const { firma, trabajado, tipo_detalle, hora_fin, ...resto } = obj; return resto; }
+      return { ...obj, firma: obj.firma || null, trabajado: obj.trabajado || null, tipo_detalle: obj.tipo_detalle || null, hora_fin: obj.hora_fin || null };
+    };
+
     // Subir en orden: vehiculos → profesores → tarifas → alumnos → practicas → pagos
     if (data.vehiculos.length) {
       await sb.from('vehiculos').upsert(
@@ -2307,7 +2345,7 @@ async function pushAll() {
     }
     if (data.practicas.length) {
       await sb.from('practicas').upsert(
-        data.practicas.map(p => quitarHoraInicio(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now }))),
+        data.practicas.map(p => quitarMovil(quitarHoraInicio(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })))),
         { onConflict: 'id' }
       );
     }

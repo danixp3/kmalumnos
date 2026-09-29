@@ -2,7 +2,7 @@
 // Resumen general, tarjetas opcionales del dashboard y timeline de prácticas
 // de un vehículo (con detección de huecos/solapamientos frente a la anterior).
 
-const { load, filtrarPorSucursal } = require('./core');
+const { load, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar } = require('./core');
 const { getSolapamientos } = require('./km-algoritmos');
 const { getDeudas } = require('./pagos');
 const { getEstadisticasAprobados } = require('./convocatorias');
@@ -554,8 +554,8 @@ function getLibroVentas(desde, hasta, sucursalId, ivaPorcentaje) {
 // Datos agregados de la pantalla "Panel" en UNA llamada: cifras del día y del
 // mes, prácticas por día, coches en ruta, bonos a punto de agotarse y próximos
 // exámenes. Solo lectura, no marca sync.
-//  · "en curso" = práctica con estado 'en_curso' (la crea el flujo móvil al
-//    empezar una clase y se cierra al fijar el km final).
+//  · "en curso" = práctica de hoy con km inicial y sin km final (la abre el
+//    flujo móvil al empezar una clase y se cierra al fijar el km final).
 //  · "programadas hoy" = reservas de hoy no canceladas (agenda); si hay más
 //    prácticas hechas que reservas, se toma el mayor de los dos.
 const ESTADOS_ALUMNO_FUERA_PANEL = ['baja', 'aprobado', 'apto', 'no_apto'];
@@ -575,8 +575,8 @@ function getPanel(hoy, sucursalId) {
   const nombreAlumno = new Map(d.alumnos.map(a => [a.id, a.nombre]));
   const veh = new Map(d.vehiculos.map(v => [v.id, v]));
   const prof = new Map(d.profesores.map(x => [x.id, x.nombre]));
-  const conKm = p => !(p.km_inicial === 0 && p.km_final === 0);
-  const kmDe = p => (p.estado === 'en_curso' || !conKm(p)) ? 0 : Math.max(0, (p.km_final || 0) - (p.km_inicial || 0));
+  const conKm = p => !(p.km_inicial === 0 && p.km_final === 0) && !!p.km_final;
+  const kmDe = p => (!conKm(p) || !p.km_final) ? 0 : Math.max(0, p.km_final - p.km_inicial);
 
   const delDia = practicas.filter(p => p.fecha === hoy);
   const delMes = practicas.filter(p => p.fecha && p.fecha.slice(0, 7) === mes);
@@ -590,11 +590,11 @@ function getPanel(hoy, sucursalId) {
   // Hueco de km antes de empezar: km_inicial menos el mayor km_final ya cerrado del mismo coche.
   const hueco = p => {
     const previos = practicas
-      .filter(x => x.id !== p.id && x.vehiculo_id === p.vehiculo_id && x.estado !== 'en_curso' && conKm(x) && x.km_final <= p.km_inicial)
+      .filter(x => x.id !== p.id && x.vehiculo_id === p.vehiculo_id && conKm(x) && x.km_final <= p.km_inicial)
       .map(x => x.km_final);
     return previos.length ? Math.max(0, p.km_inicial - Math.max(...previos)) : 0;
   };
-  const enCurso = delDia.filter(p => p.estado === 'en_curso').map(p => {
+  const enCurso = delDia.filter(p => esPracticaEnCurso(p, hoy)).map(p => {
     const v = veh.get(p.vehiculo_id) || {};
     return {
       practica_id: p.id, alumno_id: p.alumno_id, alumno: nombreAlumno.get(p.alumno_id) || '—',
@@ -689,7 +689,7 @@ function getPanelVehiculos(hoy, sucursalId, duracionMin) {
   }
   const dur = duracionMin > 0 ? duracionMin : 45;
   const mes = hoy.slice(0, 7);
-  const conKm = p => !(p.km_inicial === 0 && p.km_final === 0) && p.estado !== 'en_curso';
+  const conKm = p => !(p.km_inicial === 0 && p.km_final === 0) && !!p.km_final;
   const nombreAlumno = new Map(d.alumnos.map(a => [a.id, a.nombre]));
   const nombreProf = new Map(d.profesores.map(x => [x.id, x.nombre]));
   const vivas = d.practicas.filter(p => !p.deleted);
@@ -733,11 +733,11 @@ function getPanelVehiculos(hoy, sucursalId, duracionMin) {
       const fin = _sumarMin(p.hora_inicio, dur);
       if (anterior && conKm(anterior) && conKm(p) && p.km_inicial > anterior.km_final) {
         bloques.push({ tipo: 'hueco', km: p.km_inicial - anterior.km_final, inicio: anterior.hora_inicio ? _sumarMin(anterior.hora_inicio, dur) : null, fin: p.hora_inicio || null });
-      } else if (anterior && anterior.estado !== 'en_curso' && p.estado === 'en_curso' && anterior.km_final > 0 && p.km_inicial > anterior.km_final) {
+      } else if (anterior && conKm(anterior) && esPracticaEnCurso(p, hoy) && p.km_inicial > anterior.km_final) {
         bloques.push({ tipo: 'hueco', km: p.km_inicial - anterior.km_final, inicio: anterior.hora_inicio ? _sumarMin(anterior.hora_inicio, dur) : null, fin: p.hora_inicio || null });
       }
       bloques.push({
-        tipo: p.estado === 'en_curso' ? 'curso' : 'hecha', practica_id: p.id,
+        tipo: esPracticaEnCurso(p, hoy) ? 'curso' : 'hecha', practica_id: p.id,
         inicio: p.hora_inicio || null, fin,
         km: conKm(p) ? Math.max(0, p.km_final - p.km_inicial) : 0,
         alumno: nombreAlumno.get(p.alumno_id) || '—'
@@ -750,8 +750,8 @@ function getPanelVehiculos(hoy, sucursalId, duracionMin) {
       .forEach(r => bloques.push({ tipo: 'prog', inicio: r.hora_inicio || null, fin: _sumarMin(r.hora_inicio, r.duracion_min || dur), km: 0, alumno: nombreAlumno.get(r.alumno_id) || '—' }));
     bloques.sort((a, b) => (a.inicio || '99').localeCompare(b.inicio || '99'));
 
-    const enCurso = deHoy.find(p => p.estado === 'en_curso');
-    const ultima = deHoy.filter(p => p.estado !== 'en_curso').pop();
+    const enCurso = deHoy.find(p => esPracticaEnCurso(p, hoy));
+    const ultima = deHoy.filter(p => !esPracticaEnCurso(p, hoy)).pop();
     return {
       id: v.id, nombre: v.nombre, matricula: v.matricula || '', km_actual: v.km_actual,
       en_practica: !!enCurso,

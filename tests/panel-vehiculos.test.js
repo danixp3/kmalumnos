@@ -48,7 +48,6 @@ test('línea de hoy: hechas, en curso (con hueco de km) y programadas; estado en
   const cid = db.addAlumno('Sara', 'B', vid, pid);
   db.addPractica(aid, vid, HOY, 980, 1000, pid, 'circulacion', null, '08:30');
   const enc = db.addPractica(bid, vid, HOY, 1006, 0, pid, 'circulacion', null, '10:03');
-  core.load().practicas.find(x => x.id === enc).estado = 'en_curso';
   db.addReserva({ alumno_id: cid, vehiculo_id: vid, profesor_id: pid, fecha: HOY, hora_inicio: '11:30', estado: 'confirmada' });
   const v = db.getPanelVehiculos(HOY, undefined, 45).vehiculos[0];
   expect(v.en_practica).toBe(true);
