@@ -332,6 +332,21 @@ function guardarNotaAlumno(vehiculo_id, fecha, alumno_id, nota, profesor_id = nu
 }
 
 /**
+ * Fija (o borra, con texto vacío) la nota/observación del profesor de UNA
+ * práctica concreta. A diferencia de guardarNotaAlumno no crea prácticas.
+ * Marca sync. Devuelve { ok } (false si la práctica no existe).
+ */
+function setNotaPractica(id, nota) {
+  const d = load();
+  const p = d.practicas.find(x => x.id === parseInt(id) && !x.deleted);
+  if (!p) return { ok: false };
+  p.nota = String(nota == null ? '' : nota).trim();
+  save();
+  const s = _sync(); if (s) s.markDirty('practicas', p.id);
+  return { ok: true };
+}
+
+/**
  * Elimina práctica de un alumno en una fecha específica para un vehículo.
  */
 function eliminarPracticaPorFecha(vehiculo_id, fecha, alumno_id) {
@@ -446,6 +461,6 @@ function deletePracticasBulk(ids) {
 
 module.exports = {
   getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica, getTodasPracticas,
-  getAlumnosPorVehiculo, registrarPracticasMasivas, eliminarPracticaPorFecha, ajustarPracticasAlumno, guardarNotaAlumno,
+  getAlumnosPorVehiculo, registrarPracticasMasivas, eliminarPracticaPorFecha, ajustarPracticasAlumno, guardarNotaAlumno, setNotaPractica,
   getFichaPracticasAlumno, getDatosFichaDGT, getPracticasDuplicadas, deletePracticasBulk,
 };

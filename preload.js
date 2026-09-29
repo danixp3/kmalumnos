@@ -33,6 +33,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // Alumnos
   getAlumnos:   (sucursalId)                 => ipcRenderer.invoke('get-alumnos', sucursalId),
+  getAlumnosLista: (sucursalId, hoy)         => ipcRenderer.invoke('get-alumnos-lista', sucursalId, hoy),
+  getFichaAlumno:  (alumnoId, hoy)           => ipcRenderer.invoke('get-ficha-alumno', alumnoId, hoy),
+  setNotaPractica: (id, nota)                => ipcRenderer.invoke('set-nota-practica', id, nota),
   addAlumno:    (n, p, vid, profId, sucursalId, email, datos, libro, permisos) => ipcRenderer.invoke('add-alumno', n, p, vid, profId, sucursalId, email, datos, libro, permisos),
   deleteAlumno: (id)                         => ipcRenderer.invoke('delete-alumno', id),
   updateAlumno: (id, n, p, vid, profId, email, datos, libro, permisos) => ipcRenderer.invoke('update-alumno', id, n, p, vid, profId, email, datos, libro, permisos),

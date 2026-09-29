@@ -262,6 +262,9 @@ ipcMain.handle('set-tarifa', (_, permiso, tipo, precio) => db.setTarifa(permiso,
 ipcMain.handle('delete-tarifa', (_, id) => { db.deleteTarifa(id); return true; });
 
 ipcMain.handle('get-alumnos', (_, sucursalId) => db.getAlumnos(sucursalId));
+ipcMain.handle('set-nota-practica', (_, id, nota) => db.setNotaPractica(id, nota));
+ipcMain.handle('get-ficha-alumno', (_, alumnoId, hoy) => db.getFichaAlumno(alumnoId, hoy));
+ipcMain.handle('get-alumnos-lista', (_, sucursalId, hoy) => db.getAlumnosLista(sucursalId, hoy));
 ipcMain.handle('add-alumno', (_, nombre, permiso, vehiculo_id, profesor_id, sucursalId, email, datos, libro, permisos) => db.addAlumno(nombre, permiso, vehiculo_id, profesor_id, sucursalId, email, datos, libro, permisos));
 ipcMain.handle('delete-alumno', (_, id) => { db.deleteAlumno(id); return true; });
 ipcMain.handle('update-alumno', (_, id, nombre, permiso, vehiculo_id, profesor_id, email, datos, libro, permisos) => { db.updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id, email, datos, libro, permisos); return true; });

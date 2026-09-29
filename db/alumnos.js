@@ -17,6 +17,156 @@ function getAlumnos(sucursalId) {
     });
 }
 
+// ─── LISTA DE ALUMNOS ENRIQUECIDA (pantalla Alumnos del rediseño) ───────────
+// Una sola pasada por prácticas/reservas/presentaciones/bonos para pintar la
+// tabla completa sin llamadas por alumno: nº de prácticas, km totales, última
+// práctica, próxima clase (reserva futura), próximo examen (presentación
+// pendiente), estado del bono activo y si está en clase ahora mismo (práctica
+// de hoy con estado 'en_curso'). Es un superconjunto de getAlumnos. Solo
+// lectura, no marca sync.
+function getAlumnosLista(sucursalId, hoy) {
+  const d = load();
+  const pad = n => String(n).padStart(2, '0');
+  if (!hoy) {
+    const now = new Date();
+    hoy = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+  const veh = new Map(d.vehiculos.map(v => [v.id, v]));
+  const porAlumno = new Map();
+  for (const p of d.practicas) {
+    if (p.deleted) continue;
+    if (!porAlumno.has(p.alumno_id)) porAlumno.set(p.alumno_id, []);
+    porAlumno.get(p.alumno_id).push(p);
+  }
+  const reservasPorAlumno = new Map();
+  for (const r of (d.reservas || [])) {
+    if (r.deleted || !['solicitada', 'confirmada'].includes(r.estado) || !r.fecha || r.fecha < hoy) continue;
+    if (!reservasPorAlumno.has(r.alumno_id)) reservasPorAlumno.set(r.alumno_id, []);
+    reservasPorAlumno.get(r.alumno_id).push(r);
+  }
+  const examenPorAlumno = new Map();
+  for (const x of (d.presentaciones || [])) {
+    if (x.deleted || x.resultado !== 'pendiente' || !x.fecha || x.fecha < hoy) continue;
+    const prev = examenPorAlumno.get(x.alumno_id);
+    if (!prev || x.fecha < prev.fecha) examenPorAlumno.set(x.alumno_id, x);
+  }
+  const bonoPorAlumno = new Map();
+  for (const b of (d.bonos || [])) {
+    if (b.deleted || b.estado !== 'activo') continue;
+    if (b.fecha_caducidad && b.fecha_caducidad < hoy) continue;
+    if (!bonoPorAlumno.has(b.alumno_id)) bonoPorAlumno.set(b.alumno_id, b);
+  }
+
+  return getAlumnos(sucursalId).map(a => {
+    const prs = porAlumno.get(a.id) || [];
+    const hechas = prs.filter(p => p.estado !== 'en_curso');
+    const km = hechas.reduce((s, p) => s + (p.km_inicial === 0 && p.km_final === 0 ? 0 : Math.max(0, (p.km_final || 0) - (p.km_inicial || 0))), 0);
+    const ultima = hechas.slice().sort((x, y) => (y.fecha || '').localeCompare(x.fecha || '') || (y.hora_inicio || '').localeCompare(x.hora_inicio || '') || y.id - x.id)[0];
+    const prox = (reservasPorAlumno.get(a.id) || []).slice().sort((x, y) => (x.fecha + (x.hora_inicio || '')).localeCompare(y.fecha + (y.hora_inicio || '')))[0];
+    const ex = examenPorAlumno.get(a.id);
+    const bono = bonoPorAlumno.get(a.id);
+    const v = veh.get(a.vehiculo_id);
+    return {
+      ...a,
+      vehiculo_matricula: v ? v.matricula || null : null,
+      num_practicas: hechas.length,
+      km_total: Math.round(km),
+      ultima_fecha: ultima ? ultima.fecha : null,
+      ultima_hora: ultima ? ultima.hora_inicio || null : null,
+      proxima_clase: prox ? { fecha: prox.fecha, hora_inicio: prox.hora_inicio || null } : null,
+      proximo_examen: ex ? { fecha: ex.fecha, tipo: ex.tipo } : null,
+      bono: bono ? { usadas: bono.n_usadas, total: bono.n_clases, saldo: bono.n_clases - bono.n_usadas, nombre: bono.nombre || '' } : null,
+      en_clase_ahora: prs.some(p => p.fecha === hoy && p.estado === 'en_curso')
+    };
+  });
+}
+
+// ─── FICHA DEL ALUMNO (pantalla de detalle del rediseño) ────────────────────
+// Todo lo que pinta la ficha en UNA llamada: los datos de la fila de la lista
+// (getAlumnosLista) + historial de prácticas numerado, días con clase (hechas,
+// programadas y exámenes), próximas clases, observaciones del profesor (las
+// notas de las prácticas) y lo que se ha trabajado (si las prácticas lo
+// registran). Solo lectura, no marca sync. Devuelve null si el alumno no existe.
+function getFichaAlumno(alumno_id, hoy) {
+  const d = load();
+  const aid = parseInt(alumno_id);
+  const pad = n => String(n).padStart(2, '0');
+  if (!hoy) {
+    const now = new Date();
+    hoy = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+  const base = getAlumnosLista(undefined, hoy).find(a => a.id === aid);
+  if (!base) return null;
+  const veh = new Map(d.vehiculos.map(v => [v.id, v]));
+  const prof = new Map(d.profesores.map(x => [x.id, x]));
+
+  const propias = d.practicas
+    .filter(p => p.alumno_id === aid && !p.deleted)
+    .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.hora_inicio || '').localeCompare(b.hora_inicio || '') || a.id - b.id);
+  const practicas = propias.map((p, i) => {
+    const v = veh.get(p.vehiculo_id);
+    const sinKm = p.km_inicial === 0 && p.km_final === 0;
+    const enCurso = p.estado === 'en_curso';
+    return {
+      id: p.id, n: i + 1, fecha: p.fecha, hora_inicio: p.hora_inicio || null,
+      vehiculo_id: p.vehiculo_id, vehiculo_nombre: v ? v.nombre : null, matricula: v ? v.matricula || null : null,
+      km_inicial: p.km_inicial, km_final: p.km_final,
+      km: (sinKm || enCurso) ? 0 : Math.max(0, p.km_final - p.km_inicial),
+      sinKm, enCurso,
+      tipo: p.tipo || 'circulacion',
+      profesor_id: p.profesor_id != null ? p.profesor_id : null,
+      profesor_nombre: p.profesor_id != null && prof.get(p.profesor_id) ? prof.get(p.profesor_id).nombre : null,
+      nota: p.nota || '',
+      firmada: !!p.firma
+    };
+  });
+  const hechas = practicas.filter(p => !p.enCurso);
+
+  const reservasFuturas = (d.reservas || [])
+    .filter(r => !r.deleted && r.alumno_id === aid && ['solicitada', 'confirmada'].includes(r.estado) && r.fecha && r.fecha >= hoy)
+    .sort((a, b) => (a.fecha + (a.hora_inicio || '')).localeCompare(b.fecha + (b.hora_inicio || '')));
+  const examenes = (d.presentaciones || [])
+    .filter(x => !x.deleted && x.alumno_id === aid && x.resultado === 'pendiente' && x.fecha >= hoy)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+  const trabajado = new Map();
+  let practicasConTrabajado = 0;
+  for (const p of propias) {
+    if (Array.isArray(p.trabajado) && p.trabajado.length) {
+      practicasConTrabajado++;
+      for (const t of p.trabajado) trabajado.set(t, (trabajado.get(t) || 0) + 1);
+    }
+  }
+
+  return {
+    alumno: base,
+    metricas: {
+      clases: hechas.length,
+      km: Math.round(hechas.reduce((s, p) => s + p.km, 0)),
+      mediaKm: hechas.filter(p => p.km > 0).length
+        ? Math.round((hechas.reduce((s, p) => s + p.km, 0) / hechas.filter(p => p.km > 0).length) * 10) / 10 : 0
+    },
+    practicas,
+    dias: {
+      hechas: [...new Set(hechas.map(p => p.fecha))],
+      programadas: [...new Set(reservasFuturas.map(r => r.fecha))],
+      examenes: examenes.map(x => x.fecha)
+    },
+    proximasClases: reservasFuturas.slice(0, 5).map(r => ({
+      id: r.id, fecha: r.fecha, hora_inicio: r.hora_inicio || null, duracion_min: r.duracion_min || null,
+      estado: r.estado, nota: r.nota || ''
+    })),
+    proximoExamen: examenes.length ? {
+      id: examenes[0].id, fecha: examenes[0].fecha, tipo: examenes[0].tipo,
+      profesor: examenes[0].profesor_id != null && prof.get(examenes[0].profesor_id) ? prof.get(examenes[0].profesor_id).nombre : null
+    } : null,
+    observaciones: practicas.filter(p => p.nota.trim() !== '').slice(-4).reverse()
+      .map(p => ({ practica_id: p.id, n: p.n, fecha: p.fecha, nota: p.nota })),
+    trabajado: [...trabajado.entries()].map(([nombre, veces]) => ({ nombre, veces })).sort((a, b) => b.veces - a.veces),
+    practicasConTrabajado
+  };
+}
+
 // Campos "de ficha" ampliados (todos opcionales, texto libre salvo las dos
 // fechas): teléfono, DNI/NIE, fecha de nacimiento, dirección, fecha de alta y
 // observaciones. Se agrupan en un objeto `datos` como ÚLTIMO parámetro para no
@@ -253,7 +403,7 @@ function getLibroRegistro(sucursalId) {
 }
 
 module.exports = {
-  getAlumnos, addAlumno, deleteAlumno, updateAlumno,
+  getAlumnos, getAlumnosLista, getFichaAlumno, addAlumno, deleteAlumno, updateAlumno,
   getAnotacionesAlumno,
   ESTADOS_ALUMNO_VALIDOS,
   RESULTADOS_ALUMNO_VALIDOS,

@@ -38,6 +38,54 @@ document.querySelectorAll('.overlay').forEach(overlay => {
   });
 });
 
+// ─── HELPERS DEL REDISEÑO (fechas cortas, iniciales, miles) ─────────────────
+const DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const fmtMiles = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const fmtDec = n => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(Number(n) || 0);
+const parteFecha = iso => { const [y, m, d] = iso.split('-').map(Number); return { y, m, d, dow: new Date(y, m - 1, d).getDay() }; };
+// "lun 28 sep"
+const fechaCorta = iso => { const f = parteFecha(iso); return `${DIAS_CORTOS[f.dow]} ${f.d} ${MESES_CORTOS[f.m - 1]}`; };
+// "28 sep"
+const diaMes = iso => { const f = parteFecha(iso); return `${f.d} ${MESES_CORTOS[f.m - 1]}`; };
+function hoyISO() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+}
+// Días enteros entre dos fechas ISO (b - a).
+function diasEntre(a, b) {
+  const fa = parteFecha(a), fb = parteFecha(b);
+  return Math.round((Date.UTC(fb.y, fb.m - 1, fb.d) - Date.UTC(fa.y, fa.m - 1, fa.d)) / 86400000);
+}
+// "Hoy, 09:15" / "Mañana" / "Ayer" / "lun 28 sep"
+function fechaRelativa(iso, hora) {
+  if (!iso) return '';
+  const d = diasEntre(hoyISO(), iso);
+  let txt;
+  if (d === 0) txt = 'Hoy'; else if (d === 1) txt = 'Mañana'; else if (d === -1) txt = 'Ayer';
+  else { const c = fechaCorta(iso); txt = c.charAt(0).toUpperCase() + c.slice(1); }
+  return hora ? `${txt}, ${hora}` : txt;
+}
+// Iniciales para el avatar: "Lucía Martín Pérez" → "LM"
+function iniciales(nombre) {
+  const p = String(nombre || '').trim().split(/\s+/).filter(Boolean);
+  if (!p.length) return '?';
+  return (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase();
+}
+// Matrícula con aspecto de placa europea (estilos .placa en styles.css)
+function placaHTML(matricula, grande) {
+  if (!matricula) return '';
+  return `<span class="placa${grande ? ' placa-lg' : ''}"><span class="placa-e" aria-hidden="true">E</span><span class="placa-num">${esc(matricula)}</span></span>`;
+}
+
+// Menús "⋯" de las filas de tabla (<details class="menu-fila">): se cierran al
+// hacer clic fuera o al elegir una opción, y solo puede haber uno abierto.
+document.addEventListener('click', e => {
+  document.querySelectorAll('details.menu-fila[open]').forEach(d => {
+    if (!d.contains(e.target) || e.target.closest('.menu-fila-lista button')) d.removeAttribute('open');
+  });
+});
+
 // ─── UTILS ───────────────────────────────────────────────────────────────────
 function fmt(num) {
   return new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(num);
