@@ -28,7 +28,6 @@
       "Bash(git push -f *)"
     ]
   },
-  "model": "opusplan",
   "hooks": {
     "PostToolUse": [
       {

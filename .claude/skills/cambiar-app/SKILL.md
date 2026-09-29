@@ -11,7 +11,7 @@ Objetivo: implementar cambios sin cargar archivos enteros (leer solo el módulo 
 
 1. **Leer `references/mapa-app.md`** — organización de `renderer/` (18 módulos) y `db/` (10 módulos) con anclas, tabla de qué módulo contiene qué, la receta del cambio completo y la de los tests. Sustituye a explorar el código para orientarse.
 
-2. **Localizar con Grep sobre las anclas y Read parcial** del módulo afectado. Nunca leer `db.js` (índice) esperando la lógica, ni releer todo `renderer/`; si la exploración se complica, sub-agente `explorador` y quedarse con el resumen.
+2. **Localizar con Grep sobre las anclas y Read parcial** del módulo afectado. Nunca leer `db.js` (índice) esperando la lógica, ni releer todo `renderer/`; si la exploración se complica, ampliar con más Grep dirigidos (sin subagentes).
 
 3. **Seguir la receta de punta a punta**: una operación nueva de UI toca 4 capas en este orden — función en `db/<modulo>.js` (con su marca de sync y su log) → handler IPC en `main.js` → exposición en `preload.js` → llamada y pintado en `renderer/<modulo>.js` (si es un módulo nuevo, su `<script>` va antes de `arranque.js` en `index.html`, que debe cargar siempre el último). La checklist de invariantes está en el mapa; la que más releases ha costado: **toda mutación de datos marca sync (`markDirty`/`markDeleted`), también las masivas e indirectas**.
 
