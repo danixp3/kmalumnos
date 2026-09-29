@@ -42,8 +42,6 @@ RELEASE.md    → proceso paso a paso para publicar una nueva versión (automati
 CHANGELOG-SECURITY.md → auditoría de seguridad de julio 2026 y pendientes
 HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto pasado)
 .claude/skills/ → skills del proyecto: publicar-release, desplegar-web, diagnostico-sync, etc.
-.claude/agents/ → subagentes: explorador (haiku, localiza código), worker (sonnet, implementa),
-                  tester (haiku, ejecuta npm test), documentador (haiku, actualiza documentación)
 ```
 
 ## Comandos
@@ -95,10 +93,10 @@ _Última actualización: 2026-09-11. El detalle histórico completo está en HIS
 
 ## Metodología de trabajo
 
-1. El Director (modelo potente: Opus/Fable) interpreta la petición, la trocea en tareas atómicas con criterio de aceptación verificable y las presenta antes de ejecutar. Al usuario háblale de objetivos y resultados, no de código salvo que lo pida.
-2. **El Director dirige, no ejecuta:** toda modificación de archivos la hace un subagente de `.claude/agents/` con instrucciones cerradas (qué, dónde, criterio). Subagentes: **`explorador`** (haiku, localizar código sin editar), **`worker`** (sonnet, implementar), **`tester`** (haiku, `npm test` resumido), **`documentador`** (haiku, docs al cerrar). El Director solo lee/verifica lo mínimo.
-3. Los subagentes usan primero las skills de `.claude/skills/` (mapas, anclas, recetas) en vez de releer archivos enteros.
-4. Si un cambio deja una skill obsoleta, el Director encarga la corrección a un worker (nunca la aplica él).
-5. Ninguna tarea se cierra sin validación (tests + criterio de aceptación). Si falla, el Director itera con nuevos encargos sin molestar al usuario salvo bloqueo real.
-6. Al cerrar, actualizar "Estado actual" (máx 3 líneas/cambio) y archivar el detalle en HISTORIAL.md.
+1. **Sin subagentes** (decisión del propietario, 2026-09-29). Toda la tarea la hace el modelo y el nivel de esfuerzo con los que el usuario lanzó el prompt principal: no se delega en `explorador`/`worker`/`tester`/`documentador` ni se cambia de modelo a mitad de tarea. Explorar, editar, probar y documentar se hace directamente con las herramientas de la sesión (Grep/Read/Edit/Bash).
+2. Interpretar la petición, trocearla en tareas con criterio de aceptación verificable y, si es grande o arriesgada, presentar el plan antes de ejecutar. Al usuario háblale de objetivos y resultados, no de código salvo que lo pida.
+3. Usar primero las skills de `.claude/skills/` (mapas, anclas, recetas) en vez de releer archivos enteros; Grep sobre las anclas y Read parcial.
+4. Si un cambio deja una skill obsoleta, corregirla en el mismo cambio.
+5. Ninguna tarea se cierra sin validación (tests + criterio de aceptación). Si falla, iterar hasta que pase sin molestar al usuario salvo bloqueo real.
+6. Al cerrar, actualizar "Estado actual" (máx 3 líneas/cambio) y archivar el detalle en HISTORIAL.md (skill `/cerrar-tarea`).
 7. Antes de cambios arriesgados (borrar datos, tocar Supabase, releases), explicar el riesgo y pedir confirmación explícita.
