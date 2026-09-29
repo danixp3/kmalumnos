@@ -23,6 +23,7 @@
       "utils-ficheros.js",
       "fichas-dgt.js",
       "assets/**/*",
+      "fonts/**/*",
       "index.html",
       "styles.css",
       "icon.png",
