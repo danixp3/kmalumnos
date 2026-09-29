@@ -668,8 +668,122 @@ function getPanel(hoy, sucursalId) {
   };
 }
 
+// ─── PANEL DE VEHÍCULOS (pantalla Vehículos del rediseño) ───────────────────
+// Por vehículo: estado ahora (en práctica / libre), km del mes repartidos entre
+// "en prácticas" y "sin asignar" (lo que el cuentakilómetros avanzó sin que lo
+// recoja ninguna práctica), ITV y la línea de continuidad de HOY (prácticas
+// hechas, en curso, programadas y huecos de km). Solo lectura, no marca sync.
+function _sumarMin(hhmm, min) {
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(':').map(Number);
+  const t = h * 60 + m + min;
+  return `${String(Math.floor(t / 60) % 24).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+}
+
+function getPanelVehiculos(hoy, sucursalId, duracionMin) {
+  const d = load();
+  const pad = n => String(n).padStart(2, '0');
+  if (!hoy) {
+    const now = new Date();
+    hoy = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+  const dur = duracionMin > 0 ? duracionMin : 45;
+  const mes = hoy.slice(0, 7);
+  const conKm = p => !(p.km_inicial === 0 && p.km_final === 0) && p.estado !== 'en_curso';
+  const nombreAlumno = new Map(d.alumnos.map(a => [a.id, a.nombre]));
+  const nombreProf = new Map(d.profesores.map(x => [x.id, x.nombre]));
+  const vivas = d.practicas.filter(p => !p.deleted);
+
+  const vehiculos = filtrarPorSucursal(d.vehiculos, sucursalId).filter(v => !v.deleted).map(v => {
+    const propias = vivas.filter(p => p.vehiculo_id === v.id);
+    const delMes = propias.filter(p => p.fecha && p.fecha.slice(0, 7) === mes);
+    const kmPracticas = Math.round(delMes.filter(conKm).reduce((s, p) => s + Math.max(0, p.km_final - p.km_inicial), 0));
+
+    // Odómetro al empezar el mes: km final de la última práctica anterior; si no la hay, el menor km inicial del mes.
+    const previas = propias.filter(conKm).filter(p => p.fecha < mes + '-01')
+      .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id);
+    let kmInicioMes = previas.length ? previas[0].km_final : null;
+    if (kmInicioMes == null) {
+      const kis = delMes.filter(conKm).map(p => p.km_inicial);
+      kmInicioMes = kis.length ? Math.min(...kis) : null;
+    }
+    const recorridos = kmInicioMes == null ? 0 : Math.max(0, v.km_actual - kmInicioMes);
+    const sinAsignar = Math.max(0, recorridos - kmPracticas);
+
+    // Profesor habitual: el que más prácticas del mes tiene en este coche (o de siempre si no hay).
+    const cuenta = new Map();
+    (delMes.length ? delMes : propias).forEach(p => { if (p.profesor_id != null) cuenta.set(p.profesor_id, (cuenta.get(p.profesor_id) || 0) + 1); });
+    const top = [...cuenta.entries()].sort((a, b) => b[1] - a[1])[0];
+
+    // ITV: la más próxima (o ya vencida) no completada
+    const itv = (d.vencimientos || [])
+      .filter(x => !x.deleted && !x.completado && x.entidad_tipo === 'vehiculo' && x.entidad_id === v.id && /itv/i.test(x.tipo || ''))
+      .sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento))[0];
+    let itvInfo = null;
+    if (itv) {
+      const dias = Math.round((Date.UTC(...itv.fecha_vencimiento.split('-').map((n, i) => i === 1 ? n - 1 : +n)) - Date.UTC(...hoy.split('-').map((n, i) => i === 1 ? n - 1 : +n))) / 86400000);
+      itvInfo = { fecha: itv.fecha_vencimiento, dias, vencida: dias < 0 };
+    }
+
+    // Línea de hoy
+    const deHoy = propias.filter(p => p.fecha === hoy).sort((a, b) => (a.hora_inicio || '99').localeCompare(b.hora_inicio || '99') || a.id - b.id);
+    const bloques = [];
+    let anterior = null;
+    for (const p of deHoy) {
+      const fin = _sumarMin(p.hora_inicio, dur);
+      if (anterior && conKm(anterior) && conKm(p) && p.km_inicial > anterior.km_final) {
+        bloques.push({ tipo: 'hueco', km: p.km_inicial - anterior.km_final, inicio: anterior.hora_inicio ? _sumarMin(anterior.hora_inicio, dur) : null, fin: p.hora_inicio || null });
+      } else if (anterior && anterior.estado !== 'en_curso' && p.estado === 'en_curso' && anterior.km_final > 0 && p.km_inicial > anterior.km_final) {
+        bloques.push({ tipo: 'hueco', km: p.km_inicial - anterior.km_final, inicio: anterior.hora_inicio ? _sumarMin(anterior.hora_inicio, dur) : null, fin: p.hora_inicio || null });
+      }
+      bloques.push({
+        tipo: p.estado === 'en_curso' ? 'curso' : 'hecha', practica_id: p.id,
+        inicio: p.hora_inicio || null, fin,
+        km: conKm(p) ? Math.max(0, p.km_final - p.km_inicial) : 0,
+        alumno: nombreAlumno.get(p.alumno_id) || '—'
+      });
+      anterior = p;
+    }
+    // Programadas hoy (reservas vigentes de este coche que aún no tienen práctica de ese alumno)
+    const yaHechos = new Set(deHoy.map(p => p.alumno_id));
+    (d.reservas || []).filter(r => !r.deleted && r.fecha === hoy && r.vehiculo_id === v.id && ['solicitada', 'confirmada'].includes(r.estado) && !yaHechos.has(r.alumno_id))
+      .forEach(r => bloques.push({ tipo: 'prog', inicio: r.hora_inicio || null, fin: _sumarMin(r.hora_inicio, r.duracion_min || dur), km: 0, alumno: nombreAlumno.get(r.alumno_id) || '—' }));
+    bloques.sort((a, b) => (a.inicio || '99').localeCompare(b.inicio || '99'));
+
+    const enCurso = deHoy.find(p => p.estado === 'en_curso');
+    const ultima = deHoy.filter(p => p.estado !== 'en_curso').pop();
+    return {
+      id: v.id, nombre: v.nombre, matricula: v.matricula || '', km_actual: v.km_actual,
+      en_practica: !!enCurso,
+      registro_hora: enCurso ? enCurso.hora_inicio || null : (ultima ? ultima.hora_inicio || null : null),
+      profesor_habitual: top ? nombreProf.get(top[0]) || null : null,
+      km_inicio_mes: kmInicioMes,
+      recorridos_mes: Math.round(recorridos),
+      km_en_practicas_mes: kmPracticas,
+      sin_asignar_mes: Math.round(sinAsignar),
+      practicas_mes: delMes.length,
+      km_por_practica: delMes.filter(conKm).length ? Math.round((kmPracticas / delMes.filter(conKm).length) * 10) / 10 : 0,
+      sin_km: propias.filter(p => p.km_inicial === 0 && p.km_final === 0).length,
+      km_hoy: bloques.filter(b => b.tipo === 'hecha').reduce((s, b) => s + b.km, 0),
+      hueco_hoy: bloques.filter(b => b.tipo === 'hueco').reduce((s, b) => s + b.km, 0),
+      itv: itvInfo,
+      bloques_hoy: bloques
+    };
+  });
+
+  const total = vehiculos.reduce((t, v) => ({
+    recorridos_mes: t.recorridos_mes + v.recorridos_mes,
+    km_en_practicas_mes: t.km_en_practicas_mes + v.km_en_practicas_mes,
+    sin_asignar_mes: t.sin_asignar_mes + v.sin_asignar_mes,
+    practicas_mes: t.practicas_mes + v.practicas_mes
+  }), { recorridos_mes: 0, km_en_practicas_mes: 0, sin_asignar_mes: 0, practicas_mes: 0 });
+  total.km_por_practica = total.practicas_mes ? Math.round((total.km_en_practicas_mes / total.practicas_mes) * 10) / 10 : 0;
+
+  return { hoy, mes, vehiculos, total };
+}
+
 module.exports = {
   getResumen, getStatsDashboard, getStatsProfesores, getDatosGraficos, getTimelineVehiculo,
   getSemaforoExamen, getSemaforoAlumno, getAlumnosEnRiesgo, getAnalisisVehiculos,
-  getInformes, getLibroVentas, getPanel,
+  getInformes, getLibroVentas, getPanel, getPanelVehiculos,
 };

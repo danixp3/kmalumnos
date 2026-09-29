@@ -509,34 +509,38 @@
       <div class="page-header">
         <div>
           <div class="page-title">Vehículos</div>
-          <div class="page-subtitle">Gestión de la flota de vehículos</div>
+          <div class="page-subtitle">Kilometraje y continuidad del cuentakilómetros</div>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-outline" onclick="document.getElementById('veh-relleno').scrollIntoView({behavior:'smooth'})" title="Ir al relleno masivo de kilómetros"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Relleno masivo</button>
+          <button class="btn btn-primary" onclick="abrirNuevoVehiculo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Añadir vehículo</button>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">
-          <div class="card-title-icon" style="background:var(--accent-light);color:var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
-          Añadir vehículo
+      <div class="veh-tarjetas" id="veh-tarjetas"></div>
+
+      <section class="card" id="veh-continuidad" aria-labelledby="h-continuidad">
+        <div class="card-head" style="align-items:flex-start">
+          <div>
+            <h2 id="h-continuidad">Continuidad del cuentakilómetros · hoy</h2>
+            <div class="card-note" style="margin-top:2px">Cada práctica empieza en el km donde acabó la anterior. Un hueco son km que nadie ha registrado.</div>
+          </div>
+          <div class="cont-leyenda">
+            <span><i class="bl bl-hecha"></i>Hecha</span><span><i class="bl bl-curso"></i>En curso</span><span><i class="bl bl-prog"></i>Programada</span><span><i class="bl bl-hueco"></i>Km sin asignar</span>
+          </div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Nombre / Identificador</label>
-            <input type="text" id="v-nombre" placeholder="Ej: Coche 1" style="width:160px">
-          </div>
-          <div class="form-group">
-            <label>Matrícula</label>
-            <input type="text" id="v-matricula" placeholder="1234 ABC" style="width:130px">
-          </div>
-          <div class="form-group">
-            <label>Km actual del odómetro</label>
-            <input type="number" id="v-km" placeholder="45000" min="0">
-          </div>
-          <button class="btn btn-primary" onclick="addVehiculo()" style="align-self:flex-end">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Añadir vehículo
-          </button>
+        <div id="veh-continuidad-cuerpo"></div>
+      </section>
+
+      <section class="card" id="veh-resumen" aria-labelledby="h-resumen-veh">
+        <div class="card-head"><h2 id="h-resumen-veh">Resumen del mes</h2><span class="card-note" id="veh-resumen-nota"></span></div>
+        <div class="table-wrap">
+          <table id="tabla-vehiculos" class="tabla-veh">
+            <thead><tr><th>Vehículo</th><th class="col-num">Km a 1 del mes</th><th class="col-num">Km actual</th><th class="col-num">Recorridos</th><th class="col-num">En prácticas</th><th class="col-num">Sin asignar</th><th class="col-num">Prácticas</th><th class="col-num">Km por práctica</th></tr></thead>
+            <tbody></tbody>
+          </table>
         </div>
-      </div>
+      </section>
 
       <div class="card card-banner" id="veh-relleno">
         <div class="card-title">
@@ -571,13 +575,6 @@
           <span id="relleno-sinKm" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
         </div>
         <div id="relleno-alert" class="hidden" style="margin-top:12px"></div>
-      </div>
-
-      <div class="table-wrap">
-        <table id="tabla-vehiculos">
-          <thead><tr><th>Nombre</th><th>Matrícula</th><th>Km actual</th><th>Sin km</th><th>Acciones</th></tr></thead>
-          <tbody></tbody>
-        </table>
       </div>
 
       <div class="card" id="veh-analisis">
@@ -1163,89 +1160,62 @@
       <div class="page-header">
         <div>
           <div class="page-title">Prácticas</div>
-          <div class="page-subtitle">Todas las prácticas de todos los alumnos juntas</div>
+          <div class="page-subtitle" id="pg-resumen">Todas las prácticas de todos los alumnos juntas</div>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-outline" onclick="navegarA('datos','exportar')" title="Exportar prácticas"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Exportar</button>
+          <button class="btn btn-primary" onclick="navegarA('registro-rapido')" title="Registrar prácticas en el Registro rápido"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Registrar práctica</button>
         </div>
       </div>
 
-      <div class="stats" style="grid-template-columns:repeat(2,1fr)">
-        <div class="stat">
-          <div class="stat-head">
-            <span class="lbl">Prácticas mostradas</span>
-            <div class="stat-icon stat-icon-orange">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
-            </div>
-          </div>
-          <div class="num" id="practicas-global-resumen-num">0</div>
+      <div class="toolbar">
+        <div class="seg seg-tabs" id="pg-tabs" role="group" aria-label="Grupo de prácticas">
+          <button type="button" data-tab="todas" aria-pressed="true" onclick="cambiarTabPracticasGlobal('todas')">Todas</button>
+          <button type="button" data-tab="hoy" aria-pressed="false" onclick="cambiarTabPracticasGlobal('hoy')">Hoy</button>
+          <button type="button" data-tab="semana" aria-pressed="false" onclick="cambiarTabPracticasGlobal('semana')">Esta semana</button>
+          <button type="button" data-tab="sinkm" aria-pressed="false" onclick="cambiarTabPracticasGlobal('sinkm')">Sin km</button>
+          <button type="button" data-tab="curso" aria-pressed="false" onclick="cambiarTabPracticasGlobal('curso')">En curso</button>
         </div>
-        <div class="stat">
-          <div class="stat-head">
-            <span class="lbl">Km recorridos</span>
-            <div class="stat-icon stat-icon-blue">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="8 8 3 12 8 16"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-            </div>
+        <div class="toolbar-filtros">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+            <input type="text" id="pg-buscar" placeholder="Buscar alumno" oninput="renderPracticasGlobalTabla()" aria-label="Buscar alumno">
           </div>
-          <div class="num" id="practicas-global-resumen-km">0 km</div>
+          <button class="btn btn-gray btn-sm" onclick="limpiarFiltrosPracticasGlobal()" title="Limpiar filtros">Limpiar</button>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">
-          <div class="card-title-icon" style="background:var(--accent-light);color:var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></div>
-          Filtros
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Buscar alumno</label>
-            <input type="text" id="pg-buscar" placeholder="Nombre del alumno..." style="width:180px" oninput="renderPracticasGlobalTabla()">
-          </div>
-          <div class="form-group">
-            <label>Desde</label>
-            <input type="date" id="pg-desde" onchange="fetchPracticasGlobal()">
-          </div>
-          <div class="form-group">
-            <label>Hasta</label>
-            <input type="date" id="pg-hasta" onchange="fetchPracticasGlobal()">
-          </div>
-          <div class="form-group">
-            <label>Alumno</label>
-            <select id="pg-alumno" style="width:170px" onchange="fetchPracticasGlobal()"><option value="">Todos los alumnos</option></select>
-          </div>
-          <div class="form-group">
-            <label>Vehículo</label>
-            <select id="pg-vehiculo" style="width:150px" onchange="fetchPracticasGlobal()"><option value="">Todos los vehículos</option></select>
-          </div>
-          <div class="form-group">
-            <label>Profesor</label>
-            <select id="pg-profesor" style="width:150px" onchange="fetchPracticasGlobal()"><option value="">Todos los profesores</option></select>
-          </div>
-          <div class="form-group">
-            <label>Tipo</label>
-            <select id="pg-tipo" style="width:140px" onchange="fetchPracticasGlobal()">
-              <option value="">Todos los tipos</option>
-              <option value="circulacion">Circulación</option>
-              <option value="pista">Pista</option>
-            </select>
-          </div>
-          <button class="btn btn-gray btn-sm" onclick="limpiarFiltrosPracticasGlobal()" style="align-self:flex-end">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            Limpiar filtros
-          </button>
-        </div>
+      <div class="filtros-linea">
+        <label class="filtro-inline">Desde <input type="date" id="pg-desde" onchange="fetchPracticasGlobal()"></label>
+        <label class="filtro-inline">Hasta <input type="date" id="pg-hasta" onchange="fetchPracticasGlobal()"></label>
+        <label class="filtro-inline">Alumno <select id="pg-alumno" onchange="fetchPracticasGlobal()"><option value="">Todos</option></select></label>
+        <label class="filtro-inline">Vehículo <select id="pg-vehiculo" onchange="fetchPracticasGlobal()"><option value="">Todos</option></select></label>
+        <label class="filtro-inline">Profesor <select id="pg-profesor" onchange="fetchPracticasGlobal()"><option value="">Todos</option></select></label>
+        <label class="filtro-inline">Tipo <select id="pg-tipo" onchange="fetchPracticasGlobal()">
+          <option value="">Todos</option>
+          <option value="circulacion">Circulación</option>
+          <option value="pista">Pista</option>
+        </select></label>
       </div>
 
       <div class="table-wrap">
-        <table id="tabla-practicas-global">
+        <table id="tabla-practicas-global" class="tabla-pg">
           <thead><tr>
             <th class="sortable" data-sort="fecha" onclick="ordenarPracticasGlobal('fecha')">Fecha<span class="sort-ind"></span></th>
+            <th>Horario</th>
             <th class="sortable" data-sort="alumno" onclick="ordenarPracticasGlobal('alumno')">Alumno<span class="sort-ind"></span></th>
-            <th class="sortable" data-sort="vehiculo" onclick="ordenarPracticasGlobal('vehiculo')">Vehículo<span class="sort-ind"></span></th>
             <th class="sortable" data-sort="profesor" onclick="ordenarPracticasGlobal('profesor')">Profesor<span class="sort-ind"></span></th>
+            <th class="sortable" data-sort="vehiculo" onclick="ordenarPracticasGlobal('vehiculo')">Vehículo<span class="sort-ind"></span></th>
+            <th class="col-num">Km inicial</th>
+            <th class="col-num">Km final</th>
+            <th class="col-num sortable" data-sort="km" onclick="ordenarPracticasGlobal('km')">Km<span class="sort-ind"></span></th>
             <th class="sortable" data-sort="tipo" onclick="ordenarPracticasGlobal('tipo')">Tipo<span class="sort-ind"></span></th>
-            <th class="sortable" data-sort="km" onclick="ordenarPracticasGlobal('km')">Km recorridos<span class="sort-ind"></span></th>
+            <th aria-label="Detalle"></th>
           </tr></thead>
           <tbody></tbody>
         </table>
       </div>
+      <div class="tabla-pie" id="pg-pie"></div>
     </div>
 
     <!-- ── KILÓMETROS (Mapa del vehículo + Conflictos) ── -->
@@ -2256,6 +2226,34 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 </div>
 
 <!-- ═══ MODAL EDITAR VEHÍCULO ══════════════════════════════ -->
+    <!-- Alta de vehículo (antes tarjeta fija): se abre con "Añadir vehículo" -->
+    <div class="overlay" id="modal-vehiculo-nuevo">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11"/><rect x="3" y="11" width="18" height="6" rx="2"/><path d="M6 17v2M18 17v2"/></svg></div>
+          <h3>Añadir vehículo</h3>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombre / Identificador</label>
+            <input type="text" id="v-nombre" placeholder="Ej: Coche 1" style="width:160px">
+          </div>
+          <div class="form-group">
+            <label>Matrícula</label>
+            <input type="text" id="v-matricula" placeholder="1234 ABC" style="width:130px">
+          </div>
+          <div class="form-group">
+            <label>Km actual del odómetro</label>
+            <input type="number" id="v-km" placeholder="45000" min="0">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-gray" onclick="closeModal('modal-vehiculo-nuevo')">Cancelar</button>
+          <button class="btn btn-primary" onclick="addVehiculo()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Añadir vehículo</button>
+        </div>
+      </div>
+    </div>
+
 <div class="overlay" id="modal-vehiculo">
   <div class="modal">
     <div class="modal-header">
