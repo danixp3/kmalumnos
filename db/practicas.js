@@ -2,7 +2,7 @@
 // CRUD de prácticas individuales y registro rápido/masivo por vehículo+fecha
 // (usado en la pantalla de registro rápido de km).
 
-const { load, save, nextId, _sync, addLog, filtrarPorSucursal } = require('./core');
+const { load, save, nextId, _sync, addLog, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, hoyLocalISO } = require('./core');
 
 function getPracticasByAlumno(alumno_id) {
   const d = load();
@@ -127,6 +127,7 @@ function getFichaPracticasAlumno(alumno_id) {
 function getTodasPracticas(filtros = {}) {
   const d = load();
   const { desde, hasta, alumno_id, vehiculo_id, profesor_id, tipo, sucursal_id } = filtros || {};
+  const hoy = (filtros && filtros.hoy) || hoyLocalISO();
 
   const vivas = d.practicas.filter(p => !p.deleted);
   const orden = (a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.hora_inicio || '').localeCompare(b.hora_inicio || '') || a.id - b.id;
@@ -144,7 +145,7 @@ function getTodasPracticas(filtros = {}) {
     let ant = null;
     for (const p of lista) {
       previa.set(p.id, ant);
-      if (!(p.km_inicial === 0 && p.km_final === 0) && p.estado !== 'en_curso') ant = p;
+      if (!(p.km_inicial === 0 && p.km_final === 0) && !esPracticaEnCurso(p, hoy) && !esPracticaSinCerrar(p, hoy)) ant = p;
     }
   }
 
@@ -162,7 +163,8 @@ function getTodasPracticas(filtros = {}) {
       const v = d.vehiculos.find(x => x.id === p.vehiculo_id);
       const prof = d.profesores.find(x => x.id === p.profesor_id);
       const sinKm = p.km_inicial === 0 && p.km_final === 0;
-      const enCurso = p.estado === 'en_curso';
+      const enCurso = esPracticaEnCurso(p, hoy);
+      const sinCerrar = esPracticaSinCerrar(p, hoy);
       const pv = previa.get(p.id);
       const pvAlumno = pv ? d.alumnos.find(x => x.id === pv.alumno_id) : null;
       return {
@@ -177,15 +179,16 @@ function getTodasPracticas(filtros = {}) {
         profesor_nombre: prof ? prof.nombre : '—',
         km_inicial: p.km_inicial,
         km_final: p.km_final,
-        km_recorridos: (sinKm || enCurso) ? 0 : p.km_final - p.km_inicial,
+        km_recorridos: (sinKm || enCurso || sinCerrar) ? 0 : p.km_final - p.km_inicial,
         tipo: p.tipo || 'circulacion',
         hora_inicio: p.hora_inicio || null,
         sin_km: sinKm,
         en_curso: enCurso,
+        sin_cerrar: sinCerrar,
         clase_n: claseN.get(p.id) || null,
         nota: p.nota || '',
         // Continuidad con la práctica anterior del mismo coche (null si es la primera o no hay km).
-        continuidad: (pv && !sinKm) ? {
+        continuidad: (pv && !sinKm && !sinCerrar) ? {
           alumno: pvAlumno ? pvAlumno.nombre : '—',
           fecha: pv.fecha, hora_inicio: pv.hora_inicio || null,
           km_final_anterior: pv.km_final,

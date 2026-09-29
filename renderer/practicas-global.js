@@ -105,7 +105,7 @@ const PG_PREDICADOS = {
   hoy: p => p.fecha === hoyISO(),
   semana: p => p.fecha >= inicioSemanaISO(),
   sinkm: p => p.sin_km && !p.en_curso,
-  curso: p => p.en_curso
+  curso: p => p.en_curso || p.sin_cerrar
 };
 
 function cambiarTabPracticasGlobal(tab) {
@@ -139,6 +139,7 @@ function verFichaDesdePracticas(alumnoId, vehiculoId, nombre) {
 function detallePracticaGlobal(p) {
   let km;
   if (p.en_curso) km = '<span class="pill pill-dark"><span class="pill-dot"></span>En curso — el km final se fija al terminar</span>';
+  else if (p.sin_cerrar) km = '<span class="pill pill-warn">Sin cerrar: falta el km final (empezó en el km ' + fmtMiles(p.km_inicial) + ')</span>';
   else if (p.sin_km) km = '<span class="pill pill-warn">Sin kilómetros: rellénalos en Generar km</span>';
   else {
     km = `<div class="num-mono" style="font-size:16px"><b>${fmtMiles(p.km_inicial)}</b> → <b>${fmtMiles(p.km_final)}</b> <span style="color:var(--text-muted);font-weight:400">· ${fmtDec(p.km_recorridos)} km</span></div>`;
@@ -212,9 +213,9 @@ function renderPracticasGlobalTabla() {
   tbody.innerHTML = visibles.map(p => {
     const abierta = pgAbiertas.has(p.id);
     const fechaTxt = p.fecha === hoyISO() ? 'Hoy' : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase());
-    const kmIni = p.en_curso || !p.sin_km ? fmtMiles(p.km_inicial) : '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>';
-    const kmFin = p.en_curso ? guion : (p.sin_km ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : fmtMiles(p.km_final));
-    const kmRec = p.en_curso ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>' : (p.sin_km ? guion : `<b>${fmtDec(p.km_recorridos)}</b>`);
+    const kmIni = p.en_curso || p.sin_cerrar || !p.sin_km ? fmtMiles(p.km_inicial) : '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>';
+    const kmFin = p.en_curso ? guion : (p.sin_cerrar ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin cerrar</span>' : (p.sin_km ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : fmtMiles(p.km_final)));
+    const kmRec = p.en_curso ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>' : (p.sin_km || p.sin_cerrar ? guion : `<b>${fmtDec(p.km_recorridos)}</b>`);
     const aviso = p.continuidad && p.continuidad.diferencia !== 0
       ? `<div class="pg-hueco" title="Respecto al final de la práctica anterior de este coche">${p.continuidad.diferencia > 0 ? '+' + fmtMiles(p.continuidad.diferencia) + ' km sin asignar' : 'solapa ' + fmtMiles(-p.continuidad.diferencia) + ' km'}</div>` : '';
     return `<tr class="fila-pg${abierta ? ' abierta' : ''}" onclick="togglePracticaGlobal(${p.id})"${p.sin_km && !p.en_curso ? ' style="background:var(--warn-bg-soft)"' : ''}>

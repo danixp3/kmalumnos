@@ -60,7 +60,6 @@ test('en_clase_ahora: solo con práctica de hoy en curso; esa práctica no suma 
   const aid = db.addAlumno('Pablo', 'B', vid);
   db.addPractica(aid, vid, '2026-09-20', 0, 20);
   const id = db.addPractica(aid, vid, HOY, 20, 0);
-  core.load().practicas.find(x => x.id === id).estado = 'en_curso';
   const [l] = db.getAlumnosLista(undefined, HOY);
   expect(l.en_clase_ahora).toBe(true);
   expect(l.num_practicas).toBe(1);
@@ -116,7 +115,6 @@ describe('getFichaAlumno', () => {
     const aid = db.addAlumno('Pablo', 'B', vid);
     db.addPractica(aid, vid, '2026-09-20', 0, 20);
     const id = db.addPractica(aid, vid, HOY, 20, 0);
-    core.load().practicas.find(x => x.id === id).estado = 'en_curso';
     const f = db.getFichaAlumno(aid, HOY);
     expect(f.practicas).toHaveLength(2);
     expect(f.practicas[1].enCurso).toBe(true);

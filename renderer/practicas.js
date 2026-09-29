@@ -253,8 +253,9 @@ async function loadPracticas() {
   tbody.innerHTML = practicas.slice().reverse().map(p => {
     const kmCell = p.enCurso
       ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>'
-      : (p.sinKm ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : `${fmt(p.km_inicial)} → ${fmt(p.km_final)}`);
-    const diffCell = p.enCurso || p.sinKm ? guion : `<b>${fmtDec(p.km)}</b>`;
+      : (p.sinCerrar ? `<span class="pill pill-warn" title="La práctica se abrió desde el móvil y no se cerró">Sin cerrar · km ${fmt(p.km_inicial)}</span>`
+        : (p.sinKm ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : `${fmt(p.km_inicial)} → ${fmt(p.km_final)}`));
+    const diffCell = p.enCurso || p.sinKm || p.sinCerrar ? guion : `<b>${fmtDec(p.km)}</b>`;
     const profesorIdArg = p.profesor_id != null ? p.profesor_id : 'null';
     const horaArg = p.hora_inicio ? `'${p.hora_inicio}'` : 'null';
     return `<tr${p.sinKm ? ' style="background:var(--warn-bg-soft)"' : ''}>

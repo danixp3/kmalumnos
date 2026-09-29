@@ -1,7 +1,7 @@
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
 // CRUD de alumnos y anotaciones de alumno (notas guardadas en sus prácticas).
 
-const { load, save, nextId, _sync, filtrarPorSucursal } = require('./core');
+const { load, save, nextId, _sync, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar } = require('./core');
 
 // sucursalId opcional: sin argumento devuelve todos los alumnos (modo clásico
 // o "Todas las sucursales") — ver filtrarPorSucursal en core.js.
@@ -22,7 +22,7 @@ function getAlumnos(sucursalId) {
 // tabla completa sin llamadas por alumno: nº de prácticas, km totales, última
 // práctica, próxima clase (reserva futura), próximo examen (presentación
 // pendiente), estado del bono activo y si está en clase ahora mismo (práctica
-// de hoy con estado 'en_curso'). Es un superconjunto de getAlumnos. Solo
+// de hoy empezada y sin cerrar, ver esPracticaEnCurso). Es un superconjunto de getAlumnos. Solo
 // lectura, no marca sync.
 function getAlumnosLista(sucursalId, hoy) {
   const d = load();
@@ -59,7 +59,7 @@ function getAlumnosLista(sucursalId, hoy) {
 
   return getAlumnos(sucursalId).map(a => {
     const prs = porAlumno.get(a.id) || [];
-    const hechas = prs.filter(p => p.estado !== 'en_curso');
+    const hechas = prs.filter(p => !esPracticaEnCurso(p, hoy));
     const km = hechas.reduce((s, p) => s + (p.km_inicial === 0 && p.km_final === 0 ? 0 : Math.max(0, (p.km_final || 0) - (p.km_inicial || 0))), 0);
     const ultima = hechas.slice().sort((x, y) => (y.fecha || '').localeCompare(x.fecha || '') || (y.hora_inicio || '').localeCompare(x.hora_inicio || '') || y.id - x.id)[0];
     const prox = (reservasPorAlumno.get(a.id) || []).slice().sort((x, y) => (x.fecha + (x.hora_inicio || '')).localeCompare(y.fecha + (y.hora_inicio || '')))[0];
@@ -76,7 +76,7 @@ function getAlumnosLista(sucursalId, hoy) {
       proxima_clase: prox ? { fecha: prox.fecha, hora_inicio: prox.hora_inicio || null } : null,
       proximo_examen: ex ? { fecha: ex.fecha, tipo: ex.tipo } : null,
       bono: bono ? { usadas: bono.n_usadas, total: bono.n_clases, saldo: bono.n_clases - bono.n_usadas, nombre: bono.nombre || '' } : null,
-      en_clase_ahora: prs.some(p => p.fecha === hoy && p.estado === 'en_curso')
+      en_clase_ahora: prs.some(p => esPracticaEnCurso(p, hoy))
     };
   });
 }
@@ -106,13 +106,14 @@ function getFichaAlumno(alumno_id, hoy) {
   const practicas = propias.map((p, i) => {
     const v = veh.get(p.vehiculo_id);
     const sinKm = p.km_inicial === 0 && p.km_final === 0;
-    const enCurso = p.estado === 'en_curso';
+    const enCurso = esPracticaEnCurso(p, hoy);
+    const sinCerrar = esPracticaSinCerrar(p, hoy);
     return {
       id: p.id, n: i + 1, fecha: p.fecha, hora_inicio: p.hora_inicio || null,
       vehiculo_id: p.vehiculo_id, vehiculo_nombre: v ? v.nombre : null, matricula: v ? v.matricula || null : null,
       km_inicial: p.km_inicial, km_final: p.km_final,
-      km: (sinKm || enCurso) ? 0 : Math.max(0, p.km_final - p.km_inicial),
-      sinKm, enCurso,
+      km: (sinKm || enCurso || sinCerrar) ? 0 : Math.max(0, p.km_final - p.km_inicial),
+      sinKm, enCurso, sinCerrar,
       tipo: p.tipo || 'circulacion',
       profesor_id: p.profesor_id != null ? p.profesor_id : null,
       profesor_nombre: p.profesor_id != null && prof.get(p.profesor_id) ? prof.get(p.profesor_id).nombre : null,
