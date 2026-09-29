@@ -28,12 +28,9 @@ async function loadVehiculosSelect() {
 }
 
 async function loadAlumnos() {
-  const alumnos = await window.api.getAlumnos(getSucursalActual());
-  // Para cada alumno contar prácticas (una sola vez; el resto de filtrado/orden es en memoria)
-  alumnosCache = await Promise.all(alumnos.map(async a => {
-    const practicas = await window.api.getPracticas(a.id);
-    return { ...a, num_practicas: practicas.length };
-  }));
+  // Una sola llamada: nº de prácticas, km, última práctica, próxima clase,
+  // próximo examen y bono de cada alumno (db.getAlumnosLista).
+  alumnosCache = await window.api.getAlumnosLista(getSucursalActual());
   // Semáforo de examen: una sola llamada para todos los alumnos (evita N+1),
   // cruzado por alumno_id en un Map para pintar la pastilla de cada fila.
   try {
@@ -146,6 +143,67 @@ function actualizarIndicadoresOrdenAlumnos() {
   });
 }
 
+// ─── Pestañas de grupo (En prácticas / Con examen / Sin clase / Nuevos / Todos) ───
+const ESTADOS_FUERA_DE_PRACTICAS = ['baja', 'aprobado', 'apto', 'no_apto'];
+const alumnoActivo = a => !ESTADOS_FUERA_DE_PRACTICAS.includes(a.estado || 'activo');
+const DIAS_SIN_CLASE_RIESGO = 30;
+const DIAS_ALUMNO_NUEVO = 30;
+const PREDICADOS_TAB_ALUMNOS = {
+  activos: a => alumnoActivo(a),
+  examen: a => !!a.proximo_examen,
+  riesgo: a => alumnoActivo(a) && a.num_practicas > 0 && a.ultima_fecha && diasEntre(a.ultima_fecha, hoyISO()) > DIAS_SIN_CLASE_RIESGO,
+  nuevos: a => alumnoActivo(a) && (a.num_practicas === 0 || (a.fecha_alta && diasEntre(a.fecha_alta, hoyISO()) <= DIAS_ALUMNO_NUEVO)),
+  todos: () => true
+};
+
+function cambiarTabAlumnos(tab) {
+  alumnosTab = tab;
+  renderAlumnosTabla();
+}
+
+function pintarTabsAlumnos() {
+  const nombres = { activos: 'En prácticas', examen: 'Con examen', riesgo: 'Sin clase', nuevos: 'Nuevos', todos: 'Todos' };
+  document.querySelectorAll('#alumnos-tabs button').forEach(btn => {
+    const t = btn.dataset.tab;
+    const n = alumnosCache.filter(PREDICADOS_TAB_ALUMNOS[t]).length;
+    btn.innerHTML = `${nombres[t]} <span class="seg-n">· ${n}</span>`;
+    btn.setAttribute('aria-pressed', t === alumnosTab ? 'true' : 'false');
+    if (t === 'riesgo') btn.title = `Alumnos en prácticas que llevan más de ${DIAS_SIN_CLASE_RIESGO} días sin dar clase`;
+  });
+  const resumen = document.getElementById('alumnos-resumen');
+  if (resumen) resumen.textContent = `${alumnosCache.filter(PREDICADOS_TAB_ALUMNOS.activos).length} en prácticas · ${alumnosCache.length} en total`;
+}
+
+// Pastilla de estado: lo más útil de un vistazo (en clase > final de ciclo > examen > nuevo > estado).
+function pillEstadoAlumno(a) {
+  const estado = a.estado || 'activo';
+  if (a.en_clase_ahora) return '<span class="pill pill-dark"><span class="pill-dot"></span>En clase ahora</span>';
+  if (estado === 'baja' || estado === 'no_apto') return `<span class="pill pill-err">${esc(ESTADO_ALUMNO_TEXTO[estado])}</span>`;
+  if (estado === 'apto' || estado === 'aprobado') return `<span class="pill pill-ok">${esc(ESTADO_ALUMNO_TEXTO[estado])}</span>`;
+  if (a.proximo_examen) return '<span class="pill pill-info"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>Examen programado</span>';
+  if (PREDICADOS_TAB_ALUMNOS.nuevos(a) && a.num_practicas === 0) return '<span class="pill pill-line">Nuevo</span>';
+  return `<span class="pill">${esc(ESTADO_ALUMNO_TEXTO[estado] || estado)}</span>`;
+}
+
+function celdaClasesAlumno(a) {
+  if (a.bono && a.bono.total > 0) {
+    const pct = Math.min(100, Math.round((a.bono.usadas / a.bono.total) * 100));
+    const pocas = a.bono.saldo <= 2;
+    const resto = pocas ? ` · <span class="bono-aviso">${a.bono.saldo === 0 ? 'agotado' : (a.bono.saldo === 1 ? 'queda 1' : 'quedan ' + a.bono.saldo)}</span>` : '';
+    return `<div class="bono" title="${esc(a.bono.nombre || 'Bono')}: ${a.bono.usadas} usadas de ${a.bono.total}"><div><b>${a.bono.usadas}</b> de ${a.bono.total}${resto}</div><div class="bono-barra${pocas ? ' bono-poco' : ''}"><span style="width:${pct}%"></span></div></div>`;
+  }
+  return `<div class="bono"><div><b>${a.num_practicas}</b> ${a.num_practicas === 1 ? 'clase' : 'clases'}</div></div>`;
+}
+
+const SVG_MINI = {
+  nota: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  euro: '<path d="M18 7.5A6.5 6.5 0 0 0 7 9.5v5A6.5 6.5 0 0 0 18 16.5"/><path d="M4 10.5h10M4 13.5h10"/>',
+  editar: '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>',
+  borrar: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+  ficha: '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>'
+};
+const svgMini = k => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG_MINI[k]}</svg>`;
+
 function renderAlumnosTabla() {
   const tbody = document.querySelector('#tabla-alumnos tbody');
   const nombreFiltro = (document.getElementById('f-alumnos-nombre')?.value || '').trim().toLowerCase();
@@ -153,8 +211,10 @@ function renderAlumnosTabla() {
   const permisoFiltro = document.getElementById('f-alumnos-permiso')?.value || '';
   const profesorFiltro = document.getElementById('f-alumnos-profesor')?.value || '';
   const estadoFiltro = document.getElementById('f-alumnos-estado')?.value || '';
+  pintarTabsAlumnos();
 
   let filtrados = alumnosCache.filter(a => {
+    if (!PREDICADOS_TAB_ALUMNOS[alumnosTab](a)) return false;
     // El texto de búsqueda también encuentra por DNI y teléfono, no solo nombre.
     if (nombreFiltro) {
       const nombreCompleto = [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ').toLowerCase();
@@ -182,6 +242,14 @@ function renderAlumnosTabla() {
   if (col) {
     filtrados = [...filtrados].sort((a, b) => {
       if (col === 'practicas') return (a.num_practicas - b.num_practicas) * dir;
+      if (col === 'km') return ((a.km_total || 0) - (b.km_total || 0)) * dir;
+      if (col === 'ultima') return ((a.ultima_fecha || '') < (b.ultima_fecha || '') ? -1 : (a.ultima_fecha || '') > (b.ultima_fecha || '') ? 1 : 0) * dir;
+      if (col === 'examen') {
+        // Con examen primero (el más cercano arriba); sin examen al final, por nombre.
+        const ea = a.proximo_examen ? a.proximo_examen.fecha : '9999-12-31';
+        const eb = b.proximo_examen ? b.proximo_examen.fecha : '9999-12-31';
+        return (ea.localeCompare(eb) || (a.nombre || '').localeCompare(b.nombre || '', 'es')) * dir;
+      }
       let va = '', vb = '';
       if (col === 'nombre') { va = a.nombre || ''; vb = b.nombre || ''; }
       else if (col === 'permiso') { va = a.permiso || ''; vb = b.permiso || ''; }
@@ -193,6 +261,10 @@ function renderAlumnosTabla() {
   }
   actualizarIndicadoresOrdenAlumnos();
 
+  const pie = document.getElementById('alumnos-pie');
+  const NOMBRE_ORDEN = { examen: 'próximo examen', nombre: 'nombre', practicas: 'clases', km: 'km', ultima: 'última práctica', profesor: 'profesor', estado: 'estado', permiso: 'permiso', vehiculo: 'vehículo' };
+  if (pie) pie.innerHTML = `<span>Mostrando ${filtrados.length} de ${alumnosCache.length} alumnos</span><span>${col ? 'Ordenado por ' + (NOMBRE_ORDEN[col] || col) : ''}</span>`;
+
   if (!alumnosCache.length) {
     tbody.innerHTML = '<tr><td colspan="9" class="empty">No hay alumnos registrados</td></tr>';
     return;
@@ -202,33 +274,52 @@ function renderAlumnosTabla() {
     return;
   }
 
+  const semTexto = { verde: 'Listo', ambar: 'Casi', rojo: 'Lejos' };
+  const guion = '<span style="color:var(--text-faint)">—</span>';
   tbody.innerHTML = filtrados.map(a => {
-    const tag = tagPermiso(a.permiso);
     const sem = semaforoCache.get(a.id);
-    const semTexto = { verde: 'Listo', ambar: 'Casi', rojo: 'Lejos' };
     const pillSemaforo = sem
       ? `<span class="semaforo-pill semaforo-${sem.nivel}" title="${esc(sem.motivo)}">${semTexto[sem.nivel] || sem.nivel}</span>`
-      : '<span style="color:var(--placeholder)">—</span>';
-    const estado = a.estado || 'activo';
-    const pillEstado = `<span class="estado-pill estado-${estado}">${ESTADO_ALUMNO_TEXTO[estado] || estado}</span>`;
+      : '';
     const otrosPermisos = (a.permisos || []).map(p => tagPermiso(p)).join(' ');
     const apellidos = [a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
     const nombreCompleto = apellidos ? `${a.nombre} ${apellidos}` : a.nombre;
+    const sub = [a.telefono ? esc(a.telefono) : '', a.fecha_alta ? 'Alta el ' + diaMes(a.fecha_alta) : ''].filter(Boolean).join(' · ');
+    const nombreArg = esc(a.nombre);
+    const examen = a.proximo_examen
+      ? `<div class="examen-fecha">${diaMes(a.proximo_examen.fecha)}</div>${pillSemaforo}`
+      : (pillSemaforo || guion);
+    const proxima = a.proxima_clase
+      ? `${esc(fechaRelativa(a.proxima_clase.fecha, a.proxima_clase.hora_inicio))}`
+      : guion;
     return `<tr>
-      <td><strong>${esc(nombreCompleto)}</strong></td>
-      <td>${a.telefono ? esc(a.telefono) : '<span style="color:var(--placeholder)">—</span>'}</td>
-      <td>${tag}${otrosPermisos ? ' ' + otrosPermisos : ''}</td>
-      <td>${a.vehiculo_nombre ? esc(a.vehiculo_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
-      <td>${a.profesor_nombre ? esc(a.profesor_nombre) : '<span style="color:var(--placeholder)">Sin asignar</span>'}</td>
-      <td><span style="font-weight:700">${a.num_practicas}</span></td>
-      <td>${pillSemaforo}</td>
-      <td>${pillEstado}</td>
       <td>
-        <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> Prácticas</button>
-        <button class="btn btn-sm" style="background:var(--warn-bg);color:var(--warn-fg);border:1px solid var(--warn-border)" onclick="verAnotaciones(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Anotaciones</button>
-        <button class="btn btn-gray btn-sm" onclick="abrirEconomiaAlumno(${a.id},'${esc(a.nombre)}')" title="Economía del alumno">💶 Economía</button>
-        <button class="btn btn-warn btn-sm" onclick="openEditAlumno(${a.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteAlumno(${a.id},'${esc(a.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
+        <div class="al-cell">
+          <span class="avatar-ini">${esc(iniciales(nombreCompleto))}</span>
+          <div class="al-datos">
+            <a class="al-nombre lnk" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${nombreArg}')" title="Abrir la ficha del alumno">${esc(nombreCompleto)}</a>
+            <div class="al-sub">${tagPermiso(a.permiso)}${otrosPermisos ? ' ' + otrosPermisos : ''}${sub ? ' <span>' + sub + '</span>' : ''}</div>
+          </div>
+        </div>
+      </td>
+      <td>${a.profesor_nombre ? esc(a.profesor_nombre) : '<span style="color:var(--text-faint)">Sin asignar</span>'}${a.vehiculo_matricula ? '<div class="al-sub">' + placaHTML(a.vehiculo_matricula) + '</div>' : (a.vehiculo_nombre ? '<div class="al-sub">' + esc(a.vehiculo_nombre) + '</div>' : '')}</td>
+      <td>${celdaClasesAlumno(a)}</td>
+      <td class="col-num num-mono">${a.km_total ? '<b>' + fmtMiles(a.km_total) + '</b>' : guion}</td>
+      <td>${a.ultima_fecha ? esc(fechaRelativa(a.ultima_fecha, a.ultima_hora)) : guion}</td>
+      <td>${proxima}</td>
+      <td>${examen}</td>
+      <td>${pillEstadoAlumno(a)}</td>
+      <td class="acciones-fila">
+        <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${nombreArg}')" title="Ficha del alumno: historial de prácticas y km">${svgMini('ficha')} Ficha</button>
+        <details class="menu-fila">
+          <summary class="btn btn-gray btn-sm btn-icon" title="Más acciones" aria-label="Más acciones"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
+          <div class="menu-fila-lista">
+            <button type="button" onclick="verAnotaciones(${a.id},'${nombreArg}')">${svgMini('nota')} Anotaciones</button>
+            <button type="button" onclick="abrirEconomiaAlumno(${a.id},'${nombreArg}')">${svgMini('euro')} Economía</button>
+            <button type="button" onclick="openEditAlumno(${a.id})">${svgMini('editar')} Editar</button>
+            <button type="button" class="menu-fila-borrar" onclick="deleteAlumno(${a.id},'${nombreArg}')">${svgMini('borrar')} Borrar</button>
+          </div>
+        </details>
       </td>
     </tr>`;
   }).join('');
@@ -322,7 +413,20 @@ async function addAlumno() {
   document.getElementById('a-fecha-fin').value = '';
   document.getElementById('a-resultado').value = '';
   marcarPermisosCheckboxes('a-permisos', []);
+  closeModal('modal-alumno-nuevo');
   loadAlumnos();
+}
+
+// El alta vive en un modal (botón "Nuevo alumno" de la cabecera).
+async function abrirNuevoAlumno() {
+  hideToast('alumno-alert');
+  await loadVehiculosSelect();
+  try { await llenarSelectProfesores('a-profesor'); } catch (e) {}
+  const alta = document.getElementById('a-fecha-alta');
+  if (alta && !alta.value) alta.value = hoyISO();
+  document.getElementById('a-estado').value = 'matriculado';
+  openModal('modal-alumno-nuevo');
+  setTimeout(() => document.getElementById('a-nombre')?.focus(), 60);
 }
 
 async function deleteAlumno(id, nombre) {

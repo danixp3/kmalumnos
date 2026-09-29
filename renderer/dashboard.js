@@ -23,12 +23,6 @@ const panelIcono = (k, w) => `<svg width="${w || 18}" height="${w || 18}" viewBo
 let panelCache = null;
 let panelVistaActual = 'grafico';
 
-const fmtMiles = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-const fmtDec = n => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(Number(n) || 0);
-const DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
-const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-const parteFecha = iso => { const [y, m, d] = iso.split('-').map(Number); return { y, m, d, dow: new Date(y, m - 1, d).getDay() }; };
-const fechaCorta = iso => { const f = parteFecha(iso); return `${DIAS_CORTOS[f.dow]} ${f.d} ${MESES_CORTOS[f.m - 1]}`; };
 
 function pintarCabeceraPanel() {
   const el = document.getElementById('panel-fecha');
@@ -201,11 +195,6 @@ function tablaSemanasPanel(p) {
 }
 
 // ── Ahora en ruta ────────────────────────────────────────────────────────────
-function placaHTML(matricula, grande) {
-  if (!matricula) return '';
-  return `<span class="placa${grande ? ' placa-lg' : ''}"><span class="placa-e" aria-hidden="true">E</span><span class="placa-num">${esc(matricula)}</span></span>`;
-}
-
 function pintarRutaPanel(p) {
   const lista = document.getElementById('panel-ruta-lista');
   const nota = document.getElementById('panel-ruta-nota');
