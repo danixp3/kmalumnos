@@ -4,7 +4,7 @@
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, withRetry, handleSupabaseError,
   COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_MOVIL, conFallbackColumnas, kmDePractica
-} from './_utils.js';
+} from '../../api/_utils.js';
 
 const fechaOk = f => typeof f === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f) && !isNaN(new Date(f).getTime());
 

@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError } from './_utils.js';
+import { setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError } from '../../api/_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);

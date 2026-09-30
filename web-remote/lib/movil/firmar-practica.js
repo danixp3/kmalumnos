@@ -5,7 +5,7 @@
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError,
   esErrorColumnaInexistente
-} from './_utils.js';
+} from '../../api/_utils.js';
 
 const MAX_FIRMA = 60000; // caracteres del data URL (una firma de 400x150 ronda los 4-8 mil)
 
