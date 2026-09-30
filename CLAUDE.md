@@ -7,14 +7,15 @@ Aplicación de escritorio (Windows) para una autoescuela: gestiona vehículos, a
 - **Escritorio:** Electron 33 (Node.js + Chromium), JavaScript vanilla, sin framework ni bundler. Instalador NSIS vía `electron-builder`, auto-update con `electron-updater` contra releases de GitHub (`danixp3/kmalumnos`).
 - **Datos locales:** `data.json` en `app.getPath('userData')` (fuente de verdad, offline-first). Cola de cambios pendientes en `pending_sync.json`.
 - **Backend remoto:** Supabase (PostgreSQL) — proyecto `dmwoqugdnwgkcqtixhyw`, tablas `vehiculos`, `alumnos`, `practicas` (+ `meta` para ping). Cliente `@supabase/supabase-js`; URL y anon key están hardcodeadas en `sync.js`.
-- **Web móvil:** `web-remote/` desplegada en Vercel (https://kmalumnos-remote.vercel.app). Serverless functions en `web-remote/api/`, login por PIN de 4 dígitos (env `API_PIN` en Vercel), token base64 válido 24 h.
+- **Web móvil:** `web-remote/` desplegada en Vercel (https://aulamovil.vercel.app). Serverless functions en `web-remote/api/`; login con Supabase Auth (cuenta de empresa, JWT reenviado a PostgREST → RLS). Rediseñada el 2026-09-29: flujo de clase Hoy → Iniciar → En curso → Km final → Firma.
 
 ## Estructura
 ```
 main.js       → proceso principal Electron: ventana, IPC handlers, auto-updater
 preload.js    → contextBridge, expone window.api al renderer
 index.html    → SPA (solo HTML), enlaza styles.css y los 21 <script> de renderer/
-styles.css    → CSS de la app de escritorio, incl. temas [data-theme="oscuro"/"negro"], paleta de gráficos
+styles.css    → CSS de la app de escritorio (sistema ámbar/tinta), temas [data-theme="oscuro"/"negro"], paleta de gráficos
+fonts/        → Barlow, Barlow Condensed, IBM Plex Mono (woff2 locales; también en web-remote/fonts/)
 renderer/     → UI (vanilla JS) dividida en 21 <script> clásicos (globales, no módulos ES),
                 cargados en orden fijo desde index.html; arranque.js SIEMPRE el último
   estado.js, utils-ui.js → estado, modales, esc/fmt/fmtFecha/tagPermiso, TEMA, toasts
@@ -51,6 +52,8 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 | Generar instalador Windows | `npm run dist` (sale en `dist/`) |
 | Desplegar web móvil | `cd web-remote && vercel --prod --yes` |
 | Tests | `npm test` (Jest; tests en `tests/`, mock de Electron en `tests/mocks/`) |
+| Tests de la API móvil | `npm run test:api` (Supabase falso en `web-remote/tests/`, sin red) |
+| Prueba de interfaz | `npm run smoke` (arranca la app real y recorre las 21 secciones) |
 
 ## Convenciones
 - Todo en español: nombres de funciones/variables de dominio (`getVehiculos`, `rellenarKmMasivo`), mensajes de UI y commits (`v1.X.X - descripción breve`).
@@ -61,7 +64,11 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-09-11. El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-09-30. El detalle histórico completo está en HISTORIAL.md._
+
+- **REDISEÑO COMPLETO escritorio + móvil (2026-09-29/30, SIN publicar — pendiente aprobación del propietario):** app con el nuevo sistema visual ámbar/tinta (Panel, Alumnos+Ficha, Prácticas, Vehículos rediseñados; resto de secciones heredan tokens) y `web-remote` reescrita con el flujo de clase del profesor (iniciar → cronómetro → km final → firma). "Práctica en curso" es implícita (`esPracticaEnCurso`, sin cambio de esquema). Jest 400 tests/45 suites + `test:api` 15 + smoke OK. Detalle en HISTORIAL.md; guías en `/mejorar-ui` (estilo-ui.md) y `/cambiar-web` (mapa-web.md).
+- **PENDIENTE del propietario (rediseño):** (1) aplicar en Supabase `migraciones/2026-09-29_practica_movil.sql` (columnas `firma`, `trabajado`, `tipo_detalle`, `hora_fin`; sin ella todo funciona menos guardar la firma → 501); (2) publicar release (versión sigue en 1.17.0) y desplegar la web (`/desplegar-web`). No implementado: foto del cuentakilómetros (no hay almacenamiento).
+- **Workflow (2026-09-29):** sin subagentes; `.claude/agents/` eliminado, todo lo hace el modelo/esfuerzo del prompt principal. Diseños originales en la rama `redesign-assets` (carpeta `REDESIGN/`).
 
 - **Apellidos en la lista de alumnos (2026-09-11, SIN publicar aún — pendiente release):** la columna "Nombre" de la lista principal ahora muestra nombre + primer/segundo apellido (`renderer/alumnos.js`, `renderAlumnosTabla`); el buscador de la lista también encuentra por apellidos. Aditivo, sin cambios de datos. Suite 372 tests en verde.
 - **Generación de km unificada (2026-09-11, SIN publicar aún — pendiente release):** nueva sección propia en el sidebar **"Generar km"** (`renderer/generar-km.js`, `#page-generar-km`) que reúne los métodos de generación con selector de vehículo compartido y 3 pestañas: (1) **Encadenado** (relleno masivo clásico hacia delante desde el odómetro, reusa `rellenarKmMasivo`); (2) **Hasta un máximo** — das el km final y la práctica en blanco más reciente acaba ahí, restando hacia atrás (`db.generarKmHastaMaximo`); (3) **Por rango [desde→hasta]** — reparte con la media del tramo + variación aleatoria ±, cuadrando el total en el km final (`db.generarKmPorRango`). Los modos máximo/rango **previsualizan** (`aplicar=false`) y guardan EXACTAMENTE lo mostrado con `db.aplicarPlanKm(vid, asignaciones)` (WYSIWYG, porque usan `Math.random`; solo escribe sobre prácticas que sigan en blanco). Aditivo: NO se tocaron el botón "Generar km" de la ficha del alumno ni el rango del import CSV. IPC `generar-km-hasta-maximo`/`generar-km-por-rango`/`aplicar-plan-km`. Suite **369 tests / 41 suites** en verde (+14, `tests/generar-km.test.js`) + `npm run smoke` OK (21 secciones).

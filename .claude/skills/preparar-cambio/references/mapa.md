@@ -48,7 +48,7 @@ La ventana de escritorio es `frame: false` (sin marco nativo): la barra de títu
 
 ## web-remote/ (Vercel, ES modules — la app usa `require`)
 
-`index.html` (SPA móvil) + `api/`: `_utils.js` (CORS, validación, auth, `getSupabase()` server-side con `SYNC_EMAIL`/`SYNC_PASSWORD`), `auth` (POST, PIN→token base64 24 h), `vehiculos`/`alumnos` (GET), `practica` (POST, crea con km=0,0), `crear-alumno` (POST), `historial` (GET últimas 24 h), `cancelar-practica` (POST, soft delete, solo `source='web-remote'`). Envs en Vercel: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `API_PIN`, `SYNC_EMAIL`, `SYNC_PASSWORD`. Tocar web-remote ⇒ desplegar con /desplegar-web.
+`index.html` (SPA móvil del profesor, rediseño 2026-09-29: Hoy → Iniciar → En curso → Km final → Firma; mapa fino en /cambiar-web) + `api/`: `_utils.js` (CORS, validación, `requireAuth` con JWT Bearer de Supabase Auth, `getSupabase(token)` → RLS por empresa, `conFallbackColumnas` para columnas de migraciones no aplicadas), `vehiculos`/`alumnos`/`hoy`/`historial`/`practicas-alumno`/`profesores`/`agenda-profesor` (GET), `practica` (POST clásico km=0,0), `iniciar-practica`/`finalizar-practica`/`firmar-practica` (POST, flujo en curso), `crear-alumno`, `cancelar-practica` (soft delete, solo `source='web-remote'`), `alumno-*` (portal del alumno). Envs en Vercel: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SYNC_EMAIL`, `SYNC_PASSWORD` (ya no hay PIN). Pruebas: `npm run test:api`. Tocar web-remote ⇒ desplegar con /desplegar-web.
 
 ## Checklist de invariantes (repasar SIEMPRE antes de codificar)
 

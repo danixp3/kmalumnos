@@ -5,7 +5,7 @@ description: Guía de desarrollo de la web móvil de KMAlumnos (web-remote) — 
 
 # Cambiar la web móvil
 
-Objetivo: hacer cambios en web-remote sin cargar archivos enteros (index.html tiene ~720 líneas) y sin redescubrir el patrón de la API cada vez.
+Objetivo: hacer cambios en web-remote sin cargar archivos enteros (index.html tiene ~1200 líneas: rediseño 2026-09-29) y sin redescubrir el patrón de la API cada vez.
 
 ## Flujo
 
@@ -15,7 +15,7 @@ Objetivo: hacer cambios en web-remote sin cargar archivos enteros (index.html ti
 
 3. **Repasar los invariantes web del mapa** (soft delete, `source`, UTC/24 h, `escapeHtml`, validadores). Vienen de bugs reales del proyecto.
 
-4. **Desplegar con /desplegar-web** (la web no tiene entorno local montado: los cambios se validan en producción, el deploy tarda segundos y es reversible).
+4. **Probar antes de desplegar:** `npm run test:api` (endpoints contra un Supabase falso, sin red) y, si se toca la SPA, abrir `index.html` con Playwright y Supabase/API simulados (ver el mapa). **Desplegar con /desplegar-web** solo con aprobación del propietario; el deploy tarda segundos y es reversible.
 
 5. **Verificar con el smoke test**:
    ```

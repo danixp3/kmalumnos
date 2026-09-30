@@ -128,58 +128,54 @@ Devuelve el último error de guardado (si lo hubo) para mostrar al usuario.
 
 ---
 
-## web-remote/ — Registro desde móvil
+## web-remote/ — Web móvil del profesor (rediseño 2026-09-29)
 
 ### URL
-https://kmalumnos-remote.vercel.app
+https://aulamovil.vercel.app (antes kmalumnos-remote.vercel.app)
+
+### Qué hace
+Flujo de una clase desde el móvil/tablet: **Hoy → Iniciar (alumno, coche, km del cuentakilómetros) → En curso (cronómetro, lo trabajado, observación) → Km final → Firma del alumno**. Además alumnos con ficha, alta de alumno e historial. Mapa completo del código en `.claude/skills/cambiar-web/references/mapa-web.md`.
 
 ### Autenticación
-- PIN de 4 dígitos configurado en Vercel (`API_PIN`)
-- Token válido 24 horas
-- Se guarda en localStorage
+Supabase Auth (email + contraseña de la cuenta de empresa, la misma que el escritorio). La SPA hace `signInWithPassword` y manda `Authorization: Bearer <access_token>` a cada `/api/*`; las funciones reenvían el token a PostgREST, así la RLS por `empresa_id` aplica. **Ya no hay PIN ni `API_PIN`.**
 
-### Endpoints API (Vercel Functions)
+### Endpoints API (Vercel Functions, todos con Bearer)
 
-| Endpoint | Método | Auth | Descripción |
-|----------|--------|------|-------------|
-| `/api/auth` | POST | ❌ | Login con PIN → devuelve token |
-| `/api/vehiculos` | GET | ✅ | Lista vehículos |
-| `/api/alumnos` | GET | ✅ | Lista alumnos |
-| `/api/practica` | POST | ✅ | Registrar práctica (km=0,0) |
-| `/api/crear-alumno` | POST | ✅ | Crear alumno nuevo |
-| `/api/historial` | GET | ✅ | Prácticas de últimas 24h desde web |
-| `/api/cancelar-practica` | POST | ✅ | Cancelar práctica (soft delete) |
+| Endpoint | Método | Descripción |
+|----------|--------|-------------|
+| `/api/vehiculos` | GET | Vehículos con km actual y última práctica cerrada |
+| `/api/alumnos` | GET | Alumnos con resumen |
+| `/api/hoy` | GET | Jornada del profesor: prácticas del día (en curso / firmada), sin cerrar, reservas |
+| `/api/iniciar-practica` | POST | Crea práctica con km inicial real y km final 0 (=en curso); 409 si el coche ya tiene una abierta |
+| `/api/finalizar-practica` | POST | Km final, lo trabajado, observación, hora fin |
+| `/api/firmar-practica` | POST | Guarda la firma del alumno (501 si falta la migración) |
+| `/api/practica` | POST | Registro clásico (km 0/0) |
+| `/api/crear-alumno`, `/api/cancelar-practica`, `/api/historial`, `/api/practicas-alumno`, `/api/profesores`, `/api/agenda-profesor` | — | Alta, cancelación (soft delete), últimas 24 h, ficha, profesores, agenda |
+| `/api/alumno-solicitar-codigo`, `/api/alumno-mis-datos`, `/api/alumno-solicitar-reserva` | — | Portal del alumno (`alumno.html`, OTP por email) |
+
+### Práctica en curso (sin columna nueva)
+`km_inicial>0 && km_final==0 && fecha==hoy` = en curso; fecha anterior = sin cerrar (`esPracticaEnCurso`/`esPracticaSinCerrar` en `db/core.js`). Columnas opcionales de `practicas` para el flujo móvil: `firma`, `trabajado` (jsonb), `tipo_detalle`, `hora_fin` — migración `migraciones/2026-09-29_practica_movil.sql` (**preparada, NO aplicada**); mientras no exista, sync y API degradan sin fallar (la firma devuelve 501).
 
 ### Archivos
 ```
 web-remote/
-├── index.html          → SPA con login, registro, historial
-├── api/
-│   ├── _utils.js       → CORS, validadores, auth helpers
-│   ├── auth.js         → Endpoint de login
-│   ├── vehiculos.js    → GET vehículos
-│   ├── alumnos.js      → GET alumnos
-│   ├── practica.js     → POST nueva práctica
-│   ├── crear-alumno.js → POST nuevo alumno
-│   ├── historial.js    → GET últimas 24h
-│   └── cancelar-practica.js → POST cancelar
-└── package.json
+├── index.html          → SPA (CSS+HTML+JS): login, Hoy, flujo de clase, alumnos, historial
+├── alumno.html, reset-password.html, email-confirmado.html
+├── fonts/              → Barlow, Barlow Condensed, IBM Plex Mono (woff2 locales)
+├── api/                → _utils.js + un archivo por endpoint (tabla de arriba)
+└── tests/              → Supabase falso + pruebas de API (`npm run test:api`)
 ```
 
 ### Seguridad implementada
-1. **Autenticación PIN**: Token base64 con timestamp, válido 24h
-2. **CORS restringido**: Solo permite `kmalumnos-remote.vercel.app` y `localhost`
-3. **Validación de entrada**: Todos los campos se validan (tipo, formato, rango)
-4. **Escape XSS**: `escapeHtml()` en el frontend
-5. **Soft delete**: Las prácticas se marcan `deleted=true`, no se borran
-6. **Campo source**: Identifica origen ('web-remote' vs 'desktop')
+1. **Auth Supabase** con JWT del usuario + RLS por empresa
+2. **CORS restringido** (producción + localhost)
+3. **Validación de entrada** en cada campo (`validators`, `hhmmValido`, `kmEntero`)
+4. **Escape XSS** con `esc()` en el frontend
+5. **Soft delete** (`deleted=true`), nunca DELETE real
+6. **Campo source** (`'web-remote'` vs `'desktop'`); solo se cancelan prácticas de la web
 
 ### Variables de entorno (Vercel)
-```
-SUPABASE_URL=https://dmwoqugdnwgkcqtixhyw.supabase.co
-SUPABASE_ANON_KEY=eyJ...
-API_PIN=2004
-```
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SYNC_EMAIL`, `SYNC_PASSWORD`
 
 ---
 
@@ -200,6 +196,8 @@ API_PIN=2004
 | `addAlumno` | `(nombre, permiso, vehiculo_id)` → id | Crea alumno |
 | `updateAlumno` | `(id, nombre, permiso, vehiculo_id)` | Edita alumno |
 | `deleteAlumno` | `(id)` | Borra alumno y todas sus prácticas |
+| `getAlumnosLista` | `(sucursalId, hoy)` | Lista de alumnos con todo lo que pinta la tabla del rediseño (progreso, bono, estado, semáforo) — IPC `get-alumnos-lista` |
+| `getFichaAlumno` | `(alumno_id, hoy)` | Todo lo de la nueva ficha en una llamada (cabecera, km por clase, calendario, próximas clases, observaciones) — IPC `get-ficha-alumno` |
 
 ### Prácticas
 | Función | Firma | Descripción |
@@ -209,6 +207,8 @@ API_PIN=2004
 | `addPractica` | `(alumno_id, vehiculo_id, fecha, km_inicial, km_final)` → id | Crea práctica |
 | `updatePractica` | `(id, fecha, km_inicial, km_final)` | Edita práctica |
 | `deletePractica` | `(id)` | Borra práctica |
+| `setNotaPractica` | `(id, nota)` | Guarda solo la observación (edición rápida desde Prácticas y la ficha) — IPC `set-nota-practica` |
+| `esPracticaEnCurso` / `esPracticaSinCerrar` | `(p)` | Estado implícito: km inicial > 0, km final 0 y fecha de hoy / de días anteriores (en `db/core.js`) |
 
 ### Algoritmos de KM
 | Función | Descripción |
@@ -219,6 +219,8 @@ API_PIN=2004
 | `getSolapamientos()` | Lista conflictos de km |
 | `validarSolapamiento(vid, fecha, ki, kf, excluirId)` | Valida antes de guardar |
 | `getResumen()` | Contadores globales + alertas |
+| `getPanel(hoy, sucursalId)` | Datos del Panel rediseñado: KPIs del día, prácticas por día, "ahora en ruta", avisos, próximos exámenes — IPC `get-panel` |
+| `getPanelVehiculos(hoy, sucursalId, duracionMin)` | Tarjetas de vehículos, línea de continuidad del cuentakilómetros y resumen del mes — IPC `get-panel-vehiculos` |
 | `getTimelineVehiculo(vid)` | Timeline visual del vehículo |
 
 ### CSV
@@ -365,7 +367,7 @@ vercel --prod --yes
 ### Variables de entorno necesarias en Vercel
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
-- `API_PIN` (4 dígitos para login)
+- `SYNC_EMAIL` / `SYNC_PASSWORD`
 
 ---
 
