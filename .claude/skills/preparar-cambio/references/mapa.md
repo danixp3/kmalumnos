@@ -40,7 +40,7 @@ Supabase (proyecto `dmwoqugdnwgkcqtixhyw`): tablas `vehiculos`, `alumnos`, `prac
 
 ## sync.js
 
-Auto-sync cada 2 min: sube pendientes de `pending_sync.json` → baja de la nube todo con `updated_at > lastSync`, en orden vehículos → alumnos → prácticas. Conflictos por `updated_at` (gana el más reciente; local más nuevo no se pisa). Funciones: `sync()`, `pushAll()` (sube todo, no adelanta `lastSync`), `markDirty(tabla,id)`, `markDeleted(tabla,id)`, `getStatus()` (`offline|syncing|ok|error|pending`), `startAutoSync/stopAutoSync/onStatusChange`. URL y anon key hardcodeadas; si hay credenciales de cuenta de sync (cifradas con `safeStorage` en `sync_creds.json`) autentica antes.
+Auto-sync cada 2 min: sube pendientes de `pending_sync.json` (solo sale de la cola lo que la nube confirma) → baja de la nube, por páginas, todo con `updated_at > lastSync` (inicio del sync anterior − 10 min), en orden vehículos → alumnos → prácticas. Ids ≥ 1e9 = creados en la web (rango propio). Detalle y reglas en `/cambiar-app` (sección sync.js). Conflictos por `updated_at` (gana el más reciente; local más nuevo no se pisa). Funciones: `sync()`, `pushAll()` (sube todo, no adelanta `lastSync`), `markDirty(tabla,id)`, `markDeleted(tabla,id)`, `getStatus()` (`offline|syncing|ok|error|pending`), `startAutoSync/stopAutoSync/onStatusChange`. URL y anon key hardcodeadas; si hay credenciales de cuenta de sync (cifradas con `safeStorage` en `sync_creds.json`) autentica antes.
 
 ## Ventana y preferencias de UI (localStorage)
 
@@ -58,6 +58,8 @@ La ventana de escritorio es `frame: false` (sin marco nativo): la barra de títu
 4. **Español en todo**: funciones de dominio, mensajes de UI, commits.
 5. Leer `data.json` con defensas (puede faltar o estar dañado); escribir siempre atómico (v1.3.10).
 6. Cambios de esquema en Supabase: por migración (`apply_migration`) y compatibles con las versiones de la app ya instaladas en los 2 PCs.
+7. **supabase-js no lanza ante un error** (RLS, FK, sesión caducada): devuelve `{ error }`. Todo `await sb.from(...)` que escribe debe comprobarlo; ignorarlo perdió registros en silencio hasta 2026-10-01.
+8. **PostgREST devuelve como mucho 1.000 filas**: listados sin límite natural → paginar (`_traerTodo` en sync.js, `traerTodo` en web-remote).
 
 ## Tests
 
