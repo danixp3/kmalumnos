@@ -19,6 +19,31 @@ export default async function handler(req, res) {
     .order('nombre'));
 
   if (handleSupabaseError(error, res, 'Error al obtener vehículos')) return;
+  const vehiculos = data || [];
 
-  res.json(data || []);
+  // Última práctica cerrada de cada coche (para comprobar que el km inicial de la
+  // siguiente encaja). Una sola consulta acotada; se reparte en memoria.
+  let ultimoPorVehiculo = {};
+  if (vehiculos.length) {
+    const { data: recientes, error: errR } = await withRetry(() => supabase
+      .from('practicas')
+      .select('vehiculo_id, alumno_id, fecha, hora_inicio, km_final, alumnos(nombre)')
+      .eq('deleted', false).eq('empresa_id', auth.empresaId)
+      .gt('km_final', 0)
+      .order('fecha', { ascending: false })
+      .order('km_final', { ascending: false })
+      .limit(400));
+    if (!errR) {
+      for (const p of recientes || []) {
+        if (!ultimoPorVehiculo[p.vehiculo_id]) {
+          ultimoPorVehiculo[p.vehiculo_id] = {
+            km_final: p.km_final, fecha: p.fecha, hora: p.hora_inicio || null,
+            alumno: p.alumnos ? p.alumnos.nombre : null
+          };
+        }
+      }
+    }
+  }
+
+  res.json(vehiculos.map(v => ({ ...v, ultimo: ultimoPorVehiculo[v.id] || null })));
 }

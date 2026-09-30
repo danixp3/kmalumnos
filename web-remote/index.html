@@ -2,1256 +2,1196 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta property="og:title" content="AulaMovil Web">
-<meta property="og:description" content="Registrar prácticas de autoescuela">
-<meta name="theme-color" content="#f6f7f9">
+<meta property="og:title" content="AulaMovil">
+<meta property="og:description" content="Prácticas de autoescuela desde el móvil">
+<meta name="theme-color" content="#F3F2EE" id="meta-theme">
 <link rel="icon" href="/logo.png">
-<title>AulaMovil Web</title>
+<title>AulaMovil</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  /* ── FUENTES (locales, funcionan sin conexión) ── */
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:400;font-display:swap;src:url('fonts/barlow-400-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:400;font-display:swap;src:url('fonts/barlow-400-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/barlow-500-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/barlow-500-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:600;font-display:swap;src:url('fonts/barlow-600-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:600;font-display:swap;src:url('fonts/barlow-600-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/barlow-700-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/barlow-700-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:600;font-display:swap;src:url('fonts/barlow-condensed-600-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:600;font-display:swap;src:url('fonts/barlow-condensed-600-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/barlow-condensed-700-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/barlow-condensed-700-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/ibm-plex-mono-500-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/ibm-plex-mono-500-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:600;font-display:swap;src:url('fonts/ibm-plex-mono-600-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:600;font-display:swap;src:url('fonts/ibm-plex-mono-600-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
 
-  /* ── TOKENS (mismo sistema que el escritorio, adaptado a táctil) ── */
+  /* ── TOKENS (mismo sistema visual que la app de escritorio) ── */
   :root {
-    --primary: #4f46e5;
-    --primary-dark: #4338ca;
-    --primary-light: #eef2ff;
-    --success: #10b981;
-    --success-light: #d1fae5;
-    --danger: #ef4444;
-    --danger-light: #fee2e2;
-    --warn: #f59e0b;
-    --warn-light: #fef3c7;
-    --text: #101828;
-    --text-muted: #667085;
-    --border: #e3e6ee;
-    --bg: #f6f7f9;
-    --card: #ffffff;
-    --card-border: #e3e6ee;
-    --radius: 16px;
-    --shadow: 0 1px 2px rgba(16,24,40,.05);
-    --shadow-md: 0 6px 20px rgba(16,24,40,.09), 0 1px 2px rgba(16,24,40,.05);
+    --ink: #14161B; --bg: #F3F2EE; --card: #FFFFFF; --line: #E3E1DB; --line-2: #D6D3CC; --soft: #EEECE7;
+    --muted: #5E6068; --muted-2: #3A3D45; --faint: #6B6E76;
+    --amber: #FFB81C; --amber-strong: #E09A00; --amber-ink: #8A5800; --amber-soft: #FFF3D1;
+    --ok: #1D6B4F; --ok-soft: #E2F1E9; --err: #B42318; --err-soft: #FDECEA; --info: #1E4FB8; --info-soft: #E7EDFB;
+    --font: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    --tab-h: 68px;
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { background: var(--bg); }
+  body { font-family: var(--font); background: var(--bg); color: var(--ink); min-height: 100dvh; -webkit-font-smoothing: antialiased; overscroll-behavior-y: none; font-size: 16px; line-height: 1.35; }
+  body.oscuro { background: var(--ink); color: #F3F2EE; }
+  button { font-family: inherit; color: inherit; cursor: pointer; }
+  input, select, textarea { font-family: inherit; font-size: 16px; color: var(--ink); }
+  [hidden] { display: none !important; }
+  .mono { font-family: var(--font-mono); font-weight: 500; }
+  svg.ic { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 
-  body {
-    font-family: 'Inter', -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100dvh;
-    padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 16px);
-    padding-top: max(env(safe-area-inset-top), 24px);
-    overflow-x: hidden;
-    position: relative;
-    -webkit-font-smoothing: antialiased;
+  /* ── PANTALLAS DE ACCESO ── */
+  .acceso { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 20px; gap: 22px; }
+  .acceso-marca { display: flex; align-items: center; gap: 12px; }
+  .acceso-marca .logo { width: 52px; height: 52px; border-radius: 14px; background: #fff; padding: 4px; box-shadow: 0 0 0 3px var(--amber); }
+  .acceso-marca .logo img { width: 100%; height: 100%; object-fit: contain; }
+  .acceso-marca h1 { font-family: var(--font-display); font-size: 34px; font-weight: 700; line-height: 1; }
+  .acceso h2 { font-family: var(--font-display); font-size: 30px; font-weight: 700; }
+  .acceso-sub { color: var(--muted); font-size: 16px; text-align: center; }
+  .acceso-card { width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .campo { width: 100%; height: 52px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: 12px; background: #fff; outline: none; }
+  .campo:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(20,22,27,.12); }
+  textarea.campo { height: auto; min-height: 92px; padding: 12px 14px; resize: vertical; }
+  .err-txt { color: var(--err); font-size: 14px; min-height: 18px; font-weight: 600; }
+  .perfil-op { width: 100%; max-width: 360px; display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; font-size: 18px; font-weight: 600; text-align: left; }
+  .perfil-op:active { background: var(--soft); }
+  .perfil-op .chev { margin-left: auto; color: var(--faint); }
+
+  /* ── BOTONES ── */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 52px; padding: 0 20px; border-radius: 14px; border: 1px solid transparent; font-size: 17px; font-weight: 700; width: 100%; }
+  .btn-pri { background: var(--amber); color: var(--ink); }
+  .btn-pri:active { background: var(--amber-strong); }
+  .btn-pri[disabled] { background: var(--soft); color: #8C8F97; cursor: default; }
+  .btn-sec { background: #fff; border-color: var(--line-2); color: var(--ink); }
+  .btn-osc { background: var(--ink); color: #fff; }
+  .btn-peq { height: 40px; width: auto; padding: 0 14px; font-size: 15px; border-radius: 10px; }
+  .btn-lg { height: 60px; font-size: 19px; border-radius: 16px; }
+  .lnk { background: none; border: none; text-decoration: underline; text-underline-offset: 3px; font-weight: 600; font-size: 15px; padding: 6px 2px; }
+  .lnk-suave { color: var(--muted); font-weight: 500; }
+
+  /* ── VISTAS ── */
+  #app { min-height: 100dvh; }
+  .vista { display: none; padding: max(16px, env(safe-area-inset-top)) 16px calc(var(--tab-h) + 28px + env(safe-area-inset-bottom)); max-width: 560px; margin: 0 auto; animation: entra .22s ease; }
+  .vista.on { display: block; }
+  .vista.sin-tab { padding-bottom: calc(120px + env(safe-area-inset-bottom)); }
+  @keyframes entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .cab-tit { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .cab-tit h1 { font-family: var(--font-display); font-size: 32px; font-weight: 700; line-height: 1; }
+  .cab-atras { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; background: none; border: none; flex-shrink: 0; }
+  .fecha-lin { font-size: 15px; color: var(--muted); font-weight: 500; display: flex; align-items: center; gap: 4px; }
+  .fecha-lin button { background: none; border: none; color: var(--muted); padding: 2px 4px; display: inline-flex; }
+  .grande { font-family: var(--font-display); font-size: 44px; font-weight: 700; line-height: 1; }
+  .avatar { width: 44px; height: 44px; border-radius: 999px; background: var(--ink); color: var(--amber); border: none; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 19px; font-weight: 700; flex-shrink: 0; }
+  .ini { width: 44px; height: 44px; border-radius: 999px; background: var(--soft); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 18px; font-weight: 700; flex-shrink: 0; }
+  .ini-lg { width: 62px; height: 62px; background: var(--amber); font-size: 26px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; }
+  .card-pad { padding: 14px 16px; }
+  .fila { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--soft); background: none; border-left: none; border-right: none; border-bottom: none; width: 100%; text-align: left; }
+  .fila:first-child { border-top: none; }
+  .fila-sub { font-size: 14px; color: var(--muted); }
+  .fila-sub.mono { font-size: 13.5px; }
+  .fila-tit { font-size: 16.5px; font-weight: 600; }
+  .fila-hora { font-family: var(--font-mono); font-size: 15px; color: var(--muted); width: 50px; flex-shrink: 0; }
+  .grupo-tit { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 20px 2px 8px; display: flex; justify-content: space-between; align-items: baseline; }
+  .grupo-tit a, .grupo-tit button { background: none; border: none; font-size: 14px; font-weight: 600; text-transform: none; letter-spacing: 0; text-decoration: underline; text-underline-offset: 3px; color: var(--ink); }
+
+  /* placa */
+  .placa { display: inline-flex; align-items: stretch; height: 24px; border: 1.5px solid var(--ink); border-radius: 4px; overflow: hidden; background: #fff; color: var(--ink); flex-shrink: 0; vertical-align: middle; }
+  .placa-e { width: 11px; padding-bottom: 2px; background: #1D3F9E; color: #fff; font-size: 7px; font-weight: 700; display: flex; align-items: flex-end; justify-content: center; }
+  .placa-n { padding: 0 7px; display: flex; align-items: center; font-family: var(--font-mono); font-size: 13px; font-weight: 600; letter-spacing: .04em; white-space: nowrap; }
+
+  /* pastillas */
+  .pill { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--soft); color: var(--muted-2); white-space: nowrap; }
+  .pill-ok { background: var(--ok-soft); color: var(--ok); }
+  .pill-warn { background: var(--amber-soft); color: var(--amber-ink); }
+  .pill-err { background: var(--err-soft); color: var(--err); }
+  .pill-info { background: var(--info-soft); color: var(--info); }
+  .pill-dark { background: var(--ink); color: #fff; }
+  .pill-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--amber); }
+
+  /* barra de progreso segmentada */
+  .segs { display: flex; gap: 5px; margin: 8px 0 4px; }
+  .segs i { flex: 1; height: 7px; border-radius: 999px; background: var(--line-2); }
+  .segs i.hecha { background: var(--ink); }
+  .segs i.curso { background: var(--amber); }
+  .prog-lin { display: flex; justify-content: space-between; align-items: baseline; font-size: 16px; font-weight: 600; }
+  .prog-lin b { font-family: var(--font-mono); font-weight: 600; }
+
+  /* tarjeta AHORA */
+  .ahora { background: var(--ink); color: #F3F2EE; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .ahora-cab { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 15px; color: #C9CBD1; }
+  .ahora-et { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font); font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--amber); }
+  .ahora-quien { display: flex; align-items: center; gap: 12px; }
+  .ahora-quien .ini { background: #2A2D35; color: #F3F2EE; width: 50px; height: 50px; }
+  .ahora-nom { font-family: var(--font-display); font-size: 26px; font-weight: 700; line-height: 1.05; }
+  .ahora-sub { font-size: 15px; color: #A3A6AE; }
+
+  /* vehículo actual */
+  .veh-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+  .veh-ic { width: 44px; height: 44px; border-radius: 12px; background: var(--soft); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  /* ── INICIAR PRÁCTICA ── */
+  .odo-wrap { position: relative; }
+  .odo { display: flex; align-items: center; gap: 12px; }
+  .odo-cajas { display: flex; gap: 6px; padding: 8px; background: #1E2027; border-radius: 14px; }
+  .odo-cajas span { width: 40px; height: 58px; border-radius: 8px; background: #2B2E36; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 34px; font-weight: 600; }
+  .odo-cajas span.cero { color: #5A5E68; }
+  .odo-km { font-family: var(--font-display); font-size: 28px; font-weight: 700; }
+  .odo-input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; font-size: 16px; }
+  .msg { display: flex; gap: 8px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; font-size: 15px; margin-top: 12px; }
+  .msg-ok { background: var(--ok-soft); color: var(--ok); }
+  .msg-warn { background: var(--amber-soft); color: var(--amber-ink); }
+  .msg-err { background: var(--err-soft); color: var(--err); }
+  .msg-gris { background: var(--soft); color: var(--muted-2); }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip { height: 48px; padding: 0 18px; border-radius: 999px; border: 1.5px solid var(--line-2); background: #fff; font-size: 16.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+  .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .chips-osc .chip { background: transparent; border-color: #4A4E58; color: #F3F2EE; }
+  .chips-osc .chip.on { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+  .seg3 { display: flex; padding: 4px; background: var(--soft); border-radius: 14px; gap: 2px; }
+  .seg3 button { flex: 1; height: 44px; border: none; border-radius: 10px; background: transparent; font-size: 16.5px; font-weight: 600; color: var(--muted-2); }
+  .seg3 button.on { background: #fff; color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(20,22,27,.16); }
+  .etq { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 2px 8px; display: flex; justify-content: space-between; align-items: baseline; }
+  .etq small { font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .barra-fija { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, rgba(243,242,238,0)); z-index: 20; }
+  .barra-fija > * { max-width: 528px; margin: 0 auto; }
+  body.oscuro .barra-fija { background: linear-gradient(to top, var(--ink) 70%, rgba(20,22,27,0)); }
+
+  /* ── EN CURSO (oscura) ── */
+  .curso-et { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 999px; background: #2B2417; color: var(--amber); font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+  .crono { font-family: var(--font-display); font-size: 116px; font-weight: 700; line-height: .95; letter-spacing: -.01em; display: flex; align-items: baseline; gap: 10px; margin: 18px 0 8px; }
+  .crono small { font-size: 34px; color: #A3A6AE; font-weight: 600; }
+  .crono.pasado { color: var(--amber); }
+  .barra-tiempo { height: 8px; border-radius: 999px; background: #2B2E36; overflow: hidden; }
+  .barra-tiempo i { display: block; height: 100%; background: var(--amber); border-radius: 999px; transition: width 1s linear; }
+  .curso-horas { display: flex; justify-content: space-between; font-size: 15px; color: #A3A6AE; margin-top: 8px; }
+  .curso-horas b { color: #F3F2EE; font-family: var(--font-mono); font-weight: 600; }
+  .mini2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .mini { background: #1E2027; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .mini .etq2 { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; color: #A3A6AE; }
+  .mini .val { font-family: var(--font-mono); font-size: 24px; font-weight: 600; }
+  .dash-btn { width: 100%; height: 52px; border-radius: 14px; border: 1.5px dashed #4A4E58; background: transparent; color: #F3F2EE; font-size: 16.5px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; }
+  .obs-area { width: 100%; margin-top: 16px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid #4A4E58; background: #1E2027; color: #F3F2EE; min-height: 96px; font-size: 16px; }
+
+  /* ── TECLADO KM FINAL ── */
+  .teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+  .teclado button { height: 58px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-size: 26px; font-weight: 600; font-family: var(--font); }
+  .teclado button.f { background: var(--soft); font-size: 16px; }
+  .teclado button:active { background: var(--soft); }
+  .dos-col { display: grid; grid-template-columns: 1fr 1.05fr; gap: 10px; margin-top: 12px; }
+  .stat-box { background: var(--soft); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+  .stat-box.osc { background: var(--ink); color: #fff; }
+  .stat-box .etq2 { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .stat-box.osc .etq2 { color: #A3A6AE; }
+  .stat-box .val { font-family: var(--font-mono); font-size: 24px; font-weight: 600; }
+  .stat-box.osc .val { color: var(--amber); }
+
+  /* ── FIRMA ── */
+  .rev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; padding: 16px; }
+  .rev-grid .etq2 { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .rev-grid .val { font-size: 18px; font-weight: 600; margin-top: 2px; }
+  .rev-grid .val.mono { font-size: 17px; }
+  .firma-caja { position: relative; height: 230px; border: 2px dashed var(--line-2); border-radius: 18px; background: #fff; touch-action: none; overflow: hidden; }
+  .firma-caja canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  .firma-guia { position: absolute; left: 16px; right: 16px; bottom: 44px; border-bottom: 1.5px solid var(--line-2); pointer-events: none; }
+  .firma-guia span { position: absolute; left: 0; bottom: 4px; color: var(--faint); font-size: 22px; }
+  .firma-ayuda { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 18px; pointer-events: none; }
+  .aviso-entrega { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--amber-ink); }
+
+  /* ── ALUMNOS / FICHA ── */
+  .buscar { position: relative; margin-bottom: 12px; }
+  .buscar svg { position: absolute; left: 14px; top: 15px; color: var(--muted); }
+  .buscar input { padding-left: 42px; }
+  .fila-alumno { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--soft); width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; }
+  .fila-alumno:first-child { border-top: none; }
+  .fila-alumno .fila-tit { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tres { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .tres .stat-box { padding: 12px; }
+  .tres .val { font-family: var(--font-display); font-size: 34px; font-weight: 700; line-height: 1; }
+  .tres .stat-box .etq2 { text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; }
+  .tres .stat-box.osc .etq2 { color: #C9CBD1; }
+  .tres .stat-box.osc .val { color: #fff; }
+  .cal { padding: 14px; }
+  .cal-cab { display: flex; align-items: center; justify-content: space-between; }
+  .cal-cab b { font-family: var(--font-display); font-size: 21px; }
+  .cal-cab button { width: 40px; height: 40px; border-radius: 10px; border: none; background: var(--soft); display: inline-flex; align-items: center; justify-content: center; }
+  .cal-sem, .cal-dias { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-top: 8px; row-gap: 6px; }
+  .cal-sem span { font-size: 13px; font-weight: 700; color: var(--muted); }
+  .cal-dias span { width: 34px; height: 34px; line-height: 34px; margin: 0 auto; border-radius: 999px; font-size: 15px; color: var(--muted-2); }
+  .cal-dias span.hecha { background: var(--ink); color: #fff; font-weight: 700; }
+  .cal-dias span.hoy { box-shadow: 0 0 0 2px var(--amber); }
+  .cal-dias span.prox { box-shadow: inset 0 0 0 1.5px var(--ink); font-weight: 700; color: var(--ink); }
+  .leyenda { display: flex; gap: 14px; font-size: 13.5px; color: var(--muted); margin-top: 10px; align-items: center; }
+  .leyenda i { width: 10px; height: 10px; border-radius: 999px; display: inline-block; margin-right: 5px; }
+
+  /* ── HOJAS / TOAST ── */
+  .fondo { position: fixed; inset: 0; background: rgba(20,22,27,.5); z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
+  .hoja { width: 100%; max-width: 560px; max-height: 84dvh; background: var(--bg); border-radius: 22px 22px 0 0; padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; animation: sube .22s ease; }
+  @keyframes sube { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+  .hoja-tit { display: flex; align-items: center; justify-content: space-between; }
+  .hoja-tit h3 { font-family: var(--font-display); font-size: 26px; font-weight: 700; }
+  .hoja-lista { overflow-y: auto; border-radius: 16px; }
+  #toast { position: fixed; left: 50%; bottom: calc(var(--tab-h) + 22px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 999px; font-size: 15.5px; font-weight: 600; z-index: 80; max-width: 90vw; text-align: center; box-shadow: 0 8px 24px rgba(20,22,27,.3); }
+  body.oscuro #toast { bottom: 96px; background: #F3F2EE; color: var(--ink); }
+  .vacio { text-align: center; color: var(--muted); padding: 26px 14px; font-size: 16px; }
+  .vacio small { display: block; margin-top: 4px; color: var(--faint); font-size: 14px; }
+  .cargando { text-align: center; color: var(--muted); padding: 24px; }
+
+  /* ── BARRA INFERIOR ── */
+  #tabbar { position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--tab-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: #fff; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1.2fr 1fr; z-index: 30; }
+  #tabbar button { background: none; border: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  #tabbar button.on { color: var(--ink); font-weight: 700; }
+  #tabbar .mas { position: relative; }
+  #tabbar .mas .circ { width: 60px; height: 60px; border-radius: 999px; background: var(--amber); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; margin-top: -30px; box-shadow: 0 6px 16px rgba(224,154,0,.4), 0 0 0 5px #fff; }
+  #tabbar .mas span.tx { color: var(--ink); font-weight: 700; }
+
+  /* ── TABLET (≥ 900px): jornada a la izquierda, trabajo a la derecha ── */
+  #riel { display: none; }
+  @media (min-width: 900px) {
+    #app.on-app { display: grid; grid-template-columns: 340px minmax(0, 1fr); }
+    #riel { display: flex; flex-direction: column; background: #fff; border-right: 1px solid var(--line); height: 100dvh; position: sticky; top: 0; overflow-y: auto; }
+    #riel .riel-cab { padding: 22px 20px 12px; }
+    #riel .riel-lista { flex: 1; }
+    #riel .riel-pie { padding: 14px 20px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; font-size: 15px; color: var(--muted); }
+    .riel-fila { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border: none; background: none; width: 100%; text-align: left; border-radius: 0; }
+    .riel-fila.activa { background: var(--amber-soft); border-radius: 14px; margin: 0 8px; width: calc(100% - 16px); padding-left: 12px; }
+    .vista { max-width: 760px; padding-bottom: 40px; }
+    #tabbar { left: 340px; }
+    .vista.sin-tab { padding-bottom: 130px; }
+    .barra-fija { left: 340px; }
+    .barra-fija > * { max-width: 728px; }
+    .firma-caja { height: 300px; }
+    #v-hoy .solo-movil { display: none; }
   }
-
-  /* ── HEADER / MARCA ── */
-  .header { text-align: center; margin-bottom: 26px; padding-top: 12px; animation: slideDown 0.5s ease-out; }
-  @keyframes slideDown { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
-
-  .logo-mark {
-    width: 52px; height: 52px; margin: 0 auto 12px; border-radius: 14px;
-    display: flex; align-items: center; justify-content: center;
-  }
-
-  h1 {
-    font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--text);
-  }
-
-  .subtitle { font-size: 13px; color: var(--text-muted); margin-top: 5px; font-weight: 500; }
-  .version {
-    display: inline-block; margin-top: 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .4px;
-    color: #4338ca; background: #e0e7ff; border: 1px solid rgba(67,56,202,.15);
-    padding: 3px 10px; border-radius: 99px;
-  }
-
-  /* ── CARDS ── */
-  .card {
-    background: var(--card);
-    border-radius: var(--radius); padding: 22px;
-    box-shadow: var(--shadow);
-    margin-bottom: 20px; border: 1px solid var(--border);
-    animation: slideUp 0.4s ease-out 0.05s both; position: relative;
-  }
-
-  @keyframes slideUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-
-  /* ── FORMS ── */
-  label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.6px; margin-bottom: 10px; text-transform: uppercase; }
-
-  select, input[type="date"], input[type="text"], input[type="password"], input[type="email"] {
-    width: 100%; padding: 13px 15px; border: 1px solid var(--border); border-radius: 12px;
-    font-size: 16px; font-family: inherit; color: var(--text); background: #fff;
-    outline: none; -webkit-appearance: none; appearance: none; transition: all .15s ease;
-    box-shadow: 0 1px 2px rgba(16,24,40,.04);
-  }
-
-  select:focus, input[type="date"]:focus, input[type="text"]:focus, input[type="password"]:focus, input[type="email"]:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(79,70,229,.14);
-  }
-
-  input::placeholder { color: #b6bccb; }
-  .select-wrap { position: relative; }
-  .select-wrap::after { content: '▾'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; font-size: 14px; }
-
-  /* ── BUTTONS ── */
-  .btn {
-    width: 100%; padding: 15px; border: none; border-radius: 13px; font-size: 16px; font-weight: 700;
-    font-family: inherit; cursor: pointer; transition: all .15s ease;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    letter-spacing: -0.2px; position: relative;
-  }
-
-  .btn-primary {
-    background: var(--primary); color: #fff;
-    box-shadow: 0 2px 8px rgba(79,70,229,.3);
-  }
-  .btn-primary:hover { background: var(--primary-dark); }
-  .btn-primary:active { transform: scale(0.98); filter: brightness(.95); }
-  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
-
-  .btn-secondary {
-    background: #fff; color: var(--primary); border: 1.5px solid var(--border);
-    box-shadow: 0 1px 2px rgba(16,24,40,.04); margin-top: 12px;
-  }
-  .btn-secondary:hover { background: var(--primary-light); border-color: var(--primary); }
-
-  .btn-danger {
-    background: var(--danger-light); color: #b91c1c; border: 1.5px solid rgba(239,68,68,.25);
-    font-size: 14px; padding: 10px 16px; width: auto; box-shadow: none;
-  }
-  .btn-danger:hover { background: #fecaca; }
-
-  .result {
-    display: none; border-radius: var(--radius); padding: 26px 22px; text-align: center;
-    margin-top: 16px; animation: popIn 0.35s cubic-bezier(.17,.67,.35,1.5);
-    position: relative; z-index: 10;
-  }
-
-  .result.err { cursor: pointer; }
-
-  @keyframes popIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
-
-  .result.ok { display: block; background: var(--success-light); border: 1.5px solid #a7f3d0; box-shadow: var(--shadow); }
-  .result.err { display: block; background: var(--danger-light); border: 1.5px solid #fecaca; box-shadow: var(--shadow); }
-
-  .result-icon { margin-bottom: 12px; display: flex; align-items: center; justify-content: center; animation: bounceIn 0.4s ease 0.15s both; }
-  @keyframes bounceIn { 0% { transform: scale(0); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
-
-  .result-title { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
-  .result.ok .result-title { color: #059669; }
-  .result.err .result-title { color: #dc2626; }
-  .result.ok .result-icon { color: #059669; }
-  .result.err .result-icon { color: #dc2626; }
-
-  .result-msg { font-size: 14px; color: var(--text-muted); line-height: 1.6; white-space: pre-line; }
-
-  .btn-again {
-    margin-top: 20px; width: 100%; padding: 13px; border: 1.5px solid var(--border);
-    border-radius: 13px; font-size: 15px; font-weight: 600; font-family: inherit;
-    background: #fff; color: var(--primary); cursor: pointer; transition: all .15s;
-  }
-  .btn-again:hover { background: var(--primary-light); border-color: var(--primary); }
-
-  .loading-dots span { display: inline-block; animation: bounce .6s infinite; font-size: 24px; }
-  .loading-dots span:nth-child(2) { animation-delay: .1s; }
-  .loading-dots span:nth-child(3) { animation-delay: .2s; }
-  @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
-
-  .field-gap { margin-bottom: 20px; }
-  .field-gap:last-child { margin-bottom: 0; }
-
-  .alumno-info {
-    display: none; margin-top: 12px; padding: 12px 16px; background: var(--primary-light);
-    border-radius: 12px; font-size: 13px; color: var(--text-muted); border: 1px solid rgba(79,70,229,.12);
-    animation: fadeIn 0.25s ease;
-  }
-
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-  /* ── BADGES ── */
-  .tag {
-    display: inline-block; padding: 3px 10px; border-radius: 7px; font-size: 12px; font-weight: 700;
-    background: #e0e7ff; color: #4338ca; margin-left: 6px; border: 1px solid rgba(67,56,202,.12);
-  }
-
-  .btn-ver-practicas {
-    display: inline-block; width: auto; margin-top: 8px; padding: 6px 14px;
-    border: 1px solid var(--border); border-radius: 10px; font-size: 12px; font-weight: 700;
-    font-family: inherit; color: var(--primary); background: #fff;
-    cursor: pointer; transition: all .15s ease;
-  }
-  .btn-ver-practicas:hover { background: var(--primary-light); border-color: var(--primary); }
-
-  .sparkles { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; overflow: hidden; }
-  .sparkle { position: absolute; width: 5px; height: 5px; border-radius: 50%; animation: sparkle 1.4s ease-out forwards; }
-  @keyframes sparkle { 0% { transform: scale(0) translateY(0); opacity: 1; } 100% { transform: scale(1) translateY(-60px); opacity: 0; } }
-
-  /* Tabs (control segmentado con indicador deslizante — estilo SmoothTab) */
-  .tabs {
-    position: relative;
-    display: flex; gap: 4px; margin-bottom: 20px; animation: slideUp 0.4s ease-out 0.03s both;
-    background: #eef0f4; border: 1px solid var(--border);
-    border-radius: 13px; padding: 4px;
-  }
-  /* Fondo "pill" que se desliza a la pestaña activa con efecto muelle */
-  .tab-indicator {
-    position: absolute; top: 4px; bottom: 4px; left: 0; width: 0;
-    background: var(--primary); border-radius: 9px;
-    box-shadow: 0 2px 8px rgba(79,70,229,.3);
-    opacity: 0; z-index: 1; pointer-events: none;
-    transition: transform .45s cubic-bezier(.34,1.4,.5,1),
-                width .45s cubic-bezier(.34,1.4,.5,1),
-                opacity .2s ease;
-    will-change: transform, width;
-  }
-  .tab {
-    position: relative; z-index: 2;
-    flex: 1; min-width: 70px; padding: 10px 6px; border: none; border-radius: 9px;
-    font-size: 13px; font-weight: 600; font-family: inherit; color: var(--text-muted);
-    background: transparent; cursor: pointer; transition: color .25s ease; text-align: center;
-  }
-  .tab.active { color: #fff; }
-  .tab:hover:not(.active) { color: var(--text); }
-
-  .section { display: none; }
-  .section.active { display: block; }
-
-  .badge-vehiculo {
-    display: inline-block; padding: 4px 12px; border-radius: 9px; font-size: 11px; font-weight: 700;
-    background: #f3e8ff; color: #6b21a8; border: 1px solid rgba(107,33,168,.15);
-    margin-top: 4px;
-  }
-
-  /* Login screen */
-  #login-screen, #profile-screen {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: var(--bg); z-index: 1000;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 24px; overflow-y: auto;
-  }
-  #login-screen.hidden { display: none; }
-  .login-error { color: var(--danger); font-size: 14px; margin-top: 12px; min-height: 20px; }
-
-  /* Historial */
-  .historial-item {
-    background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow);
-    padding: 15px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px;
-  }
-  .historial-info { flex: 1; }
-  .historial-nombre { font-weight: 700; font-size: 15px; color: var(--text); }
-  .historial-fecha { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-  .historial-empty { text-align: center; color: var(--text-muted); padding: 40px 20px; }
-
-  /* Logout button */
-  .logout-btn {
-    position: fixed; top: 14px; right: 14px; z-index: 101;
-    background: #fff;
-    border: 1px solid var(--border); border-radius: 99px; box-shadow: var(--shadow);
-    padding: 6px 14px; font-size: 12px; font-weight: 600; font-family: inherit;
-    color: var(--text-muted); cursor: pointer;
-  }
-  .logout-btn:hover { background: var(--danger-light); color: #b91c1c; border-color: rgba(239,68,68,.3); }
-
-  /* Tarjeta de perfil de profesor (pantalla de selección) */
-  .profile-card {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    background: var(--card);
-    border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
-    padding: 16px 18px; margin-bottom: 12px; cursor: pointer;
-    font-size: 15px; font-weight: 700; color: var(--text);
-    transition: all .15s ease; animation: slideUp 0.35s ease-out both;
-  }
-  .profile-card:hover { border-color: var(--primary); background: var(--primary-light); }
-  .profile-card:active { transform: scale(0.98); background: #e0e7ff; }
-  .profile-card .chev { color: var(--text-muted); font-size: 18px; }
-  .profile-empty-msg {
-    text-align: center; color: var(--text-muted); font-size: 13px;
-    padding: 4px 6px 16px; line-height: 1.5;
-  }
-  .profile-error-msg {
-    text-align: center; color: #dc2626; font-size: 13px;
-    padding: 4px 6px 16px; line-height: 1.5;
-  }
-
-  /* Indicador de perfil activo (cabecera de main-app) */
-  .perfil-activo {
-    position: fixed; top: 14px; left: 14px; z-index: 101;
-    display: flex; align-items: center; gap: 8px;
-    background: #fff;
-    border: 1px solid var(--border); border-radius: 99px; box-shadow: var(--shadow);
-    padding: 6px 8px 6px 14px; font-size: 12px; font-family: inherit;
-  }
-  .perfil-activo span { color: var(--text-muted); font-weight: 600; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .perfil-activo button {
-    background: var(--primary-light); border: 1px solid rgba(79,70,229,.2); border-radius: 99px;
-    padding: 4px 10px; font-size: 11px; font-weight: 700; font-family: inherit;
-    color: var(--primary-dark); cursor: pointer; transition: all .15s ease;
-  }
-  .perfil-activo button:hover { background: #e0e7ff; }
-
-  /* ── PARIDAD CON EL ESCRITORIO ────────────────────────────────── */
-  /* Anillo de foco accesible (mismo criterio que la app de escritorio). */
-  .btn:focus-visible, .btn-again:focus-visible, .btn-ver-practicas:focus-visible,
-  .logout-btn:focus-visible, .perfil-activo button:focus-visible, .tab:focus-visible,
-  .profile-card:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 38%, transparent);
-  }
-
-  /* Estados deshabilitados claros en campos y selects. */
-  select:disabled, input:disabled { opacity: .55; background: #f2f4f7; cursor: not-allowed; }
-  .select-wrap:has(select:disabled)::after { opacity: .4; }
-
-  /* Entrada en cascada de las listas (historial y detalle de alumno). */
-  @keyframes listaIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  .historial-item { animation: listaIn .32s ease both; }
-  #historial-list .historial-item:nth-child(1), #detalle-alumno-list .historial-item:nth-child(1) { animation-delay: .03s; }
-  #historial-list .historial-item:nth-child(2), #detalle-alumno-list .historial-item:nth-child(2) { animation-delay: .07s; }
-  #historial-list .historial-item:nth-child(3), #detalle-alumno-list .historial-item:nth-child(3) { animation-delay: .11s; }
-  #historial-list .historial-item:nth-child(4), #detalle-alumno-list .historial-item:nth-child(4) { animation-delay: .15s; }
-  #historial-list .historial-item:nth-child(5), #detalle-alumno-list .historial-item:nth-child(5) { animation-delay: .19s; }
-  #historial-list .historial-item:nth-child(n+6), #detalle-alumno-list .historial-item:nth-child(n+6) { animation-delay: .22s; }
-
-  /* Respeto a "reducir movimiento" del sistema (la app también lo hace). */
-  @media (prefers-reduced-motion: reduce) {
-    *, .header, .card, .result, .result-icon, .historial-item,
-    .tab-indicator, .alumno-info, .profile-card {
-      animation: none !important;
-      transition: none !important;
-    }
-    .sparkle { display: none !important; }
-  }
+  @media (max-width: 899px) { .solo-tablet { display: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .vista, .hoja { animation: none; } .barra-tiempo i { transition: none; } }
 </style>
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
-<div id="login-screen">
-  <div class="header" style="margin-bottom:36px">
-    <div class="logo-mark">
-      <img src="/logo.png" alt="AulaMovil" style="width:100%;height:100%;object-fit:contain">
-    </div>
-    <h1>AulaMovil</h1>
-    <p class="subtitle">Inicia sesión con tu cuenta de la app de escritorio</p>
-  </div>
-  <div class="card" style="width:100%;max-width:300px;text-align:center">
-    <input type="email" id="login-email" placeholder="Email" autocomplete="username">
-    <input type="password" id="login-password" placeholder="Contraseña" autocomplete="current-password" style="margin-top:12px">
-    <div class="login-error" id="login-error"></div>
-    <button class="btn btn-primary" style="margin-top:20px" onclick="iniciarSesion()">Entrar</button>
-    <p class="subtitle" style="margin-top:16px;font-size:12.5px">¿Sin cuenta? Créala en la aplicación de escritorio.</p>
+<!-- ACCESO -->
+<div id="login-screen" class="acceso" hidden>
+  <div class="acceso-marca"><span class="logo"><img src="/logo.png" alt="AulaMovil"></span><h1>AulaMovil</h1></div>
+  <p class="acceso-sub">Inicia sesión con tu cuenta de la app de escritorio</p>
+  <div class="acceso-card">
+    <input class="campo" type="email" id="login-email" placeholder="Email" autocomplete="username" autocapitalize="off">
+    <input class="campo" type="password" id="login-password" placeholder="Contraseña" autocomplete="current-password">
+    <div class="err-txt" id="login-error" role="alert"></div>
+    <button class="btn btn-pri" onclick="iniciarSesion()">Entrar</button>
+    <p class="acceso-sub" style="font-size:14px">¿Sin cuenta? Créala en la aplicación de escritorio.</p>
   </div>
 </div>
 
-<!-- PROFILE SCREEN -->
-<div id="profile-screen" style="display:none">
-  <div class="header" style="margin-bottom:36px">
-    <div class="logo-mark">
-      <img src="/logo.png" alt="AulaMovil" style="width:100%;height:100%;object-fit:contain">
-    </div>
-    <h1>¿Quién eres?</h1>
-    <p class="subtitle">Elige tu perfil para continuar</p>
-  </div>
-  <div id="profesores-list" style="width:100%;max-width:340px"></div>
+<div id="profile-screen" class="acceso" hidden>
+  <div class="acceso-marca"><span class="logo"><img src="/logo.png" alt="AulaMovil"></span><h1>AulaMovil</h1></div>
+  <h2>¿Quién eres?</h2>
+  <p class="acceso-sub">Elige tu perfil para continuar</p>
+  <div id="profesores-list" style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px"></div>
 </div>
 
-<!-- MAIN APP -->
-<div id="main-app" style="display:none">
-  <button class="logout-btn" onclick="cerrarSesion()">Salir</button>
+<!-- APP -->
+<div id="app" hidden>
+  <aside id="riel" aria-label="Jornada de hoy">
+    <div class="riel-cab" id="riel-cab"></div>
+    <div class="riel-lista" id="riel-lista"></div>
+    <div class="riel-pie" id="riel-pie"></div>
+  </aside>
 
-  <div class="perfil-activo" id="perfil-activo-badge" style="display:none">
-    <span id="perfil-activo-nombre"></span>
-    <button onclick="cambiarPerfil()">Cambiar</button>
+  <div id="vistas">
+    <!-- HOY -->
+    <section class="vista" id="v-hoy"></section>
+
+    <!-- INICIAR -->
+    <section class="vista sin-tab" id="v-iniciar"></section>
+
+    <!-- EN CURSO -->
+    <section class="vista sin-tab" id="v-curso"></section>
+
+    <!-- KM FINAL -->
+    <section class="vista sin-tab" id="v-kmfinal"></section>
+
+    <!-- FIRMA -->
+    <section class="vista sin-tab" id="v-firma"></section>
+
+    <!-- ALUMNOS -->
+    <section class="vista" id="v-alumnos"></section>
+
+    <!-- FICHA -->
+    <section class="vista sin-tab" id="v-ficha"></section>
+
+    <!-- NUEVO ALUMNO -->
+    <section class="vista sin-tab" id="v-nuevo"></section>
+
+    <!-- HISTORIAL -->
+    <section class="vista sin-tab" id="v-historial"></section>
   </div>
 
-  <div class="header">
-    <div class="logo-mark">
-      <img src="/logo.png" alt="AulaMovil" style="width:100%;height:100%;object-fit:contain">
-    </div>
-    <h1>AulaMovil</h1>
-    <p class="subtitle">Registro de prácticas · Autoescuela</p>
-    <span class="version">v1.1.0</span>
-  </div>
-
-  <div class="tabs">
-    <div class="tab-indicator" id="tab-indicator"></div>
-    <button class="tab active" data-tab="practica" onclick="switchTab('practica')">Registrar</button>
-    <button class="tab" data-tab="alumno" onclick="switchTab('alumno')">Nuevo Alumno</button>
-    <button class="tab" data-tab="historial" onclick="switchTab('historial')">Historial</button>
-    <button class="tab" data-tab="agenda" onclick="switchTab('agenda')">Agenda</button>
-  </div>
-
-  <!-- SECCIÓN: REGISTRAR PRÁCTICA -->
-  <div id="section-practica" class="section active">
-    <div id="form-section">
-      <div class="card">
-        <div class="field-gap">
-          <label>Vehículo</label>
-          <div class="select-wrap">
-            <select id="vehiculo-select" onchange="onVehiculoChange()">
-              <option value="">Cargando vehículos...</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="field-gap">
-          <label>Alumno</label>
-          <div class="select-wrap">
-            <select id="alumno-select" onchange="onAlumnoChange()" disabled>
-              <option value="">— Primero selecciona un vehículo —</option>
-            </select>
-          </div>
-          <div class="alumno-info" id="alumno-info"></div>
-        </div>
-
-        <div class="field-gap">
-          <label>Fecha</label>
-          <input type="date" id="fecha-input">
-        </div>
-      </div>
-
-      <button class="btn btn-primary" id="btn-registrar" onclick="registrar()" disabled>
-        <span id="btn-text">✓ Registrar práctica</span>
-      </button>
-    </div>
-
-    <div class="result" id="result-ok" style="position: relative;">
-      <div class="sparkles" id="sparkles"></div>
-      <div class="result-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.27"/></svg></div>
-      <div class="result-title">¡Práctica registrada!</div>
-      <div class="result-msg" id="result-ok-msg"></div>
-      <button class="btn-again" onclick="resetForm()">Registrar otra práctica</button>
-    </div>
-
-    <div class="result" id="result-err" onclick="hideError()">
-      <div class="result-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
-      <div class="result-title">Error</div>
-      <div class="result-msg" id="result-err-msg"></div>
-      <button class="btn-again" onclick="hideError()">Volver a intentarlo</button>
-    </div>
-  </div>
-
-  <!-- SECCIÓN: NUEVO ALUMNO -->
-  <div id="section-alumno" class="section">
-    <div class="card">
-      <div class="field-gap">
-        <label>Nombre del alumno</label>
-        <input type="text" id="nuevo-nombre" placeholder="Nombre completo">
-      </div>
-
-      <div class="field-gap">
-        <label>Tipo de permiso</label>
-        <div class="select-wrap">
-          <select id="nuevo-permiso">
-            <option value="B">B - Coche</option>
-            <option value="A">A - Moto</option>
-            <option value="A2">A2 - Moto (limitada)</option>
-            <option value="AM">AM - Ciclomotor</option>
-            <option value="C">C - Camión</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="field-gap">
-        <label>Vehículo asignado</label>
-        <div class="select-wrap">
-          <select id="nuevo-vehiculo">
-            <option value="">— Sin asignar —</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <button class="btn btn-primary" id="btn-crear-alumno" onclick="crearAlumno()">
-      <span id="btn-crear-text">+ Crear alumno</span>
-    </button>
-
-    <div class="result" id="result-alumno-ok">
-      <div class="result-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.27"/></svg></div>
-      <div class="result-title">Alumno creado</div>
-      <div class="result-msg" id="result-alumno-ok-msg"></div>
-      <button class="btn-again" onclick="resetAlumnoForm()">Crear otro alumno</button>
-    </div>
-
-    <div class="result" id="result-alumno-err" onclick="hideAlumnoError()">
-      <div class="result-icon"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
-      <div class="result-title">Error</div>
-      <div class="result-msg" id="result-alumno-err-msg"></div>
-      <button class="btn-again" onclick="hideAlumnoError()">Volver a intentarlo</button>
-    </div>
-  </div>
-
-  <!-- SECCIÓN: HISTORIAL -->
-  <div id="section-historial" class="section">
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <label style="margin-bottom:0">Prácticas registradas hoy</label>
-        <span class="tag" id="historial-count" style="display:none;margin-left:0"></span>
-      </div>
-      <div id="historial-list">
-        <div class="historial-empty">Cargando...</div>
-      </div>
-    </div>
-    <button class="btn btn-secondary" onclick="cargarHistorial()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Actualizar</button>
-  </div>
-
-  <!-- SECCIÓN: AGENDA DEL PROFESOR (solo lectura) -->
-  <div id="section-agenda" class="section">
-    <div class="card">
-      <div class="field-gap">
-        <label>Profesor</label>
-        <div class="select-wrap">
-          <select id="agenda-profesor" onchange="cargarAgendaProfesor()">
-            <option value="">— Selecciona un profesor —</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="field-gap">
-        <label>Fecha</label>
-        <input type="date" id="agenda-fecha" onchange="cargarAgendaProfesor()">
-      </div>
-    </div>
-
-    <button class="btn btn-secondary" onclick="cargarAgendaProfesor()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Ver agenda</button>
-
-    <div class="card" style="margin-top:16px">
-      <div id="agenda-lista">
-        <div class="historial-empty">Elige un profesor y una fecha para ver su agenda.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SECCIÓN: DETALLE DE ALUMNO (solo lectura, no es una pestaña del tab bar) -->
-  <div id="section-detalle-alumno" class="section">
-    <button class="btn btn-secondary" onclick="cerrarDetalleAlumno()">‹ Volver</button>
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <label style="margin-bottom:0" id="detalle-alumno-nombre"></label>
-        <span class="tag" id="detalle-alumno-total" style="display:none"></span>
-      </div>
-    </div>
-    <div id="detalle-alumno-list"></div>
-  </div>
+  <nav id="tabbar" aria-label="Secciones">
+    <button data-tab="hoy" onclick="go('hoy')"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Hoy</button>
+    <button class="mas" data-tab="nueva" onclick="abrirIniciar()"><span class="circ"><svg class="ic" width="30" height="30" viewBox="0 0 24 24" style="stroke-width:2.4"><path d="M12 5v14M5 12h14"/></svg></span><span class="tx">Nueva práctica</span></button>
+    <button data-tab="alumnos" onclick="go('alumnos')"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c.6-3.6 3.3-6 6.5-6s5.9 2.4 6.5 6"/><path d="M15.5 5.2a3.5 3.5 0 0 1 0 6.6M17.5 14.3c2.2.7 3.6 2.8 4 5.7"/></svg>Alumnos</button>
+  </nav>
 </div>
+
+<div id="capa"></div>
+<div id="toast" hidden></div>
 
 <script>
-  const SUPABASE_URL = 'https://dmwoqugdnwgkcqtixhyw.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtd29xdWdkbndna2NxdGl4aHl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjA5NjYsImV4cCI6MjA5OTU5Njk2Nn0.8XhWdS0ohrCbZcKpHWKsJz22rY8ASA4IkgpbtE_pHkc';
-  const PROFESOR_KEY = 'kmalumnos_profesor'; // localStorage: perfil de profesor activo
+'use strict';
+const SUPABASE_URL = 'https://dmwoqugdnwgkcqtixhyw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtd29xdWdkbndna2NxdGl4aHl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjA5NjYsImV4cCI6MjA5OTU5Njk2Nn0.8XhWdS0ohrCbZcKpHWKsJz22rY8ASA4IkgpbtE_pHkc';
+const PROFESOR_KEY = 'kmalumnos_profesor';   // perfil de profesor activo
+const FLUJO_KEY = 'km_flujo';                // práctica en marcha (sobrevive a recargas)
+const VEHICULO_KEY = 'km_vehiculo';          // último vehículo usado
+const DURACION_KEY = 'km_duracion';          // última duración elegida
 
-  let alumnos = [];
-  let vehiculos = [];
-  let profesoresDisponibles = [];
-  let perfilActivo = null; // { id, nombre } o { id: null, nombre: 'Sin profesor' }
+const TIPOS = [
+  { id: 'Circulación urbana', tipo: 'circulacion' },
+  { id: 'Maniobras', tipo: 'pista' },
+  { id: 'Recorrido de examen', tipo: 'circulacion' },
+  { id: 'Vía rápida', tipo: 'circulacion' }
+];
+const TRABAJADO = ['Incorporaciones', 'Glorietas', 'Cambios de carril', 'Adelantamientos', 'Estacionamiento', 'Pasos de peatones', 'Prioridades', 'Marcha atrás'];
 
-  let supabaseClient = null;
-  async function initSupabase() {
-    if (supabaseClient) return supabaseClient;
-    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
-    supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    return supabaseClient;
+// ─── ESTADO ──────────────────────────────────────────────────────────────────
+const S = {
+  perfil: null, hoy: fechaLocal(), fecha: fechaLocal(),
+  vehiculos: [], alumnos: [], profesores: [],
+  jornada: { practicas: [], sin_cerrar: [], reservas: [] },
+  vehId: null, flujo: null, vista: null, filtroAlumnos: 'mios', busqueda: '',
+  ficha: null, fichaMes: null, kmFinal: '', timer: null, firmaTrazos: 0
+};
+
+function fechaLocal(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const hhmm = (d = new Date()) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+const sumaMin = (h, m) => { if (!h) return ''; const [a, b] = h.split(':').map(Number); const t = a * 60 + b + m; return String(Math.floor(t / 60) % 24).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
+const miles = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const esc = t => { const d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; };
+const iniciales = n => { const p = String(n || '').trim().split(/\s+/).filter(Boolean); return p.length ? (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase() : '?'; };
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const MESES_C = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const partes = iso => { const [y, m, d] = iso.split('-').map(Number); return { y, m, d, dow: new Date(y, m - 1, d).getDay() }; };
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+function fechaLarga(iso) { const p = partes(iso); return `${cap(DIAS[p.dow])}, ${p.d} de ${MESES[p.m - 1]}`; }
+function fechaCorta(iso) { const p = partes(iso); return `${cap(DIAS[p.dow].slice(0, 3))} ${p.d} ${MESES_C[p.m - 1]}`; }
+function sumaDias(iso, n) { const p = partes(iso); return fechaLocal(new Date(p.y, p.m - 1, p.d + n)); }
+
+const IC = {
+  atras: '<path d="M15 5l-7 7 7 7"/>', mas: '<path d="M12 5v14M5 12h14"/>', ok: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  play: '<path d="M7 5l12 7-12 7z" fill="currentColor"/>', stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>',
+  coche: '<path d="M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11"/><rect x="3" y="11" width="18" height="6" rx="2"/><path d="M6 17v2M18 17v2"/>',
+  lapiz: '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>', reloj: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  flecha: '<path d="M5 12h14M13 6l6 6-6 6"/>', chev: '<path d="M9 6l6 6-6 6"/>', chevIzq: '<path d="M15 6l-6 6 6 6"/>',
+  buscar: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>', usuarioMas: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.3-6 6.5-6"/><path d="M19 8v6M16 11h6"/>',
+  aviso: '<path d="M10.3 4.2L2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17h.01"/>',
+  borrar: '<path d="M21 5H9l-6 7 6 7h12z"/><path d="M14 10l4 4M18 10l-4 4"/>', deshacer: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+  bandera: '<path d="M6 21V4M6 4h11l-2.5 4 2.5 4H6"/>', tel: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
+  menu: '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
+  hist: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>', salir: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
+  persona: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-3.6 3.3-6 7-6s6.4 2.4 7 6"/>', cerrar: '<path d="M6 6l12 12M18 6L6 18"/>'
+};
+const ic = (k, w = 20, extra = '') => `<svg class="ic" width="${w}" height="${w}" viewBox="0 0 24 24" ${extra} aria-hidden="true">${IC[k]}</svg>`;
+const placa = m => m ? `<span class="placa"><span class="placa-e">E</span><span class="placa-n">${esc(m)}</span></span>` : '';
+
+// ─── SUPABASE / AUTENTICACIÓN ────────────────────────────────────────────────
+let supabaseClient = null;
+async function initSupabase() {
+  if (supabaseClient) return supabaseClient;
+  const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+  supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return supabaseClient;
+}
+
+async function apiFetch(url, options = {}) {
+  await initSupabase();
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  const headers = { ...(options.headers || {}) };
+  if (session?.access_token) headers['Authorization'] = 'Bearer ' + session.access_token;
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) { cerrarSesion(); throw new Error('Sesión expirada'); }
+  return res;
+}
+const postJSON = (url, cuerpo) => apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+
+async function checkSession() {
+  await initSupabase();
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) { mostrarLogin(); return; }
+  const guardado = localStorage.getItem(PROFESOR_KEY);
+  if (guardado) {
+    try { S.perfil = JSON.parse(guardado); entrarApp(); return; } catch { /* JSON inválido: pedimos perfil */ }
   }
+  mostrarPerfiles();
+}
 
-  // ─── AUTENTICACIÓN ─────────────────────────────────────────────────────────
-  async function checkSession() {
+function ocultarAcceso() { document.getElementById('login-screen').hidden = true; document.getElementById('profile-screen').hidden = true; }
+function mostrarLogin() {
+  document.getElementById('app').hidden = true; document.getElementById('profile-screen').hidden = true;
+  document.getElementById('login-screen').hidden = false;
+  document.getElementById('login-password').value = '';
+  setTema(false);
+}
+
+async function mostrarPerfiles() {
+  ocultarAcceso(); document.getElementById('app').hidden = true; document.getElementById('app').classList.remove('on-app');
+  document.getElementById('profile-screen').hidden = false; setTema(false);
+  const lista = document.getElementById('profesores-list');
+  lista.innerHTML = '<div class="cargando">Cargando perfiles…</div>';
+  let error = false;
+  try {
+    const res = await apiFetch('/api/profesores');
+    if (!res.ok) throw new Error();
+    S.profesores = await res.json();
+  } catch { S.profesores = []; error = true; }
+  let html = '';
+  if (error) html += '<div class="msg msg-warn">No se pudo cargar la lista de profesores. Puedes continuar sin perfil.</div>';
+  else if (!S.profesores.length) html += '<div class="vacio">Esta autoescuela aún no tiene profesores dados de alta.</div>';
+  else html += S.profesores.map(p => `<button class="perfil-op" data-id="${p.id}"><span class="ini">${esc(iniciales(p.nombre))}</span>${esc(p.nombre)}<span class="chev">${ic('chev', 22)}</span></button>`).join('');
+  html += `<button class="perfil-op" id="perfil-sin"><span class="ini">${ic('persona', 22)}</span>Sin profesor<span class="chev">${ic('chev', 22)}</span></button>`;
+  lista.innerHTML = html;
+  lista.querySelectorAll('.perfil-op[data-id]').forEach(b => b.addEventListener('click', () => {
+    const id = parseInt(b.dataset.id); const p = S.profesores.find(x => x.id === id);
+    elegirPerfil(id, p ? p.nombre : '');
+  }));
+  document.getElementById('perfil-sin').addEventListener('click', () => elegirPerfil(null, 'Sin profesor'));
+}
+function elegirPerfil(id, nombre) { S.perfil = { id, nombre }; localStorage.setItem(PROFESOR_KEY, JSON.stringify(S.perfil)); entrarApp(); }
+
+async function iniciarSesion() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const err = document.getElementById('login-error');
+  if (!email || !password) { err.textContent = 'Introduce tu email y contraseña.'; return; }
+  err.textContent = '';
+  try {
     await initSupabase();
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) { err.textContent = /invalid|credentials|password|email/i.test(error.message || '') ? 'Email o contraseña incorrectos' : error.message; return; }
+    localStorage.removeItem(PROFESOR_KEY); S.perfil = null;
+    await mostrarPerfiles();
+  } catch { err.textContent = 'Error de conexión'; }
+}
+document.getElementById('login-email').addEventListener('keypress', e => { if (e.key === 'Enter') iniciarSesion(); });
+document.getElementById('login-password').addEventListener('keypress', e => { if (e.key === 'Enter') iniciarSesion(); });
 
-    if (!session) {
-      showLogin();
-      return;
-    }
+async function cerrarSesion() {
+  pararTimer();
+  try { await supabaseClient?.auth.signOut(); } catch {}
+  localStorage.removeItem(PROFESOR_KEY); localStorage.removeItem(FLUJO_KEY);
+  S.perfil = null; S.flujo = null;
+  document.getElementById('login-email').value = ''; document.getElementById('login-error').textContent = '';
+  cerrarHoja(); mostrarLogin();
+}
 
-    const guardado = localStorage.getItem(PROFESOR_KEY);
-    if (guardado) {
-      try {
-        perfilActivo = JSON.parse(guardado);
-        showApp();
-        return;
-      } catch {
-        // JSON inválido: seguimos y pedimos elegir perfil
-      }
-    }
-    showProfiles();
+function setTema(oscuro) {
+  document.body.classList.toggle('oscuro', !!oscuro);
+  document.getElementById('meta-theme').setAttribute('content', oscuro ? '#14161B' : '#F3F2EE');
+}
+
+// ─── NAVEGACIÓN ──────────────────────────────────────────────────────────────
+const VISTAS_TAB = { hoy: 'hoy', alumnos: 'alumnos' };
+function go(vista, opciones = {}) {
+  if (S.vista !== vista) pararTimerSiNoCurso(vista);
+  S.vista = vista;
+  document.querySelectorAll('.vista').forEach(v => v.classList.toggle('on', v.id === 'v-' + vista));
+  const conTab = vista in VISTAS_TAB;
+  document.getElementById('tabbar').hidden = !conTab && !window.matchMedia('(min-width:900px)').matches;
+  document.getElementById('tabbar').hidden = !conTab;
+  document.querySelectorAll('#tabbar button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === vista));
+  setTema(vista === 'curso');
+  window.scrollTo(0, 0);
+  const render = { hoy: renderHoy, iniciar: renderIniciar, curso: renderCurso, kmfinal: renderKmFinal, firma: renderFirma, alumnos: renderAlumnos, ficha: renderFicha, nuevo: renderNuevo, historial: renderHistorial }[vista];
+  if (render) render(opciones);
+  if (!opciones.sinHistorial) history.pushState({ vista }, '');
+  renderRiel();
+}
+window.addEventListener('popstate', e => {
+  const v = e.state && e.state.vista;
+  if (!v) return;
+  // Durante una práctica en marcha «atrás» no debe sacar al profesor de la práctica.
+  if (S.flujo && S.flujo.practica_id && !['curso', 'kmfinal', 'firma', 'hoy'].includes(v)) { go('curso', { sinHistorial: true }); return; }
+  go(v, { sinHistorial: true });
+});
+
+function toast(msg, ms = 2600) {
+  const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, ms);
+}
+function abrirHoja(html) {
+  document.getElementById('capa').innerHTML = `<div class="fondo" onclick="if(event.target===this)cerrarHoja()"><div class="hoja" role="dialog" aria-modal="true">${html}</div></div>`;
+}
+function cerrarHoja() { document.getElementById('capa').innerHTML = ''; }
+
+// ─── DATOS ───────────────────────────────────────────────────────────────────
+async function cargarBase() {
+  try {
+    const [rv, ra] = await Promise.all([apiFetch('/api/vehiculos'), apiFetch('/api/alumnos?resumen=1')]);
+    if (!rv.ok) throw new Error('Error cargando vehículos');
+    if (!ra.ok) throw new Error('Error cargando alumnos');
+    S.vehiculos = await rv.json(); S.alumnos = await ra.json();
+  } catch (e) { toast('No se pudieron cargar los datos. Reintenta.'); }
+  const guardado = parseInt(localStorage.getItem(VEHICULO_KEY));
+  S.vehId = S.vehiculos.some(v => v.id === guardado) ? guardado : (S.vehiculos[0] ? S.vehiculos[0].id : null);
+}
+async function cargarJornada() {
+  try {
+    const q = new URLSearchParams({ fecha: S.fecha, hoy: S.hoy });
+    if (S.perfil && S.perfil.id) q.set('profesor_id', S.perfil.id);
+    const res = await apiFetch('/api/hoy?' + q);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar la jornada');
+    S.jornada = { practicas: data.practicas, sin_cerrar: data.sin_cerrar || [], reservas: data.reservas };
+  } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message || 'No se pudo cargar la jornada'); }
+  // Si el servidor dice que hay una práctica en curso y aquí no hay flujo, se recupera.
+  const enCurso = S.jornada.practicas.find(p => p.en_curso) || S.jornada.sin_cerrar[0];
+  if (enCurso && (!S.flujo || S.flujo.practica_id !== enCurso.id) && S.fecha === S.hoy) {
+    if (!S.flujo || !S.flujo.practica_id) S.flujo = flujoDesdePractica(enCurso);
+    guardarFlujo();
   }
-
-  function showLogin() {
-    document.getElementById('main-app').style.display = 'none';
-    document.getElementById('profile-screen').style.display = 'none';
-    document.getElementById('login-screen').classList.remove('hidden');
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('login-password').value = '';
-    document.getElementById('login-email').focus();
-  }
-
-  async function showProfiles() {
-    document.getElementById('login-screen').classList.add('hidden');
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('main-app').style.display = 'none';
-    document.getElementById('profile-screen').style.display = 'flex';
-
-    const list = document.getElementById('profesores-list');
-    list.innerHTML = '<div class="profile-empty-msg">Cargando perfiles...</div>';
-
-    let errorCarga = false;
-    try {
-      const res = await apiFetch('/api/profesores');
-      if (!res.ok) throw new Error('Error cargando profesores');
-      profesoresDisponibles = await res.json();
-    } catch (e) {
-      profesoresDisponibles = [];
-      errorCarga = true;
-    }
-
-    let html = '';
-    if (errorCarga) {
-      html += '<div class="profile-error-msg">No se pudo cargar la lista de profesores. Puedes continuar sin perfil.</div>';
-    } else if (!profesoresDisponibles.length) {
-      html += '<div class="profile-empty-msg">Esta autoescuela aún no tiene profesores dados de alta.</div>';
-    } else {
-      html += profesoresDisponibles.map(p =>
-        `<div class="profile-card" data-id="${p.id}">
-          <span>${escapeHtml(p.nombre)}</span><span class="chev">›</span>
-        </div>`
-      ).join('');
-    }
-    html += `<div class="profile-card" id="perfil-sin-profesor"><span>Sin profesor</span><span class="chev">›</span></div>`;
-    list.innerHTML = html;
-
-    // Data embebida solo como id numérico (data-id); el nombre se busca en
-    // profesoresDisponibles (variable JS), nunca se inyecta en el atributo.
-    list.querySelectorAll('.profile-card[data-id]').forEach(card => {
-      card.addEventListener('click', () => {
-        const id = parseInt(card.dataset.id);
-        const p = profesoresDisponibles.find(x => x.id === id);
-        seleccionarPerfil(id, p ? p.nombre : '');
-      });
-    });
-    document.getElementById('perfil-sin-profesor').addEventListener('click', () => {
-      seleccionarPerfil(null, 'Sin profesor');
-    });
-  }
-
-  function seleccionarPerfil(id, nombre) {
-    perfilActivo = { id, nombre };
-    localStorage.setItem(PROFESOR_KEY, JSON.stringify(perfilActivo));
-    showApp();
-  }
-
-  function cambiarPerfil() {
-    showProfiles();
-  }
-
-  function showApp() {
-    document.getElementById('login-screen').classList.add('hidden');
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('profile-screen').style.display = 'none';
-    document.getElementById('main-app').style.display = 'block';
-    document.getElementById('fecha-input').value = new Date().toLocaleDateString('sv-SE');
-    requestAnimationFrame(moveIndicator);
-
-    const badge = document.getElementById('perfil-activo-badge');
-    if (perfilActivo) {
-      document.getElementById('perfil-activo-nombre').innerHTML = escapeHtml(perfilActivo.nombre);
-      badge.style.display = 'flex';
-    } else {
-      badge.style.display = 'none';
-    }
-
-    cargarDatos();
-  }
-
-  async function iniciarSesion() {
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-    const errorEl = document.getElementById('login-error');
-
-    if (!email || !password) {
-      errorEl.textContent = 'Introduce tu email y contraseña.';
-      return;
-    }
-
-    errorEl.textContent = '';
-
-    try {
-      await initSupabase();
-      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-
-      if (error) {
-        const msg = error.message || '';
-        errorEl.textContent = /invalid|credentials|password|email/i.test(msg)
-          ? 'Email o contraseña incorrectos'
-          : msg;
-        return;
-      }
-
-      localStorage.removeItem(PROFESOR_KEY);
-      perfilActivo = null;
-      await showProfiles();
-    } catch (e) {
-      errorEl.textContent = 'Error de conexión';
-    }
-  }
-
-  // Enter para enviar el formulario de login
-  document.getElementById('login-email').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') iniciarSesion();
-  });
-  document.getElementById('login-password').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') iniciarSesion();
-  });
-
-  async function cerrarSesion() {
-    await supabaseClient?.auth.signOut();
-    localStorage.removeItem(PROFESOR_KEY);
-    perfilActivo = null;
-    document.getElementById('login-email').value = '';
-    document.getElementById('login-password').value = '';
-    document.getElementById('login-error').textContent = '';
-    showLogin();
-  }
-
-  // ─── API FETCH CON TOKEN DE SESIÓN ─────────────────────────────────────────
-  async function apiFetch(url, options = {}) {
-    await initSupabase();
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    const headers = { ...(options.headers || {}) };
-    if (session?.access_token) headers['Authorization'] = 'Bearer ' + session.access_token;
-
-    const res = await fetch(url, { ...options, headers });
-
-    // Si la sesión es inválida, volver al login
-    if (res.status === 401) {
-      cerrarSesion();
-      throw new Error('Sesión expirada');
-    }
-
-    return res;
-  }
-
-  // ─── TABS (indicador deslizante + transición direccional) ──────────────────
-  const TAB_ORDER = ['practica', 'alumno', 'historial', 'agenda'];
-
-  // Desliza el "pill" hasta la pestaña activa (llamar tras mostrar la app y al redimensionar)
-  function moveIndicator() {
-    const active = document.querySelector('.tabs .tab.active');
-    const ind = document.getElementById('tab-indicator');
-    if (!active || !ind || !active.offsetWidth) return;
-    ind.style.width = active.offsetWidth + 'px';
-    ind.style.transform = 'translateX(' + active.offsetLeft + 'px)';
-    ind.style.opacity = '1';
-  }
-  window.addEventListener('resize', moveIndicator);
-
-  // Anima la sección entrante: deslizamiento + desenfoque según la dirección
-  function animateSection(el, dir) {
-    if (!el || !dir) return;
-    el.style.transition = 'none';
-    el.style.opacity = '0';
-    el.style.filter = 'blur(6px)';
-    el.style.transform = 'translateX(' + (dir > 0 ? 22 : -22) + 'px)';
-    requestAnimationFrame(() => {
-      el.style.transition = 'transform .4s cubic-bezier(.32,.72,0,1), opacity .35s ease, filter .35s ease';
-      el.style.opacity = '1';
-      el.style.filter = 'blur(0)';
-      el.style.transform = 'translateX(0)';
-    });
-  }
-
-  function switchTab(tab) {
-    document.getElementById('section-detalle-alumno').classList.remove('active');
-
-    const prev = document.querySelector('.tabs .tab.active')?.dataset.tab || 'practica';
-    const dir = TAB_ORDER.indexOf(tab) === TAB_ORDER.indexOf(prev)
-      ? 0
-      : (TAB_ORDER.indexOf(tab) > TAB_ORDER.indexOf(prev) ? 1 : -1);
-
-    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-    TAB_ORDER.forEach(name => {
-      document.getElementById('section-' + name).classList.toggle('active', name === tab);
-    });
-
-    moveIndicator();
-    animateSection(document.getElementById('section-' + tab), dir);
-
-    if (tab === 'historial') cargarHistorial();
-    if (tab === 'agenda') {
-      document.getElementById('agenda-fecha').value = new Date().toLocaleDateString('sv-SE');
-      llenarSelectAgendaProfesores();
-      if (document.getElementById('agenda-profesor').value) cargarAgendaProfesor();
-    }
-  }
-
-  // ─── DETALLE DE ALUMNO (solo lectura) ─────────────────────────────────────
-  let tabAntesDeDetalle = 'practica'; // pestaña a la que se vuelve al cerrar el detalle
-
-  function verPracticasAlumno(id) {
-    tabAntesDeDetalle = document.querySelector('.tab.active')?.textContent.includes('Registrar') ? 'practica'
-      : document.querySelector('.tab.active')?.textContent.includes('Nuevo') ? 'alumno'
-      : document.querySelector('.tab.active')?.textContent.includes('Agenda') ? 'agenda' : 'historial';
-    document.getElementById('section-practica').classList.remove('active');
-    document.getElementById('section-alumno').classList.remove('active');
-    document.getElementById('section-historial').classList.remove('active');
-    document.getElementById('section-agenda').classList.remove('active');
-    document.getElementById('section-detalle-alumno').classList.add('active');
-    cargarDetalleAlumno(id);
-  }
-
-  function cerrarDetalleAlumno() {
-    document.getElementById('section-detalle-alumno').classList.remove('active');
-    switchTab(tabAntesDeDetalle);
-  }
-
-  async function cargarDetalleAlumno(id) {
-    const nombreEl = document.getElementById('detalle-alumno-nombre');
-    const totalEl = document.getElementById('detalle-alumno-total');
-    const listEl = document.getElementById('detalle-alumno-list');
-    nombreEl.textContent = 'Cargando...';
-    totalEl.style.display = 'none';
-    listEl.innerHTML = '<div class="historial-empty">Cargando...</div>';
-
-    try {
-      const res = await apiFetch('/api/practicas-alumno?alumno_id=' + id);
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar las prácticas');
-
-      nombreEl.textContent = data.alumno.nombre;
-      totalEl.textContent = data.total + (data.total === 1 ? ' práctica' : ' prácticas');
-      totalEl.style.display = 'inline-block';
-
-      if (!data.practicas.length) {
-        listEl.innerHTML = '<div class="historial-empty">Este alumno todavía no tiene prácticas registradas.</div>';
-        return;
-      }
-
-      listEl.innerHTML = data.practicas.map(p => {
-        const tipoTxt = p.tipo === 'pista' ? 'Pista' : 'Circulación';
-        const tieneKm = p.km_final > 0 || p.km_inicial > 0;
-        const kmTxt = tieneKm ? (Math.max(0, p.km_final - p.km_inicial) + ' km') : 'Km pendientes';
-        const partes = [kmTxt];
-        if (p.profesor_nombre) partes.push(escapeHtml(p.profesor_nombre));
-        const fechaFmt = typeof p.fecha === 'string' ? p.fecha.split('-').reverse().join('/') : '';
-        return `
-          <div class="historial-item">
-            <div class="historial-info">
-              <div class="historial-nombre">${fechaFmt} <span class="tag">${tipoTxt}</span></div>
-              <div class="historial-fecha">${partes.join(' · ')}</div>
-              ${p.nota ? `<div class="historial-fecha">${escapeHtml(p.nota)}</div>` : ''}
-            </div>
-          </div>
-        `;
-      }).join('');
-    } catch (e) {
-      nombreEl.textContent = 'Alumno';
-      listEl.innerHTML = `<div class="historial-empty">${escapeHtml(e.message || 'Error cargando las prácticas.')}</div>`;
-    }
-  }
-
-  // ─── SPARKLES ──────────────────────────────────────────────────────────────
-  function createSparkles() {
-    const container = document.getElementById('sparkles');
-    container.innerHTML = '';
-    for (let i = 0; i < 12; i++) {
-      const sparkle = document.createElement('div');
-      sparkle.className = 'sparkle';
-      sparkle.style.left = Math.random() * 100 + '%';
-      sparkle.style.top = Math.random() * 100 + '%';
-      sparkle.style.animationDelay = Math.random() * 0.5 + 's';
-      sparkle.style.background = ['#4f46e5','#7c3aed','#059669','#f59e0b'][Math.floor(Math.random()*4)];
-      container.appendChild(sparkle);
-    }
-  }
-
-  // ─── CARGAR DATOS ──────────────────────────────────────────────────────────
-  async function cargarDatos() {
-    try {
-      const [resV, resA] = await Promise.all([
-        apiFetch('/api/vehiculos'),
-        apiFetch('/api/alumnos')
-      ]);
-
-      if (!resV.ok) throw new Error('Error cargando vehículos');
-      if (!resA.ok) throw new Error('Error cargando alumnos');
-
-      vehiculos = await resV.json();
-      alumnos = await resA.json();
-
-      // Popular selector de vehículos (práctica)
-      const selV = document.getElementById('vehiculo-select');
-      if (!vehiculos.length) {
-        selV.innerHTML = '<option value="">No hay vehículos registrados</option>';
-      } else {
-        selV.innerHTML = '<option value="">— Selecciona un vehículo —</option>' +
-          vehiculos.map(v => `<option value="${v.id}">${escapeHtml(v.nombre)}${v.matricula ? ' (' + escapeHtml(v.matricula) + ')' : ''}</option>`).join('');
-      }
-
-      // Popular selector de vehículos (nuevo alumno)
-      const selNV = document.getElementById('nuevo-vehiculo');
-      selNV.innerHTML = '<option value="">— Sin asignar —</option>' +
-        vehiculos.map(v => `<option value="${v.id}">${escapeHtml(v.nombre)}${v.matricula ? ' (' + escapeHtml(v.matricula) + ')' : ''}</option>`).join('');
-
-    } catch (e) {
-      document.getElementById('vehiculo-select').innerHTML = '<option value="">Error cargando datos</option>';
-    }
-  }
-
-  // ─── CONTADOR ANIMADO (mismo efecto que el panel del escritorio) ──────────
-  function animarNum(el, to) {
-    if (!el) return;
-    to = Number(to) || 0;
-    const from = parseInt(String(el.textContent).replace(/\D/g, '')) || 0;
-    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce || from === to) { el.textContent = to; return; }
-    const t0 = performance.now(), dur = 600, ease = t => 1 - Math.pow(1 - t, 3);
-    const paso = now => {
-      const t = Math.min(1, (now - t0) / dur);
-      el.textContent = Math.round(from + (to - from) * ease(t));
-      if (t < 1) requestAnimationFrame(paso); else el.textContent = to;
-    };
-    requestAnimationFrame(paso);
-  }
-
-  // ─── ESCAPE HTML (prevenir XSS) ────────────────────────────────────────────
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  // ─── VEHÍCULO/ALUMNO CHANGE ────────────────────────────────────────────────
-  function onVehiculoChange() {
-    const vehiculoId = document.getElementById('vehiculo-select').value;
-    const selA = document.getElementById('alumno-select');
-    const info = document.getElementById('alumno-info');
-    const btn = document.getElementById('btn-registrar');
-
-    info.style.display = 'none';
-    btn.disabled = true;
-
-    if (!vehiculoId) {
-      selA.innerHTML = '<option value="">— Primero selecciona un vehículo —</option>';
-      selA.disabled = true;
-      return;
-    }
-
-    const alumnosFiltrados = alumnos.filter(a => a.vehiculo_id == vehiculoId);
-
-    if (!alumnosFiltrados.length) {
-      selA.innerHTML = '<option value="">No hay alumnos asignados a este vehículo</option>';
-      selA.disabled = true;
-      return;
-    }
-
-    selA.disabled = false;
-    selA.innerHTML = '<option value="">— Selecciona un alumno —</option>' +
-      alumnosFiltrados.map(a => `<option value="${a.id}">${escapeHtml(a.nombre)} (${a.permiso})</option>`).join('');
-  }
-
-  function onAlumnoChange() {
-    const sel = document.getElementById('alumno-select');
-    const info = document.getElementById('alumno-info');
-    const btn = document.getElementById('btn-registrar');
-    const alumno = alumnos.find(a => a.id == sel.value);
-
-    if (alumno) {
-      info.style.display = 'block';
-      info.innerHTML = `<span class="tag">${escapeHtml(alumno.permiso)}</span> Permiso ${escapeHtml(alumno.permiso)}
-        <button class="btn-ver-practicas" onclick="verPracticasAlumno(${alumno.id})">Ver prácticas</button>`;
-      btn.disabled = false;
-    } else {
-      info.style.display = 'none';
-      btn.disabled = true;
-    }
-  }
-
-  // ─── REGISTRAR PRÁCTICA ────────────────────────────────────────────────────
-  async function registrar() {
-    const alumnoId = document.getElementById('alumno-select').value;
-    const fecha = document.getElementById('fecha-input').value;
-
-    if (!alumnoId) { showError('Selecciona un alumno.'); return; }
-    if (!fecha) { showError('Selecciona una fecha.'); return; }
-
-    const btn = document.getElementById('btn-registrar');
-    const text = document.getElementById('btn-text');
-    btn.disabled = true;
-    text.innerHTML = '<span class="loading-dots"><span>·</span><span>·</span><span>·</span></span>';
-
-    try {
-      const res = await apiFetch('/api/practica', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alumno_id: parseInt(alumnoId), fecha, profesor_id: perfilActivo ? perfilActivo.id : null })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        showError(data.error || 'Error al registrar la práctica.');
-        btn.disabled = false;
-        text.innerHTML = '✓ Registrar práctica';
-        return;
-      }
-
-      const alumnoNombre = alumnos.find(a => a.id == alumnoId)?.nombre || '';
-      const fechaFmt = fecha.split('-').reverse().join('/');
-      document.getElementById('result-ok-msg').textContent =
-        `${alumnoNombre} — ${fechaFmt}\nKm pendientes de asignar desde la app.`;
-      document.getElementById('form-section').style.display = 'none';
-      document.getElementById('result-ok').classList.add('ok');
-      document.getElementById('result-ok').style.display = 'block';
-      createSparkles();
-
-    } catch (e) {
-      showError('No se pudo conectar con el servidor.');
-      btn.disabled = false;
-      text.innerHTML = '✓ Registrar práctica';
-    }
-  }
-
-  // ─── ERRORES ───────────────────────────────────────────────────────────────
-  let errTimer = null;
-  function showError(msg) {
-    clearTimeout(errTimer);
-    document.getElementById('result-err-msg').textContent = msg;
-    document.getElementById('result-err').classList.add('err');
-    document.getElementById('result-err').style.display = 'block';
-    errTimer = setTimeout(hideError, 3500);
-  }
-
-  function hideError() {
-    clearTimeout(errTimer);
-    document.getElementById('result-err').classList.remove('err');
-    document.getElementById('result-err').style.display = 'none';
-  }
-
-  function resetForm() {
-    document.getElementById('result-ok').classList.remove('ok');
-    document.getElementById('result-ok').style.display = 'none';
-    document.getElementById('form-section').style.display = 'block';
-    document.getElementById('vehiculo-select').value = '';
-    document.getElementById('alumno-select').innerHTML = '<option value="">— Primero selecciona un vehículo —</option>';
-    document.getElementById('alumno-select').disabled = true;
-    document.getElementById('alumno-info').style.display = 'none';
-    document.getElementById('fecha-input').value = new Date().toLocaleDateString('sv-SE');
-    document.getElementById('btn-registrar').disabled = true;
-    document.getElementById('btn-text').innerHTML = '✓ Registrar práctica';
-  }
-
-  // ─── CREAR ALUMNO ──────────────────────────────────────────────────────────
-  async function crearAlumno() {
-    const nombre = document.getElementById('nuevo-nombre').value.trim();
-    const permiso = document.getElementById('nuevo-permiso').value;
-    const vehiculoId = document.getElementById('nuevo-vehiculo').value;
-
-    if (!nombre) { showAlumnoError('Introduce el nombre del alumno.'); return; }
-
-    const btn = document.getElementById('btn-crear-alumno');
-    const text = document.getElementById('btn-crear-text');
-    btn.disabled = true;
-    text.innerHTML = '<span class="loading-dots"><span>·</span><span>·</span><span>·</span></span>';
-
-    try {
-      const res = await apiFetch('/api/crear-alumno', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre,
-          permiso,
-          vehiculo_id: vehiculoId ? parseInt(vehiculoId) : null,
-          profesor_id: perfilActivo ? perfilActivo.id : null
-        })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        showAlumnoError(data.error || 'Error al crear el alumno.');
-        btn.disabled = false;
-        text.innerHTML = '+ Crear alumno';
-        return;
-      }
-
-      document.getElementById('result-alumno-ok-msg').textContent =
-        `${nombre} — Permiso ${permiso}${vehiculoId ? '\nVehículo asignado correctamente.' : '\nSin vehículo asignado.'}`;
-      document.getElementById('btn-crear-alumno').style.display = 'none';
-      document.getElementById('result-alumno-ok').classList.add('ok');
-      document.getElementById('result-alumno-ok').style.display = 'block';
-
-      await cargarDatos();
-
-    } catch (e) {
-      showAlumnoError('No se pudo conectar con el servidor.');
-      btn.disabled = false;
-      text.innerHTML = '+ Crear alumno';
-    }
-  }
-
-  let alumnoErrTimer = null;
-  function showAlumnoError(msg) {
-    clearTimeout(alumnoErrTimer);
-    document.getElementById('result-alumno-err-msg').textContent = msg;
-    document.getElementById('result-alumno-err').classList.add('err');
-    document.getElementById('result-alumno-err').style.display = 'block';
-    alumnoErrTimer = setTimeout(hideAlumnoError, 3500);
-  }
-
-  function hideAlumnoError() {
-    clearTimeout(alumnoErrTimer);
-    document.getElementById('result-alumno-err').classList.remove('err');
-    document.getElementById('result-alumno-err').style.display = 'none';
-  }
-
-  function resetAlumnoForm() {
-    document.getElementById('result-alumno-ok').classList.remove('ok');
-    document.getElementById('result-alumno-ok').style.display = 'none';
-    document.getElementById('btn-crear-alumno').style.display = '';
-    document.getElementById('btn-crear-alumno').disabled = false;
-    document.getElementById('btn-crear-text').innerHTML = '+ Crear alumno';
-    document.getElementById('nuevo-nombre').value = '';
-    document.getElementById('nuevo-permiso').value = 'B';
-    document.getElementById('nuevo-vehiculo').value = '';
-  }
-
-  // ─── HISTORIAL ─────────────────────────────────────────────────────────────
-  async function cargarHistorial() {
-    const list = document.getElementById('historial-list');
-    list.innerHTML = '<div class="historial-empty">Cargando...</div>';
-
-    try {
-      const res = await apiFetch('/api/historial');
-      if (!res.ok) throw new Error('Error cargando historial');
-      
-      const practicas = await res.json();
-
-      const count = document.getElementById('historial-count');
-      if (count) {
-        count.style.display = practicas.length ? 'inline-block' : 'none';
-        animarNum(count, practicas.length);
-      }
-
-      if (!practicas.length) {
-        list.innerHTML = '<div class="historial-empty">No hay prácticas registradas hoy desde esta web.</div>';
-        return;
-      }
-
-      list.innerHTML = practicas.map(p => `
-        <div class="historial-item">
-          <div class="historial-info">
-            <div class="historial-nombre">${escapeHtml(p.alumno_nombre)}</div>
-            <div class="historial-fecha">${p.fecha} · ${escapeHtml(p.vehiculo_nombre)}</div>
-          </div>
-          <button class="btn-danger" onclick="cancelarPractica(${p.id}, '${escapeHtml(p.alumno_nombre)}')">✕ Cancelar</button>
-        </div>
-      `).join('');
-
-    } catch (e) {
-      list.innerHTML = '<div class="historial-empty">Error cargando historial.</div>';
-    }
-  }
-
-  async function cancelarPractica(id, nombre) {
-    if (!confirm(`¿Cancelar la práctica de ${nombre}?`)) return;
-
-    try {
-      const res = await apiFetch('/api/cancelar-practica', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ practica_id: id })
-      });
-
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        cargarHistorial();
-      } else {
-        alert(data.error || 'Error al cancelar');
-      }
-    } catch (e) {
-      alert('Error de conexión');
-    }
-  }
-
-  // ─── AGENDA DEL PROFESOR (solo lectura) ────────────────────────────────────
-  const ESTADO_AGENDA_TXT = {
-    solicitada: 'Solicitada',
-    confirmada: 'Confirmada',
-    realizada: 'Realizada'
+}
+function flujoDesdePractica(p) {
+  const detalle = TIPOS.find(t => t.id === p.tipo_detalle);
+  const inicioMs = (() => { if (!p.hora_inicio || p.fecha !== S.hoy) return Date.now(); const [h, m] = p.hora_inicio.split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); return d.getTime(); })();
+  return {
+    practica_id: p.id, alumno_id: p.alumno_id, alumno_nombre: p.alumno_nombre, vehiculo_id: p.vehiculo_id, vehiculo_nombre: p.vehiculo_nombre, matricula: p.matricula,
+    km_inicial: p.km_inicial, km_final: p.km_final || 0, inicio_ms: inicioMs, hora_inicio: p.hora_inicio, hora_fin: p.hora_fin || null,
+    duracion_min: parseInt(localStorage.getItem(DURACION_KEY)) || 45, tipo_detalle: (detalle || TIPOS[0]).id, trabajado: p.trabajado || [], observacion: '',
+    clase_n: p.clase_n, fecha: p.fecha, cerrada: !!p.km_final, sin_cerrar: !!p.sin_cerrar
   };
+}
+function guardarFlujo() { try { if (S.flujo) localStorage.setItem(FLUJO_KEY, JSON.stringify(S.flujo)); else localStorage.removeItem(FLUJO_KEY); } catch {} }
+function cargarFlujo() { try { const r = localStorage.getItem(FLUJO_KEY); S.flujo = r ? JSON.parse(r) : null; } catch { S.flujo = null; } }
+const vehiculo = id => S.vehiculos.find(v => v.id === id);
+const alumno = id => S.alumnos.find(a => a.id === id);
+const nombreAlumno = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '';
 
-  // Reutiliza profesoresDisponibles, ya cargado en showProfiles() al iniciar sesión.
-  function llenarSelectAgendaProfesores() {
-    const sel = document.getElementById('agenda-profesor');
-    const actual = sel.value;
-    if (!profesoresDisponibles.length) {
-      sel.innerHTML = '<option value="">No hay profesores dados de alta</option>';
-      return;
-    }
-    sel.innerHTML = '<option value="">— Selecciona un profesor —</option>' +
-      profesoresDisponibles.map(p => `<option value="${p.id}">${escapeHtml(p.nombre)}</option>`).join('');
-    // Si ya hay un profesor activo (perfil elegido al entrar), preselecciónalo.
-    if (actual) {
-      sel.value = actual;
-    } else if (perfilActivo && perfilActivo.id) {
-      sel.value = perfilActivo.id;
+async function entrarApp() {
+  ocultarAcceso(); document.getElementById('app').hidden = false; document.getElementById('app').classList.add('on-app');
+  cargarFlujo();
+  document.getElementById('v-hoy').innerHTML = '<div class="cargando">Cargando tu jornada…</div>';
+  S.fecha = S.hoy = fechaLocal();
+  history.replaceState({ vista: 'hoy' }, '');
+  go('hoy', { sinHistorial: true });
+  await cargarBase();
+  await cargarJornada();
+  if (S.vista === 'hoy') renderHoy();
+  renderRiel();
+}
+
+// ─── HOY ─────────────────────────────────────────────────────────────────────
+function pendientesReservas() {
+  const yaHechos = new Set(S.jornada.practicas.map(p => p.alumno_id));
+  return S.jornada.reservas.filter(r => !yaHechos.has(r.alumno_id));
+}
+function resumenJornada() {
+  const cerradas = S.jornada.practicas.filter(p => !p.en_curso && !p.sin_cerrar);
+  const enCurso = S.jornada.practicas.filter(p => p.en_curso);
+  const pend = pendientesReservas();
+  const total = S.jornada.practicas.length + pend.length;
+  const km = cerradas.reduce((s, p) => s + (p.km || 0), 0);
+  return { cerradas, enCurso, pend, total, km, firmadas: cerradas.filter(p => p.firmada).length };
+}
+function segmentos(r) {
+  const n = Math.min(r.total, 14);
+  if (!n) return '';
+  let html = '';
+  for (let i = 0; i < n; i++) html += `<i class="${i < r.cerradas.length ? 'hecha' : (i < r.cerradas.length + r.enCurso.length ? 'curso' : '')}"></i>`;
+  return `<div class="segs" aria-hidden="true">${html}</div>`;
+}
+function cardVehiculo(sel = true) {
+  const v = vehiculo(S.vehId);
+  if (!v) return `<div class="card veh-card"><span class="veh-ic">${ic('coche', 24)}</span><div style="flex:1"><div class="fila-tit">Sin vehículo</div><div class="fila-sub">No hay vehículos registrados</div></div></div>`;
+  const u = v.ultimo;
+  return `<div class="card veh-card"><span class="veh-ic">${ic('coche', 24)}</span>
+    <div style="flex:1;min-width:0"><div class="fila-tit" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.nombre)}</div><div style="margin:3px 0">${placa(v.matricula)}</div>
+    <div class="fila-sub">Último km <b class="mono" style="color:var(--ink)">${miles(u ? u.km_final : v.km_actual)}</b>${u && u.hora ? ' · a las ' + esc(u.hora) : ''}</div></div>
+    ${sel ? '<button class="btn btn-sec btn-peq" onclick="elegirVehiculo()">Cambiar</button>' : ''}</div>`;
+}
+
+function renderHoy() {
+  const r = resumenJornada();
+  const esHoy = S.fecha === S.hoy;
+  const perfilIni = iniciales(S.perfil ? S.perfil.nombre : '?');
+  let html = `<div class="cab"><div>
+      <div class="fecha-lin"><button onclick="cambiarDia(-1)" aria-label="Día anterior">${ic('chevIzq', 18)}</button>${esc(fechaLarga(S.fecha))}<button onclick="cambiarDia(1)" aria-label="Día siguiente">${ic('chev', 18)}</button></div>
+      <div class="grande" style="margin-top:4px">${esHoy ? 'Hoy' : esc(cap(DIAS[partes(S.fecha).dow]))}</div></div>
+      <button class="avatar" onclick="menuPerfil()" aria-label="Perfil y opciones">${esc(perfilIni)}</button></div>`;
+  if (!esHoy) html += `<button class="btn btn-sec btn-peq" style="margin-bottom:12px" onclick="cambiarDia(0)">Volver a hoy</button>`;
+  html += cardVehiculo(esHoy);
+  html += `<div style="margin-top:16px"><div class="prog-lin"><span>${r.cerradas.length} de ${r.total} ${r.total === 1 ? 'clase' : 'clases'} ${r.cerradas.length === 1 ? 'hecha' : 'hechas'}</span><span><b class="mono">${miles(r.km)}</b> <span style="font-weight:500;color:var(--muted)">km ${esHoy ? 'hoy' : ''}</span></span></div>${segmentos(r)}</div>`;
+
+  if (esHoy) {
+    // Sin cerrar de días anteriores y práctica en curso
+    const enCurso = r.enCurso[0];
+    const sinCerrar = S.jornada.sin_cerrar[0];
+    if (enCurso) {
+      html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et"><span class="pill-dot"></span>EN CURSO</span><span>${esc(enCurso.hora_inicio || '')} ${enCurso.hora_inicio ? '–' : ''} ${esc(sumaMin(enCurso.hora_inicio, parseInt(localStorage.getItem(DURACION_KEY)) || 45))}</span></div>
+        <div class="ahora-quien"><span class="ini">${esc(iniciales(enCurso.alumno_nombre))}</span><div><div class="ahora-nom">${esc(enCurso.alumno_nombre)}</div><div class="ahora-sub">Clase ${enCurso.clase_n} · ${esc(enCurso.tipo_detalle || (enCurso.tipo === 'pista' ? 'Maniobras' : 'Circulación urbana'))}</div></div></div>
+        <button class="btn btn-pri btn-lg" onclick="continuarPractica(${enCurso.id})">${ic('play', 18)} Continuar práctica</button></div>`;
+    } else if (sinCerrar) {
+      html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et">${ic('aviso', 16)} SIN CERRAR</span><span>${esc(fechaCorta(sinCerrar.fecha))}</span></div>
+        <div class="ahora-quien"><span class="ini">${esc(iniciales(sinCerrar.alumno_nombre))}</span><div><div class="ahora-nom">${esc(sinCerrar.alumno_nombre)}</div><div class="ahora-sub">Empezó en el km ${miles(sinCerrar.km_inicial)} y falta el km final</div></div></div>
+        <button class="btn btn-pri btn-lg" onclick="continuarPractica(${sinCerrar.id})">Cerrar práctica</button></div>`;
+    } else if (r.pend.length) {
+      const sig = r.pend[0];
+      html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et"><span class="pill-dot"></span>SIGUIENTE</span><span>${esc(sig.hora_inicio || '')}${sig.duracion_min ? ' – ' + esc(sumaMin(sig.hora_inicio, sig.duracion_min)) : ''}</span></div>
+        <div class="ahora-quien"><span class="ini">${esc(iniciales(sig.alumno_nombre))}</span><div><div class="ahora-nom">${esc(sig.alumno_nombre || 'Alumno')}</div><div class="ahora-sub">${esc(sig.nota || 'Práctica programada')}</div></div></div>
+        <button class="btn btn-pri btn-lg" onclick="abrirIniciar({alumno_id:${sig.alumno_id},vehiculo_id:${sig.vehiculo_id || 'null'}})">${ic('play', 18)} Iniciar práctica</button></div>`;
+    } else {
+      html += `<div class="card card-pad" style="margin-top:16px"><div class="fila-tit">${r.cerradas.length ? '¡Jornada completada!' : 'No hay clases programadas'}</div><div class="fila-sub" style="margin:2px 0 12px">Puedes empezar una práctica cuando quieras.</div><button class="btn btn-pri" onclick="abrirIniciar()">${ic('mas', 20)} Nueva práctica</button></div>`;
     }
   }
 
-  async function cargarAgendaProfesor() {
-    const pid = document.getElementById('agenda-profesor').value;
-    const fecha = document.getElementById('agenda-fecha').value;
-    const lista = document.getElementById('agenda-lista');
-
-    if (!pid) {
-      lista.innerHTML = '<div class="historial-empty">Elige un profesor y una fecha para ver su agenda.</div>';
-      return;
-    }
-    if (!fecha) {
-      lista.innerHTML = '<div class="historial-empty">Elige una fecha.</div>';
-      return;
-    }
-
-    lista.innerHTML = '<div class="historial-empty">Cargando...</div>';
-
-    try {
-      const res = await apiFetch('/api/agenda-profesor?profesor_id=' + encodeURIComponent(pid) + '&fecha=' + encodeURIComponent(fecha));
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error cargando la agenda');
-
-      const reservas = data.reservas || [];
-      if (!reservas.length) {
-        lista.innerHTML = '<div class="historial-empty">No hay clases ese día.</div>';
-        return;
-      }
-
-      lista.innerHTML = reservas.map(r => {
-        const vehiculoTxt = r.vehiculo_nombre
-          ? escapeHtml(r.vehiculo_nombre) + (r.matricula ? ' (' + escapeHtml(r.matricula) + ')' : '')
-          : 'Sin vehículo';
-        const estadoTxt = ESTADO_AGENDA_TXT[r.estado] || escapeHtml(r.estado || '');
-        return `
-          <div class="historial-item">
-            <div class="historial-info">
-              <div class="historial-nombre">${escapeHtml(r.hora_inicio || '')} · ${escapeHtml(r.alumno_nombre || 'Alumno')} <span class="tag">${estadoTxt}</span></div>
-              <div class="historial-fecha">${vehiculoTxt}${r.duracion_min ? ' · ' + r.duracion_min + ' min' : ''}</div>
-              ${r.nota ? `<div class="historial-fecha">${escapeHtml(r.nota)}</div>` : ''}
-            </div>
-          </div>
-        `;
-      }).join('');
-    } catch (e) {
-      lista.innerHTML = `<div class="historial-empty">${escapeHtml(e.message || 'Error cargando la agenda.')}</div>`;
-    }
+  const resto = esHoy && !r.enCurso.length && !S.jornada.sin_cerrar.length ? r.pend.slice(1) : r.pend;
+  if (resto.length) {
+    html += `<div class="grupo-tit"><span>${esHoy ? 'Más tarde' : 'Agenda'}</span></div><div class="card">` + resto.map(rv =>
+      `<button class="fila" ${esHoy ? `onclick="abrirIniciar({alumno_id:${rv.alumno_id},vehiculo_id:${rv.vehiculo_id || 'null'}})"` : ''}><span class="fila-hora">${esc(rv.hora_inicio || '--:--')}</span>
+        <div style="flex:1;min-width:0"><div class="fila-tit">${esc(rv.alumno_nombre || 'Alumno')}</div><div class="fila-sub">${esc(rv.nota || (rv.matricula ? rv.matricula : 'Práctica'))}${rv.duracion_min ? ' · ' + rv.duracion_min + ' min' : ''}</div></div>${esHoy ? ic('chev', 20, 'style="color:var(--faint)"') : ''}</button>`).join('') + '</div>';
   }
+  if (r.cerradas.length) {
+    html += `<div class="grupo-tit"><span>Completadas</span><button onclick="go('historial')">Historial</button></div><div class="card">` + r.cerradas.slice().reverse().map(p =>
+      `<button class="fila" onclick="${p.firmada ? `abrirFicha(${p.alumno_id})` : `continuarPractica(${p.id})`}"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span>
+        <div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div><div class="fila-sub mono">${miles(p.km_inicial)} → ${miles(p.km_final)} · ${p.km} km</div></div>
+        ${p.firmada ? `<span class="pill pill-ok">${ic('ok', 14, 'style="stroke-width:2.6"')} Firmada</span>` : '<span class="pill pill-warn">Sin firmar</span>'}</button>`).join('') + '</div>';
+  }
+  if (!r.total && !S.jornada.sin_cerrar.length && !esHoy) html += '<div class="vacio">Sin clases este día.</div>';
+  document.getElementById('v-hoy').innerHTML = html;
+}
+async function cambiarDia(n) {
+  S.fecha = n === 0 ? S.hoy : sumaDias(S.fecha, n);
+  document.getElementById('v-hoy').querySelector('.grande')?.classList.add('opaco');
+  await cargarJornada(); renderHoy(); renderRiel();
+}
 
-  // ─── INIT ──────────────────────────────────────────────────────────────────
-  checkSession();
+function menuPerfil() {
+  abrirHoja(`<div class="hoja-tit"><h3>${esc(S.perfil ? S.perfil.nombre : '')}</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+    <div class="card"><button class="fila" onclick="cerrarHoja();go('historial')"><span class="veh-ic">${ic('hist', 22)}</span><div class="fila-tit" style="flex:1">Historial (últimas 24 h)</div>${ic('chev', 20)}</button>
+    <button class="fila" onclick="cerrarHoja();cambiarPerfil()"><span class="veh-ic">${ic('persona', 22)}</span><div class="fila-tit" style="flex:1">Cambiar de perfil</div>${ic('chev', 20)}</button>
+    <button class="fila" onclick="cerrarSesion()"><span class="veh-ic">${ic('salir', 22)}</span><div class="fila-tit" style="flex:1">Cerrar sesión</div></button></div>`);
+}
+function cambiarPerfil() { if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada) { toast('Termina primero la práctica en curso.'); return; } mostrarPerfiles(); }
+
+function elegirVehiculo(despues) {
+  const filas = S.vehiculos.map(v => `<button class="fila" onclick="fijarVehiculo(${v.id})"><span class="veh-ic">${ic('coche', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(v.nombre)}</div><div style="margin:3px 0">${placa(v.matricula)}</div><div class="fila-sub">Último km ${miles(v.ultimo ? v.ultimo.km_final : v.km_actual)}</div></div>${v.id === S.vehId ? ic('ok', 22) : ''}</button>`).join('');
+  elegirVehiculo._despues = despues;
+  abrirHoja(`<div class="hoja-tit"><h3>Vehículo</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div><div class="hoja-lista card">${filas || '<div class="vacio">No hay vehículos.</div>'}</div>`);
+}
+function fijarVehiculo(id) {
+  S.vehId = id; localStorage.setItem(VEHICULO_KEY, String(id)); cerrarHoja();
+  if (S.vista === 'iniciar') { S.iniciar.vehiculo_id = id; S.iniciar.km = String(kmSugerido(id) || ''); renderIniciar(); } else if (S.vista === 'hoy') renderHoy();
+}
+
+// ─── INICIAR PRÁCTICA ────────────────────────────────────────────────────────
+S.iniciar = null;
+function kmSugerido(vid) { const v = vehiculo(vid); return v ? (v.ultimo ? v.ultimo.km_final : v.km_actual) : 0; }
+function abrirIniciar(op = {}) {
+  if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada) { toast('Ya tienes una práctica en curso.'); go('curso'); return; }
+  const al = op.alumno_id ? alumno(op.alumno_id) : null;
+  let vid = op.vehiculo_id || (al && al.vehiculo_id) || S.vehId;
+  if (!vehiculo(vid)) vid = S.vehId;
+  S.iniciar = {
+    alumno_id: al ? al.id : null, vehiculo_id: vid, km: String(kmSugerido(vid) || ''),
+    tipo_detalle: TIPOS[0].id, duracion_min: parseInt(localStorage.getItem(DURACION_KEY)) || 45
+  };
+  go('iniciar');
+}
+function digitos(valor, largo = 6) {
+  const s = String(valor || '').replace(/\D/g, '').slice(0, 7).padStart(largo, '0');
+  const primerNoCero = s.search(/[1-9]/);
+  return `<div class="odo-cajas">${[...s].map((c, i) => `<span class="${(primerNoCero === -1 || i < primerNoCero) ? 'cero' : ''}">${c}</span>`).join('')}</div>`;
+}
+function msgContinuidad(vid, km) {
+  const v = vehiculo(vid); const u = v && v.ultimo;
+  km = parseInt(km) || 0;
+  if (!u || !u.km_final) return { cls: 'msg-gris', txt: 'No hay una práctica anterior registrada con este coche.' };
+  const quien = `${u.alumno ? esc(u.alumno) : 'práctica anterior'}${u.hora ? ', ' + esc(u.hora) : ''}`;
+  if (!km) return { cls: 'msg-gris', txt: `El coche terminó la última práctica en el km ${miles(u.km_final)} (${quien}).` };
+  const d = km - u.km_final;
+  if (d === 0) return { cls: 'msg-ok', ok: true, txt: `Coincide con el km final de la práctica anterior (${quien}).` };
+  if (d > 0) return { cls: 'msg-warn', txt: `Hay ${miles(d)} km sin registrar desde la práctica anterior (terminó en el km ${miles(u.km_final)}, ${quien}).` };
+  return { cls: 'msg-err', txt: `Es ${miles(-d)} km menos que el final de la práctica anterior (${miles(u.km_final)}). Revisa el número.` };
+}
+function renderIniciar() {
+  const I = S.iniciar; if (!I) { go('hoy'); return; }
+  const al = alumno(I.alumno_id); const v = vehiculo(I.vehiculo_id);
+  const c = msgContinuidad(I.vehiculo_id, I.km);
+  const ahora = hhmm();
+  const clase = al ? (al.clases || 0) + 1 : null;
+  document.getElementById('v-iniciar').innerHTML = `
+    <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Iniciar práctica</h1></div><span class="fecha-lin">${ic('reloj', 16)} ${ahora}</span></div>
+    <div class="card">
+      <div class="veh-card">${al ? `<span class="ini">${esc(iniciales(nombreAlumno(al)))}</span>` : `<span class="ini">${ic('persona', 22)}</span>`}
+        <div style="flex:1;min-width:0"><div class="fila-tit">${al ? esc(nombreAlumno(al)) : 'Elige un alumno'}</div><div class="fila-sub">${al ? `Permiso ${esc(al.permiso)} · Clase ${clase}` : 'Obligatorio para empezar'}</div></div>
+        <button class="lnk" onclick="elegirAlumnoIniciar()">${al ? 'Cambiar' : 'Elegir'}</button></div>
+      <div class="veh-card" style="border-top:1px solid var(--soft)"><span class="veh-ic">${ic('coche', 22)}</span>
+        <div style="flex:1;min-width:0">${v ? `<div class="fila-tit" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.nombre)}</div><div style="margin-top:3px">${placa(v.matricula)}</div>` : '<span class="fila-tit">Sin vehículo</span>'}</div>
+        <button class="lnk" onclick="elegirVehiculo()">Cambiar</button></div>
+    </div>
+    <div class="etq">Km inicial <small>Lo que marca el coche</small></div>
+    <div class="card card-pad"><div class="odo-wrap"><div class="odo">${digitos(I.km)}<span class="odo-km">km</span></div>
+      <input class="odo-input" id="km-ini" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="off" aria-label="Km inicial" value="${esc(I.km)}" oninput="tecleaKmIni(this)"></div>
+      <div class="msg ${c.cls}" id="msg-cont">${c.ok ? ic('ok', 20) : ''}<span>${c.txt}</span></div>
+      <div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-sec btn-peq" style="flex:1" onclick="document.getElementById('km-ini').focus()">${ic('lapiz', 16)} Corregir km</button>
+      ${v && v.ultimo ? `<button class="btn btn-sec btn-peq" style="flex:1" onclick="usarKmAnterior()">Usar ${miles(v.ultimo.km_final)}</button>` : ''}</div></div>
+    <div class="etq">Tipo de práctica</div>
+    <div class="chips">${TIPOS.map(t => `<button class="chip ${t.id === I.tipo_detalle ? 'on' : ''}" onclick="S.iniciar.tipo_detalle='${t.id}';renderIniciar()">${esc(t.id)}</button>`).join('')}</div>
+    <div class="etq">Duración <small>Termina a las ${esc(sumaMin(ahora, I.duracion_min))}</small></div>
+    <div class="seg3">${[45, 60, 90].map(m => `<button class="${m === I.duracion_min ? 'on' : ''}" onclick="S.iniciar.duracion_min=${m};renderIniciar()">${m} min</button>`).join('')}</div>
+    <div style="text-align:center;margin-top:18px"><button class="lnk lnk-suave" onclick="registrarSinCronometro()">Registrar sin cronómetro (rellenar los km después)</button></div>
+    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-empezar" onclick="empezarPractica()" ${al && v && parseInt(I.km) > 0 ? '' : 'disabled'}>${ic('play', 18)} Empezar práctica</button></div>`;
+}
+function tecleaKmIni(inp) {
+  inp.value = inp.value.replace(/\D/g, '').slice(0, 7);
+  S.iniciar.km = inp.value;
+  document.querySelector('#v-iniciar .odo').firstElementChild.outerHTML = digitos(inp.value);
+  const c = msgContinuidad(S.iniciar.vehiculo_id, inp.value);
+  const m = document.getElementById('msg-cont'); m.className = 'msg ' + c.cls; m.innerHTML = (c.ok ? ic('ok', 20) : '') + `<span>${c.txt}</span>`;
+  document.getElementById('btn-empezar').disabled = !(S.iniciar.alumno_id && S.iniciar.vehiculo_id && parseInt(inp.value) > 0);
+}
+function usarKmAnterior() { const v = vehiculo(S.iniciar.vehiculo_id); if (v && v.ultimo) { S.iniciar.km = String(v.ultimo.km_final); renderIniciar(); } }
+function volver() { history.length > 1 ? history.back() : go('hoy'); }
+
+function elegirAlumnoIniciar() {
+  const orden = S.alumnos.slice().sort((a, b) => {
+    const ma = S.perfil && a.profesor_id === S.perfil.id ? 0 : 1, mb = S.perfil && b.profesor_id === S.perfil.id ? 0 : 1;
+    return ma - mb || nombreAlumno(a).localeCompare(nombreAlumno(b), 'es');
+  });
+  elegirAlumnoIniciar._orden = orden;
+  abrirHoja(`<div class="hoja-tit"><h3>Alumno</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+    <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca-al" placeholder="Buscar por nombre" oninput="filtrarHojaAlumnos(this.value)" autocomplete="off"></div>
+    <div class="hoja-lista card" id="hoja-alumnos"></div>`);
+  filtrarHojaAlumnos('');
+}
+function filtrarHojaAlumnos(q) {
+  q = (q || '').toLowerCase().trim();
+  const lista = (elegirAlumnoIniciar._orden || []).filter(a => !q || nombreAlumno(a).toLowerCase().includes(q));
+  document.getElementById('hoja-alumnos').innerHTML = lista.length ? lista.map(a =>
+    `<button class="fila-alumno" onclick="fijarAlumnoIniciar(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">Permiso ${esc(a.permiso)} · ${a.clases || 0} ${a.clases === 1 ? 'clase' : 'clases'}</div></div>${S.perfil && a.profesor_id === S.perfil.id ? '<span class="pill">Tuyo</span>' : ''}</button>`).join('')
+    : '<div class="vacio">Ningún alumno coincide.</div>';
+}
+function fijarAlumnoIniciar(id) {
+  const al = alumno(id); cerrarHoja();
+  S.iniciar.alumno_id = id;
+  if (al && al.vehiculo_id && vehiculo(al.vehiculo_id) && S.iniciar.vehiculo_id !== al.vehiculo_id) { S.iniciar.vehiculo_id = al.vehiculo_id; S.iniciar.km = String(kmSugerido(al.vehiculo_id) || ''); }
+  renderIniciar();
+}
+
+async function empezarPractica() {
+  const I = S.iniciar; const btn = document.getElementById('btn-empezar');
+  const km = parseInt(I.km);
+  if (!I.alumno_id || !I.vehiculo_id || !(km > 0)) return;
+  const c = msgContinuidad(I.vehiculo_id, km);
+  if (c.cls === 'msg-err' && !confirm('El km inicial es menor que el final de la práctica anterior. ¿Empezar igualmente?')) return;
+  btn.disabled = true; btn.textContent = 'Empezando…';
+  const ahora = new Date();
+  const tipo = (TIPOS.find(t => t.id === I.tipo_detalle) || TIPOS[0]).tipo;
+  try {
+    const res = await postJSON('/api/iniciar-practica', {
+      alumno_id: I.alumno_id, vehiculo_id: I.vehiculo_id, km_inicial: km, tipo, tipo_detalle: I.tipo_detalle,
+      fecha: fechaLocal(ahora), hora_inicio: hhmm(ahora), profesor_id: S.perfil ? S.perfil.id : null
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      if (res.status === 409 && data.practica_id) { toast(data.error); await cargarJornada(); go('hoy'); return; }
+      throw new Error(data.error || 'No se pudo empezar la práctica');
+    }
+    const al = alumno(I.alumno_id), v = vehiculo(I.vehiculo_id);
+    localStorage.setItem(VEHICULO_KEY, String(I.vehiculo_id)); S.vehId = I.vehiculo_id;
+    localStorage.setItem(DURACION_KEY, String(I.duracion_min));
+    S.flujo = {
+      practica_id: data.practica_id, alumno_id: I.alumno_id, alumno_nombre: nombreAlumno(al), vehiculo_id: I.vehiculo_id, vehiculo_nombre: v ? v.nombre : '', matricula: v ? v.matricula : null,
+      km_inicial: km, km_final: 0, inicio_ms: ahora.getTime(), hora_inicio: hhmm(ahora), duracion_min: I.duracion_min,
+      tipo_detalle: I.tipo_detalle, trabajado: [], observacion: '', clase_n: (al ? (al.clases || 0) : 0) + 1, fecha: fechaLocal(ahora), cerrada: false
+    };
+    guardarFlujo();
+    go('curso');
+  } catch (e) {
+    if (e.message !== 'Sesión expirada') { toast(e.message || 'Error al empezar'); btn.disabled = false; btn.innerHTML = ic('play', 18) + ' Empezar práctica'; }
+  }
+}
+async function registrarSinCronometro() {
+  const I = S.iniciar;
+  if (!I.alumno_id) { toast('Elige primero un alumno.'); return; }
+  try {
+    const res = await postJSON('/api/practica', { alumno_id: I.alumno_id, fecha: fechaLocal(), profesor_id: S.perfil ? S.perfil.id : null });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo registrar');
+    toast('Práctica registrada. Los km se rellenan desde la app.');
+    await cargarJornada(); go('hoy');
+  } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message); }
+}
+
+// ─── EN CURSO ────────────────────────────────────────────────────────────────
+async function continuarPractica(id) {
+  let p = S.jornada.practicas.find(x => x.id === id) || S.jornada.sin_cerrar.find(x => x.id === id);
+  if (!p) return;
+  if (!S.flujo || S.flujo.practica_id !== id) { S.flujo = flujoDesdePractica(p); guardarFlujo(); }
+  if (p.km_final) { S.flujo.cerrada = true; S.flujo.km_final = p.km_final; guardarFlujo(); go('firma'); return; }
+  go('curso');
+}
+function pararTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } }
+function pararTimerSiNoCurso(vista) { if (vista !== 'curso') pararTimer(); }
+function tiempoTxt(seg) { const m = Math.floor(seg / 60), s = seg % 60; return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'); }
+function renderCurso() {
+  const F = S.flujo; if (!F || !F.practica_id) { go('hoy'); return; }
+  const dur = F.duracion_min || 45;
+  document.getElementById('v-curso').innerHTML = `
+    <div class="cab"><span class="curso-et"><span class="pill-dot"></span>EN CURSO</span><button class="cab-atras" style="color:#F3F2EE" onclick="menuCurso()" aria-label="Más opciones">${ic('menu', 26)}</button></div>
+    <div class="ahora-quien" style="margin-top:6px"><span class="ini" style="background:#2A2D35;color:#F3F2EE;width:54px;height:54px">${esc(iniciales(F.alumno_nombre))}</span><div><div class="ahora-nom">${esc(F.alumno_nombre)}</div><div class="ahora-sub">Clase ${F.clase_n} · ${esc(F.tipo_detalle)}</div></div></div>
+    <div class="crono" id="crono"><span id="crono-t">00:00</span><small>/ ${tiempoTxt(dur * 60)}</small></div>
+    <div class="barra-tiempo"><i id="barra-t" style="width:0%"></i></div>
+    <div class="curso-horas"><span>Empezó a las <b>${esc(F.hora_inicio)}</b></span><span>Termina a las <b>${esc(sumaMin(F.hora_inicio, dur))}</b></span></div>
+    <div class="mini2"><div class="mini"><span class="etq2">KM INICIAL</span><span class="val">${miles(F.km_inicial)}</span></div>
+      <div class="mini"><span class="etq2">VEHÍCULO</span><span>${placa(F.matricula) || esc(F.vehiculo_nombre)}</span></div></div>
+    <div class="etq" style="color:#A3A6AE">Qué se ha trabajado <small id="trab-n" style="color:#A3A6AE"></small></div>
+    <div class="chips chips-osc">${TRABAJADO.map(t => `<button class="chip ${F.trabajado.includes(t) ? 'on' : ''}" onclick="toggleTrabajado('${t}',this)">${F.trabajado.includes(t) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(t)}</button>`).join('')}</div>
+    <button class="dash-btn" id="btn-obs" onclick="abrirObservacion()">${ic('lapiz', 18)} ${F.observacion ? 'Editar observación' : 'Añadir observación'}</button>
+    <div id="obs-vista" style="margin-top:10px;color:#C9CBD1;font-size:15px">${F.observacion ? esc(F.observacion) : ''}</div>
+    <div class="barra-fija"><button class="btn btn-pri btn-lg" onclick="abrirKmFinal()">${ic('stop', 16)} Finalizar práctica</button></div>`;
+  actualizaTrabN();
+  pararTimer(); tickCrono();
+  S.timer = setInterval(tickCrono, 1000);
+}
+function tickCrono() {
+  const F = S.flujo; if (!F || S.vista !== 'curso') { pararTimer(); return; }
+  const seg = Math.max(0, Math.floor((Date.now() - F.inicio_ms) / 1000));
+  const t = document.getElementById('crono-t'); if (!t) return;
+  t.textContent = tiempoTxt(seg);
+  const dur = (F.duracion_min || 45) * 60;
+  document.getElementById('crono').classList.toggle('pasado', seg > dur);
+  document.getElementById('barra-t').style.width = Math.min(100, (seg / dur) * 100) + '%';
+}
+function actualizaTrabN() { const n = S.flujo.trabajado.length; const el = document.getElementById('trab-n'); if (el) el.textContent = n ? `${n} marcado${n === 1 ? '' : 's'}` : ''; }
+function toggleTrabajado(t, btn) {
+  const F = S.flujo; const i = F.trabajado.indexOf(t);
+  if (i >= 0) F.trabajado.splice(i, 1); else F.trabajado.push(t);
+  guardarFlujo();
+  btn.classList.toggle('on', i < 0);
+  btn.innerHTML = (i < 0 ? ic('ok', 16, 'style="stroke-width:2.6"') : '') + esc(t);
+  actualizaTrabN();
+}
+function abrirObservacion() {
+  const cont = document.getElementById('btn-obs');
+  cont.outerHTML = `<textarea class="obs-area" id="obs-txt" placeholder="Qué ha ido bien, qué repasar…" oninput="S.flujo.observacion=this.value;guardarFlujo()">${esc(S.flujo.observacion)}</textarea>`;
+  document.getElementById('obs-vista').textContent = '';
+  document.getElementById('obs-txt').focus();
+}
+function menuCurso() {
+  abrirHoja(`<div class="hoja-tit"><h3>Práctica en curso</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+    <div class="card"><button class="fila" onclick="cerrarHoja();go('hoy')"><span class="veh-ic">${ic('atras', 22)}</span><div class="fila-tit" style="flex:1">Volver a Hoy (la práctica sigue en marcha)</div></button>
+    <button class="fila" onclick="cancelarCurso()"><span class="veh-ic" style="background:var(--err-soft);color:var(--err)">${ic('cerrar', 22)}</span><div class="fila-tit" style="flex:1;color:var(--err)">Cancelar esta práctica</div></button></div>`);
+}
+async function cancelarCurso() {
+  cerrarHoja();
+  if (!confirm('¿Cancelar esta práctica? Se elimina de la agenda y de los km.')) return;
+  try {
+    const res = await postJSON('/api/cancelar-practica', { practica_id: S.flujo.practica_id });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cancelar');
+    S.flujo = null; guardarFlujo(); pararTimer(); toast('Práctica cancelada');
+    await cargarBase(); await cargarJornada(); go('hoy');
+  } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message); }
+}
+
+// ─── KM FINAL ────────────────────────────────────────────────────────────────
+function abrirKmFinal() { const F = S.flujo; S.kmFinal = ''; pararTimer(); go('kmfinal'); }
+function renderKmFinal() {
+  const F = S.flujo; if (!F) { go('hoy'); return; }
+  const kf = parseInt(S.kmFinal) || 0;
+  const rec = kf ? kf - F.km_inicial : 0;
+  const al = alumno(F.alumno_id);
+  const ini = Date.parse ? new Date(F.inicio_ms) : null;
+  const minutos = Math.max(1, Math.round((Date.now() - F.inicio_ms) / 60000));
+  document.getElementById('v-kmfinal').innerHTML = `
+    <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="go('curso')" aria-label="Volver">${ic('atras', 26)}</button><h1>Finalizar práctica</h1></div><span class="pill">Paso 1 de 2</span></div>
+    <div class="card veh-card"><span class="ini">${esc(iniciales(F.alumno_nombre))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(F.alumno_nombre)}</div><div class="fila-sub mono">${esc(F.hora_inicio)} – ${esc(hhmm())} · ${minutos} min</div></div>${placa(F.matricula)}</div>
+    <div class="card card-pad" style="margin-top:12px"><div class="etq" style="margin:0 0 10px">Km final <small>Lo que marca el coche ahora</small></div>
+      <div class="odo">${digitos(S.kmFinal || '')}<span class="odo-km">km</span></div>
+      <div class="dos-col"><div class="stat-box"><span class="etq2">Inicial</span><span class="val">${miles(F.km_inicial)}</span></div>
+        <div class="stat-box osc"><span class="etq2">Recorridos</span><span class="val">${kf ? (rec > 0 ? '+' + rec : rec) + ' km' : '—'}</span></div></div>
+      <div id="km-aviso" class="fila-sub" style="margin-top:10px">${kf && rec <= 0 ? `<span style="color:var(--err);font-weight:600">El km final debe ser mayor que ${miles(F.km_inicial)}.</span>` : (kf && al ? `Con esta, ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${(al.clases || 0) + 1} clases</b> y <b>${miles((al.km || 0) + rec)} km</b>.` : 'Escribe el km que marca el coche.')}</div></div>
+    <div class="teclado">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button onclick="tecla('${n}')">${n}</button>`).join('')}
+      <button class="f" onclick="tecla('C')">Borrar</button><button onclick="tecla('0')">0</button><button class="f" onclick="tecla('<')" aria-label="Borrar un dígito">${ic('borrar', 26)}</button></div>
+    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-firma" onclick="continuarFirma()" ${rec > 0 ? '' : 'disabled'}>Continuar a la firma ${ic('flecha', 20)}</button></div>`;
+}
+function tecla(k) {
+  if (k === 'C') S.kmFinal = ''; else if (k === '<') S.kmFinal = S.kmFinal.slice(0, -1); else if (S.kmFinal.length < 7) S.kmFinal += k;
+  renderKmFinal();
+}
+async function continuarFirma() {
+  const F = S.flujo; const kf = parseInt(S.kmFinal) || 0;
+  if (kf <= F.km_inicial) return;
+  if (kf - F.km_inicial > 300 && !confirm(`Son ${kf - F.km_inicial} km en una sola práctica. ¿Es correcto?`)) return;
+  const btn = document.getElementById('btn-firma'); btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    const res = await postJSON('/api/finalizar-practica', {
+      practica_id: F.practica_id, km_final: kf, trabajado: F.trabajado, observacion: F.observacion, hora_fin: hhmm()
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cerrar la práctica');
+    F.km_final = kf; F.hora_fin = hhmm(); F.cerrada = true; F.resumen = data.alumno; F.recorridos = data.recorridos; F.campos_guardados = data.campos_guardados;
+    guardarFlujo();
+    // refresca datos locales del alumno y del vehículo
+    const al = alumno(F.alumno_id); if (al && data.alumno) { al.clases = data.alumno.clases; al.km = data.alumno.km; }
+    const v = vehiculo(F.vehiculo_id); if (v) { v.km_actual = Math.max(v.km_actual || 0, kf); v.ultimo = { km_final: kf, hora: F.hora_inicio, alumno: F.alumno_nombre, fecha: F.fecha }; }
+    go('firma');
+  } catch (e) { if (e.message !== 'Sesión expirada') { toast(e.message); btn.disabled = false; btn.innerHTML = 'Continuar a la firma ' + ic('flecha', 20); } }
+}
+
+// ─── FIRMA ───────────────────────────────────────────────────────────────────
+let lienzo = null, ctx = null, dibujando = false, ultimoPunto = null, ultimoMedio = null;
+function renderFirma() {
+  const F = S.flujo; if (!F) { go('hoy'); return; }
+  const nombre = F.alumno_nombre.split(' ')[0];
+  document.getElementById('v-firma').innerHTML = `
+    <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="go('hoy')" aria-label="Volver a Hoy">${ic('atras', 26)}</button><h1>Firma del alumno</h1></div><span class="pill">Paso 2 de 2</span></div>
+    <div class="aviso-entrega">${ic('tel', 16)} Entrega el móvil al alumno</div>
+    <div class="grande" style="font-size:40px;margin:6px 0 14px">${esc(nombre)}, revisa y firma</div>
+    <div class="card rev-grid">
+      <div><div class="etq2">Fecha</div><div class="val">${esc(fechaCorta(F.fecha || S.hoy))} ${partes(F.fecha || S.hoy).y}</div></div>
+      <div><div class="etq2">Horario</div><div class="val mono">${esc(F.hora_inicio)} - ${esc(F.hora_fin || hhmm())}</div></div>
+      <div><div class="etq2">Clase</div><div class="val">Nº ${F.clase_n} · ${Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio))))} min</div></div>
+      <div><div class="etq2">Profesor</div><div class="val">${esc(S.perfil && S.perfil.nombre !== 'Sin profesor' ? S.perfil.nombre : '—')}</div></div>
+      <div><div class="etq2">Km ${F.matricula ? '(' + esc(F.matricula) + ')' : ''}</div><div class="val mono">${miles(F.km_inicial)} → ${miles(F.km_final)}</div></div>
+      <div><div class="etq2">Recorridos</div><div class="val mono" style="font-size:24px">${F.km_final - F.km_inicial} km</div></div>
+      ${F.trabajado && F.trabajado.length ? `<div style="grid-column:1/-1"><div class="etq2">Qué se ha trabajado</div><div class="val" style="font-size:16px">${esc(F.trabajado.join(' · '))}</div></div>` : ''}
+    </div>
+    <div class="etq"><span>Firma de ${esc(F.alumno_nombre)}</span><button class="lnk" style="color:var(--ink);font-size:15px" onclick="borrarFirma()">${ic('deshacer', 16)} Borrar</button></div>
+    <div class="firma-caja" id="firma-caja"><canvas id="firma-cv"></canvas><div class="firma-ayuda" id="firma-ayuda">Firma aquí con el dedo</div><div class="firma-guia"><span>×</span></div></div>
+    <p class="fila-sub" style="margin:8px 2px 0">Al firmar confirmas que has recibido esta clase práctica con los datos de arriba.</p>
+    <div class="barra-fija"><div style="display:flex;flex-direction:column;gap:6px;align-items:center"><button class="btn btn-pri btn-lg" id="btn-conf" onclick="confirmarFirma()" disabled>${ic('ok', 20, 'style="stroke-width:2.6"')} Confirmar firma</button>
+      <button class="lnk" onclick="firmarMasTarde()">Firmar más tarde</button></div></div>`;
+  iniciarLienzo();
+}
+const horaAMin = h => { const [a, b] = String(h || '0:0').split(':').map(Number); return a * 60 + b; };
+function iniciarLienzo() {
+  lienzo = document.getElementById('firma-cv'); if (!lienzo) return;
+  const caja = document.getElementById('firma-caja');
+  const dpr = window.devicePixelRatio || 1;
+  const w = caja.clientWidth, h = caja.clientHeight;
+  lienzo.width = w * dpr; lienzo.height = h * dpr;
+  ctx = lienzo.getContext('2d'); ctx.scale(dpr, dpr);
+  ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#14161B';
+  S.firmaTrazos = 0;
+  const punto = e => { const r = lienzo.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  lienzo.onpointerdown = e => { e.preventDefault(); lienzo.setPointerCapture(e.pointerId); dibujando = true; ultimoPunto = punto(e); ultimoMedio = ultimoPunto; ctx.beginPath(); ctx.arc(ultimoPunto.x, ultimoPunto.y, 1.2, 0, 6.3); ctx.fillStyle = '#14161B'; ctx.fill(); document.getElementById('firma-ayuda').hidden = true; };
+  lienzo.onpointermove = e => {
+    if (!dibujando) return; e.preventDefault();
+    const p = punto(e); const m = { x: (ultimoPunto.x + p.x) / 2, y: (ultimoPunto.y + p.y) / 2 };
+    // Curva suave: de la mitad anterior a la nueva mitad, con el último punto como control.
+    ctx.beginPath(); ctx.moveTo(ultimoMedio.x, ultimoMedio.y); ctx.quadraticCurveTo(ultimoPunto.x, ultimoPunto.y, m.x, m.y); ctx.stroke();
+    ultimoMedio = m; ultimoPunto = p; S.firmaTrazos++;
+    if (S.firmaTrazos > 8) document.getElementById('btn-conf').disabled = false;
+  };
+  const fin = () => { dibujando = false; };
+  lienzo.onpointerup = fin; lienzo.onpointercancel = fin; lienzo.onpointerleave = fin;
+}
+function borrarFirma() {
+  if (!ctx) return; ctx.clearRect(0, 0, lienzo.width, lienzo.height); S.firmaTrazos = 0;
+  document.getElementById('btn-conf').disabled = true; document.getElementById('firma-ayuda').hidden = false;
+}
+function firmaComoPNG() {
+  // Se reduce a un PNG pequeño (≈4-8 KB) recortando al ancho del lienzo.
+  const w = 420, h = Math.round(420 * lienzo.height / lienzo.width);
+  const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h;
+  tmp.getContext('2d').drawImage(lienzo, 0, 0, w, h);
+  return tmp.toDataURL('image/png');
+}
+async function confirmarFirma() {
+  const F = S.flujo; const btn = document.getElementById('btn-conf');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  let firma = firmaComoPNG();
+  if (firma.length > 58000) { // firma demasiado densa: se reduce más
+    const tmp = document.createElement('canvas'); tmp.width = 300; tmp.height = Math.round(300 * lienzo.height / lienzo.width);
+    tmp.getContext('2d').drawImage(lienzo, 0, 0, tmp.width, tmp.height); firma = tmp.toDataURL('image/png');
+  }
+  try {
+    const res = await postJSON('/api/firmar-practica', { practica_id: F.practica_id, firma });
+    const data = await res.json();
+    if (res.status === 501) { toast(data.error, 6000); btn.disabled = false; btn.innerHTML = ic('ok', 20) + ' Confirmar firma'; return; }
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo guardar la firma');
+    terminarFlujo('Firma guardada');
+  } catch (e) { if (e.message !== 'Sesión expirada') { toast(e.message); btn.disabled = false; btn.innerHTML = ic('ok', 20) + ' Confirmar firma'; } }
+}
+function firmarMasTarde() { terminarFlujo('Queda pendiente de firma'); }
+async function terminarFlujo(msg) {
+  S.flujo = null; guardarFlujo(); pararTimer(); toast(msg);
+  await cargarBase(); await cargarJornada(); go('hoy');
+}
+
+// ─── ALUMNOS ─────────────────────────────────────────────────────────────────
+function renderAlumnos() {
+  const mios = S.perfil && S.perfil.id ? S.alumnos.filter(a => a.profesor_id === S.perfil.id) : [];
+  const nuevos = S.alumnos.filter(a => !(a.clases > 0));
+  const filtros = [['mios', 'Míos', mios.length], ['todos', 'Todos', S.alumnos.length], ['nuevos', 'Nuevos', nuevos.length]];
+  if (!(S.perfil && S.perfil.id) && S.filtroAlumnos === 'mios') S.filtroAlumnos = 'todos';
+  const visibles = (S.perfil && S.perfil.id) ? filtros : filtros.slice(1);
+  document.getElementById('v-alumnos').innerHTML = `
+    <div class="cab"><div><div class="fecha-lin">${S.perfil && S.perfil.id ? `Asignados a ti · ${mios.length}` : `${S.alumnos.length} alumnos`}</div><div class="grande" style="margin-top:4px">Alumnos</div></div>
+      <button class="avatar" style="background:#fff;color:var(--ink);border:1px solid var(--line-2)" onclick="go('nuevo')" aria-label="Nuevo alumno">${ic('usuarioMas', 24)}</button></div>
+    <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca" placeholder="Buscar por nombre" value="${esc(S.busqueda)}" oninput="S.busqueda=this.value;pintarListaAlumnos()" autocomplete="off"></div>
+    <div class="chips" style="margin-bottom:12px">${visibles.map(([id, tx, n]) => `<button class="chip ${S.filtroAlumnos === id ? 'on' : ''}" style="height:42px;font-size:15.5px" onclick="S.filtroAlumnos='${id}';renderAlumnos()">${tx} · ${n}</button>`).join('')}</div>
+    <div class="card" id="lista-alumnos"></div>`;
+  pintarListaAlumnos();
+}
+function pintarListaAlumnos() {
+  const q = S.busqueda.toLowerCase().trim();
+  let lista = S.alumnos.filter(a => {
+    if (S.filtroAlumnos === 'mios' && !(S.perfil && a.profesor_id === S.perfil.id)) return false;
+    if (S.filtroAlumnos === 'nuevos' && a.clases > 0) return false;
+    return !q || nombreAlumno(a).toLowerCase().includes(q);
+  });
+  document.getElementById('lista-alumnos').innerHTML = lista.length ? lista.map(a =>
+    `<button class="fila-alumno" onclick="abrirFicha(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span>
+      <div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub"><b style="color:var(--ink)">${a.clases || 0}</b> ${a.clases === 1 ? 'clase' : 'clases'} · <span class="mono">${miles(a.km || 0)}</span> km${a.clases > 0 ? '' : ''}</div></div>
+      ${a.clases > 0 ? '' : '<span class="pill pill-info">Nuevo</span>'}${ic('chev', 20, 'style="color:var(--faint)"')}</button>`).join('')
+    : '<div class="vacio">Ningún alumno coincide.<small>Prueba con otro nombre o cambia el filtro.</small></div>';
+}
+
+// ─── FICHA DEL ALUMNO ────────────────────────────────────────────────────────
+async function abrirFicha(id) {
+  S.ficha = { id, cargando: true }; S.fichaMes = null;
+  go('ficha');
+  try {
+    const res = await apiFetch('/api/practicas-alumno?alumno_id=' + id + '&hoy=' + S.hoy);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar el alumno');
+    S.ficha = { id, datos: data };
+    const ult = data.fechas && data.fechas[0] ? data.fechas[0] : S.hoy;
+    S.fichaMes = ult.slice(0, 7);
+  } catch (e) { S.ficha = { id, error: e.message || 'Error cargando el alumno' }; }
+  if (S.vista === 'ficha') renderFicha();
+}
+function renderFicha() {
+  const cont = document.getElementById('v-ficha'); const f = S.ficha;
+  const cab = `<div class="cab"><button class="cab-atras" style="width:auto;gap:4px;font-size:17px;font-weight:600" onclick="volver()">${ic('atras', 22)} Alumnos</button></div>`;
+  if (!f || f.cargando) { cont.innerHTML = cab + '<div class="cargando">Cargando…</div>'; return; }
+  if (f.error) { cont.innerHTML = cab + `<div class="vacio">${esc(f.error)}</div>`; return; }
+  const d = f.datos; const a = d.alumno;
+  const nombre = [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
+  const minutos = d.total * (parseInt(localStorage.getItem(DURACION_KEY)) || 45);
+  const horas = (minutos / 60).toFixed(1).replace('.', ',');
+  const [y, m] = S.fichaMes.split('-').map(Number);
+  const primero = (new Date(y, m - 1, 1).getDay() + 6) % 7, ndias = new Date(y, m, 0).getDate();
+  const set = new Set(d.fechas); const prox = new Set((d.proximas || []).map(r => r.fecha));
+  let celdas = ''; for (let i = 0; i < primero; i++) celdas += '<span></span>';
+  const nDiasPractica = d.fechas.filter(x => x.startsWith(S.fichaMes)).length;
+  for (let dia = 1; dia <= ndias; dia++) {
+    const iso = `${y}-${String(m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+    celdas += `<span class="${set.has(iso) ? 'hecha' : (prox.has(iso) ? 'prox' : '')} ${iso === S.hoy ? 'hoy' : ''}">${dia}</span>`;
+  }
+  const filas = d.practicas.slice(0, 6).map(p => {
+    const km = p.km_final > 0 ? p.km_final - p.km_inicial : null;
+    const estado = p.en_curso ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>' : (p.sin_cerrar ? '<span class="pill pill-warn">Sin cerrar</span>' : (p.firmada ? `<span class="pill pill-ok">${ic('ok', 13, 'style="stroke-width:2.6"')} Firmada</span>` : (km != null ? '<span class="pill">Sin firma</span>' : '<span class="pill pill-warn">Km pendientes</span>')));
+    return `<div class="fila"><div style="flex:1;min-width:0"><div class="fila-tit">${p.fecha === S.hoy ? 'Hoy' : esc(fechaCorta(p.fecha))}${p.hora_inicio ? ' · ' + esc(p.hora_inicio) : ''}</div>
+      <div class="fila-sub mono">${km != null ? miles(p.km_inicial) + ' → ' + miles(p.km_final) : (p.km_inicial > 0 ? 'km ' + miles(p.km_inicial) : 'Sin km')}</div>${p.nota ? `<div class="fila-sub" style="margin-top:2px">${esc(p.nota)}</div>` : ''}</div>
+      <div style="text-align:right"><div class="mono" style="font-size:19px;font-weight:600">${km != null ? km + ' <span style="font-size:14px;font-weight:500">km</span>' : ''}</div>${estado}</div></div>`;
+  }).join('');
+  const proximas = (d.proximas || []).map(r => `<div class="fila"><span class="fila-hora" style="width:auto">${esc(fechaCorta(r.fecha))}</span><div class="fila-tit" style="flex:1">${esc(r.hora_inicio || '')} ${r.nota ? '· ' + esc(r.nota) : ''}</div>${r.estado === 'solicitada' ? '<span class="pill pill-warn">Solicitada</span>' : ''}</div>`).join('');
+  cont.innerHTML = cab + `
+    <div style="display:flex;align-items:center;gap:14px;margin:4px 0 16px"><span class="ini ini-lg">${esc(iniciales(nombre))}</span>
+      <div style="min-width:0"><div class="grande" style="font-size:34px">${esc(nombre)}</div><div class="fila-sub" style="font-size:15px">Permiso ${esc(a.permiso)}${a.profesor_nombre ? ' · Prof. ' + esc(a.profesor_nombre) : ''}</div></div></div>
+    <div class="tres"><div class="stat-box osc"><span class="val">${d.total}</span><span class="etq2">${d.total === 1 ? 'clase hecha' : 'clases hechas'}</span></div>
+      <div class="stat-box" style="background:#fff;border:1px solid var(--line)"><span class="val">${miles(d.km_totales)}</span><span class="etq2">km recorridos</span></div>
+      <div class="stat-box" style="background:#fff;border:1px solid var(--line)"><span class="val">${horas}</span><span class="etq2">h al volante</span></div></div>
+    <div class="card cal" style="margin-top:14px"><div class="cal-cab"><button onclick="mesFicha(-1)" aria-label="Mes anterior">${ic('chevIzq', 20)}</button><div style="text-align:center"><b>${cap(MESES[m - 1])} ${y}</b><div class="fila-sub">${nDiasPractica} ${nDiasPractica === 1 ? 'día con práctica' : 'días con práctica'}</div></div><button onclick="mesFicha(1)" aria-label="Mes siguiente">${ic('chev', 20)}</button></div>
+      <div class="cal-sem"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div><div class="cal-dias">${celdas}</div>
+      <div class="leyenda"><span><i style="background:var(--ink)"></i>Día con práctica</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--ink)"></i>Programada</span><span><i style="box-shadow:0 0 0 2px var(--amber);width:8px;height:8px"></i>Hoy</span></div></div>
+    ${proximas ? `<div class="grupo-tit"><span>Próximas clases</span></div><div class="card">${proximas}</div>` : ''}
+    <div class="grupo-tit"><span>Últimas prácticas</span><span style="font-size:14px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink)">${d.total > 6 ? 'Las 6 últimas de ' + d.total : ''}</span></div>
+    <div class="card">${filas || '<div class="vacio">Todavía no tiene prácticas.</div>'}</div>
+    <div class="barra-fija"><button class="btn btn-pri btn-lg" onclick="abrirIniciar({alumno_id:${a.id},vehiculo_id:${a.vehiculo_id || 'null'}})">${ic('play', 18)} Iniciar práctica con ${esc((a.nombre || '').split(' ')[0])}</button></div>`;
+}
+function mesFicha(n) { const [y, m] = S.fichaMes.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); S.fichaMes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; renderFicha(); }
+
+// ─── NUEVO ALUMNO ────────────────────────────────────────────────────────────
+function renderNuevo() {
+  document.getElementById('v-nuevo').innerHTML = `
+    <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Nuevo alumno</h1></div></div>
+    <div class="card card-pad" style="display:flex;flex-direction:column;gap:12px">
+      <div><div class="etq" style="margin:0 0 6px">Nombre completo</div><input class="campo" id="n-nombre" placeholder="Nombre y apellidos" autocomplete="off"></div>
+      <div><div class="etq" style="margin:0 0 6px">Permiso</div><select class="campo" id="n-permiso"><option value="B">B (Coche)</option><option value="A">A (Moto)</option><option value="A2">A2</option><option value="AM">AM</option><option value="C">C (Camión)</option></select></div>
+      <div><div class="etq" style="margin:0 0 6px">Vehículo asignado</div><select class="campo" id="n-vehiculo"><option value="">— Sin asignar —</option>${S.vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('')}</select></div>
+      <label style="display:flex;align-items:center;gap:10px;font-size:16px;font-weight:600"><input type="checkbox" id="n-mio" ${S.perfil && S.perfil.id ? 'checked' : 'disabled'} style="width:22px;height:22px"> Asignármelo a mí${S.perfil && S.perfil.id ? '' : ' (elige un perfil de profesor)'}</label>
+      <div class="err-txt" id="n-error" role="alert"></div>
+    </div>
+    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-nuevo" onclick="crearAlumno()">${ic('mas', 20)} Crear alumno</button></div>`;
+}
+async function crearAlumno() {
+  const nombre = document.getElementById('n-nombre').value.trim(); const err = document.getElementById('n-error');
+  if (!nombre) { err.textContent = 'Introduce el nombre del alumno.'; return; }
+  err.textContent = ''; const btn = document.getElementById('btn-nuevo'); btn.disabled = true;
+  try {
+    const res = await postJSON('/api/crear-alumno', {
+      nombre, permiso: document.getElementById('n-permiso').value, vehiculo_id: document.getElementById('n-vehiculo').value || null,
+      profesor_id: document.getElementById('n-mio').checked && S.perfil ? S.perfil.id : null
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo crear el alumno');
+    toast('Alumno creado'); await cargarBase(); go('alumnos');
+  } catch (e) { if (e.message !== 'Sesión expirada') { err.textContent = e.message; btn.disabled = false; } }
+}
+
+// ─── HISTORIAL (últimas 24 h, con cancelación) ───────────────────────────────
+async function renderHistorial() {
+  const cont = document.getElementById('v-historial');
+  cont.innerHTML = `<div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Historial</h1></div></div><div class="fila-sub" style="margin:-4px 2px 12px">Prácticas registradas desde el móvil en las últimas 24 horas.</div><div id="hist-lista" class="card"><div class="cargando">Cargando…</div></div>`;
+  try {
+    const res = await apiFetch('/api/historial');
+    const lista = await res.json();
+    if (!res.ok) throw new Error(lista.error || 'Error al cargar el historial');
+    document.getElementById('hist-lista').innerHTML = lista.length ? lista.map(p =>
+      `<div class="fila"><div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div><div class="fila-sub">${esc(fechaCorta(p.fecha))}${p.hora_inicio ? ' · ' + esc(p.hora_inicio) : ''} · ${esc(p.vehiculo_nombre)}${p.km_final > 0 ? ' · <span class="mono">' + miles(p.km_inicial) + ' → ' + miles(p.km_final) + '</span>' : (p.en_curso ? ' · en curso' : ' · km pendientes')}</div></div>
+       <button class="btn btn-sec btn-peq" style="color:var(--err)" onclick="cancelarPractica(${p.id},'${esc(p.alumno_nombre).replace(/'/g, '&#39;')}')">Cancelar</button></div>`).join('')
+      : '<div class="vacio">No hay prácticas recientes registradas desde el móvil.</div>';
+  } catch (e) { document.getElementById('hist-lista').innerHTML = `<div class="vacio">${esc(e.message)}</div>`; }
+}
+async function cancelarPractica(id, nombre) {
+  if (!confirm(`¿Cancelar la práctica de ${nombre}?`)) return;
+  try {
+    const res = await postJSON('/api/cancelar-practica', { practica_id: id });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cancelar');
+    if (S.flujo && S.flujo.practica_id === id) { S.flujo = null; guardarFlujo(); }
+    toast('Práctica cancelada'); await cargarBase(); renderHistorial();
+  } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message); }
+}
+
+// ─── RIEL DE TABLET (jornada siempre a la vista) ─────────────────────────────
+function renderRiel() {
+  const cab = document.getElementById('riel-cab'); if (!cab || !window.matchMedia('(min-width:900px)').matches) return;
+  const r = resumenJornada();
+  cab.innerHTML = `<div style="display:flex;align-items:flex-start;justify-content:space-between"><div><div class="fecha-lin">${esc(fechaLarga(S.hoy))}</div><div class="grande" style="margin-top:4px">Hoy</div>
+    ${vehiculo(S.vehId) ? `<div style="margin-top:8px;display:flex;align-items:center;gap:8px">${placa(vehiculo(S.vehId).matricula)}<span class="fila-sub">${esc(vehiculo(S.vehId).nombre)} · <b class="mono" style="color:var(--ink)">${miles(kmSugerido(S.vehId))}</b> km</span></div>` : ''}</div>
+    <button class="avatar" onclick="menuPerfil()" aria-label="Perfil y opciones">${esc(iniciales(S.perfil ? S.perfil.nombre : '?'))}</button></div>`;
+  const filas = [];
+  S.jornada.practicas.forEach(p => filas.push({ h: p.hora_inicio || '99', html: `<button class="riel-fila ${S.flujo && S.flujo.practica_id === p.id && ['curso', 'kmfinal', 'firma'].includes(S.vista) ? 'activa' : ''}" onclick="continuarPractica(${p.id})"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(p.alumno_nombre)}</div><div class="fila-sub">${p.en_curso ? 'en curso' : p.km + ' km'}</div></div>${p.en_curso ? '<span class="pill pill-dark">En curso</span>' : (p.firmada ? '<span class="pill pill-ok">Firmada</span>' : '<span class="pill pill-warn">Sin firmar</span>')}</button>` }));
+  pendientesReservas().forEach(rv => filas.push({ h: rv.hora_inicio || '99', html: `<button class="riel-fila" onclick="abrirIniciar({alumno_id:${rv.alumno_id},vehiculo_id:${rv.vehiculo_id || 'null'}})"><span class="fila-hora">${esc(rv.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(rv.alumno_nombre || 'Alumno')}</div><div class="fila-sub">${esc(rv.nota || 'Programada')}</div></div></button>` }));
+  filas.sort((a, b) => a.h.localeCompare(b.h));
+  document.getElementById('riel-lista').innerHTML = filas.length ? filas.map(f => f.html).join('') : '<div class="vacio">Sin clases hoy.</div>';
+  document.getElementById('riel-pie').innerHTML = `<span><b class="mono" style="color:var(--ink)">${miles(r.km)}</b> km hoy</span><span>${r.firmadas} de ${r.cerradas.length} firmadas</span>`;
+}
+window.addEventListener('resize', renderRiel);
+
+// ─── ARRANQUE ────────────────────────────────────────────────────────────────
+checkSession().catch(() => mostrarLogin());
 </script>
 </body>
 </html>

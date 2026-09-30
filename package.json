@@ -8,7 +8,8 @@
     "test": "jest",
     "dist": "electron-builder",
     "smoke": "electron scripts/smoke-ui.js",
-    "fuzz": "electron scripts/fuzz-ui.js"
+    "fuzz": "electron scripts/fuzz-ui.js",
+    "test:api": "node --import ./web-remote/tests/register.mjs --test web-remote/tests/api.test.mjs"
   },
   "build": {
     "appId": "com.kmalumnos.app",
