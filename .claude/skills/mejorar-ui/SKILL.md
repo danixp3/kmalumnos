@@ -10,7 +10,7 @@ Diseñar es iterar: habrá varias rondas de "un poco más grande / otro tono / a
 ## Preparación (una vez por sesión de diseño)
 
 1. **Leer `references/estilo-ui.md`** — variables, componentes, secciones con anclas y la identidad visual de cada interfaz. El CSS de escritorio vive en `styles.css` (no inline en `index.html`); el de la web sigue inline en `web-remote/index.html`. No leer esos archivos enteros jamás: localizar con Grep sobre las anclas y leer solo ese bloque.
-2. **Acotar con el usuario** si no está claro: ¿escritorio, web del móvil o ambas? ¿retoque o rediseño completo? Enseñarle en una frase la identidad actual de cada una (escritorio = panel SaaS claro; móvil = oscura glassmorphism) por si quiere conservarla o romperla.
+2. **Acotar con el usuario** si no está claro: ¿escritorio, web del móvil o ambas? ¿retoque o rediseño completo? Enseñarle en una frase la identidad actual de cada una (las dos comparten desde el rediseño de 2026-09-29 el sistema tinta + ámbar con fuentes Barlow; escritorio = sidebar oscuro y 3 temas, móvil = flujo de clase a una mano) por si quiere conservarla o romperla.
 
 ## Reglas de edición (aquí está el ahorro)
 
