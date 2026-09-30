@@ -168,3 +168,60 @@ export const validators = {
     return { valid: true, value };
   }
 };
+
+// ─── Utilidades del flujo móvil de prácticas (iniciar → km final → firma) ────
+
+// Columnas OPCIONALES de `practicas` (migración 2026-09-29_practica_movil.sql,
+// puede no estar aplicada). Todo el código que las toca pasa por
+// conFallbackColumnas: si el servidor no las tiene, reintenta sin ellas.
+export const COLUMNAS_PRACTICA_BASE = 'id, alumno_id, vehiculo_id, fecha, km_inicial, km_final, tipo, nota, profesor_id, hora_inicio, source';
+export const COLUMNAS_PRACTICA_MOVIL = 'firma, trabajado, tipo_detalle, hora_fin';
+export const CLAVES_PRACTICA_MOVIL = ['firma', 'trabajado', 'tipo_detalle', 'hora_fin'];
+
+// ¿El error de Supabase/PostgREST es "esa columna no existe"?
+export function esErrorColumnaInexistente(error) {
+  if (!error) return false;
+  return error.code === '42703' || error.code === 'PGRST204' ||
+    /column .* does not exist|could not find the .* column/i.test(error.message || '');
+}
+
+// Ejecuta `fn(conOpcionales)`; si falla porque faltan las columnas opcionales,
+// la repite con conOpcionales=false. Devuelve { res, degradado }.
+export async function conFallbackColumnas(fn) {
+  let res = await fn(true);
+  if (res && esErrorColumnaInexistente(res.error)) {
+    return { res: await fn(false), degradado: true };
+  }
+  return { res, degradado: false };
+}
+
+export const hhmmValido = s => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+
+// Km como entero razonable (el odómetro de un coche de autoescuela).
+export function kmEntero(v, nombre) {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n) || n < 0 || n > 2000000) return { valid: false, error: `${nombre} no es válido` };
+  return { valid: true, value: n };
+}
+
+// Inserta una práctica. Si choca la clave primaria (23505) es que la secuencia
+// de la nube se quedó atrás (el escritorio sube ids propios): se realinea con el
+// RPC reparar_secuencias y se reintenta una vez. Quita las columnas del flujo
+// móvil si el servidor aún no las tiene. Devuelve { data, error, degradado }.
+export async function insertarPractica(supabase, fila) {
+  const intento = async (conOpcionales) => {
+    const payload = { ...fila };
+    if (!conOpcionales) for (const k of CLAVES_PRACTICA_MOVIL) delete payload[k];
+    let r = await supabase.from('practicas').insert(payload).select('id').single();
+    if (r.error && r.error.code === '23505') {
+      await supabase.rpc('reparar_secuencias');
+      r = await supabase.from('practicas').insert(payload).select('id').single();
+    }
+    return r;
+  };
+  const { res, degradado } = await conFallbackColumnas(intento);
+  return { data: res.data, error: res.error, degradado };
+}
+
+// Km de una práctica (0 si está en blanco o sin cerrar).
+export const kmDePractica = p => (p && p.km_final > 0 && p.km_inicial >= 0) ? Math.max(0, p.km_final - p.km_inicial) : 0;

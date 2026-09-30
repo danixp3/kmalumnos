@@ -21,8 +21,11 @@ export default async function handler(req, res) {
       fecha,
       alumno_id,
       vehiculo_id,
+      hora_inicio,
+      km_inicial,
+      km_final,
       alumnos(nombre),
-      vehiculos(nombre)
+      vehiculos(nombre, matricula)
     `)
     .eq('deleted', false)
     .eq('empresa_id', auth.empresaId)
@@ -38,7 +41,12 @@ export default async function handler(req, res) {
     id: p.id,
     fecha: p.fecha,
     alumno_nombre: p.alumnos?.nombre || '?',
-    vehiculo_nombre: p.vehiculos?.nombre || '?'
+    vehiculo_nombre: p.vehiculos?.nombre || '?',
+    matricula: p.vehiculos?.matricula || null,
+    hora_inicio: p.hora_inicio || null,
+    km_inicial: p.km_inicial,
+    km_final: p.km_final,
+    en_curso: p.km_inicial > 0 && !p.km_final
   }));
 
   res.json(practicas);
