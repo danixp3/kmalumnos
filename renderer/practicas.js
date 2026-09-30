@@ -84,7 +84,7 @@ function pintarCabeceraFicha(f) {
   const pasos = [
     { tit: 'Matrícula', sub: a.fecha_alta ? fmtFecha(a.fecha_alta) : 'Alumno dado de alta', est: 'hecho' },
     { tit: 'Examen teórico', sub: idx >= 3 ? 'Aprobado' : (idx === 2 ? 'Apto teórico' : (idx === 1 ? 'En teórica' : 'Pendiente')), est: idx >= 2 ? 'hecho' : (idx === 1 ? 'actual' : 'pend') },
-    { tit: 'Prácticas', sub: `${m.clases} ${m.clases === 1 ? 'clase' : 'clases'} · ${fmtMiles(m.km)} km`, est: idx >= 4 ? 'hecho' : (idx >= 2 ? 'actual' : 'pend') },
+    { tit: 'Prácticas', sub: `${m.clases} ${m.clases === 1 ? 'clase' : 'clases'} · ${fmtMiles(m.km)} km${m.clases_previas ? ` <span title="Clases hechas antes de usar la app (punto de partida)">(${m.clases_previas} anteriores)</span>` : ''}`, est: idx >= 4 ? 'hecho' : (idx >= 2 ? 'actual' : 'pend') },
     { tit: 'Examen práctico', sub: idx >= 5 ? 'Aprobado' : (ex ? fechaCorta(ex.fecha) : (idx === 4 ? 'Presentado' : 'Sin fecha')), est: idx >= 5 ? 'hecho' : (idx === 4 ? 'actual' : 'pend'), bandera: true },
     { tit: `Permiso ${esc(a.permiso)}`, sub: idx >= 5 ? 'Obtenido' : 'Tras aprobar el práctico', est: idx >= 5 ? 'hecho' : 'pend', ultimo: true }
   ];
@@ -131,6 +131,10 @@ function pintarKmClase(f) {
   let ticks = '', lineas = '';
   for (let v = 0; v <= yMax; v += paso) { ticks += `<span style="bottom:${px(v)}px">${v}</span>`; if (v > 0) lineas += `<span class="dia-grid" style="bottom:${px(v)}px"></span>`; }
   const hoy = hoyISO();
+  // Con muchas clases: menos separación y solo algunas etiquetas (cada `cada`).
+  const n = conKm.length;
+  const hueco = n > 80 ? 1 : n > 40 ? 2 : 5;
+  const cada = Math.max(1, Math.ceil(n / 30));
   const barras = conKm.map((p, i) => {
     const ultima = i === conKm.length - 1;
     const tip = `${fechaCorta(p.fecha)} · ${p.km} km${p.fecha === hoy ? ' · hoy' : ''}`;
@@ -139,10 +143,55 @@ function pintarKmClase(f) {
       <span class="${ultima ? 'dia-hoy' : 'dia-fill'}" style="height:${Math.max(px(p.km), 2)}px"></span>
       <span class="dia-tip" style="bottom:${px(p.km) + 26}px" role="tooltip">${esc(tip)}</span></button>`;
   }).join('');
-  const etiquetas = conKm.map(p => `<span>${p.n}</span>`).join('');
+  const etiquetas = conKm.map((p, i) => `<span class="${i % cada === 0 || i === n - 1 ? '' : 'km-x-oculta'}">${p.n}</span>`).join('');
   cont.innerHTML = `<div class="card-head" style="flex-direction:column;align-items:flex-start;gap:2px"><h2>Km por clase</h2><span class="card-note">${conKm.length} ${conKm.length === 1 ? 'clase' : 'clases'} · media de ${fmtDec(f.metricas.mediaKm)} km · pasa el ratón por una barra para ver la fecha</span></div>
     <div class="dia-chart" style="margin-top:10px"><div class="dia-y" style="height:${AL}px" aria-hidden="true">${ticks}</div>
-    <div class="dia-main"><div class="dia-plot" style="height:${AL}px;justify-content:space-between">${lineas}${barras}</div><div class="dia-x km-x" aria-hidden="true">${etiquetas}</div></div></div>`;
+    <div class="dia-main"><div class="dia-plot" style="height:${AL}px;justify-content:space-between;gap:${hueco}px">${lineas}${barras}</div><div class="dia-x km-x" aria-hidden="true" style="gap:${hueco}px">${etiquetas}</div></div></div>`;
+}
+
+// ─── FIRMA DEL ALUMNO (prueba de la clase, llega desde el móvil) ────────────
+function celdaFirma(p) {
+  if (p.enCurso || p.sinKm || p.sinCerrar) return '<span style="color:var(--text-faint)">—</span>';
+  return p.firmada
+    ? `<button type="button" class="pill pill-ok firma-pill" onclick="verClasePractica(${p.id})" title="Ver la firma y el detalle de la clase">${fichaSvg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 12)} Firmada</button>`
+    : `<button type="button" class="pill pill-line firma-pill" onclick="verClasePractica(${p.id})" title="Ver el detalle de la clase">Sin firmar</button>`;
+}
+
+async function verClasePractica(id) {
+  const p = await window.api.getPracticaDetalle(id);
+  if (!p) return;
+  let modal = document.getElementById('modal-clase');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'overlay'; modal.id = 'modal-clase';
+    modal.innerHTML = '<div class="modal modal-ancho" role="dialog" aria-modal="true" aria-labelledby="clase-tit"><div id="clase-cuerpo"></div></div>';
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal('modal-clase'); });
+  }
+  const fila = (etq, val) => `<div class="clase-dato"><span>${etq}</span><b>${val}</b></div>`;
+  const dur = p.hora_inicio && p.hora_fin ? (() => { const m = t => t.split(':').map(Number).reduce((h, x) => h * 60 + x); return Math.max(1, m(p.hora_fin) - m(p.hora_inicio)); })() : null;
+  document.getElementById('clase-cuerpo').innerHTML = `
+    <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <h3 id="clase-tit" style="margin:0">Clase nº ${p.clase_n} · ${esc(p.alumno_nombre)}</h3>
+      <button class="btn btn-outline btn-sm" onclick="closeModal('modal-clase')">Cerrar</button>
+    </div>
+    <div class="clase-grid">
+      ${fila('Fecha', esc(fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase())) + ' ' + p.fecha.slice(0, 4))}
+      ${fila('Horario', `<span class="num-mono">${esc(p.hora_inicio || '—')}${p.hora_fin ? ' – ' + esc(p.hora_fin) : ''}</span>${dur ? ` <small>(${dur} min)</small>` : ''}`)}
+      ${fila('Profesor', esc(p.profesor_nombre || '—'))}
+      ${fila('Vehículo', p.matricula ? placaHTML(p.matricula) : esc(p.vehiculo_nombre || '—'))}
+      ${fila('Km', p.km_final > 0 ? `<span class="num-mono">${fmtMiles(p.km_inicial)} → ${fmtMiles(p.km_final)}</span> · ${fmtMiles(p.km)} km` : '—')}
+      ${fila('Tipo', p.tipo === 'pista' ? 'Pista' : 'Circulación')}
+      ${p.zonas.length ? fila('Zonas recorridas', esc(p.zonas.join(' · '))) : ''}
+      ${p.trabajado.length ? fila('Qué se trabajó', esc(p.trabajado.join(' · '))) : ''}
+      ${p.nota ? fila('Observación', esc(p.nota)) : ''}
+    </div>
+    <div class="clase-firma-tit">Firma del alumno</div>
+    ${p.firma
+      ? `<div class="clase-firma"><img src="${p.firma}" alt="Firma de ${esc(p.alumno_nombre)}"></div>
+         <p class="aj-intro" style="margin-top:8px">Firmada en el móvil al terminar la clase. Se guarda en la ficha del alumno y se imprime en la «Ficha de clases prácticas».</p>`
+      : `<div class="alert alert-warn">Esta clase no tiene firma. ${p.origen === 'web-remote' ? 'El alumno puede firmarla más tarde desde el móvil (Historial → la clase → «Firmar ahora»).' : 'Se registró desde el ordenador; las firmas se recogen en el móvil al terminar cada clase.'}</div>`}`;
+  openModal('modal-clase');
 }
 
 function pintarCalendarioFicha(f) {
@@ -260,13 +309,13 @@ async function loadPracticas() {
     const horaArg = p.hora_inicio ? `'${p.hora_inicio}'` : 'null';
     return `<tr${p.sinKm ? ' style="background:var(--warn-bg-soft)"' : ''}>
       <td class="num-mono">${p.n}</td>
-      <td>${esc(p.fecha === hoyISO() ? 'Hoy, ' + diaMes(p.fecha) : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase()))}</td>
+      <td>${esc(p.fecha === hoyISO() ? 'Hoy, ' + diaMes(p.fecha) : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase()))}${p.tipo === 'pista' ? ' <span class="pill pill-line" style="font-size:11px;padding:1px 7px">Pista</span>' : ''}</td>
       <td class="num-mono">${p.hora_inicio ? esc(p.hora_inicio) : guion}</td>
       <td>${p.matricula ? placaHTML(p.matricula) : (p.vehiculo_nombre ? esc(p.vehiculo_nombre) : guion)}</td>
       <td class="col-num num-mono">${kmCell}</td>
       <td class="col-num num-mono">${diffCell}</td>
       <td>${p.profesor_nombre ? esc(p.profesor_nombre) : guion}</td>
-      <td>${p.tipo === 'pista' ? 'Pista' : 'Circulación'}</td>
+      <td>${celdaFirma(p)}</td>
       <td class="acciones-fila">
         <button class="btn btn-gray btn-sm btn-icon" title="Editar práctica" aria-label="Editar práctica" onclick="openEditPractica(${p.id},'${p.fecha}',${p.km_inicial},${p.km_final},${profesorIdArg},'${p.tipo}',${horaArg})">${fichaSvg('<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>', 13)}</button>
         <button class="btn btn-gray btn-sm btn-icon btn-borrar" title="Borrar práctica" aria-label="Borrar práctica" onclick="deletePractica(${p.id})">${fichaSvg('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>', 13)}</button>
@@ -274,6 +323,7 @@ async function loadPracticas() {
     </tr>`;
   }).join('');
   actualizarAvisoDuplicados();
+  if (typeof comprobarTutorial === 'function') comprobarTutorial('ficha'); // primera vez que se abre una ficha
 }
 
 async function generarKmPractica() {

@@ -477,6 +477,8 @@ async function openEditAlumno(id) {
   document.getElementById('edit-a-poblacion').value = a.poblacion || '';
   document.getElementById('edit-a-fecha-alta').value = a.fecha_alta || '';
   document.getElementById('edit-a-observaciones').value = a.observaciones || '';
+  document.getElementById('edit-a-clases-previas').value = a.clases_previas || '';
+  document.getElementById('edit-a-km-previos').value = a.km_previos || '';
   document.getElementById('edit-a-estado').value = a.estado || 'activo';
   document.getElementById('edit-a-permisos-posee').value = a.permisos_posee || '';
   document.getElementById('edit-a-fecha-inicio').value = a.fecha_inicio || '';
@@ -634,6 +636,12 @@ async function saveAlumno() {
   if (!emailValido(email)) { alert('El email no tiene un formato válido.'); return; }
   const permisos = leerPermisosCheckboxes('edit-a-permisos');
   await window.api.updateAlumno(id, nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, email || null, datos, libro, permisos);
+  const previo = alumnosCache.find(x => x.id === id) || {};
+  const clasesPrevias = parseInt(document.getElementById('edit-a-clases-previas')?.value) || 0;
+  const kmPrevios = parseInt(document.getElementById('edit-a-km-previos')?.value) || 0;
+  if (clasesPrevias !== (previo.clases_previas || 0) || kmPrevios !== (previo.km_previos || 0)) {
+    await window.api.setPuntoDePartidaAlumno(id, clasesPrevias, kmPrevios);
+  }
   closeModal('modal-alumno');
   loadAlumnos();
 }
@@ -902,7 +910,7 @@ async function imprimirFichaPracticas(alumnoId) {
   const PERMISO_TEXTO = { B: 'B (Coche)', A: 'A (Moto)', A2: 'A2', AM: 'AM', C: 'C (Camión)' };
 
   const filas = practicas.map((p, i) => `<tr>
-      <td>${i + 1}</td>
+      <td>${p.n || i + 1}</td>
       <td>${fmtFecha(p.fecha)}</td>
       <td>${esc(p.vehiculo_nombre || '—')}${p.matricula ? ` (${esc(p.matricula)})` : ''}</td>
       <td>${esc(p.profesor_nombre || '—')}</td>
@@ -910,7 +918,7 @@ async function imprimirFichaPracticas(alumnoId) {
       <td>${p.km_inicial}</td>
       <td>${p.km_final}</td>
       <td>${p.km_recorridos}</td>
-      <td class="ficha-firma-celda"></td>
+      <td class="ficha-firma-celda">${p.firma ? `<img class="ficha-firma-img" src="${p.firma}" alt="Firma del alumno">` : ''}</td>
       <td class="ficha-firma-celda"></td>
     </tr>`).join('');
 
@@ -928,6 +936,7 @@ async function imprimirFichaPracticas(alumnoId) {
       ${filaFicha('Alumno', alumno.nombre)}
       ${filaFicha('DNI/NIE', alumno.dni)}
       ${filaFicha('Permiso', PERMISO_TEXTO[alumno.permiso] || alumno.permiso)}
+      ${totales.clasesPrevias ? filaFicha('Clases anteriores', `${totales.clasesPrevias} clases${totales.kmPrevios ? ' · ' + totales.kmPrevios + ' km' : ''} (antes de usar la app; la numeración continúa)`) : ''}
     </div>
 
     <table class="ficha-tabla">

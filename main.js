@@ -124,6 +124,37 @@ function createWindow() {
   mainWin.on('unmaximize', () => {
     if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('ventana-maximizada', false);
   });
+  iniciarSensorBarra(mainWin);
+}
+
+// ─── SENSOR DE LA BARRA DE TÍTULO ────────────────────────────────────────────
+// La barra de título es zona de arrastre de la ventana (-webkit-app-region:
+// drag) y Windows no entrega al renderer los eventos de ratón que pasan por
+// ella. Para el cajón que se despliega al pasar el ratón (renderer/ventana.js)
+// se mira aquí la posición del cursor, solo con la ventana activa, y se avisa
+// al renderer al entrar/salir de la barra. Mientras se arrastra o redimensiona
+// la ventana no se avisa de nada (que no se abra el cajón al moverla).
+const ALTO_BARRA_TITULO = 32;
+function iniciarSensorBarra(win) {
+  const { screen } = require('electron');
+  let moviendoHasta = 0, ultimo = null;
+  const moviendo = () => { moviendoHasta = Date.now() + 700; };
+  win.on('will-move', moviendo); win.on('move', moviendo); win.on('will-resize', moviendo);
+  const t = setInterval(() => {
+    if (!win || win.isDestroyed()) { clearInterval(t); return; }
+    let dentro = false, x = 0;
+    if (win.isFocused() && !win.isMinimized() && win.isVisible() && Date.now() > moviendoHasta) {
+      const p = screen.getCursorScreenPoint(), b = win.getContentBounds();
+      x = p.x - b.x;
+      const y = p.y - b.y;
+      dentro = x >= 0 && x < b.width && y >= 0 && y < ALTO_BARRA_TITULO;
+    }
+    const clave = dentro ? 'd' + Math.round(x / 12) : 'f';
+    if (clave === ultimo) return;
+    ultimo = clave;
+    win.webContents.send('barra-sensor', { dentro, x: Math.round(x) });
+  }, 110);
+  if (typeof t.unref === 'function') t.unref();
 }
 
 app.whenReady().then(() => {
@@ -399,6 +430,15 @@ ipcMain.handle('corregir-solapamientos', (_, vehiculo_id, kmMin, kmMax) => db.co
 ipcMain.handle('generar-km-hasta-maximo', (_, vehiculo_id, kmMin, kmMax, kmMaximo, aplicar) => db.generarKmHastaMaximo(vehiculo_id, kmMin, kmMax, kmMaximo, aplicar));
 ipcMain.handle('generar-km-por-rango', (_, vehiculo_id, kmDesde, kmHasta, variacion, aplicar) => db.generarKmPorRango(vehiculo_id, kmDesde, kmHasta, variacion, aplicar));
 ipcMain.handle('aplicar-plan-km', (_, vehiculo_id, asignaciones) => db.aplicarPlanKm(vehiculo_id, asignaciones));
+// Zonas de prácticas (se comparten con la web del móvil vía ajustes_empresa)
+ipcMain.handle('get-zonas-practica', () => db.getZonasPractica());
+ipcMain.handle('get-practica-detalle', (_, id) => db.getPracticaDetalle(id));
+ipcMain.handle('set-zonas-practica', (_, lista) => db.setZonasPractica(lista));
+// Puesta en marcha: datos reales de arranque y punto de partida de cada alumno
+ipcMain.handle('get-puesta-en-marcha', () => db.getPuestaEnMarcha());
+ipcMain.handle('guardar-puesta-en-marcha', (_, datos) => db.guardarPuestaEnMarcha(datos));
+ipcMain.handle('vaciar-datos-prueba', (_, opciones) => db.vaciarDatosDePrueba(opciones));
+ipcMain.handle('set-punto-de-partida-alumno', (_, id, clases, km) => db.setPuntoDePartidaAlumno(id, clases, km));
 ipcMain.handle('get-timeline-vehiculo', (_, vehiculo_id) => db.getTimelineVehiculo(vehiculo_id));
 
 // Registro rápido

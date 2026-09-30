@@ -3,7 +3,8 @@
 // La RLS de Supabase ya limita todo a la empresa del token.
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, withRetry, handleSupabaseError,
-  COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_MOVIL, conFallbackColumnas, kmDePractica
+  COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_LISTA, conFallbackColumnas, kmDePractica,
+  esErrorColumnaInexistente, traerTodo, nombreCompleto
 } from '../../api/_utils.js';
 
 const fechaOk = f => typeof f === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f) && !isNaN(new Date(f).getTime());
@@ -39,7 +40,7 @@ export default async function handler(req, res) {
   // Prácticas del día
   const { res: rDia } = await conFallbackColumnas(conOpc => withRetry(() => filtrarProfesor(supabase
     .from('practicas')
-    .select(COLUMNAS_PRACTICA_BASE + (conOpc ? ', ' + COLUMNAS_PRACTICA_MOVIL : ''))
+    .select(COLUMNAS_PRACTICA_BASE + (conOpc ? ', ' + COLUMNAS_PRACTICA_LISTA : ''))
     .eq('fecha', fecha)
     .eq('deleted', false)
     .eq('empresa_id', auth.empresaId))
@@ -53,7 +54,7 @@ export default async function handler(req, res) {
   if (fecha === hoyCliente) {
     const { res: rPend } = await conFallbackColumnas(conOpc => withRetry(() => filtrarProfesor(supabase
       .from('practicas')
-      .select(COLUMNAS_PRACTICA_BASE + (conOpc ? ', ' + COLUMNAS_PRACTICA_MOVIL : ''))
+      .select(COLUMNAS_PRACTICA_BASE + (conOpc ? ', ' + COLUMNAS_PRACTICA_LISTA : ''))
       .eq('deleted', false)
       .eq('empresa_id', auth.empresaId)
       .eq('km_final', 0)
@@ -86,13 +87,14 @@ export default async function handler(req, res) {
   const vehiculoIds = [...new Set([...todas.map(p => p.vehiculo_id), ...reservas.map(r => r.vehiculo_id)].filter(v => v != null))];
   let alumnosPorId = {}, vehiculosPorId = {}, totalesPorAlumno = {};
   if (alumnoIds.length) {
-    const { data, error } = await supabase.from('alumnos').select('id, nombre').in('id', alumnoIds);
+    let { data, error } = await supabase.from('alumnos').select('id, nombre, primer_apellido, segundo_apellido, clases_previas').in('id', alumnoIds);
+    if (error && esErrorColumnaInexistente(error)) ({ data, error } = await supabase.from('alumnos').select('id, nombre').in('id', alumnoIds));
     if (handleSupabaseError(error, res, 'Error al obtener los alumnos')) return;
     alumnosPorId = Object.fromEntries((data || []).map(a => [a.id, a]));
-    // Nº de clase: prácticas anteriores del alumno + 1
-    const { data: hist, error: errH } = await supabase
+    // Nº de clase: clases previas (antes de usar la app) + prácticas anteriores + 1
+    const { data: hist, error: errH } = await traerTodo(() => supabase
       .from('practicas').select('id, alumno_id, fecha, hora_inicio')
-      .in('alumno_id', alumnoIds).eq('deleted', false).eq('empresa_id', auth.empresaId);
+      .in('alumno_id', alumnoIds).eq('deleted', false).eq('empresa_id', auth.empresaId).order('id'));
     if (handleSupabaseError(errH, res, 'Error al contar las prácticas')) return;
     for (const h of hist || []) (totalesPorAlumno[h.alumno_id] ||= []).push(h);
   }
@@ -106,11 +108,12 @@ export default async function handler(req, res) {
     const lista = (totalesPorAlumno[p.alumno_id] || []).slice().sort((a, b) =>
       (a.fecha || '').localeCompare(b.fecha || '') || (a.hora_inicio || '').localeCompare(b.hora_inicio || '') || a.id - b.id);
     const i = lista.findIndex(x => x.id === p.id);
-    return i >= 0 ? i + 1 : lista.length + 1;
+    const previas = (alumnosPorId[p.alumno_id] && alumnosPorId[p.alumno_id].clases_previas) || 0;
+    return previas + (i >= 0 ? i + 1 : lista.length + 1);
   };
   const forma = p => ({
     id: p.id, fecha: p.fecha, alumno_id: p.alumno_id,
-    alumno_nombre: alumnosPorId[p.alumno_id] ? alumnosPorId[p.alumno_id].nombre : '?',
+    alumno_nombre: alumnosPorId[p.alumno_id] ? nombreCompleto(alumnosPorId[p.alumno_id]) : '?',
     vehiculo_id: p.vehiculo_id,
     vehiculo_nombre: vehiculosPorId[p.vehiculo_id] ? vehiculosPorId[p.vehiculo_id].nombre : '?',
     matricula: vehiculosPorId[p.vehiculo_id] ? vehiculosPorId[p.vehiculo_id].matricula : null,
@@ -118,9 +121,10 @@ export default async function handler(req, res) {
     km_inicial: p.km_inicial, km_final: p.km_final, km: kmDePractica(p),
     tipo: p.tipo || 'circulacion', tipo_detalle: p.tipo_detalle || null,
     nota: p.nota || '', trabajado: Array.isArray(p.trabajado) ? p.trabajado : [],
+    zonas: Array.isArray(p.zonas) ? p.zonas : [],
     en_curso: p.km_inicial > 0 && !p.km_final && p.fecha === hoyCliente,
     sin_cerrar: p.km_inicial > 0 && !p.km_final && p.fecha < hoyCliente,
-    firmada: !!p.firma, clase_n: claseN(p), source: p.source || null
+    firmada: !!p.firmada, clase_n: claseN(p), source: p.source || null
   });
 
   return res.status(200).json({
@@ -129,7 +133,7 @@ export default async function handler(req, res) {
     sin_cerrar: sinCerrar.map(forma),
     reservas: reservas.map(r => ({
       id: r.id, hora_inicio: r.hora_inicio, duracion_min: r.duracion_min, estado: r.estado,
-      alumno_id: r.alumno_id, alumno_nombre: alumnosPorId[r.alumno_id] ? alumnosPorId[r.alumno_id].nombre : null,
+      alumno_id: r.alumno_id, alumno_nombre: alumnosPorId[r.alumno_id] ? nombreCompleto(alumnosPorId[r.alumno_id]) : null,
       vehiculo_id: r.vehiculo_id,
       vehiculo_nombre: vehiculosPorId[r.vehiculo_id] ? vehiculosPorId[r.vehiculo_id].nombre : null,
       matricula: vehiculosPorId[r.vehiculo_id] ? vehiculosPorId[r.vehiculo_id].matricula : null,

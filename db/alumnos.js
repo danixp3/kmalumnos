@@ -66,11 +66,18 @@ function getAlumnosLista(sucursalId, hoy) {
     const ex = examenPorAlumno.get(a.id);
     const bono = bonoPorAlumno.get(a.id);
     const v = veh.get(a.vehiculo_id);
+    // Punto de partida: lo hecho antes de usar la app suma a los totales.
+    const previas = a.clases_previas > 0 ? a.clases_previas : 0;
+    const kmPrevios = a.km_previos > 0 ? a.km_previos : 0;
     return {
       ...a,
       vehiculo_matricula: v ? v.matricula || null : null,
-      num_practicas: hechas.length,
-      km_total: Math.round(km),
+      num_practicas: hechas.length + previas,
+      km_total: Math.round(km) + kmPrevios,
+      num_practicas_app: hechas.length,
+      km_app: Math.round(km),
+      clases_previas: previas,
+      km_previos: kmPrevios,
       ultima_fecha: ultima ? ultima.fecha : null,
       ultima_hora: ultima ? ultima.hora_inicio || null : null,
       proxima_clase: prox ? { fecha: prox.fecha, hora_inicio: prox.hora_inicio || null } : null,
@@ -103,13 +110,15 @@ function getFichaAlumno(alumno_id, hoy) {
   const propias = d.practicas
     .filter(p => p.alumno_id === aid && !p.deleted)
     .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.hora_inicio || '').localeCompare(b.hora_inicio || '') || a.id - b.id);
+  // La numeración continúa tras las clases hechas antes de usar la app.
+  const previas = base.clases_previas || 0;
   const practicas = propias.map((p, i) => {
     const v = veh.get(p.vehiculo_id);
     const sinKm = p.km_inicial === 0 && p.km_final === 0;
     const enCurso = esPracticaEnCurso(p, hoy);
     const sinCerrar = esPracticaSinCerrar(p, hoy);
     return {
-      id: p.id, n: i + 1, fecha: p.fecha, hora_inicio: p.hora_inicio || null,
+      id: p.id, n: previas + i + 1, fecha: p.fecha, hora_inicio: p.hora_inicio || null,
       vehiculo_id: p.vehiculo_id, vehiculo_nombre: v ? v.nombre : null, matricula: v ? v.matricula || null : null,
       km_inicial: p.km_inicial, km_final: p.km_final,
       km: (sinKm || enCurso || sinCerrar) ? 0 : Math.max(0, p.km_final - p.km_inicial),
@@ -118,7 +127,9 @@ function getFichaAlumno(alumno_id, hoy) {
       profesor_id: p.profesor_id != null ? p.profesor_id : null,
       profesor_nombre: p.profesor_id != null && prof.get(p.profesor_id) ? prof.get(p.profesor_id).nombre : null,
       nota: p.nota || '',
-      firmada: !!p.firma
+      firmada: !!p.firma,
+      zonas: Array.isArray(p.zonas) ? p.zonas : [],
+      hora_fin: p.hora_fin || null
     };
   });
   const hechas = practicas.filter(p => !p.enCurso);
@@ -142,8 +153,10 @@ function getFichaAlumno(alumno_id, hoy) {
   return {
     alumno: base,
     metricas: {
-      clases: hechas.length,
-      km: Math.round(hechas.reduce((s, p) => s + p.km, 0)),
+      clases: hechas.length + previas,
+      km: Math.round(hechas.reduce((s, p) => s + p.km, 0)) + (base.km_previos || 0),
+      clases_previas: previas,
+      km_previos: base.km_previos || 0,
       mediaKm: hechas.filter(p => p.km > 0).length
         ? Math.round((hechas.reduce((s, p) => s + p.km, 0) / hechas.filter(p => p.km > 0).length) * 10) / 10 : 0
     },

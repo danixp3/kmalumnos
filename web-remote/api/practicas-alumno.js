@@ -1,6 +1,6 @@
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, withRetry, handleSupabaseError,
-  conFallbackColumnas, COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_MOVIL, esErrorColumnaInexistente
+  conFallbackColumnas, COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_LISTA, esErrorColumnaInexistente
 } from './_utils.js';
 
 // Ficha de un alumno para el móvil: datos básicos, totales y sus últimas
@@ -24,11 +24,16 @@ export default async function handler(req, res) {
   // Verificar que el alumno existe, no está borrado y pertenece a la empresa
   let { data: alumno, error: errAlumno } = await supabase
     .from('alumnos')
-    .select('id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta')
+    .select('id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta, clases_previas, km_previos')
     .eq('id', alumnoIdVal.value)
     .eq('deleted', false)
     .eq('empresa_id', auth.empresaId)
     .maybeSingle();
+  if (errAlumno && esErrorColumnaInexistente(errAlumno)) {
+    ({ data: alumno, error: errAlumno } = await supabase
+      .from('alumnos').select('id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta')
+      .eq('id', alumnoIdVal.value).eq('deleted', false).eq('empresa_id', auth.empresaId).maybeSingle());
+  }
   if (errAlumno && esErrorColumnaInexistente(errAlumno)) {
     ({ data: alumno, error: errAlumno } = await supabase
       .from('alumnos').select('id, nombre, permiso, vehiculo_id, profesor_id')
@@ -42,7 +47,7 @@ export default async function handler(req, res) {
   // Todas las prácticas del alumno (para totales y calendario); las 50 últimas se devuelven en detalle
   const { res: rTodas } = await conFallbackColumnas(conOpc => withRetry(() => supabase
     .from('practicas')
-    .select(COLUMNAS_PRACTICA_BASE + (conOpc ? ', ' + COLUMNAS_PRACTICA_MOVIL : ''))
+    .select(COLUMNAS_PRACTICA_BASE + (conOpc ? ', ' + COLUMNAS_PRACTICA_LISTA : ''))
     .eq('alumno_id', alumnoIdVal.value)
     .eq('deleted', false)
     .eq('empresa_id', auth.empresaId)
@@ -96,7 +101,8 @@ export default async function handler(req, res) {
       matricula: v ? v.matricula : null,
       vehiculo_nombre: v ? v.nombre : null,
       trabajado: Array.isArray(p.trabajado) ? p.trabajado : [],
-      firmada: !!p.firma,
+      zonas: Array.isArray(p.zonas) ? p.zonas : [],
+      firmada: !!p.firmada,
       sin_cerrar: p.km_inicial > 0 && !p.km_final && p.fecha < hoy,
       en_curso: p.km_inicial > 0 && !p.km_final && p.fecha === hoy
     };
@@ -109,7 +115,8 @@ export default async function handler(req, res) {
       vehiculo_id: alumno.vehiculo_id, profesor_id: alumno.profesor_id,
       profesor_nombre: alumno.profesor_id ? (mapaProfesores.get(alumno.profesor_id) || null) : null,
       primer_apellido: alumno.primer_apellido || null, segundo_apellido: alumno.segundo_apellido || null,
-      estado: alumno.estado || null, fecha_alta: alumno.fecha_alta || null
+      estado: alumno.estado || null, fecha_alta: alumno.fecha_alta || null,
+      clases_previas: alumno.clases_previas || 0, km_previos: alumno.km_previos || 0
     },
     total: todas.length,
     km_totales: kmTotales,

@@ -4,7 +4,7 @@
 // el km final de la práctica anterior del mismo coche.
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError,
-  hhmmValido, kmEntero, insertarPractica
+  hhmmValido, kmEntero, insertarPractica, limpiarZonas
 } from '../../api/_utils.js';
 
 const TIPOS = ['pista', 'circulacion'];
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   if (!auth) return;
   const supabase = getSupabase(auth.token);
 
-  const { alumno_id, vehiculo_id, km_inicial, tipo, tipo_detalle, fecha, hora_inicio, profesor_id } = req.body || {};
+  const { alumno_id, vehiculo_id, km_inicial, tipo, tipo_detalle, fecha, hora_inicio, profesor_id, zonas } = req.body || {};
 
   const alumnoIdVal = validators.positiveInt(alumno_id, 'alumno_id');
   if (!alumnoIdVal.valid) return res.status(400).json({ error: alumnoIdVal.error });
@@ -31,6 +31,7 @@ export default async function handler(req, res) {
   if (!hhmmValido(hora_inicio)) return res.status(400).json({ error: 'Hora de inicio no válida (HH:MM)' });
   const tipoFinal = TIPOS.includes(tipo) ? tipo : 'circulacion';
   const detalle = typeof tipo_detalle === 'string' ? tipo_detalle.trim().slice(0, 40) : '';
+  const zonasLimpias = limpiarZonas(zonas);
 
   let profesorIdFinal = null;
   if (profesor_id !== null && profesor_id !== undefined && profesor_id !== '') {
@@ -75,6 +76,7 @@ export default async function handler(req, res) {
     empresa_id: auth.empresaId, updated_at: new Date().toISOString()
   };
   if (detalle) fila.tipo_detalle = detalle;
+  if (zonasLimpias.length) fila.zonas = zonasLimpias;
 
   const { data, error, degradado } = await insertarPractica(supabase, fila);
   if (handleSupabaseError(error, res, 'Error al iniciar la práctica')) return;

@@ -1,6 +1,6 @@
 // Supabase simulado en memoria: solo lo que usan los endpoints de web-remote/api.
 export const BD = { tablas: {}, columnasInexistentes: {}, rpc: [] };
-export function reiniciar(tablas = {}, columnasInexistentes = {}) { BD.tablas = JSON.parse(JSON.stringify(tablas)); BD.columnasInexistentes = columnasInexistentes; BD.rpc = []; }
+export function reiniciar(tablas = {}, columnasInexistentes = {}) { BD.tablas = JSON.parse(JSON.stringify(tablas)); BD.columnasInexistentes = columnasInexistentes; BD.rpc = []; BD.maxRows = 0; }
 
 const FK = { alumnos: 'alumno_id', vehiculos: 'vehiculo_id' };
 const errCol = c => ({ code: 'PGRST204', message: `Could not find the '${c}' column of 'practicas' in the schema cache` });
@@ -16,9 +16,12 @@ class Consulta {
   gt(c, v) { this.filtros.push(r => r[c] > v); return this; }
   gte(c, v) { this.filtros.push(r => r[c] >= v); return this; }
   lt(c, v) { this.filtros.push(r => r[c] < v); return this; }
+  lte(c, v) { this.filtros.push(r => r[c] <= v); return this; }
   in(c, vs) { this.filtros.push(r => vs.includes(r[c])); return this; }
   order(c, o = {}) { this.ordenes.push([c, o.ascending === false ? -1 : 1]); return this; }
   limit(n) { this.lim = n; return this; }
+  range(a, b) { this.rango = [a, b]; return this; }
+  upsert(p, o = {}) { this.modo = 'upsert'; this.payload = p; this.onConflict = o.onConflict; return this; }
   single() { this.unico = 'single'; return this; }
   maybeSingle() { this.unico = 'maybe'; return this; }
   then(res, rej) { return Promise.resolve(this.ejecutar()).then(res, rej); }
@@ -31,6 +34,12 @@ class Consulta {
       if (this.filas().some(r => r.id === fila.id)) return { data: null, error: { code: '23505', message: 'duplicate key' } };
       this.filas().push(fila); return { data: this.unico ? { id: fila.id } : [{ id: fila.id }], error: null };
     }
+    if (this.modo === 'upsert') {
+      const claves = String(this.onConflict || 'id').split(',').map(c => c.trim());
+      const i = this.filas().findIndex(r => claves.every(c => r[c] === this.payload[c]));
+      if (i >= 0) Object.assign(this.filas()[i], this.payload); else this.filas().push({ ...this.payload });
+      return { data: null, error: null };
+    }
     if (this.modo === 'update') {
       const c = faltan.find(k => k in this.payload); if (c) return { data: null, error: errCol(c) };
       this.filas().filter(r => this.filtros.every(f => f(r))).forEach(r => Object.assign(r, this.payload)); return { data: null, error: null };
@@ -40,8 +49,10 @@ class Consulta {
     for (const [col, dir] of [...this.ordenes].reverse()) filas.sort((a, b) => ((a[col] > b[col]) - (a[col] < b[col])) * dir);
     if (this.opts.count && this.opts.head) return { data: null, count: filas.length, error: null };
     if (this.lim != null) filas = filas.slice(0, this.lim);
+    if (this.rango) filas = filas.slice(this.rango[0], this.rango[1] + 1);
+    if (BD.maxRows) filas = filas.slice(0, BD.maxRows);
     const emb = [...this.cols.matchAll(/(\w+)\(([^)]*)\)/g)];
-    filas = filas.map(r => { const o = { ...r }; for (const [, tabla] of emb) { const rel = (BD.tablas[tabla] || []).find(x => x.id === r[FK[tabla]]); o[tabla] = rel || null; } return o; });
+    filas = filas.map(r => { const o = { ...r }; if (this.t === 'practicas' && !('firmada' in o)) o.firmada = o.firma != null; for (const [, tabla] of emb) { const rel = (BD.tablas[tabla] || []).find(x => x.id === r[FK[tabla]]); o[tabla] = rel || null; } return o; });
     if (this.unico) return { data: filas[0] || null, error: this.unico === 'single' && !filas[0] ? { code: 'PGRST116', message: 'no rows' } : null };
     return { data: filas, error: null };
   }

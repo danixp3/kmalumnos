@@ -1,8 +1,9 @@
-import { setCorsHeaders, requireAuth, getSupabase, withRetry, handleSupabaseError, esErrorColumnaInexistente } from './_utils.js';
+import { setCorsHeaders, requireAuth, getSupabase, withRetry, handleSupabaseError, esErrorColumnaInexistente, traerTodo } from './_utils.js';
 
 // Lista de alumnos de la empresa. Con ?resumen=1 añade a cada alumno el nº de
 // clases, los km totales y la fecha de su última práctica (para la pantalla
-// «Alumnos» del móvil).
+// «Alumnos» del móvil). `clases_previas`/`km_previos` = punto de partida
+// (lo hecho antes de usar la app); la web los suma a la numeración y totales.
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
 
@@ -22,7 +23,10 @@ export default async function handler(req, res) {
     .order('nombre'));
 
   // Columnas de la ficha ampliada (existen en producción; si faltan, se cae al básico)
-  let { data, error } = await consulta('id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta');
+  let { data, error } = await consulta('id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta, clases_previas, km_previos');
+  if (error && esErrorColumnaInexistente(error)) {
+    ({ data, error } = await consulta('id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta'));
+  }
   if (error && esErrorColumnaInexistente(error)) {
     ({ data, error } = await consulta('id, nombre, permiso, vehiculo_id, profesor_id'));
   }
@@ -30,11 +34,13 @@ export default async function handler(req, res) {
   let alumnos = data || [];
 
   if (req.query && req.query.resumen && alumnos.length) {
-    const { data: prs, error: errP } = await withRetry(() => supabase
+    // Paginado: PostgREST corta en 1.000 filas y antes los recuentos salían
+    // mal en cuanto la empresa pasaba de 1.000 prácticas.
+    const { data: prs, error: errP } = await traerTodo(() => supabase
       .from('practicas')
-      .select('alumno_id, fecha, km_inicial, km_final')
+      .select('id, alumno_id, fecha, km_inicial, km_final')
       .eq('deleted', false).eq('empresa_id', auth.empresaId)
-      .limit(20000));
+      .order('id'));
     if (handleSupabaseError(errP, res, 'Error al resumir las prácticas')) return;
     const resumen = {};
     for (const p of prs || []) {

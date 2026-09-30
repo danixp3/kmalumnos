@@ -79,17 +79,22 @@ function getFichaPracticasAlumno(alumno_id) {
   const a = d.alumnos.find(x => x.id === aid);
   if (!a) return null;
 
+  const previas = a.clases_previas > 0 ? a.clases_previas : 0;
   const practicas = d.practicas
     .filter(p => p.alumno_id === aid && !p.deleted)
-    .sort((a2, b2) => a2.fecha.localeCompare(b2.fecha) || a2.id - b2.id)
-    .map(p => {
+    .sort((a2, b2) => a2.fecha.localeCompare(b2.fecha) || (a2.hora_inicio || '').localeCompare(b2.hora_inicio || '') || a2.id - b2.id)
+    .map((p, i) => {
       const v = d.vehiculos.find(x => x.id === p.vehiculo_id);
       const prof = d.profesores.find(x => x.id === p.profesor_id);
       const ki = p.km_inicial || 0;
       const kf = p.km_final || 0;
       return {
         id: p.id,
+        n: previas + i + 1,
         fecha: p.fecha,
+        hora_inicio: p.hora_inicio || null,
+        // Firma del alumno hecha en el móvil (se imprime en su casilla)
+        firma: typeof p.firma === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(p.firma) ? p.firma : null,
         vehiculo_nombre: v ? v.nombre : null,
         matricula: v ? v.matricula : null,
         profesor_nombre: prof ? prof.nombre : null,
@@ -103,6 +108,8 @@ function getFichaPracticasAlumno(alumno_id) {
   const totales = {
     nClases: practicas.length,
     kmTotales: practicas.reduce((sum, p) => sum + p.km_recorridos, 0),
+    clasesPrevias: previas,
+    kmPrevios: a.km_previos > 0 ? a.km_previos : 0,
   };
 
   return {
@@ -124,6 +131,38 @@ function getFichaPracticasAlumno(alumno_id) {
  * Ordena por fecha descendente y, a igualdad, por id descendente.
  * Solo lectura, no marca sync.
  */
+// Detalle de una práctica con la FIRMA del alumno (imagen PNG que llega desde
+// el móvil) para enseñarla como prueba de que recibió la clase. Solo lectura.
+function getPracticaDetalle(id) {
+  const d = load();
+  const p = d.practicas.find(x => x.id === parseInt(id) && !x.deleted);
+  if (!p) return null;
+  const a = d.alumnos.find(x => x.id === p.alumno_id);
+  const v = d.vehiculos.find(x => x.id === p.vehiculo_id);
+  const prof = p.profesor_id != null ? d.profesores.find(x => x.id === p.profesor_id) : null;
+  const orden = (x, y) => (x.fecha || '').localeCompare(y.fecha || '') || (x.hora_inicio || '').localeCompare(y.hora_inicio || '') || x.id - y.id;
+  const delAlumno = d.practicas.filter(x => x.alumno_id === p.alumno_id && !x.deleted).sort(orden);
+  const previas = a && a.clases_previas > 0 ? a.clases_previas : 0;
+  const firmaValida = typeof p.firma === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(p.firma);
+  return {
+    id: p.id, fecha: p.fecha, hora_inicio: p.hora_inicio || null, hora_fin: p.hora_fin || null,
+    clase_n: previas + delAlumno.findIndex(x => x.id === p.id) + 1,
+    alumno_id: p.alumno_id,
+    alumno_nombre: a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '—',
+    alumno_dni: a ? a.dni || null : null,
+    vehiculo_nombre: v ? v.nombre : null, matricula: v ? v.matricula || null : null,
+    profesor_nombre: prof ? prof.nombre : null,
+    km_inicial: p.km_inicial, km_final: p.km_final,
+    km: p.km_final > 0 ? Math.max(0, p.km_final - p.km_inicial) : 0,
+    tipo: p.tipo || 'circulacion',
+    zonas: Array.isArray(p.zonas) ? p.zonas : [],
+    trabajado: Array.isArray(p.trabajado) ? p.trabajado : [],
+    nota: p.nota || '',
+    firma: firmaValida ? p.firma : null,
+    origen: p.source || null
+  };
+}
+
 function getTodasPracticas(filtros = {}) {
   const d = load();
   const { desde, hasta, alumno_id, vehiculo_id, profesor_id, tipo, sucursal_id } = filtros || {};
@@ -135,7 +174,9 @@ function getTodasPracticas(filtros = {}) {
   const claseN = new Map();
   const porAlumno = new Map();
   for (const p of vivas) { if (!porAlumno.has(p.alumno_id)) porAlumno.set(p.alumno_id, []); porAlumno.get(p.alumno_id).push(p); }
-  for (const lista of porAlumno.values()) lista.sort(orden).forEach((p, i) => claseN.set(p.id, i + 1));
+  // La numeración continúa tras las clases hechas antes de usar la app (punto de partida).
+  const previasDe = id => { const a = d.alumnos.find(x => x.id === id); return a && a.clases_previas > 0 ? a.clases_previas : 0; };
+  for (const [aid, lista] of porAlumno.entries()) { const pr = previasDe(aid); lista.sort(orden).forEach((p, i) => claseN.set(p.id, pr + i + 1)); }
   // Práctica anterior del mismo vehículo (con km) para comprobar la continuidad del cuentakilómetros.
   const previa = new Map();
   const porVehiculo = new Map();
@@ -187,6 +228,11 @@ function getTodasPracticas(filtros = {}) {
         sin_cerrar: sinCerrar,
         clase_n: claseN.get(p.id) || null,
         nota: p.nota || '',
+        firmada: !!p.firma,
+        zonas: Array.isArray(p.zonas) ? p.zonas : [],
+        trabajado: Array.isArray(p.trabajado) ? p.trabajado : [],
+        hora_fin: p.hora_fin || null,
+        origen: p.source || null,
         // Continuidad con la práctica anterior del mismo coche (null si es la primera o no hay km).
         continuidad: (pv && !sinKm && !sinCerrar) ? {
           alumno: pvAlumno ? pvAlumno.nombre : '—',
@@ -497,7 +543,7 @@ function deletePracticasBulk(ids) {
 }
 
 module.exports = {
-  getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica, getTodasPracticas,
+  getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica, getTodasPracticas, getPracticaDetalle,
   getAlumnosPorVehiculo, registrarPracticasMasivas, eliminarPracticaPorFecha, ajustarPracticasAlumno, guardarNotaAlumno, setNotaPractica,
   getFichaPracticasAlumno, getDatosFichaDGT, getPracticasDuplicadas, deletePracticasBulk,
 };

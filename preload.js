@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('api', {
   cerrarVentana:          () => ipcRenderer.invoke('ventana-cerrar'),
   ventanaEstaMaximizada:  () => ipcRenderer.invoke('ventana-esta-maximizada'),
   onVentanaMaximizada:    (cb) => ipcRenderer.on('ventana-maximizada', (_, max) => cb(max)),
+  onBarraSensor:          (cb) => ipcRenderer.on('barra-sensor', (_, d) => cb(d)),
   guardarTemaFondo:       (color) => ipcRenderer.invoke('guardar-tema-fondo', color),
 
   // Vehículos
@@ -87,6 +88,13 @@ contextBridge.exposeInMainWorld('api', {
   generarKmHastaMaximo:  (vid, min, max, maximo, aplicar) => ipcRenderer.invoke('generar-km-hasta-maximo', vid, min, max, maximo, aplicar),
   generarKmPorRango:     (vid, desde, hasta, variacion, aplicar) => ipcRenderer.invoke('generar-km-por-rango', vid, desde, hasta, variacion, aplicar),
   aplicarPlanKm:         (vid, asignaciones)     => ipcRenderer.invoke('aplicar-plan-km', vid, asignaciones),
+  getZonasPractica:      ()                      => ipcRenderer.invoke('get-zonas-practica'),
+  getPracticaDetalle:    (id)                    => ipcRenderer.invoke('get-practica-detalle', id),
+  setZonasPractica:      (lista)                 => ipcRenderer.invoke('set-zonas-practica', lista),
+  getPuestaEnMarcha:     ()                      => ipcRenderer.invoke('get-puesta-en-marcha'),
+  guardarPuestaEnMarcha: (datos)                 => ipcRenderer.invoke('guardar-puesta-en-marcha', datos),
+  vaciarDatosPrueba:     (opciones)              => ipcRenderer.invoke('vaciar-datos-prueba', opciones),
+  setPuntoDePartidaAlumno: (id, clases, km)      => ipcRenderer.invoke('set-punto-de-partida-alumno', id, clases, km),
   getLogs:               (filtro)                => ipcRenderer.invoke('get-logs', filtro),
   clearLogs:             ()                      => ipcRenderer.invoke('clear-logs'),
   crearBackup:           ()                      => ipcRenderer.invoke('crear-backup'),

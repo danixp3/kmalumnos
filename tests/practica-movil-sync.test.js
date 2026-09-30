@@ -95,10 +95,13 @@ test('pushAll(): sin las columnas disponibles, tampoco las incluye', async () =>
   for (const c of CAMPOS) expect(mockRemote.tables.practicas[0]).not.toHaveProperty(c);
 });
 
-test('pushAll(): con las columnas disponibles, las incluye', async () => {
+test('pushAll(): nunca manda los datos del móvil, así no borra en la nube una firma que este PC no tenga', async () => {
   mockRemote.authUserId = 'uid-jefe';
   sync.setCredentials('jefe@test.com', 'password123');
-  writeData(datos());
+  const d = datos();
+  delete d.practicas[0].firma;
+  writeData(d);
+  mockRemote.tables.practicas = [{ id: d.practicas[0].id, firma: 'data:image/png;base64,NUBE', hora_fin: '10:48', deleted: false, updated_at: '2026-01-01T00:00:00.000Z' }];
   expect((await sync.pushAll()).ok).toBe(true);
-  expect(mockRemote.tables.practicas[0]).toMatchObject({ firma: 'data:image/png;base64,AAAA', hora_fin: '10:48' });
+  expect(mockRemote.tables.practicas[0]).toMatchObject({ firma: 'data:image/png;base64,NUBE', hora_fin: '10:48' });
 });
