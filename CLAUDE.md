@@ -13,10 +13,10 @@ Aplicación de escritorio (Windows) para una autoescuela: gestiona vehículos, a
 ```
 main.js       → proceso principal Electron: ventana, IPC handlers, auto-updater
 preload.js    → contextBridge, expone window.api al renderer
-index.html    → SPA (solo HTML), enlaza styles.css y los 21 <script> de renderer/
+index.html    → SPA (solo HTML), enlaza styles.css y los 37 <script> de renderer/
 styles.css    → CSS de la app de escritorio (sistema ámbar/tinta), temas [data-theme="oscuro"/"negro"], paleta de gráficos
 fonts/        → Barlow, Barlow Condensed, IBM Plex Mono (woff2 locales; también en web-remote/fonts/)
-renderer/     → UI (vanilla JS) dividida en 21 <script> clásicos (globales, no módulos ES),
+renderer/     → UI (vanilla JS) dividida en 37 <script> clásicos (globales, no módulos ES),
                 cargados en orden fijo desde index.html; arranque.js SIEMPRE el último
   estado.js, utils-ui.js → estado, modales, esc/fmt/fmtFecha/tagPermiso, TEMA, toasts
   dashboard.js, vehiculos.js, profesores.js, alumnos.js, practicas.js, pagos.js → CRUD
@@ -35,6 +35,8 @@ db/           → CRUD + algoritmos de km, por módulo
   km-algoritmos.js → solapamientos, relleno masivo, corrección
   estadisticas.js  → resumen, dashboard, timeline, estadísticas por profesor
   sucursales.js → CRUD sucursales (modo multi-empresa con migración pendiente)
+  ajustes-empresa.js → ajustes compartidos con la web (zonas de prácticas)
+  puesta-en-marcha.js → arranque con datos reales: km de coches, punto de partida del alumno, borrar datos de prueba
 sync.js       → sincronización bidireccional con Supabase (auto-sync cada 2 min), resolución de colisiones
 migraciones/  → migraciones SQL de Supabase escritas pero NO APLICADAS (roles + sucursales)
 web-remote/   → web móvil + API serverless (deploy: cd web-remote && vercel --prod --yes)
@@ -53,7 +55,7 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 | Desplegar web móvil | `cd web-remote && vercel --prod --yes` |
 | Tests | `npm test` (Jest; tests en `tests/`, mock de Electron en `tests/mocks/`) |
 | Tests de la API móvil | `npm run test:api` (Supabase falso en `web-remote/tests/`, sin red) |
-| Prueba de interfaz | `npm run smoke` (arranca la app real y recorre las 21 secciones) |
+| Prueba de interfaz | `npm run smoke` (arranca la app real y recorre todas las secciones del menú) |
 
 ## Convenciones
 - Todo en español: nombres de funciones/variables de dominio (`getVehiculos`, `rellenarKmMasivo`), mensajes de UI y commits (`v1.X.X - descripción breve`).
@@ -64,13 +66,16 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-09-30. El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-10-01. El detalle histórico completo está en HISTORIAL.md._
 
-- **REDISEÑO COMPLETO escritorio + móvil (2026-09-29/30, SIN publicar — pendiente aprobación del propietario):** app con el nuevo sistema visual ámbar/tinta (Panel, Alumnos+Ficha, Prácticas, Vehículos rediseñados; resto de secciones heredan tokens) y `web-remote` reescrita con el flujo de clase del profesor (iniciar → cronómetro → km final → firma). "Práctica en curso" es implícita (`esPracticaEnCurso`, sin cambio de esquema). Jest 400 tests/45 suites + `test:api` 15 + smoke OK. Detalle en HISTORIAL.md; guías en `/mejorar-ui` (estilo-ui.md) y `/cambiar-web` (mapa-web.md).
-- **PENDIENTE del propietario (rediseño):** (1) aplicar en Supabase `migraciones/2026-09-29_practica_movil.sql` (columnas `firma`, `trabajado`, `tipo_detalle`, `hora_fin`; sin ella todo funciona menos guardar la firma → 501); (2) publicar release (versión sigue en 1.17.0) y desplegar la web (`/desplegar-web`). No implementado: foto del cuentakilómetros (no hay almacenamiento).
+- **Lote 2026-10-01 (web DESPLEGADA; escritorio en `main`, SIN release — la versión sigue en 1.18.0):** web: «Zonas recorridas» (config en escritorio → tabla `ajustes_empresa`), historial en calendario con detalle y firma, «Hoy» se recalcula tras medianoche/al volver, alumnos sin tope de 1.000. Escritorio: menú reorganizado y personalizable (`renderer/menu.js`), Ajustes por cuadros, Puesta en marcha (`db/puesta-en-marcha.js`: km real de coches + `clases_previas`/`km_previos` del alumno, sin prácticas ficticias), firma visible (ficha, detalle de clase, impreso), gráfico km/clase adaptable, barra superior desplegable (sensor en `main.js`), tutoriales. Jest 414/47 + test:api 21 + smoke OK.
+- **Sync endurecido (2026-10-01):** las subidas comprueban `{error}` y solo sale de la cola lo confirmado (antes se perdían registros en silencio: alumno 86 y 75 prácticas de este PC, recuperados por la autorreparación diaria `_verificarIntegridad`); fusión con disco al guardar (`_fusionarConDisco`), bajada paginada (`_traerTodo`), `lastSync` = inicio − 10 min, `pushAll` no manda firma/zonas. Ids creados en la web ≥ 1e9 (`*_web_id_seq`); el contador local nunca entra ahí (`_avanzarSeq`/`_repararSeqWeb`).
+- **Migración `2026-10-01_zonas_previas_ids_web.sql` APLICADA** (aditiva, datos intactos 69/1102/11): `ajustes_empresa` (RLS lectura empresa, escritura jefe), `practicas.zonas`, `practicas.firmada` (generada), `alumnos.clases_previas/km_previos`, secuencias web y `reparar_secuencias()` ampliada. PENDIENTE: publicar release 1.19.0 antes de meter datos reales (la 1.18.0 instalada no tiene los arreglos de sync).
+
+- **Rediseño escritorio + móvil (2026-09-29/30):** publicado en la v1.18.0 (ver línea de versión). "Práctica en curso" implícita (`esPracticaEnCurso`). Guías en `/mejorar-ui` (estilo-ui.md) y `/cambiar-web` (mapa-web.md). No implementado: foto del cuentakilómetros (no hay almacenamiento).
 - **Workflow (2026-09-29):** sin subagentes; `.claude/agents/` eliminado, todo lo hace el modelo/esfuerzo del prompt principal. Diseños originales en la rama `redesign-assets` (carpeta `REDESIGN/`).
 
-- **Versión:** 1.18.0 (PUBLICADA 2026-09-30, auto-update verificado). Rediseño de escritorio y web móvil (práctica en curso, km final, firma del alumno), apellidos en la lista de alumnos y "Generar km". Migración `2026-09-29_practica_movil.sql` APLICADA en Supabase (firma, trabajado, tipo_detalle, hora_fin; datos intactos: 69 alumnos, 1100 prácticas, 11 vehículos). Web: Hobby admite 12 funciones → `hoy/iniciar/finalizar/firmar/cancelar-practica` viven en `web-remote/lib/movil/` tras `api/movil.js` + rewrites en `vercel.json` (NO añadir más archivos en `web-remote/api/`). Si la subida del instalador da timeout, completar los assets de la release con curl.
+- **Versión:** 1.18.0 (PUBLICADA 2026-09-30, auto-update verificado). Rediseño de escritorio y web móvil (práctica en curso, km final, firma del alumno), apellidos en la lista de alumnos y "Generar km". Migración `2026-09-29_practica_movil.sql` APLICADA en Supabase (firma, trabajado, tipo_detalle, hora_fin; datos intactos: 69 alumnos, 1100 prácticas, 11 vehículos). Web: Hobby admite 12 funciones → `hoy/iniciar/finalizar/firmar/cancelar-practica/config/calendario/practica-detalle` viven en `web-remote/lib/movil/` tras `api/movil.js` + rewrites en `vercel.json` (NO añadir más archivos en `web-remote/api/`). Si la subida del instalador da timeout, completar los assets de la release con curl.
 - **Apellidos en la lista de alumnos (2026-09-11, incluido en v1.18.0):** la columna "Nombre" de la lista principal ahora muestra nombre + primer/segundo apellido (`renderer/alumnos.js`, `renderAlumnosTabla`); el buscador de la lista también encuentra por apellidos. Aditivo, sin cambios de datos. Suite 372 tests en verde.
 - **Generación de km unificada (2026-09-11, incluido en v1.18.0):** nueva sección propia en el sidebar **"Generar km"** (`renderer/generar-km.js`, `#page-generar-km`) que reúne los métodos de generación con selector de vehículo compartido y 3 pestañas: (1) **Encadenado** (relleno masivo clásico hacia delante desde el odómetro, reusa `rellenarKmMasivo`); (2) **Hasta un máximo** — das el km final y la práctica en blanco más reciente acaba ahí, restando hacia atrás (`db.generarKmHastaMaximo`); (3) **Por rango [desde→hasta]** — reparte con la media del tramo + variación aleatoria ±, cuadrando el total en el km final (`db.generarKmPorRango`). Los modos máximo/rango **previsualizan** (`aplicar=false`) y guardan EXACTAMENTE lo mostrado con `db.aplicarPlanKm(vid, asignaciones)` (WYSIWYG, porque usan `Math.random`; solo escribe sobre prácticas que sigan en blanco). Aditivo: NO se tocaron el botón "Generar km" de la ficha del alumno ni el rango del import CSV. IPC `generar-km-hasta-maximo`/`generar-km-por-rango`/`aplicar-plan-km`. Suite **369 tests / 41 suites** en verde (+14, `tests/generar-km.test.js`) + `npm run smoke` OK (21 secciones).
 - **Versión:** 1.17.0 (PUBLICADA 2026-09-10, auto-update verificado RELEASE-OK). Dos funcionalidades aditivas + fix UI. (1) **Detector de prácticas duplicadas**: en la ficha de prácticas del alumno, aviso cuando hay grupos con misma fecha+km_inicial+km_final; botón "Revisar duplicados" abre modal que conserva la más antigua (marcada "se conserva") y preselecciona las repetidas para borrar; borrado en bloque con soft-delete sincronizado. `db/practicas.js:getPracticasDuplicadas/deletePracticasBulk` → IPC `get-practicas-duplicadas`/`eliminar-practicas-duplicadas` → preload → `renderer/practicas.js`. (2) **Ficha DGT**: casilla en Ajustes ("Datos del centro") para NO rellenar la fecha del documento (pie "a __ de __ de __") y escribirla a mano; `rellenar_fecha` en localStorage `km_centro_datos`, no afecta a la columna Fecha de cada clase (`fichas-dgt.js`). (3) Fix: los modales grandes hacen scroll (`max-height:90vh` en styles.css). Suite 355 tests / 40 suites en verde.

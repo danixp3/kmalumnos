@@ -9,7 +9,7 @@ Objetivo: implementar cambios sin cargar archivos enteros (leer solo el módulo 
 
 ## Flujo
 
-1. **Leer `references/mapa-app.md`** — organización de `renderer/` (18 módulos) y `db/` (10 módulos) con anclas, tabla de qué módulo contiene qué, la receta del cambio completo y la de los tests. Sustituye a explorar el código para orientarse.
+1. **Leer `references/mapa-app.md`** — organización de `renderer/` (37 scripts) y `db/` (20 módulos) con anclas, tabla de qué módulo contiene qué, la receta del cambio completo y la de los tests. Sustituye a explorar el código para orientarse.
 
 2. **Localizar con Grep sobre las anclas y Read parcial** del módulo afectado. Nunca leer `db.js` (índice) esperando la lógica, ni releer todo `renderer/`; si la exploración se complica, ampliar con más Grep dirigidos (sin subagentes).
 
