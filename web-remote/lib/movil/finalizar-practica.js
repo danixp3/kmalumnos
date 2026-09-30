@@ -3,7 +3,7 @@
 // alumno (clases y km) para la pantalla de km final.
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError,
-  hhmmValido, kmEntero, conFallbackColumnas, kmDePractica
+  hhmmValido, kmEntero, conFallbackColumnas, kmDePractica, limpiarZonas
 } from '../../api/_utils.js';
 
 export default async function handler(req, res) {
@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   if (!auth) return;
   const supabase = getSupabase(auth.token);
 
-  const { practica_id, km_final, trabajado, observacion, hora_fin } = req.body || {};
+  const { practica_id, km_final, trabajado, observacion, hora_fin, zonas } = req.body || {};
   const idVal = validators.positiveInt(practica_id, 'practica_id');
   if (!idVal.valid) return res.status(400).json({ error: idVal.error });
   const kmVal = kmEntero(km_final, 'El km final');
@@ -40,10 +40,11 @@ export default async function handler(req, res) {
   const lista = Array.isArray(trabajado) ? trabajado.filter(t => typeof t === 'string').map(t => t.trim().slice(0, 40)).filter(Boolean).slice(0, 12) : [];
   if (lista.length) cambios.trabajado = lista;
   if (hhmmValido(hora_fin)) cambios.hora_fin = hora_fin;
+  if (Array.isArray(zonas)) cambios.zonas = limpiarZonas(zonas); // [] = el profesor las desmarcó todas
 
   const { res: rUp, degradado } = await conFallbackColumnas(conOpc => {
     const payload = { ...cambios };
-    if (!conOpc) { delete payload.trabajado; delete payload.hora_fin; }
+    if (!conOpc) { delete payload.trabajado; delete payload.hora_fin; delete payload.zonas; }
     return supabase.from('practicas').update(payload).eq('id', practica.id).eq('empresa_id', auth.empresaId);
   });
   if (handleSupabaseError(rUp.error, res, 'Error al cerrar la práctica')) return;

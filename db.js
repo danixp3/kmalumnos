@@ -37,6 +37,8 @@ module.exports = {
   ...require('./db/bonos'),
   ...require('./db/cargos'),
   ...require('./db/crm'),
+  ...require('./db/ajustes-empresa'),
+  ...require('./db/puesta-en-marcha'),
 
   getLogs: core.getLogs,
   clearLogs: core.clearLogs,

@@ -135,10 +135,13 @@ function pintarResumenVehiculos(panel) {
       <td class="col-num num-mono"><b>${fmtMiles(t.practicas_mes)}</b></td><td class="col-num num-mono"><b>${fmtDec(t.km_por_practica)}</b></td></tr>`;
 }
 
-function seleccionarRellenoVehiculo(id) {
-  const sel = document.getElementById('relleno-vehiculo');
-  if (sel) { sel.value = String(id); actualizarContadorSinKm(); }
-  document.getElementById('veh-relleno')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+// El relleno de km vive ahora solo en Kilómetros → Generar km: se abre con este
+// vehículo ya elegido.
+async function seleccionarRellenoVehiculo(id) {
+  navegarA('generar-km');
+  await loadGenerarKm();
+  const sel = document.getElementById('gk-vehiculo');
+  if (sel && [...sel.options].some(o => o.value === String(id))) { sel.value = String(id); gkCambioVehiculo(); }
 }
 
 function abrirNuevoVehiculo() {

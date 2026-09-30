@@ -271,6 +271,7 @@ function guardarDashboardPrefDesdeAjustes() {
 
 // ─── AJUSTES ──────────────────────────────────────────────────────────────────
 async function loadAjustes() {
+  ajustesInicio(); // siempre se entra por los cuadros (el buscador abre luego la sección)
   aplicarRangoPref('pref-km-min', 'pref-km-max');
   const elDuracionClase = document.getElementById('pref-duracion-clase');
   if (elDuracionClase) elDuracionClase.value = getDuracionClaseMin();
@@ -326,6 +327,138 @@ async function loadAjustes() {
   const s = await window.api.getSyncStatus();
   updateSyncBar(s || 'offline');
   loadUltimoBackup();
+}
+
+// ─── AJUSTES POR SECCIONES (cuadros de acceso) ───────────────────────────────
+// La página abre con un cuadro por sección; al pulsar uno se muestra solo esa
+// sección (sus tarjetas, que ya existían, agrupadas en .aj-seccion). El buscador
+// global abre la sección que contiene su destino (ajustesAbrirSeccionDe).
+const AJ_ICO = {
+  cuenta: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/><path d="m9 15 2 2 4-4"/>',
+  clases: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+  zonas: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  cobros: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 12h5"/><path d="M16 9.5a4 4 0 1 0 0 5.2"/>',
+  vehiculos: '<path d="M3 22h12"/><path d="M4 9h10"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2 2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/>',
+  panel: '<rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>',
+  menu: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  centro: '<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/>',
+  copias: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  actualizaciones: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+  puesta: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>'
+};
+const AJ_SECCIONES = [
+  { id: 'puesta', titulo: 'Puesta en marcha', desc: 'Empieza con tus datos reales: km de los coches y clases ya hechas', pagina: 'puesta-en-marcha' },
+  { id: 'cuenta', titulo: 'Cuenta y sincronización', desc: 'Cuenta de empresa, nube y equipo' },
+  { id: 'clases', titulo: 'Clases y kilómetros', desc: 'Rango de km, duración de clase y cancelaciones' },
+  { id: 'zonas', titulo: 'Zonas de prácticas', desc: 'Lo que el profesor marca en el móvil como zonas recorridas' },
+  { id: 'menu', titulo: 'Menú lateral', desc: 'Elige qué funciones se ven en el menú' },
+  { id: 'panel', titulo: 'Panel principal', desc: 'Tarjetas y gráficos del Panel' },
+  { id: 'cobros', titulo: 'Cobros', desc: 'Importes de matrícula y tasa, IVA' },
+  { id: 'vehiculos', titulo: 'Combustible', desc: 'Precio y consumo para estimar costes' },
+  { id: 'centro', titulo: 'Datos del centro (DGT)', desc: 'Cabecera de la ficha oficial de prácticas' },
+  { id: 'copias', titulo: 'Copias de seguridad', desc: 'Guardar y restaurar todos los datos' },
+  { id: 'actualizaciones', titulo: 'Actualizaciones y ayuda', desc: 'Versión instalada y tutorial' }
+];
+
+async function estadoCuadroAjustes(id) {
+  try {
+    if (id === 'cuenta') { const e = await window.api.getEstadoCuenta(); return e && e.conectado ? (e.email ? 'Conectada · ' + e.email : 'Conectada') : 'Sin iniciar sesión'; }
+    if (id === 'clases') { const r = getRangoPref(); return `${r.min}–${r.max} km por práctica · ${getDuracionClaseMin()} min por clase`; }
+    if (id === 'zonas') { const z = await window.api.getZonasPractica(); return z.length ? `${z.length} ${z.length === 1 ? 'zona' : 'zonas'}: ${z.slice(0, 3).join(', ')}${z.length > 3 ? '…' : ''}` : 'Sin zonas (la web no las pide)'; }
+    if (id === 'menu') { const n = getMenuOculto().length; return n ? `${n} ${n === 1 ? 'función oculta' : 'funciones ocultas'}` : 'Se ve todo'; }
+    if (id === 'panel') { const p = getDashboardPref(); const n = Object.values(p).filter(Boolean).length; return `${n} elementos visibles`; }
+    if (id === 'cobros') return `Matrícula ${Number(getMatriculaImporte()).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € · IVA ${getIvaPorcentaje()} %`;
+    if (id === 'vehiculos') return `${Number(getPrecioCombustible()).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 3 })} €/L · ${fmtDec(getConsumoMedio())} L/100 km`;
+    if (id === 'centro') { const c = getCentroDatos(); return c.denominacion || c.numero ? (c.denominacion || 'Nº ' + c.numero) : 'Sin rellenar'; }
+    if (id === 'actualizaciones') return 'Versión ' + (await window.api.getVersion());
+  } catch (e) { /* un estado que no se puede leer no impide ver el cuadro */ }
+  return '';
+}
+
+function ajustesInicio() {
+  const cuadros = document.getElementById('aj-cuadros');
+  if (!cuadros) return;
+  document.querySelectorAll('#page-ajustes .aj-seccion').forEach(sec => { sec.hidden = true; });
+  cuadros.hidden = false;
+  document.getElementById('aj-titulo').textContent = 'Ajustes';
+  document.getElementById('aj-subtitulo').textContent = 'Elige qué quieres configurar';
+  document.getElementById('aj-miga').classList.add('hidden');
+  document.getElementById('aj-volver').classList.add('hidden');
+  cuadros.innerHTML = AJ_SECCIONES.map(x => `
+    <button type="button" class="aj-cuadro${x.pagina ? ' aj-cuadro-destacado' : ''}" onclick="${x.pagina ? `navegarA('${x.pagina}')` : `ajustesAbrir('${x.id}')`}" data-aj-cuadro="${x.id}">
+      <span class="aj-cuadro-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${AJ_ICO[x.id]}</svg></span>
+      <span class="aj-cuadro-txt"><b>${esc(x.titulo)}</b><small>${esc(x.desc)}</small><em data-aj-estado="${x.id}"></em></span>
+      <svg class="aj-cuadro-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+    </button>`).join('');
+  AJ_SECCIONES.forEach(async x => {
+    const t = await estadoCuadroAjustes(x.id);
+    const el = cuadros.querySelector(`[data-aj-estado="${x.id}"]`);
+    if (el) el.textContent = t;
+  });
+}
+
+function ajustesAbrir(id) {
+  const sec = document.querySelector(`#page-ajustes .aj-seccion[data-aj-seccion="${id}"]`);
+  if (!sec) return;
+  const def = AJ_SECCIONES.find(x => x.id === id) || { titulo: 'Ajustes', desc: '' };
+  document.getElementById('aj-cuadros').hidden = true;
+  document.querySelectorAll('#page-ajustes .aj-seccion').forEach(x => { x.hidden = x !== sec; });
+  document.getElementById('aj-titulo').textContent = def.titulo;
+  document.getElementById('aj-subtitulo').textContent = def.desc;
+  document.getElementById('aj-miga').classList.remove('hidden');
+  document.getElementById('aj-volver').classList.remove('hidden');
+  if (id === 'zonas') renderZonasUI();
+  if (id === 'menu') renderPersonalizarMenu();
+  const cont = document.getElementById('content');
+  if (cont) cont.scrollTop = 0;
+}
+
+// El buscador global apunta a una tarjeta concreta: se abre su sección.
+function ajustesAbrirSeccionDe(el) {
+  const sec = el && el.closest ? el.closest('#page-ajustes .aj-seccion') : null;
+  if (sec && sec.hidden) ajustesAbrir(sec.dataset.ajSeccion);
+}
+
+// ─── ZONAS DE PRÁCTICAS (se comparten con la web del móvil) ─────────────────
+const ZONAS_SUGERIDAS = ['Centro', 'Casco urbano', 'Polígono', 'Autovía', 'Carretera', 'Circuito de examen', 'Rotondas', 'Zona escolar', 'Aparcamiento', 'Noche'];
+let zonasCache = [];
+
+async function renderZonasUI() {
+  zonasCache = await window.api.getZonasPractica();
+  const lista = document.getElementById('zonas-lista');
+  if (!lista) return;
+  lista.innerHTML = zonasCache.length
+    ? zonasCache.map((z, i) => `<span class="zona-chip"><span class="zona-orden">
+        <button type="button" title="Subir" onclick="moverZonaUI(${i},-1)" ${i === 0 ? 'disabled' : ''}>‹</button>
+        <button type="button" title="Bajar" onclick="moverZonaUI(${i},1)" ${i === zonasCache.length - 1 ? 'disabled' : ''}>›</button></span>
+        ${esc(z)}<button type="button" class="zona-quitar" title="Quitar ${esc(z)}" onclick="quitarZonaUI(${i})">×</button></span>`).join('')
+    : '<p class="zonas-vacio">Todavía no hay zonas. Mientras no añadas ninguna, la web del móvil no muestra el apartado «Zonas recorridas».</p>';
+  const sug = document.getElementById('zonas-sugeridas');
+  const faltan = ZONAS_SUGERIDAS.filter(z => !zonasCache.some(x => x.toLowerCase() === z.toLowerCase()));
+  if (sug) sug.innerHTML = faltan.length ? `<span>Sugerencias:</span>${faltan.map(z => `<button type="button" class="btn btn-sm btn-outline" onclick="anadirZonaUI('${z.replace(/'/g, "\\'")}')">+ ${esc(z)}</button>`).join('')}` : '';
+}
+
+async function guardarZonasUI(nueva, msg) {
+  zonasCache = await window.api.setZonasPractica(nueva);
+  renderZonasUI();
+  showToast('zonas-toast', msg + ' Llegará a la web del móvil en la próxima sincronización.', 'ok');
+}
+async function anadirZonaUI(nombre) {
+  const input = document.getElementById('zona-nueva');
+  const z = String(nombre != null ? nombre : (input ? input.value : '')).trim();
+  if (!z) { if (input) input.focus(); return; }
+  if (zonasCache.some(x => x.toLowerCase() === z.toLowerCase())) { showToast('zonas-toast', `«${z}» ya está en la lista.`, 'warn'); return; }
+  if (input && nombre == null) input.value = '';
+  await guardarZonasUI([...zonasCache, z], `Zona «${z}» añadida.`);
+}
+async function quitarZonaUI(i) {
+  const z = zonasCache[i];
+  await guardarZonasUI(zonasCache.filter((_, k) => k !== i), `Zona «${z}» quitada.`);
+}
+async function moverZonaUI(i, d) {
+  const j = i + d; if (j < 0 || j >= zonasCache.length) return;
+  const nueva = zonasCache.slice(); [nueva[i], nueva[j]] = [nueva[j], nueva[i]];
+  await guardarZonasUI(nueva, 'Orden guardado.');
 }
 
 // ─── AUTO-UPDATE ──────────────────────────────────────────────────────────────

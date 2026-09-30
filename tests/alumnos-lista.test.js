@@ -89,7 +89,7 @@ describe('getFichaAlumno', () => {
     expect(f.practicas.map(p => p.fecha)).toEqual(['2026-09-10', '2026-09-20', '2026-09-25']);
     expect(f.practicas[0]).toMatchObject({ matricula: '4821 LKM', profesor_nombre: 'Javier', tipo: 'pista', km: 20, hora_inicio: '09:15' });
     expect(f.practicas[2].sinKm).toBe(true);
-    expect(f.metricas).toEqual({ clases: 3, km: 50, mediaKm: 25 });   // la media ignora la práctica sin km
+    expect(f.metricas).toEqual({ clases: 3, km: 50, mediaKm: 25, clases_previas: 0, km_previos: 0 });   // la media ignora la práctica sin km
     expect(f.dias.hechas).toEqual(['2026-09-10', '2026-09-20', '2026-09-25']);
     expect(f.observaciones).toEqual([{ practica_id: p2, n: 2, fecha: '2026-09-20', nota: 'Buen estacionamiento' }]);
     expect(f.trabajado).toEqual([{ nombre: 'Glorietas', veces: 2 }, { nombre: 'Cambios de carril', veces: 1 }]);

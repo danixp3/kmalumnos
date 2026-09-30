@@ -44,6 +44,13 @@ function load() {
   if (_data._seq.bono == null) _data._seq.bono = 1;
   if (_data._seq.cargo == null) _data._seq.cargo = 1;
   if (_data._seq.lead == null) _data._seq.lead = 1;
+  // Los ids >= 1e9 son de la web/portal (rango propio, ver sync.js ID_WEB_MIN):
+  // si una versión anterior empujó el contador local ahí, se devuelve a su rango.
+  for (const [k, tabla] of [['a', 'alumnos'], ['p', 'practicas'], ['v', 'vehiculos'], ['r', 'reservas']]) {
+    if (_data._seq[k] >= 1000000000) {
+      _data._seq[k] = (_data[tabla] || []).reduce((m, r) => (r && r.id < 1000000000 && r.id > m ? r.id : m), 0) + 1;
+    }
+  }
   if (!_data.logs) _data.logs = [];
   if (!_data.profesores) _data.profesores = [];
   if (!_data.tarifas) _data.tarifas = [];

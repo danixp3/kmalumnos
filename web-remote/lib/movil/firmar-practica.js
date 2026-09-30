@@ -7,7 +7,9 @@ import {
   esErrorColumnaInexistente
 } from '../../api/_utils.js';
 
-const MAX_FIRMA = 60000; // caracteres del data URL (una firma de 400x150 ronda los 4-8 mil)
+// Caracteres del data URL. La web recorta la firma a su contorno y la reduce
+// (suele quedar en 5-25 mil); el margen evita rechazar firmas muy densas.
+const MAX_FIRMA = 200000;
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);

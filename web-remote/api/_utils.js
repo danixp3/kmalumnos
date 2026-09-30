@@ -175,8 +175,43 @@ export const validators = {
 // puede no estar aplicada). Todo el código que las toca pasa por
 // conFallbackColumnas: si el servidor no las tiene, reintenta sin ellas.
 export const COLUMNAS_PRACTICA_BASE = 'id, alumno_id, vehiculo_id, fecha, km_inicial, km_final, tipo, nota, profesor_id, hora_inicio, source';
-export const COLUMNAS_PRACTICA_MOVIL = 'firma, trabajado, tipo_detalle, hora_fin';
-export const CLAVES_PRACTICA_MOVIL = ['firma', 'trabajado', 'tipo_detalle', 'hora_fin'];
+export const COLUMNAS_PRACTICA_MOVIL = 'firma, trabajado, tipo_detalle, hora_fin, zonas';
+export const CLAVES_PRACTICA_MOVIL = ['firma', 'trabajado', 'tipo_detalle', 'hora_fin', 'zonas'];
+// Para listas (hoy, calendario, ficha): `firmada` es una columna generada
+// (firma IS NOT NULL, migración 2026-10-01) — dice si hay firma sin descargar
+// la imagen de cada una.
+export const COLUMNAS_PRACTICA_LISTA = 'trabajado, tipo_detalle, hora_fin, zonas, firmada';
+
+// Zonas recorridas: lista corta de textos (las configura el escritorio).
+export function limpiarZonas(v) {
+  if (!Array.isArray(v)) return [];
+  const vistas = new Set();
+  const out = [];
+  for (const z of v) {
+    if (typeof z !== 'string') continue;
+    const t = z.replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!t || vistas.has(t.toLowerCase())) continue;
+    vistas.add(t.toLowerCase());
+    out.push(t);
+    if (out.length >= 30) break;
+  }
+  return out;
+}
+
+// PostgREST devuelve como mucho 1.000 filas por consulta: pide páginas hasta
+// el final. `construir` devuelve una consulta nueva en cada llamada.
+export async function traerTodo(construir, tam = 1000) {
+  const filas = [];
+  for (let desde = 0; ; desde += tam) {
+    const { data, error } = await construir().range(desde, desde + tam - 1);
+    if (error) return { data: null, error };
+    filas.push(...(data || []));
+    if (!data || data.length < tam) return { data: filas, error: null };
+  }
+}
+
+// Nombre completo del alumno (nombre + apellidos si los tiene).
+export const nombreCompleto = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '';
 
 // ¿El error de Supabase/PostgREST es "esa columna no existe"?
 export function esErrorColumnaInexistente(error) {

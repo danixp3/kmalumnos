@@ -28,10 +28,12 @@ let practicasGlobalSort = { col: 'fecha', dir: -1 };
 let reservasCache = [];
 
 // ─── GRUPOS PLEGABLES DEL MENÚ LATERAL ───────────────────────────────────────
-// Las 4 secciones principales van siempre visibles; el resto se agrupa (Agenda,
-// Gestión, Análisis, Sistema) y cada grupo se pliega desde su cabecera. El estado
-// se recuerda en localStorage; por defecto solo "Agenda" arranca desplegado y el
-// grupo de la sección activa se abre solo al navegar (ver el listener de abajo).
+// Las 5 secciones principales van siempre arriba (Panel, Prácticas, Alumnos,
+// Vehículos, Kilómetros); el resto se agrupa (Agenda, Cobros, Centro, Datos y
+// sistema) y cada grupo se pliega desde su cabecera. El estado se recuerda en
+// localStorage; por defecto solo "Agenda" arranca desplegado y el grupo de la
+// sección activa se abre solo al navegar (ver el listener de abajo). Qué
+// entradas se ven lo decide el propietario (renderer/menu.js).
 const NAV_GRUPOS_CLAVE = 'kmalumnos_nav_grupos';
 const NAV_GRUPOS_PLEGADOS_INICIAL = { 2: true, 3: true, 4: true };
 function navGruposGuardados() {
@@ -67,6 +69,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     const page = link.dataset.page;
     document.querySelectorAll('#sidebar nav a').forEach(a => a.classList.remove('active'));
     link.classList.add('active');
+    if (typeof marcarHermanoActivo === 'function') marcarHermanoActivo(link); // Agenda semanal / Generar km
     const grupoDelEnlace = link.closest('.nav-group');
     if (grupoDelEnlace) navPlegarGrupo(grupoDelEnlace.dataset.grupo, false, false);
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -112,6 +115,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     if (page === 'informes') loadInformes();
     if (page === 'registro-rapido') loadRegistroRapidoInit();
     if (page === 'ajustes') loadAjustes();
+    if (page === 'puesta-en-marcha') loadPuestaEnMarcha();
     dashboardListo.then(() => comprobarTutorial(page));
   });
 });

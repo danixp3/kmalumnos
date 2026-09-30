@@ -22,7 +22,7 @@ const BUSCADOR_DESTINOS = [
   // Vehículos
   { titulo: 'Vehículos', sub: 'Flota y odómetros', page: 'vehiculos', kw: 'vehiculos vehiculo coches coche flota odometro matricula' },
   { titulo: 'Añadir vehículo', sub: 'Vehículos', page: 'vehiculos', anchor: 'v-nombre', kw: 'anadir agregar nuevo vehiculo coche crear alta matricula' },
-  { titulo: 'Relleno masivo de km', sub: 'Vehículos', page: 'vehiculos', anchor: 'veh-relleno', kw: 'relleno masivo kilometros km blanco generar odometro rellenar' },
+  { titulo: 'Relleno masivo de km', sub: 'Kilómetros → Generar km', page: 'generar-km', kw: 'relleno masivo kilometros km blanco generar odometro rellenar encadenado' },
 
   // Profesores
   { titulo: 'Profesores', sub: 'Lista de profesores', page: 'profesores', kw: 'profesores profesor instructores docentes' },
@@ -49,7 +49,7 @@ const BUSCADOR_DESTINOS = [
   { titulo: 'Generar por rango', sub: 'Generar km', page: 'generar-km', tab: 'rango', kw: 'generar km rango desde hasta media variacion repartir distribuir' },
 
   // Historial
-  { titulo: 'Historial', sub: 'Registro de operaciones', page: 'logs', kw: 'historial logs registro operaciones cambios' },
+  { titulo: 'Historial de cambios', sub: 'Registro de operaciones', page: 'logs', kw: 'historial logs registro operaciones cambios auditoria' },
   { titulo: 'Borrar historial', sub: 'Historial', page: 'logs', kw: 'borrar limpiar vaciar historial logs' },
 
   // Importar y exportar
@@ -65,8 +65,18 @@ const BUSCADOR_DESTINOS = [
   { titulo: 'Restaurar último backup', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-restaurar-ultimo', kw: 'restaurar ultimo backup copia seguridad reciente recuperar' },
   { titulo: 'Restaurar copia de seguridad', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-restaurar-backup', kw: 'restaurar copia seguridad backup archivo recuperar cargar' },
   { titulo: 'Buscar actualizaciones', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-actualizaciones', kw: 'actualizaciones actualizar version update buscar' },
-  { titulo: 'Preferencias', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-preferencias', kw: 'preferencias rango km tarjetas panel graficos personalizar dashboard' },
-  { titulo: 'Volver a ver el tutorial', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-preferencias', kw: 'tutorial ayuda guia reiniciar volver ver' },
+  { titulo: 'Clases y kilómetros', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-clases', kw: 'preferencias rango km por defecto minutos clase duracion cancelacion plazo devolucion' },
+  { titulo: 'Panel principal', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-panel', kw: 'tarjetas panel graficos personalizar dashboard inicio' },
+  { titulo: 'Cobros (matrícula, tasa, IVA)', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-cobros', kw: 'matricula tasa iva importe por defecto cobros' },
+  { titulo: 'Combustible', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-combustible', kw: 'combustible precio consumo litros coste gasolina diesel' },
+  { titulo: 'Zonas de prácticas', sub: 'Ajustes · la web del móvil', page: 'ajustes', anchor: 'aj-zonas', kw: 'zonas recorridas practica web movil centro poligono autovia circuito' },
+  { titulo: 'Personalizar menú', sub: 'Ajustes · qué funciones se ven', page: 'ajustes', anchor: 'aj-menu', kw: 'menu lateral ocultar mostrar funciones personalizar barra simplificar' },
+  { titulo: 'Datos del centro (DGT)', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-centro-dgt', kw: 'centro autoescuela dgt numero seccion ficha oficial' },
+  { titulo: 'Volver a ver el tutorial', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-ayuda', kw: 'tutorial ayuda guia reiniciar volver ver' },
+
+  // Puesta en marcha
+  { titulo: 'Puesta en marcha', sub: 'Empezar con los datos reales', page: 'puesta-en-marcha', kw: 'puesta marcha empezar inicio datos reales cuentakilometros odometro clases previas anteriores km iniciales punto partida borrar prueba' },
+  { titulo: 'Clases y km anteriores del alumno', sub: 'Puesta en marcha', page: 'puesta-en-marcha', kw: 'clases previas km previos anteriores punto partida numero clase alumno ya empezado' },
 ];
 
 const ICONO_BUSCADOR_RES = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
@@ -83,6 +93,8 @@ function filtrarDestinos(q) {
   if (!t) return [];                 // sin texto → no se muestra nada
   const terminos = t.split(/\s+/);
   return BUSCADOR_DESTINOS.filter(d => {
+    // Las funciones ocultas en el menú (Ajustes → Menú lateral) tampoco salen aquí.
+    if (typeof paginaVisibleEnMenu === 'function' && !paginaVisibleEnMenu(d.page)) return false;
     const heno = normalizarBuscador(d.titulo + ' ' + d.sub + ' ' + d.kw);
     return terminos.every(term => heno.includes(term));
   });
@@ -134,6 +146,8 @@ function resaltarDestino(anchor) {
   if (!anchor) return;
   const el = document.getElementById(anchor);
   if (!el) return;
+  // Ajustes va por secciones: abrir la que contiene el destino.
+  if (typeof ajustesAbrirSeccionDe === 'function') ajustesAbrirSeccionDe(el);
   requestAnimationFrame(() => {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.classList.remove('cir-flash');

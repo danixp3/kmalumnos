@@ -41,12 +41,22 @@ module.exports = function makeFakeSupabase(remote) {
           return (a[col] < b[col] ? -1 : 1) * (ascending ? 1 : -1);
         });
       }
+      // Límite de filas por respuesta de PostgREST (max-rows, 1000 en Supabase):
+      // remote.maxRows lo simula; range() pagina como el cliente real.
+      if (state.range) out = out.slice(state.range[0], state.range[1] + 1);
+      if (remote.maxRows) out = out.slice(0, remote.maxRows);
       return { data: out.map(r => ({ ...r })), error: null };
     }
     if (state.op === 'upsert') {
       const list = Array.isArray(state.payload) ? state.payload : [state.payload];
+      // remote.upsertErrores = { tabla: [ids] } simula que la nube rechaza esas filas
+      const rechazadas = (remote.upsertErrores || {})[state.table] || [];
+      if (list.some(item => rechazadas.includes(item.id))) {
+        return { data: null, error: { message: 'insert or update on table violates foreign key constraint (simulado)', code: '23503' } };
+      }
+      const claves = String(state.onConflict || 'id').split(',').map(c => c.trim());
       for (const item of list) {
-        const idx = rows.findIndex(r => r.id === item.id);
+        const idx = rows.findIndex(r => claves.every(c => r[c] === item[c]));
         if (idx === -1) rows.push({ ...item });
         else rows[idx] = { ...rows[idx], ...item };
         // Hook opcional para los tests: simula que "mientras tanto" otro
@@ -76,8 +86,10 @@ module.exports = function makeFakeSupabase(remote) {
       limit() { return api; },
       gt(col, val) { state.filters.push(r => String(r[col] ?? '') > val); return api; },
       eq(col, val) { state.filters.push(r => r[col] === val); return api; },
+      in(col, vals) { state.filters.push(r => vals.includes(r[col])); return api; },
+      range(desde, hasta) { state.range = [desde, hasta]; return api; },
       order(col, opts = {}) { state.order = { col, ascending: opts.ascending !== false }; return api; },
-      upsert(payload) { state.op = 'upsert'; state.payload = payload; return api; },
+      upsert(payload, opts = {}) { state.op = 'upsert'; state.payload = payload; state.onConflict = opts.onConflict; return api; },
       update(payload) { state.op = 'update'; state.payload = payload; return api; },
       delete() { state.op = 'delete'; return api; },
       // Igual que supabase-js: ejecuta la consulta (select con filtros) y

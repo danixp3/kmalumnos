@@ -8,7 +8,7 @@ const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const TOKEN = `x.${b64({ sub: 'emp1' })}.y`;
 
 async function llamar(nombre, { method = 'POST', body, query } = {}) {
-  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
+  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
   let status = 200, json;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
   await mod.default({ method, headers: { authorization: 'Bearer ' + TOKEN }, body, query }, res);
@@ -101,7 +101,7 @@ test('firmar-practica: guarda la firma; exige práctica cerrada e imagen PNG vá
   assert.equal((await llamar('firmar-practica', { body: { practica_id, firma } })).status, 409);          // aún en curso
   await llamar('finalizar-practica', { body: { practica_id, km_final: 1015 } });
   assert.equal((await llamar('firmar-practica', { body: { practica_id, firma: 'hola' } })).status, 400);
-  assert.equal((await llamar('firmar-practica', { body: { practica_id, firma: 'data:image/png;base64,' + 'A'.repeat(70000) } })).status, 400);
+  assert.equal((await llamar('firmar-practica', { body: { practica_id, firma: 'data:image/png;base64,' + 'A'.repeat(210000) } })).status, 400);
   assert.equal((await llamar('firmar-practica', { body: { practica_id, firma } })).status, 200);
   assert.equal(BD.tablas.practicas.find(x => x.id === practica_id).firma, firma);
 });
@@ -159,4 +159,78 @@ test('practicas-alumno: totales, km, fechas y próximas clases', async () => {
   const r = await llamar('practicas-alumno', { method: 'GET', query: { alumno_id: '1', hoy: hoy() } });
   assert.equal(r.status, 200); assert.equal(r.json.total, 1); assert.equal(r.json.km_totales, 20);
   assert.deepEqual(r.json.fechas, ['2026-09-28']); assert.equal(r.json.proximas.length, 1); assert.equal(r.json.alumno.profesor_nombre, 'Javier');
+});
+
+// ─── 2026-10-01: zonas, calendario, detalle con firma, clases previas, paginación ───
+
+test('config: devuelve las zonas de la empresa; sin la tabla, lista vacía', async () => {
+  const t = base(); t.ajustes_empresa = [{ empresa_id: 'emp1', clave: 'zonas', valor: ['Centro', ' Polígono ', 'centro', 7] }, { empresa_id: 'otra', clave: 'zonas', valor: ['Ajena'] }];
+  reiniciar(t);
+  const r = await llamar('config', { method: 'GET' });
+  assert.equal(r.status, 200); assert.deepEqual(r.json.zonas, ['Centro', 'Polígono']);
+  reiniciar(base());
+  assert.deepEqual((await llamar('config', { method: 'GET' })).json.zonas, []);
+});
+
+test('iniciar y finalizar guardan las zonas recorridas (limpias); finalizar puede cambiarlas', async () => {
+  reiniciar(base());
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ zonas: ['Centro', 'Centro', '  Autovía  ', 3] }) });
+  assert.deepEqual(BD.tablas.practicas.find(x => x.id === practica_id).zonas, ['Centro', 'Autovía']);
+  const r = await llamar('finalizar-practica', { body: { practica_id, km_final: 1012, zonas: ['Polígono'] } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(BD.tablas.practicas.find(x => x.id === practica_id).zonas, ['Polígono']);
+});
+
+test('hoy: el nº de clase suma las clases previas del alumno y el nombre lleva apellidos', async () => {
+  const t = base();
+  t.alumnos[1].clases_previas = 12; t.alumnos[1].primer_apellido = 'Ortega'; t.alumnos[1].nombre = 'Pablo';
+  t.practicas.push({ id: 2, alumno_id: 2, vehiculo_id: 1, fecha: hoy(), hora_inicio: '08:30', km_inicial: 1000, km_final: 1014, profesor_id: 1, deleted: false, empresa_id: 'emp1', zonas: ['Centro'] });
+  reiniciar(t);
+  const r = await llamar('hoy', { method: 'GET', query: { fecha: hoy(), hoy: hoy(), profesor_id: '1' } });
+  assert.equal(r.json.practicas[0].clase_n, 13);
+  assert.equal(r.json.practicas[0].alumno_nombre, 'Pablo Ortega');
+  assert.deepEqual(r.json.practicas[0].zonas, ['Centro']);
+});
+
+test('calendario: prácticas del rango con firmada (sin la imagen), filtro por profesor y límite de días', async () => {
+  const t = base();
+  t.practicas.push({ id: 2, alumno_id: 2, vehiculo_id: 1, fecha: '2026-09-29', hora_inicio: '10:00', km_inicial: 1000, km_final: 1030, profesor_id: 1, deleted: false, empresa_id: 'emp1', firma: 'data:image/png;base64,AA==' });
+  t.practicas.push({ id: 3, alumno_id: 1, vehiculo_id: 1, fecha: '2026-09-30', hora_inicio: '09:00', km_inicial: 1030, km_final: 1060, profesor_id: 2, deleted: false, empresa_id: 'emp1' });
+  t.practicas.push({ id: 4, alumno_id: 1, vehiculo_id: 1, fecha: '2026-10-02', km_inicial: 0, km_final: 0, profesor_id: 1, deleted: false, empresa_id: 'emp1' });
+  reiniciar(t);
+  const r = await llamar('calendario', { method: 'GET', query: { desde: '2026-09-01', hasta: '2026-09-30', hoy: '2026-10-01' } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json.practicas.map(p => p.id), [1, 2, 3]);
+  const p2 = r.json.practicas.find(p => p.id === 2);
+  assert.equal(p2.firmada, true); assert.ok(!('firma' in p2)); assert.equal(p2.km, 30); assert.equal(p2.matricula, '4821 LKM');
+  const soloProfe1 = await llamar('calendario', { method: 'GET', query: { desde: '2026-09-01', hasta: '2026-09-30', profesor_id: '1' } });
+  assert.deepEqual(soloProfe1.json.practicas.map(p => p.id), [1, 2]);
+  assert.equal((await llamar('calendario', { method: 'GET', query: { desde: '2026-01-01', hasta: '2026-09-30' } })).status, 400);
+  assert.equal((await llamar('calendario', { method: 'GET', query: { desde: 'ayer', hasta: '2026-09-30' } })).status, 400);
+});
+
+test('practica-detalle: trae la firma, el profesor, el nº de clase y si se puede cancelar', async () => {
+  const t = base();
+  t.alumnos[0].clases_previas = 5;
+  t.practicas[0].firma = 'data:image/png;base64,AA=='; t.practicas[0].updated_at = new Date().toISOString();
+  reiniciar(t);
+  const r = await llamar('practica-detalle', { method: 'GET', query: { id: '1' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.practica.firma, 'data:image/png;base64,AA==');
+  assert.equal(r.json.practica.profesor_nombre, 'Javier');
+  assert.equal(r.json.practica.clase_n, 6);
+  assert.equal(r.json.practica.cancelable, true);
+  assert.equal((await llamar('practica-detalle', { method: 'GET', query: { id: '99' } })).status, 404);
+});
+
+test('alumnos?resumen=1: pagina las prácticas (más de 1.000) y devuelve el punto de partida', async () => {
+  const t = base();
+  t.alumnos[1].clases_previas = 8; t.alumnos[1].km_previos = 300;
+  for (let i = 0; i < 1500; i++) t.practicas.push({ id: 100 + i, alumno_id: 2, vehiculo_id: 1, fecha: '2026-09-01', km_inicial: 10, km_final: 11, deleted: false, empresa_id: 'emp1' });
+  reiniciar(t);
+  BD.maxRows = 1000;
+  const r = await llamar('alumnos', { method: 'GET', query: { resumen: '1' } });
+  const pablo = r.json.find(a => a.id === 2);
+  assert.equal(pablo.clases, 1500); assert.equal(pablo.km, 1500);
+  assert.equal(pablo.clases_previas, 8); assert.equal(pablo.km_previos, 300);
 });

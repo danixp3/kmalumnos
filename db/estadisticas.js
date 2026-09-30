@@ -226,11 +226,13 @@ const SEMAFORO_MIN_PRACTICAS_AMBAR = 10; // por debajo de esto, directo a rojo
 // Calcula el nivel/motivo de un alumno a partir de sus prácticas no
 // borradas. Recibe el array ya filtrado (evita recalcular filtros por
 // alumno cuando se procesan todos a la vez).
-function _calcularSemaforo(practicasAlumno) {
-  const nPracticas = practicasAlumno.length;
+// `previas` = punto de partida del alumno (clases/km hechos antes de usar la
+// app): cuentan igual que las registradas para decidir si está listo.
+function _calcularSemaforo(practicasAlumno, previas = {}) {
+  const nPracticas = practicasAlumno.length + (previas.clases_previas > 0 ? previas.clases_previas : 0);
   const kmTotalesRaw = practicasAlumno
     .filter(p => p.km_inicial > 0 && p.km_final > 0)
-    .reduce((sum, p) => sum + (p.km_final - p.km_inicial), 0);
+    .reduce((sum, p) => sum + (p.km_final - p.km_inicial), 0) + (previas.km_previos > 0 ? previas.km_previos : 0);
   const kmTotales = Math.round(kmTotalesRaw * 10) / 10;
 
   let diasDesdeUltima = null;
@@ -282,7 +284,7 @@ function getSemaforoExamen() {
 
   return alumnos.map(a => {
     const propias = practicasPorAlumno.get(a.id) || [];
-    const { nivel, motivo, nPracticas, kmTotales, diasDesdeUltima } = _calcularSemaforo(propias);
+    const { nivel, motivo, nPracticas, kmTotales, diasDesdeUltima } = _calcularSemaforo(propias, a);
     return { alumno_id: a.id, nombre: a.nombre, nivel, motivo, nPracticas, kmTotales, diasDesdeUltima };
   });
 }
@@ -297,7 +299,7 @@ function getSemaforoAlumno(alumno_id) {
   const a = d.alumnos.find(x => x.id === aid && !x.deleted);
   if (!a) return null;
   const propias = d.practicas.filter(p => p.alumno_id === aid && !p.deleted);
-  const { nivel, motivo, nPracticas, kmTotales, diasDesdeUltima } = _calcularSemaforo(propias);
+  const { nivel, motivo, nPracticas, kmTotales, diasDesdeUltima } = _calcularSemaforo(propias, a);
   return { alumno_id: a.id, nombre: a.nombre, nivel, motivo, nPracticas, kmTotales, diasDesdeUltima };
 }
 

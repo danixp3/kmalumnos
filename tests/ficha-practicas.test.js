@@ -16,7 +16,7 @@ test('getFichaPracticasAlumno con alumno sin prácticas devuelve array vacío y 
   const ficha = db.getFichaPracticasAlumno(aid);
   expect(ficha.alumno).toMatchObject({ id: aid, nombre: 'Ana', permiso: 'B' });
   expect(ficha.practicas).toEqual([]);
-  expect(ficha.totales).toEqual({ nClases: 0, kmTotales: 0 });
+  expect(ficha.totales).toEqual({ nClases: 0, kmTotales: 0, clasesPrevias: 0, kmPrevios: 0 });
 });
 
 test('getFichaPracticasAlumno ordena por fecha, calcula km_recorridos y resuelve nombres', () => {
@@ -42,5 +42,5 @@ test('getFichaPracticasAlumno ordena por fecha, calcula km_recorridos y resuelve
   const segunda = ficha.practicas[1];
   expect(segunda.km_recorridos).toBe(50);
 
-  expect(ficha.totales).toEqual({ nClases: 2, kmTotales: 90 });
+  expect(ficha.totales).toEqual({ nClases: 2, kmTotales: 90, clasesPrevias: 0, kmPrevios: 0 });
 });

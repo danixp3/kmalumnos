@@ -251,8 +251,24 @@
   .vacio small { display: block; margin-top: 4px; color: var(--faint); font-size: 14px; }
   .cargando { text-align: center; color: var(--muted); padding: 24px; }
 
+  /* ── HISTORIAL EN CALENDARIO ── */
+  .cal-hist .cal-dias { row-gap: 4px; column-gap: 2px; }
+  .cal-hist .cal-dias button.dia { width: 100%; max-width: 50px; height: 50px; margin: 0 auto; border: none; background: none; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 15px; color: var(--muted-2); }
+  .cal-hist .cal-dias button.dia b { font-weight: 600; line-height: 1; }
+  .cal-hist .cal-dias button.dia.con { color: var(--ink); background: var(--soft); }
+  .cal-hist .cal-dias button.dia.con b { font-weight: 800; }
+  .cal-hist .cal-dias button.dia i { font-style: normal; font-size: 11px; font-weight: 700; min-width: 18px; height: 16px; line-height: 16px; border-radius: 999px; background: var(--ink); color: #fff; padding: 0 5px; }
+  .cal-hist .cal-dias button.dia i.pend { background: var(--amber); color: var(--ink); }
+  .cal-hist .cal-dias button.dia.hoy { box-shadow: inset 0 0 0 2px var(--amber); }
+  .cal-hist .cal-dias button.dia.sel { background: var(--ink); color: #fff; }
+  .cal-hist .cal-dias button.dia.sel i { background: #fff; color: var(--ink); }
+  .cal-hist .cal-dias button.dia.sel i.pend { background: var(--amber); color: var(--ink); }
+  .firma-vista { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 10px; display: flex; justify-content: center; }
+  .firma-vista img { max-width: 100%; max-height: 180px; }
+  .hoja-scroll { overflow-y: auto; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+
   /* ── BARRA INFERIOR ── */
-  #tabbar { position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--tab-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: #fff; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1.2fr 1fr; z-index: 30; }
+  #tabbar { position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--tab-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: #fff; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr 1.2fr 1fr 1fr; z-index: 30; }
   #tabbar button { background: none; border: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 13px; font-weight: 600; color: var(--muted); }
   #tabbar button.on { color: var(--ink); font-weight: 700; }
   #tabbar .mas { position: relative; }
@@ -337,13 +353,15 @@
     <section class="vista sin-tab" id="v-nuevo"></section>
 
     <!-- HISTORIAL -->
-    <section class="vista sin-tab" id="v-historial"></section>
+    <section class="vista" id="v-historial"></section>
   </div>
 
   <nav id="tabbar" aria-label="Secciones">
-    <button data-tab="hoy" onclick="go('hoy')"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Hoy</button>
+    <button data-tab="hoy" onclick="go('hoy')"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Hoy</button>
+    <button data-tab="historial" onclick="go('historial')"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8 14h2M12 14h2M16 14h.01M8 17h2M12 17h2"/></svg>Historial</button>
     <button class="mas" data-tab="nueva" onclick="abrirIniciar()"><span class="circ"><svg class="ic" width="30" height="30" viewBox="0 0 24 24" style="stroke-width:2.4"><path d="M12 5v14M5 12h14"/></svg></span><span class="tx">Nueva práctica</span></button>
     <button data-tab="alumnos" onclick="go('alumnos')"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c.6-3.6 3.3-6 6.5-6s5.9 2.4 6.5 6"/><path d="M15.5 5.2a3.5 3.5 0 0 1 0 6.6M17.5 14.3c2.2.7 3.6 2.8 4 5.7"/></svg>Alumnos</button>
+    <button data-tab="perfil" onclick="menuPerfil()"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-3.6 3.3-6 7-6s6.4 2.4 7 6"/></svg>Perfil</button>
   </nav>
 </div>
 
@@ -359,12 +377,8 @@ const FLUJO_KEY = 'km_flujo';                // práctica en marcha (sobrevive a
 const VEHICULO_KEY = 'km_vehiculo';          // último vehículo usado
 const DURACION_KEY = 'km_duracion';          // última duración elegida
 
-const TIPOS = [
-  { id: 'Circulación urbana', tipo: 'circulacion' },
-  { id: 'Maniobras', tipo: 'pista' },
-  { id: 'Recorrido de examen', tipo: 'circulacion' },
-  { id: 'Vía rápida', tipo: 'circulacion' }
-];
+// Zonas recorridas: las configura el escritorio (Ajustes → Zonas de prácticas)
+// y llegan en S.zonas desde /api/config. Sin zonas no se muestra el bloque.
 const TRABAJADO = ['Incorporaciones', 'Glorietas', 'Cambios de carril', 'Adelantamientos', 'Estacionamiento', 'Pasos de peatones', 'Prioridades', 'Marcha atrás'];
 
 // ─── ESTADO ──────────────────────────────────────────────────────────────────
@@ -372,6 +386,8 @@ const S = {
   perfil: null, hoy: fechaLocal(), fecha: fechaLocal(),
   vehiculos: [], alumnos: [], profesores: [],
   jornada: { practicas: [], sin_cerrar: [], reservas: [] },
+  jornadaHoy: { practicas: [], sin_cerrar: [], reservas: [] }, // la del riel: siempre la de HOY
+  zonas: [], cal: null, ultimaCarga: 0,
   vehId: null, flujo: null, vista: null, filtroAlumnos: 'mios', busqueda: '',
   ficha: null, fichaMes: null, kmFinal: '', timer: null, firmaTrazos: 0
 };
@@ -506,7 +522,7 @@ function setTema(oscuro) {
 }
 
 // ─── NAVEGACIÓN ──────────────────────────────────────────────────────────────
-const VISTAS_TAB = { hoy: 'hoy', alumnos: 'alumnos' };
+const VISTAS_TAB = { hoy: 'hoy', alumnos: 'alumnos', historial: 'historial' };
 function go(vista, opciones = {}) {
   if (S.vista !== vista) pararTimerSiNoCurso(vista);
   S.vista = vista;
@@ -519,6 +535,9 @@ function go(vista, opciones = {}) {
   window.scrollTo(0, 0);
   const render = { hoy: renderHoy, iniciar: renderIniciar, curso: renderCurso, kmfinal: renderKmFinal, firma: renderFirma, alumnos: renderAlumnos, ficha: renderFicha, nuevo: renderNuevo, historial: renderHistorial }[vista];
   if (render) render(opciones);
+  // Alumnos: si los datos tienen más de 30 s se recargan en segundo plano
+  // (altas o asignaciones hechas en el escritorio mientras la web estaba abierta).
+  if (vista === 'alumnos' && Date.now() - S.ultimaCarga > 30000) cargarBase().then(() => { if (S.vista === 'alumnos') renderAlumnos(); });
   if (!opciones.sinHistorial) history.pushState({ vista }, '');
   renderRiel();
 }
@@ -542,38 +561,53 @@ function cerrarHoja() { document.getElementById('capa').innerHTML = ''; }
 // ─── DATOS ───────────────────────────────────────────────────────────────────
 async function cargarBase() {
   try {
-    const [rv, ra] = await Promise.all([apiFetch('/api/vehiculos'), apiFetch('/api/alumnos?resumen=1')]);
+    const [rv, ra, rc] = await Promise.all([apiFetch('/api/vehiculos'), apiFetch('/api/alumnos?resumen=1'), apiFetch('/api/config').catch(() => null)]);
     if (!rv.ok) throw new Error('Error cargando vehículos');
     if (!ra.ok) throw new Error('Error cargando alumnos');
     S.vehiculos = await rv.json(); S.alumnos = await ra.json();
-  } catch (e) { toast('No se pudieron cargar los datos. Reintenta.'); }
+    if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; }
+    S.ultimaCarga = Date.now();
+  } catch (e) { if (e.message !== 'Sesión expirada') toast('No se pudieron cargar los datos. Reintenta.'); }
   const guardado = parseInt(localStorage.getItem(VEHICULO_KEY));
   S.vehId = S.vehiculos.some(v => v.id === guardado) ? guardado : (S.vehiculos[0] ? S.vehiculos[0].id : null);
 }
+// La fecha de «hoy» se recalcula siempre: una web abierta desde antes de
+// medianoche seguía pidiendo el día anterior y la jornada salía vacía.
+function actualizarHoy() {
+  const nuevo = fechaLocal();
+  if (nuevo === S.hoy) return false;
+  if (S.fecha === S.hoy) S.fecha = nuevo; // si se miraba «hoy», se pasa al nuevo día
+  S.hoy = nuevo;
+  return true;
+}
+async function pedirJornada(fecha) {
+  const q = new URLSearchParams({ fecha, hoy: S.hoy });
+  if (S.perfil && S.perfil.id) q.set('profesor_id', S.perfil.id);
+  const res = await apiFetch('/api/hoy?' + q);
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar la jornada');
+  return { practicas: data.practicas, sin_cerrar: data.sin_cerrar || [], reservas: data.reservas };
+}
 async function cargarJornada() {
+  actualizarHoy();
   try {
-    const q = new URLSearchParams({ fecha: S.fecha, hoy: S.hoy });
-    if (S.perfil && S.perfil.id) q.set('profesor_id', S.perfil.id);
-    const res = await apiFetch('/api/hoy?' + q);
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar la jornada');
-    S.jornada = { practicas: data.practicas, sin_cerrar: data.sin_cerrar || [], reservas: data.reservas };
+    S.jornada = await pedirJornada(S.fecha);
+    S.jornadaHoy = S.fecha === S.hoy ? S.jornada : await pedirJornada(S.hoy);
   } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message || 'No se pudo cargar la jornada'); }
   // Si el servidor dice que hay una práctica en curso y aquí no hay flujo, se recupera.
-  const enCurso = S.jornada.practicas.find(p => p.en_curso) || S.jornada.sin_cerrar[0];
-  if (enCurso && (!S.flujo || S.flujo.practica_id !== enCurso.id) && S.fecha === S.hoy) {
+  const enCurso = S.jornadaHoy.practicas.find(p => p.en_curso) || S.jornadaHoy.sin_cerrar[0];
+  if (enCurso && (!S.flujo || S.flujo.practica_id !== enCurso.id)) {
     if (!S.flujo || !S.flujo.practica_id) S.flujo = flujoDesdePractica(enCurso);
     guardarFlujo();
   }
 }
 function flujoDesdePractica(p) {
-  const detalle = TIPOS.find(t => t.id === p.tipo_detalle);
   const inicioMs = (() => { if (!p.hora_inicio || p.fecha !== S.hoy) return Date.now(); const [h, m] = p.hora_inicio.split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); return d.getTime(); })();
   return {
     practica_id: p.id, alumno_id: p.alumno_id, alumno_nombre: p.alumno_nombre, vehiculo_id: p.vehiculo_id, vehiculo_nombre: p.vehiculo_nombre, matricula: p.matricula,
     km_inicial: p.km_inicial, km_final: p.km_final || 0, inicio_ms: inicioMs, hora_inicio: p.hora_inicio, hora_fin: p.hora_fin || null,
-    duracion_min: parseInt(localStorage.getItem(DURACION_KEY)) || 45, tipo_detalle: (detalle || TIPOS[0]).id, trabajado: p.trabajado || [], observacion: '',
-    clase_n: p.clase_n, fecha: p.fecha, cerrada: !!p.km_final, sin_cerrar: !!p.sin_cerrar
+    duracion_min: parseInt(localStorage.getItem(DURACION_KEY)) || 45, zonas: (p.zonas || []).slice(), trabajado: p.trabajado || [], observacion: '',
+    clase_n: p.clase_n, fecha: p.fecha, cerrada: !!p.km_final, sin_cerrar: !!p.sin_cerrar, profesor_nombre: p.profesor_nombre || null
   };
 }
 function guardarFlujo() { try { if (S.flujo) localStorage.setItem(FLUJO_KEY, JSON.stringify(S.flujo)); else localStorage.removeItem(FLUJO_KEY); } catch {} }
@@ -581,6 +615,29 @@ function cargarFlujo() { try { const r = localStorage.getItem(FLUJO_KEY); S.fluj
 const vehiculo = id => S.vehiculos.find(v => v.id === id);
 const alumno = id => S.alumnos.find(a => a.id === id);
 const nombreAlumno = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '';
+// Clases y km TOTALES del alumno: las de la app + su punto de partida (lo que
+// hizo antes de usar la app, se configura en el escritorio).
+const clasesAlumno = a => a ? (a.clases || 0) + (a.clases_previas || 0) : 0;
+const kmAlumno = a => a ? (a.km || 0) + (a.km_previos || 0) : 0;
+const zonasTxt = z => (z && z.length ? z.join(' · ') : '');
+
+// Refresco al volver a la web (el móvil la deja en segundo plano horas) y al
+// cambiar de día: datos nuevos del escritorio (alumnos, asignaciones, zonas).
+async function refrescar({ silencioso = true } = {}) {
+  if (!S.perfil) return;
+  await cargarBase(); await cargarJornada();
+  if (S.vista === 'hoy') renderHoy();
+  else if (S.vista === 'alumnos') renderAlumnos();
+  else if (S.vista === 'historial') { if (S.cal) S.cal.cache = {}; cargarCalendario(); }
+  renderRiel();
+  if (!silencioso) toast('Datos actualizados');
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !S.perfil || document.getElementById('app').hidden) return;
+  if (['curso', 'kmfinal', 'firma', 'iniciar'].includes(S.vista)) { actualizarHoy(); return; }
+  if (Date.now() - S.ultimaCarga > 30000 || actualizarHoy()) refrescar();
+});
+setInterval(() => { if (S.perfil && actualizarHoy() && ['hoy', 'alumnos', 'historial'].includes(S.vista)) refrescar(); }, 60000);
 
 async function entrarApp() {
   ocultarAcceso(); document.getElementById('app').hidden = false; document.getElementById('app').classList.add('on-app');
@@ -596,15 +653,15 @@ async function entrarApp() {
 }
 
 // ─── HOY ─────────────────────────────────────────────────────────────────────
-function pendientesReservas() {
-  const yaHechos = new Set(S.jornada.practicas.map(p => p.alumno_id));
-  return S.jornada.reservas.filter(r => !yaHechos.has(r.alumno_id));
+function pendientesReservas(j = S.jornada) {
+  const yaHechos = new Set(j.practicas.map(p => p.alumno_id));
+  return j.reservas.filter(r => !yaHechos.has(r.alumno_id));
 }
-function resumenJornada() {
-  const cerradas = S.jornada.practicas.filter(p => !p.en_curso && !p.sin_cerrar);
-  const enCurso = S.jornada.practicas.filter(p => p.en_curso);
-  const pend = pendientesReservas();
-  const total = S.jornada.practicas.length + pend.length;
+function resumenJornada(j = S.jornada) {
+  const cerradas = j.practicas.filter(p => !p.en_curso && !p.sin_cerrar);
+  const enCurso = j.practicas.filter(p => p.en_curso);
+  const pend = pendientesReservas(j);
+  const total = j.practicas.length + pend.length;
   const km = cerradas.reduce((s, p) => s + (p.km || 0), 0);
   return { cerradas, enCurso, pend, total, km, firmadas: cerradas.filter(p => p.firmada).length };
 }
@@ -643,7 +700,7 @@ function renderHoy() {
     const sinCerrar = S.jornada.sin_cerrar[0];
     if (enCurso) {
       html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et"><span class="pill-dot"></span>EN CURSO</span><span>${esc(enCurso.hora_inicio || '')} ${enCurso.hora_inicio ? '–' : ''} ${esc(sumaMin(enCurso.hora_inicio, parseInt(localStorage.getItem(DURACION_KEY)) || 45))}</span></div>
-        <div class="ahora-quien"><span class="ini">${esc(iniciales(enCurso.alumno_nombre))}</span><div><div class="ahora-nom">${esc(enCurso.alumno_nombre)}</div><div class="ahora-sub">Clase ${enCurso.clase_n} · ${esc(enCurso.tipo_detalle || (enCurso.tipo === 'pista' ? 'Maniobras' : 'Circulación urbana'))}</div></div></div>
+        <div class="ahora-quien"><span class="ini">${esc(iniciales(enCurso.alumno_nombre))}</span><div><div class="ahora-nom">${esc(enCurso.alumno_nombre)}</div><div class="ahora-sub">Clase ${enCurso.clase_n}${enCurso.zonas && enCurso.zonas.length ? ' · ' + esc(zonasTxt(enCurso.zonas)) : ''}</div></div></div>
         <button class="btn btn-pri btn-lg" onclick="continuarPractica(${enCurso.id})">${ic('play', 18)} Continuar práctica</button></div>`;
     } else if (sinCerrar) {
       html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et">${ic('aviso', 16)} SIN CERRAR</span><span>${esc(fechaCorta(sinCerrar.fecha))}</span></div>
@@ -666,8 +723,8 @@ function renderHoy() {
         <div style="flex:1;min-width:0"><div class="fila-tit">${esc(rv.alumno_nombre || 'Alumno')}</div><div class="fila-sub">${esc(rv.nota || (rv.matricula ? rv.matricula : 'Práctica'))}${rv.duracion_min ? ' · ' + rv.duracion_min + ' min' : ''}</div></div>${esHoy ? ic('chev', 20, 'style="color:var(--faint)"') : ''}</button>`).join('') + '</div>';
   }
   if (r.cerradas.length) {
-    html += `<div class="grupo-tit"><span>Completadas</span><button onclick="go('historial')">Historial</button></div><div class="card">` + r.cerradas.slice().reverse().map(p =>
-      `<button class="fila" onclick="${p.firmada ? `abrirFicha(${p.alumno_id})` : `continuarPractica(${p.id})`}"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span>
+    html += `<div class="grupo-tit"><span>Completadas</span><button onclick="go('historial')">Ver calendario</button></div><div class="card">` + r.cerradas.slice().reverse().map(p =>
+      `<button class="fila" onclick="${p.firmada ? `abrirDetalle(${p.id})` : `continuarPractica(${p.id})`}"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span>
         <div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div><div class="fila-sub mono">${miles(p.km_inicial)} → ${miles(p.km_final)} · ${p.km} km</div></div>
         ${p.firmada ? `<span class="pill pill-ok">${ic('ok', 14, 'style="stroke-width:2.6"')} Firmada</span>` : '<span class="pill pill-warn">Sin firmar</span>'}</button>`).join('') + '</div>';
   }
@@ -675,6 +732,7 @@ function renderHoy() {
   document.getElementById('v-hoy').innerHTML = html;
 }
 async function cambiarDia(n) {
+  actualizarHoy();
   S.fecha = n === 0 ? S.hoy : sumaDias(S.fecha, n);
   document.getElementById('v-hoy').querySelector('.grande')?.classList.add('opaco');
   await cargarJornada(); renderHoy(); renderRiel();
@@ -682,7 +740,7 @@ async function cambiarDia(n) {
 
 function menuPerfil() {
   abrirHoja(`<div class="hoja-tit"><h3>${esc(S.perfil ? S.perfil.nombre : '')}</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
-    <div class="card"><button class="fila" onclick="cerrarHoja();go('historial')"><span class="veh-ic">${ic('hist', 22)}</span><div class="fila-tit" style="flex:1">Historial (últimas 24 h)</div>${ic('chev', 20)}</button>
+    <div class="card"><button class="fila" onclick="cerrarHoja();refrescar({ silencioso: false })"><span class="veh-ic">${ic('deshacer', 22)}</span><div class="fila-tit" style="flex:1">Actualizar datos</div></button>
     <button class="fila" onclick="cerrarHoja();cambiarPerfil()"><span class="veh-ic">${ic('persona', 22)}</span><div class="fila-tit" style="flex:1">Cambiar de perfil</div>${ic('chev', 20)}</button>
     <button class="fila" onclick="cerrarSesion()"><span class="veh-ic">${ic('salir', 22)}</span><div class="fila-tit" style="flex:1">Cerrar sesión</div></button></div>`);
 }
@@ -708,7 +766,7 @@ function abrirIniciar(op = {}) {
   if (!vehiculo(vid)) vid = S.vehId;
   S.iniciar = {
     alumno_id: al ? al.id : null, vehiculo_id: vid, km: String(kmSugerido(vid) || ''),
-    tipo_detalle: TIPOS[0].id, duracion_min: parseInt(localStorage.getItem(DURACION_KEY)) || 45
+    zonas: [], duracion_min: parseInt(localStorage.getItem(DURACION_KEY)) || 45
   };
   go('iniciar');
 }
@@ -733,7 +791,7 @@ function renderIniciar() {
   const al = alumno(I.alumno_id); const v = vehiculo(I.vehiculo_id);
   const c = msgContinuidad(I.vehiculo_id, I.km);
   const ahora = hhmm();
-  const clase = al ? (al.clases || 0) + 1 : null;
+  const clase = al ? clasesAlumno(al) + 1 : null;
   document.getElementById('v-iniciar').innerHTML = `
     <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Iniciar práctica</h1></div><span class="fecha-lin">${ic('reloj', 16)} ${ahora}</span></div>
     <div class="card">
@@ -750,8 +808,8 @@ function renderIniciar() {
       <div class="msg ${c.cls}" id="msg-cont">${c.ok ? ic('ok', 20) : ''}<span>${c.txt}</span></div>
       <div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-sec btn-peq" style="flex:1" onclick="document.getElementById('km-ini').focus()">${ic('lapiz', 16)} Corregir km</button>
       ${v && v.ultimo ? `<button class="btn btn-sec btn-peq" style="flex:1" onclick="usarKmAnterior()">Usar ${miles(v.ultimo.km_final)}</button>` : ''}</div></div>
-    <div class="etq">Tipo de práctica</div>
-    <div class="chips">${TIPOS.map(t => `<button class="chip ${t.id === I.tipo_detalle ? 'on' : ''}" onclick="S.iniciar.tipo_detalle='${t.id}';renderIniciar()">${esc(t.id)}</button>`).join('')}</div>
+    ${S.zonas.length ? `<div class="etq">Zonas recorridas <small>Opcional · se puede cambiar durante la clase</small></div>
+    <div class="chips">${S.zonas.map((z, i) => `<button class="chip ${I.zonas.includes(z) ? 'on' : ''}" onclick="toggleZonaIniciar(${i})">${I.zonas.includes(z) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(z)}</button>`).join('')}</div>` : ''}
     <div class="etq">Duración <small>Termina a las ${esc(sumaMin(ahora, I.duracion_min))}</small></div>
     <div class="seg3">${[45, 60, 90].map(m => `<button class="${m === I.duracion_min ? 'on' : ''}" onclick="S.iniciar.duracion_min=${m};renderIniciar()">${m} min</button>`).join('')}</div>
     <div style="text-align:center;margin-top:18px"><button class="lnk lnk-suave" onclick="registrarSinCronometro()">Registrar sin cronómetro (rellenar los km después)</button></div>
@@ -764,6 +822,12 @@ function tecleaKmIni(inp) {
   const c = msgContinuidad(S.iniciar.vehiculo_id, inp.value);
   const m = document.getElementById('msg-cont'); m.className = 'msg ' + c.cls; m.innerHTML = (c.ok ? ic('ok', 20) : '') + `<span>${c.txt}</span>`;
   document.getElementById('btn-empezar').disabled = !(S.iniciar.alumno_id && S.iniciar.vehiculo_id && parseInt(inp.value) > 0);
+}
+function toggleZonaIniciar(i) {
+  const z = S.zonas[i]; if (!z || !S.iniciar) return;
+  const k = S.iniciar.zonas.indexOf(z);
+  if (k >= 0) S.iniciar.zonas.splice(k, 1); else S.iniciar.zonas.push(z);
+  renderIniciar();
 }
 function usarKmAnterior() { const v = vehiculo(S.iniciar.vehiculo_id); if (v && v.ultimo) { S.iniciar.km = String(v.ultimo.km_final); renderIniciar(); } }
 function volver() { history.length > 1 ? history.back() : go('hoy'); }
@@ -783,7 +847,7 @@ function filtrarHojaAlumnos(q) {
   q = (q || '').toLowerCase().trim();
   const lista = (elegirAlumnoIniciar._orden || []).filter(a => !q || nombreAlumno(a).toLowerCase().includes(q));
   document.getElementById('hoja-alumnos').innerHTML = lista.length ? lista.map(a =>
-    `<button class="fila-alumno" onclick="fijarAlumnoIniciar(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">Permiso ${esc(a.permiso)} · ${a.clases || 0} ${a.clases === 1 ? 'clase' : 'clases'}</div></div>${S.perfil && a.profesor_id === S.perfil.id ? '<span class="pill">Tuyo</span>' : ''}</button>`).join('')
+    `<button class="fila-alumno" onclick="fijarAlumnoIniciar(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">Permiso ${esc(a.permiso)} · ${clasesAlumno(a)} ${clasesAlumno(a) === 1 ? 'clase' : 'clases'}</div></div>${S.perfil && a.profesor_id === S.perfil.id ? '<span class="pill">Tuyo</span>' : ''}</button>`).join('')
     : '<div class="vacio">Ningún alumno coincide.</div>';
 }
 function fijarAlumnoIniciar(id) {
@@ -801,10 +865,9 @@ async function empezarPractica() {
   if (c.cls === 'msg-err' && !confirm('El km inicial es menor que el final de la práctica anterior. ¿Empezar igualmente?')) return;
   btn.disabled = true; btn.textContent = 'Empezando…';
   const ahora = new Date();
-  const tipo = (TIPOS.find(t => t.id === I.tipo_detalle) || TIPOS[0]).tipo;
   try {
     const res = await postJSON('/api/iniciar-practica', {
-      alumno_id: I.alumno_id, vehiculo_id: I.vehiculo_id, km_inicial: km, tipo, tipo_detalle: I.tipo_detalle,
+      alumno_id: I.alumno_id, vehiculo_id: I.vehiculo_id, km_inicial: km, tipo: 'circulacion', zonas: I.zonas,
       fecha: fechaLocal(ahora), hora_inicio: hhmm(ahora), profesor_id: S.perfil ? S.perfil.id : null
     });
     const data = await res.json();
@@ -818,7 +881,7 @@ async function empezarPractica() {
     S.flujo = {
       practica_id: data.practica_id, alumno_id: I.alumno_id, alumno_nombre: nombreAlumno(al), vehiculo_id: I.vehiculo_id, vehiculo_nombre: v ? v.nombre : '', matricula: v ? v.matricula : null,
       km_inicial: km, km_final: 0, inicio_ms: ahora.getTime(), hora_inicio: hhmm(ahora), duracion_min: I.duracion_min,
-      tipo_detalle: I.tipo_detalle, trabajado: [], observacion: '', clase_n: (al ? (al.clases || 0) : 0) + 1, fecha: fechaLocal(ahora), cerrada: false
+      zonas: I.zonas.slice(), trabajado: [], observacion: '', clase_n: clasesAlumno(al) + 1, fecha: fechaLocal(ahora), cerrada: false
     };
     guardarFlujo();
     go('curso');
@@ -840,7 +903,8 @@ async function registrarSinCronometro() {
 
 // ─── EN CURSO ────────────────────────────────────────────────────────────────
 async function continuarPractica(id) {
-  let p = S.jornada.practicas.find(x => x.id === id) || S.jornada.sin_cerrar.find(x => x.id === id);
+  let p = S.jornada.practicas.find(x => x.id === id) || S.jornada.sin_cerrar.find(x => x.id === id) ||
+    S.jornadaHoy.practicas.find(x => x.id === id) || S.jornadaHoy.sin_cerrar.find(x => x.id === id);
   if (!p) return;
   if (!S.flujo || S.flujo.practica_id !== id) { S.flujo = flujoDesdePractica(p); guardarFlujo(); }
   if (p.km_final) { S.flujo.cerrada = true; S.flujo.km_final = p.km_final; guardarFlujo(); go('firma'); return; }
@@ -854,12 +918,14 @@ function renderCurso() {
   const dur = F.duracion_min || 45;
   document.getElementById('v-curso').innerHTML = `
     <div class="cab"><span class="curso-et"><span class="pill-dot"></span>EN CURSO</span><button class="cab-atras" style="color:#F3F2EE" onclick="menuCurso()" aria-label="Más opciones">${ic('menu', 26)}</button></div>
-    <div class="ahora-quien" style="margin-top:6px"><span class="ini" style="background:#2A2D35;color:#F3F2EE;width:54px;height:54px">${esc(iniciales(F.alumno_nombre))}</span><div><div class="ahora-nom">${esc(F.alumno_nombre)}</div><div class="ahora-sub">Clase ${F.clase_n} · ${esc(F.tipo_detalle)}</div></div></div>
+    <div class="ahora-quien" style="margin-top:6px"><span class="ini" style="background:#2A2D35;color:#F3F2EE;width:54px;height:54px">${esc(iniciales(F.alumno_nombre))}</span><div><div class="ahora-nom">${esc(F.alumno_nombre)}</div><div class="ahora-sub">Clase ${F.clase_n}${F.zonas && F.zonas.length ? ' · ' + esc(zonasTxt(F.zonas)) : ''}</div></div></div>
     <div class="crono" id="crono"><span id="crono-t">00:00</span><small>/ ${tiempoTxt(dur * 60)}</small></div>
     <div class="barra-tiempo"><i id="barra-t" style="width:0%"></i></div>
     <div class="curso-horas"><span>Empezó a las <b>${esc(F.hora_inicio)}</b></span><span>Termina a las <b>${esc(sumaMin(F.hora_inicio, dur))}</b></span></div>
     <div class="mini2"><div class="mini"><span class="etq2">KM INICIAL</span><span class="val">${miles(F.km_inicial)}</span></div>
       <div class="mini"><span class="etq2">VEHÍCULO</span><span>${placa(F.matricula) || esc(F.vehiculo_nombre)}</span></div></div>
+    ${zonasCurso().length ? `<div class="etq" style="color:#A3A6AE">Zonas recorridas</div>
+    <div class="chips chips-osc" id="zonas-curso">${zonasCurso().map((z, i) => `<button class="chip ${(F.zonas || []).includes(z) ? 'on' : ''}" onclick="toggleZonaCurso(${i},this)">${(F.zonas || []).includes(z) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(z)}</button>`).join('')}</div>` : ''}
     <div class="etq" style="color:#A3A6AE">Qué se ha trabajado <small id="trab-n" style="color:#A3A6AE"></small></div>
     <div class="chips chips-osc">${TRABAJADO.map(t => `<button class="chip ${F.trabajado.includes(t) ? 'on' : ''}" onclick="toggleTrabajado('${t}',this)">${F.trabajado.includes(t) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(t)}</button>`).join('')}</div>
     <button class="dash-btn" id="btn-obs" onclick="abrirObservacion()">${ic('lapiz', 18)} ${F.observacion ? 'Editar observación' : 'Añadir observación'}</button>
@@ -877,6 +943,21 @@ function tickCrono() {
   const dur = (F.duracion_min || 45) * 60;
   document.getElementById('crono').classList.toggle('pasado', seg > dur);
   document.getElementById('barra-t').style.width = Math.min(100, (seg / dur) * 100) + '%';
+}
+// Zonas configuradas + las que ya tuviera marcadas la práctica (por si se
+// quitaron de la configuración a mitad de clase).
+function zonasCurso() {
+  const F = S.flujo || {};
+  return [...S.zonas, ...(F.zonas || []).filter(z => !S.zonas.includes(z))];
+}
+function toggleZonaCurso(i, btn) {
+  const F = S.flujo; const z = zonasCurso()[i]; if (!F || !z) return;
+  if (!F.zonas) F.zonas = [];
+  const k = F.zonas.indexOf(z);
+  if (k >= 0) F.zonas.splice(k, 1); else F.zonas.push(z);
+  guardarFlujo();
+  btn.classList.toggle('on', k < 0);
+  btn.innerHTML = (k < 0 ? ic('ok', 16, 'style="stroke-width:2.6"') : '') + esc(z);
 }
 function actualizaTrabN() { const n = S.flujo.trabajado.length; const el = document.getElementById('trab-n'); if (el) el.textContent = n ? `${n} marcado${n === 1 ? '' : 's'}` : ''; }
 function toggleTrabajado(t, btn) {
@@ -926,7 +1007,7 @@ function renderKmFinal() {
       <div class="odo">${digitos(S.kmFinal || '')}<span class="odo-km">km</span></div>
       <div class="dos-col"><div class="stat-box"><span class="etq2">Inicial</span><span class="val">${miles(F.km_inicial)}</span></div>
         <div class="stat-box osc"><span class="etq2">Recorridos</span><span class="val">${kf ? (rec > 0 ? '+' + rec : rec) + ' km' : '—'}</span></div></div>
-      <div id="km-aviso" class="fila-sub" style="margin-top:10px">${kf && rec <= 0 ? `<span style="color:var(--err);font-weight:600">El km final debe ser mayor que ${miles(F.km_inicial)}.</span>` : (kf && al ? `Con esta, ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${(al.clases || 0) + 1} clases</b> y <b>${miles((al.km || 0) + rec)} km</b>.` : 'Escribe el km que marca el coche.')}</div></div>
+      <div id="km-aviso" class="fila-sub" style="margin-top:10px">${kf && rec <= 0 ? `<span style="color:var(--err);font-weight:600">El km final debe ser mayor que ${miles(F.km_inicial)}.</span>` : (kf && al ? `Con esta, ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${clasesAlumno(al) + 1} clases</b> y <b>${miles(kmAlumno(al) + rec)} km</b>.` : 'Escribe el km que marca el coche.')}</div></div>
     <div class="teclado">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button onclick="tecla('${n}')">${n}</button>`).join('')}
       <button class="f" onclick="tecla('C')">Borrar</button><button onclick="tecla('0')">0</button><button class="f" onclick="tecla('<')" aria-label="Borrar un dígito">${ic('borrar', 26)}</button></div>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-firma" onclick="continuarFirma()" ${rec > 0 ? '' : 'disabled'}>Continuar a la firma ${ic('flecha', 20)}</button></div>`;
@@ -942,7 +1023,8 @@ async function continuarFirma() {
   const btn = document.getElementById('btn-firma'); btn.disabled = true; btn.textContent = 'Guardando…';
   try {
     const res = await postJSON('/api/finalizar-practica', {
-      practica_id: F.practica_id, km_final: kf, trabajado: F.trabajado, observacion: F.observacion, hora_fin: hhmm()
+      practica_id: F.practica_id, km_final: kf, trabajado: F.trabajado, observacion: F.observacion, hora_fin: hhmm(),
+      zonas: F.zonas || []
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cerrar la práctica');
@@ -961,16 +1043,17 @@ function renderFirma() {
   const F = S.flujo; if (!F) { go('hoy'); return; }
   const nombre = F.alumno_nombre.split(' ')[0];
   document.getElementById('v-firma').innerHTML = `
-    <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="go('hoy')" aria-label="Volver a Hoy">${ic('atras', 26)}</button><h1>Firma del alumno</h1></div><span class="pill">Paso 2 de 2</span></div>
+    <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="salirDeFirma()" aria-label="Volver">${ic('atras', 26)}</button><h1>Firma del alumno</h1></div><span class="pill">${F.volverA ? 'Firma pendiente' : 'Paso 2 de 2'}</span></div>
     <div class="aviso-entrega">${ic('tel', 16)} Entrega el móvil al alumno</div>
     <div class="grande" style="font-size:40px;margin:6px 0 14px">${esc(nombre)}, revisa y firma</div>
     <div class="card rev-grid">
       <div><div class="etq2">Fecha</div><div class="val">${esc(fechaCorta(F.fecha || S.hoy))} ${partes(F.fecha || S.hoy).y}</div></div>
       <div><div class="etq2">Horario</div><div class="val mono">${esc(F.hora_inicio)} - ${esc(F.hora_fin || hhmm())}</div></div>
       <div><div class="etq2">Clase</div><div class="val">Nº ${F.clase_n} · ${Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio))))} min</div></div>
-      <div><div class="etq2">Profesor</div><div class="val">${esc(S.perfil && S.perfil.nombre !== 'Sin profesor' ? S.perfil.nombre : '—')}</div></div>
+      <div><div class="etq2">Profesor</div><div class="val">${esc(F.profesor_nombre || (S.perfil && S.perfil.nombre !== 'Sin profesor' ? S.perfil.nombre : '—'))}</div></div>
       <div><div class="etq2">Km ${F.matricula ? '(' + esc(F.matricula) + ')' : ''}</div><div class="val mono">${miles(F.km_inicial)} → ${miles(F.km_final)}</div></div>
       <div><div class="etq2">Recorridos</div><div class="val mono" style="font-size:24px">${F.km_final - F.km_inicial} km</div></div>
+      ${F.zonas && F.zonas.length ? `<div style="grid-column:1/-1"><div class="etq2">Zonas recorridas</div><div class="val" style="font-size:16px">${esc(zonasTxt(F.zonas))}</div></div>` : ''}
       ${F.trabajado && F.trabajado.length ? `<div style="grid-column:1/-1"><div class="etq2">Qué se ha trabajado</div><div class="val" style="font-size:16px">${esc(F.trabajado.join(' · '))}</div></div>` : ''}
     </div>
     <div class="etq"><span>Firma de ${esc(F.alumno_nombre)}</span><button class="lnk" style="color:var(--ink);font-size:15px" onclick="borrarFirma()">${ic('deshacer', 16)} Borrar</button></div>
@@ -989,8 +1072,13 @@ function iniciarLienzo() {
   lienzo.width = w * dpr; lienzo.height = h * dpr;
   ctx = lienzo.getContext('2d'); ctx.scale(dpr, dpr);
   ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#14161B';
-  S.firmaTrazos = 0;
-  const punto = e => { const r = lienzo.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  S.firmaTrazos = 0; S.firmaCaja = null;
+  const punto = e => {
+    const r = lienzo.getBoundingClientRect(); const p = { x: e.clientX - r.left, y: e.clientY - r.top };
+    const c = S.firmaCaja || (S.firmaCaja = { x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+    c.x0 = Math.min(c.x0, p.x); c.y0 = Math.min(c.y0, p.y); c.x1 = Math.max(c.x1, p.x); c.y1 = Math.max(c.y1, p.y);
+    return p;
+  };
   lienzo.onpointerdown = e => { e.preventDefault(); lienzo.setPointerCapture(e.pointerId); dibujando = true; ultimoPunto = punto(e); ultimoMedio = ultimoPunto; ctx.beginPath(); ctx.arc(ultimoPunto.x, ultimoPunto.y, 1.2, 0, 6.3); ctx.fillStyle = '#14161B'; ctx.fill(); document.getElementById('firma-ayuda').hidden = true; };
   lienzo.onpointermove = e => {
     if (!dibujando) return; e.preventDefault();
@@ -1004,24 +1092,30 @@ function iniciarLienzo() {
   lienzo.onpointerup = fin; lienzo.onpointercancel = fin; lienzo.onpointerleave = fin;
 }
 function borrarFirma() {
-  if (!ctx) return; ctx.clearRect(0, 0, lienzo.width, lienzo.height); S.firmaTrazos = 0;
+  if (!ctx) return; ctx.clearRect(0, 0, lienzo.width, lienzo.height); S.firmaTrazos = 0; S.firmaCaja = null;
   document.getElementById('btn-conf').disabled = true; document.getElementById('firma-ayuda').hidden = false;
 }
-function firmaComoPNG() {
-  // Se reduce a un PNG pequeño (≈4-8 KB) recortando al ancho del lienzo.
-  const w = 420, h = Math.round(420 * lienzo.height / lienzo.width);
-  const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h;
-  tmp.getContext('2d').drawImage(lienzo, 0, 0, w, h);
+function firmaComoPNG(anchoMax = 480) {
+  // Se recorta al contorno de lo dibujado (sin el blanco sobrante) y se reduce
+  // a un PNG pequeño: suele quedar en 5-25 KB.
+  const dpr = lienzo.width / (lienzo.clientWidth || lienzo.width) || 1;
+  let x0 = 0, y0 = 0, w = lienzo.clientWidth, h = lienzo.clientHeight;
+  const c = S.firmaCaja, m = 12;
+  if (c) {
+    x0 = Math.max(0, c.x0 - m); y0 = Math.max(0, c.y0 - m);
+    w = Math.max(1, Math.min(lienzo.clientWidth, c.x1 + m) - x0); h = Math.max(1, Math.min(lienzo.clientHeight, c.y1 + m) - y0);
+  }
+  const escala = Math.min(1, anchoMax / w);
+  const tmp = document.createElement('canvas');
+  tmp.width = Math.max(1, Math.round(w * escala)); tmp.height = Math.max(1, Math.round(h * escala));
+  tmp.getContext('2d').drawImage(lienzo, x0 * dpr, y0 * dpr, w * dpr, h * dpr, 0, 0, tmp.width, tmp.height);
   return tmp.toDataURL('image/png');
 }
 async function confirmarFirma() {
   const F = S.flujo; const btn = document.getElementById('btn-conf');
   btn.disabled = true; btn.textContent = 'Guardando…';
   let firma = firmaComoPNG();
-  if (firma.length > 58000) { // firma demasiado densa: se reduce más
-    const tmp = document.createElement('canvas'); tmp.width = 300; tmp.height = Math.round(300 * lienzo.height / lienzo.width);
-    tmp.getContext('2d').drawImage(lienzo, 0, 0, tmp.width, tmp.height); firma = tmp.toDataURL('image/png');
-  }
+  if (firma.length > 150000) firma = firmaComoPNG(300); // firma muy densa: se reduce más
   try {
     const res = await postJSON('/api/firmar-practica', { practica_id: F.practica_id, firma });
     const data = await res.json();
@@ -1031,23 +1125,31 @@ async function confirmarFirma() {
   } catch (e) { if (e.message !== 'Sesión expirada') { toast(e.message); btn.disabled = false; btn.innerHTML = ic('ok', 20) + ' Confirmar firma'; } }
 }
 function firmarMasTarde() { terminarFlujo('Queda pendiente de firma'); }
+// Salir de la firma sin firmar: la práctica ya está cerrada, queda pendiente.
+function salirDeFirma() { if (S.flujo && S.flujo.volverA) terminarFlujo('Queda pendiente de firma'); else go('hoy'); }
 async function terminarFlujo(msg) {
+  const volverA = S.flujo && S.flujo.volverA; const alumnoId = S.flujo && S.flujo.alumno_id;
   S.flujo = null; guardarFlujo(); pararTimer(); toast(msg);
-  await cargarBase(); await cargarJornada(); go('hoy');
+  if (S.cal) S.cal.cache = {};
+  await cargarBase(); await cargarJornada();
+  if (volverA === 'ficha' && alumnoId) abrirFicha(alumnoId);
+  else go(volverA === 'historial' ? 'historial' : 'hoy');
 }
 
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
 function renderAlumnos() {
   const mios = S.perfil && S.perfil.id ? S.alumnos.filter(a => a.profesor_id === S.perfil.id) : [];
-  const nuevos = S.alumnos.filter(a => !(a.clases > 0));
+  const nuevos = S.alumnos.filter(a => !(clasesAlumno(a) > 0));
   const filtros = [['mios', 'Míos', mios.length], ['todos', 'Todos', S.alumnos.length], ['nuevos', 'Nuevos', nuevos.length]];
   if (!(S.perfil && S.perfil.id) && S.filtroAlumnos === 'mios') S.filtroAlumnos = 'todos';
+  // Sin alumnos asignados todavía: se abre en «Todos» para no enseñar una lista vacía.
+  if (S.filtroAlumnos === 'mios' && !mios.length && !S.filtroElegido) S.filtroAlumnos = 'todos';
   const visibles = (S.perfil && S.perfil.id) ? filtros : filtros.slice(1);
   document.getElementById('v-alumnos').innerHTML = `
     <div class="cab"><div><div class="fecha-lin">${S.perfil && S.perfil.id ? `Asignados a ti · ${mios.length}` : `${S.alumnos.length} alumnos`}</div><div class="grande" style="margin-top:4px">Alumnos</div></div>
       <button class="avatar" style="background:#fff;color:var(--ink);border:1px solid var(--line-2)" onclick="go('nuevo')" aria-label="Nuevo alumno">${ic('usuarioMas', 24)}</button></div>
     <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca" placeholder="Buscar por nombre" value="${esc(S.busqueda)}" oninput="S.busqueda=this.value;pintarListaAlumnos()" autocomplete="off"></div>
-    <div class="chips" style="margin-bottom:12px">${visibles.map(([id, tx, n]) => `<button class="chip ${S.filtroAlumnos === id ? 'on' : ''}" style="height:42px;font-size:15.5px" onclick="S.filtroAlumnos='${id}';renderAlumnos()">${tx} · ${n}</button>`).join('')}</div>
+    <div class="chips" style="margin-bottom:12px">${visibles.map(([id, tx, n]) => `<button class="chip ${S.filtroAlumnos === id ? 'on' : ''}" style="height:42px;font-size:15.5px" onclick="S.filtroAlumnos='${id}';S.filtroElegido=true;renderAlumnos()">${tx} · ${n}</button>`).join('')}</div>
     <div class="card" id="lista-alumnos"></div>`;
   pintarListaAlumnos();
 }
@@ -1055,14 +1157,16 @@ function pintarListaAlumnos() {
   const q = S.busqueda.toLowerCase().trim();
   let lista = S.alumnos.filter(a => {
     if (S.filtroAlumnos === 'mios' && !(S.perfil && a.profesor_id === S.perfil.id)) return false;
-    if (S.filtroAlumnos === 'nuevos' && a.clases > 0) return false;
+    if (S.filtroAlumnos === 'nuevos' && clasesAlumno(a) > 0) return false;
     return !q || nombreAlumno(a).toLowerCase().includes(q);
   });
   document.getElementById('lista-alumnos').innerHTML = lista.length ? lista.map(a =>
     `<button class="fila-alumno" onclick="abrirFicha(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span>
-      <div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub"><b style="color:var(--ink)">${a.clases || 0}</b> ${a.clases === 1 ? 'clase' : 'clases'} · <span class="mono">${miles(a.km || 0)}</span> km${a.clases > 0 ? '' : ''}</div></div>
-      ${a.clases > 0 ? '' : '<span class="pill pill-info">Nuevo</span>'}${ic('chev', 20, 'style="color:var(--faint)"')}</button>`).join('')
-    : '<div class="vacio">Ningún alumno coincide.<small>Prueba con otro nombre o cambia el filtro.</small></div>';
+      <div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub"><b style="color:var(--ink)">${clasesAlumno(a)}</b> ${clasesAlumno(a) === 1 ? 'clase' : 'clases'} · <span class="mono">${miles(kmAlumno(a))}</span> km</div></div>
+      ${clasesAlumno(a) > 0 ? '' : '<span class="pill pill-info">Nuevo</span>'}${ic('chev', 20, 'style="color:var(--faint)"')}</button>`).join('')
+    : (S.filtroAlumnos === 'mios' && !q
+      ? `<div class="vacio">Todavía no tienes alumnos asignados.<small>Se asignan en la app de escritorio (ficha del alumno → Profesor).</small><button class="btn btn-sec btn-peq" style="margin-top:12px" onclick="S.filtroAlumnos='todos';S.filtroElegido=true;renderAlumnos()">Ver todos</button></div>`
+      : '<div class="vacio">Ningún alumno coincide.<small>Prueba con otro nombre o cambia el filtro.</small></div>');
 }
 
 // ─── FICHA DEL ALUMNO ────────────────────────────────────────────────────────
@@ -1086,7 +1190,9 @@ function renderFicha() {
   if (f.error) { cont.innerHTML = cab + `<div class="vacio">${esc(f.error)}</div>`; return; }
   const d = f.datos; const a = d.alumno;
   const nombre = [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
-  const minutos = d.total * (parseInt(localStorage.getItem(DURACION_KEY)) || 45);
+  const previas = a.clases_previas || 0, kmPrevios = a.km_previos || 0;
+  const totalClases = d.total + previas, totalKm = d.km_totales + kmPrevios;
+  const minutos = totalClases * (parseInt(localStorage.getItem(DURACION_KEY)) || 45);
   const horas = (minutos / 60).toFixed(1).replace('.', ',');
   const [y, m] = S.fichaMes.split('-').map(Number);
   const primero = (new Date(y, m - 1, 1).getDay() + 6) % 7, ndias = new Date(y, m, 0).getDate();
@@ -1100,17 +1206,18 @@ function renderFicha() {
   const filas = d.practicas.slice(0, 6).map(p => {
     const km = p.km_final > 0 ? p.km_final - p.km_inicial : null;
     const estado = p.en_curso ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>' : (p.sin_cerrar ? '<span class="pill pill-warn">Sin cerrar</span>' : (p.firmada ? `<span class="pill pill-ok">${ic('ok', 13, 'style="stroke-width:2.6"')} Firmada</span>` : (km != null ? '<span class="pill">Sin firma</span>' : '<span class="pill pill-warn">Km pendientes</span>')));
-    return `<div class="fila"><div style="flex:1;min-width:0"><div class="fila-tit">${p.fecha === S.hoy ? 'Hoy' : esc(fechaCorta(p.fecha))}${p.hora_inicio ? ' · ' + esc(p.hora_inicio) : ''}</div>
-      <div class="fila-sub mono">${km != null ? miles(p.km_inicial) + ' → ' + miles(p.km_final) : (p.km_inicial > 0 ? 'km ' + miles(p.km_inicial) : 'Sin km')}</div>${p.nota ? `<div class="fila-sub" style="margin-top:2px">${esc(p.nota)}</div>` : ''}</div>
-      <div style="text-align:right"><div class="mono" style="font-size:19px;font-weight:600">${km != null ? km + ' <span style="font-size:14px;font-weight:500">km</span>' : ''}</div>${estado}</div></div>`;
+    return `<button class="fila" onclick="abrirDetalle(${p.id})"><div style="flex:1;min-width:0"><div class="fila-tit">${p.fecha === S.hoy ? 'Hoy' : esc(fechaCorta(p.fecha))}${p.hora_inicio ? ' · ' + esc(p.hora_inicio) : ''}</div>
+      <div class="fila-sub mono">${km != null ? miles(p.km_inicial) + ' → ' + miles(p.km_final) : (p.km_inicial > 0 ? 'km ' + miles(p.km_inicial) : 'Sin km')}</div>${p.zonas && p.zonas.length ? `<div class="fila-sub">${esc(zonasTxt(p.zonas))}</div>` : ''}${p.nota ? `<div class="fila-sub" style="margin-top:2px">${esc(p.nota)}</div>` : ''}</div>
+      <div style="text-align:right"><div class="mono" style="font-size:19px;font-weight:600">${km != null ? km + ' <span style="font-size:14px;font-weight:500">km</span>' : ''}</div>${estado}</div></button>`;
   }).join('');
   const proximas = (d.proximas || []).map(r => `<div class="fila"><span class="fila-hora" style="width:auto">${esc(fechaCorta(r.fecha))}</span><div class="fila-tit" style="flex:1">${esc(r.hora_inicio || '')} ${r.nota ? '· ' + esc(r.nota) : ''}</div>${r.estado === 'solicitada' ? '<span class="pill pill-warn">Solicitada</span>' : ''}</div>`).join('');
   cont.innerHTML = cab + `
     <div style="display:flex;align-items:center;gap:14px;margin:4px 0 16px"><span class="ini ini-lg">${esc(iniciales(nombre))}</span>
       <div style="min-width:0"><div class="grande" style="font-size:34px">${esc(nombre)}</div><div class="fila-sub" style="font-size:15px">Permiso ${esc(a.permiso)}${a.profesor_nombre ? ' · Prof. ' + esc(a.profesor_nombre) : ''}</div></div></div>
-    <div class="tres"><div class="stat-box osc"><span class="val">${d.total}</span><span class="etq2">${d.total === 1 ? 'clase hecha' : 'clases hechas'}</span></div>
-      <div class="stat-box" style="background:#fff;border:1px solid var(--line)"><span class="val">${miles(d.km_totales)}</span><span class="etq2">km recorridos</span></div>
+    <div class="tres"><div class="stat-box osc"><span class="val">${totalClases}</span><span class="etq2">${totalClases === 1 ? 'clase hecha' : 'clases hechas'}</span></div>
+      <div class="stat-box" style="background:#fff;border:1px solid var(--line)"><span class="val">${miles(totalKm)}</span><span class="etq2">km recorridos</span></div>
       <div class="stat-box" style="background:#fff;border:1px solid var(--line)"><span class="val">${horas}</span><span class="etq2">h al volante</span></div></div>
+    ${previas || kmPrevios ? `<div class="fila-sub" style="margin:8px 2px 0">Incluye ${previas} ${previas === 1 ? 'clase' : 'clases'} y ${miles(kmPrevios)} km hechos antes de usar la app.</div>` : ''}
     <div class="card cal" style="margin-top:14px"><div class="cal-cab"><button onclick="mesFicha(-1)" aria-label="Mes anterior">${ic('chevIzq', 20)}</button><div style="text-align:center"><b>${cap(MESES[m - 1])} ${y}</b><div class="fila-sub">${nDiasPractica} ${nDiasPractica === 1 ? 'día con práctica' : 'días con práctica'}</div></div><button onclick="mesFicha(1)" aria-label="Mes siguiente">${ic('chev', 20)}</button></div>
       <div class="cal-sem"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div><div class="cal-dias">${celdas}</div>
       <div class="leyenda"><span><i style="background:var(--ink)"></i>Día con práctica</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--ink)"></i>Programada</span><span><i style="box-shadow:0 0 0 2px var(--amber);width:8px;height:8px"></i>Hoy</span></div></div>
@@ -1149,41 +1256,184 @@ async function crearAlumno() {
   } catch (e) { if (e.message !== 'Sesión expirada') { err.textContent = e.message; btn.disabled = false; } }
 }
 
-// ─── HISTORIAL (últimas 24 h, con cancelación) ───────────────────────────────
-async function renderHistorial() {
-  const cont = document.getElementById('v-historial');
-  cont.innerHTML = `<div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Historial</h1></div></div><div class="fila-sub" style="margin:-4px 2px 12px">Prácticas registradas desde el móvil en las últimas 24 horas.</div><div id="hist-lista" class="card"><div class="cargando">Cargando…</div></div>`;
-  try {
-    const res = await apiFetch('/api/historial');
-    const lista = await res.json();
-    if (!res.ok) throw new Error(lista.error || 'Error al cargar el historial');
-    document.getElementById('hist-lista').innerHTML = lista.length ? lista.map(p =>
-      `<div class="fila"><div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div><div class="fila-sub">${esc(fechaCorta(p.fecha))}${p.hora_inicio ? ' · ' + esc(p.hora_inicio) : ''} · ${esc(p.vehiculo_nombre)}${p.km_final > 0 ? ' · <span class="mono">' + miles(p.km_inicial) + ' → ' + miles(p.km_final) + '</span>' : (p.en_curso ? ' · en curso' : ' · km pendientes')}</div></div>
-       <button class="btn btn-sec btn-peq" style="color:var(--err)" onclick="cancelarPractica(${p.id},'${esc(p.alumno_nombre).replace(/'/g, '&#39;')}')">Cancelar</button></div>`).join('')
-      : '<div class="vacio">No hay prácticas recientes registradas desde el móvil.</div>';
-  } catch (e) { document.getElementById('hist-lista').innerHTML = `<div class="vacio">${esc(e.message)}</div>`; }
+// ─── HISTORIAL EN CALENDARIO ─────────────────────────────────────────────────
+// Mes a la vista con las clases de cada día (número en la celda; ámbar si falta
+// alguna firma). Tocar un día lista sus clases; tocar una clase abre su detalle
+// con la firma. Se desliza a los lados para cambiar de mes.
+const mesDe = iso => iso.slice(0, 7);
+function ultimoDiaMes(mes) { const [y, m] = mes.split('-').map(Number); return `${mes}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; }
+function renderHistorial() {
+  if (!S.cal) S.cal = { mes: mesDe(S.hoy), dia: S.hoy, filtro: (S.perfil && S.perfil.id) ? 'mias' : 'todas', cache: {} };
+  pintarHistorial();
+  cargarCalendario();
 }
-async function cancelarPractica(id, nombre) {
-  if (!confirm(`¿Cancelar la práctica de ${nombre}?`)) return;
+async function cargarCalendario() {
+  const C = S.cal; if (!C) return;
+  const clave = C.mes + '|' + C.filtro;
+  if (C.cache[clave]) { pintarHistorial(); return; }
+  C.cargando = true; C.error = null; pintarHistorial();
+  try {
+    const q = new URLSearchParams({ desde: C.mes + '-01', hasta: ultimoDiaMes(C.mes), hoy: S.hoy });
+    if (C.filtro === 'mias' && S.perfil && S.perfil.id) q.set('profesor_id', S.perfil.id);
+    const res = await apiFetch('/api/calendario?' + q);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cargar el historial');
+    C.cache[clave] = data.practicas;
+  } catch (e) { if (e.message !== 'Sesión expirada') C.error = e.message || 'No se pudo cargar el historial'; }
+  C.cargando = false;
+  if (S.vista === 'historial' && C.mes + '|' + C.filtro === clave) pintarHistorial();
+}
+function pintarHistorial() {
+  const C = S.cal; const cont = document.getElementById('v-historial'); if (!C || !cont) return;
+  const cargado = C.cache[C.mes + '|' + C.filtro];
+  const lista = cargado || [];
+  const porDia = {};
+  for (const p of lista) (porDia[p.fecha] || (porDia[p.fecha] = [])).push(p);
+  // Al cambiar a otro mes se enseña su último día con clases.
+  if (C.autoDia && cargado) { const dias = Object.keys(porDia).sort(); C.dia = dias.length ? dias[dias.length - 1] : C.mes + '-01'; C.autoDia = false; }
+  const [y, m] = C.mes.split('-').map(Number);
+  const primero = (new Date(y, m - 1, 1).getDay() + 6) % 7, ndias = new Date(y, m, 0).getDate();
+  let celdas = '';
+  for (let i = 0; i < primero; i++) celdas += '<span></span>';
+  for (let d = 1; d <= ndias; d++) {
+    const iso = `${C.mes}-${String(d).padStart(2, '0')}`;
+    const ps = porDia[iso] || [];
+    const falta = ps.some(p => p.km > 0 && !p.firmada);
+    celdas += `<button class="dia ${ps.length ? 'con' : ''} ${iso === C.dia ? 'sel' : ''} ${iso === S.hoy ? 'hoy' : ''}" onclick="elegirDiaHist('${iso}')" aria-label="${esc(fechaLarga(iso))}${ps.length ? ', ' + ps.length + (ps.length === 1 ? ' clase' : ' clases') : ''}"><b>${d}</b>${ps.length ? `<i class="${falta ? 'pend' : ''}">${ps.length}</i>` : ''}</button>`;
+  }
+  const cerradas = lista.filter(p => p.km > 0);
+  const kmMes = cerradas.reduce((t, p) => t + p.km, 0);
+  const firmadas = cerradas.filter(p => p.firmada).length;
+  const delDia = porDia[C.dia] || [];
+  const filtros = S.perfil && S.perfil.id ? `<div class="chips" style="margin-bottom:12px">${[['mias', 'Mis clases'], ['todas', 'Toda la autoescuela']].map(([id, tx]) => `<button class="chip ${C.filtro === id ? 'on' : ''}" style="height:42px;font-size:15.5px" onclick="filtroHist('${id}')">${tx}</button>`).join('')}</div>` : '';
+  cont.innerHTML = `
+    <div class="cab"><div><div class="fecha-lin">Clases hechas</div><div class="grande" style="margin-top:4px">Historial</div></div>
+      <button class="avatar" onclick="menuPerfil()" aria-label="Perfil y opciones">${esc(iniciales(S.perfil ? S.perfil.nombre : '?'))}</button></div>
+    ${filtros}
+    <div class="card cal cal-hist" id="cal-hist">
+      <div class="cal-cab"><button onclick="mesHist(-1)" aria-label="Mes anterior">${ic('chevIzq', 20)}</button>
+        <div style="text-align:center"><b>${cap(MESES[m - 1])} ${y}</b><div class="fila-sub">${!cargado ? (C.error ? 'Sin datos' : 'Cargando…') : `${cerradas.length} ${cerradas.length === 1 ? 'clase' : 'clases'} · <span class="mono">${miles(kmMes)}</span> km`}</div></div>
+        <button onclick="mesHist(1)" aria-label="Mes siguiente">${ic('chev', 20)}</button></div>
+      <div class="cal-sem"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+      <div class="cal-dias">${celdas}</div>
+      <div class="leyenda"><span><i style="background:var(--ink)"></i>Clases</span><span><i style="background:var(--amber)"></i>Falta firma</span>${cerradas.length ? `<span style="margin-left:auto;font-weight:600;color:var(--ink)">${firmadas}/${cerradas.length} firmadas</span>` : ''}</div>
+    </div>
+    ${C.error ? `<div class="msg msg-err">${ic('aviso', 18)}<span>${esc(C.error)} <button class="lnk" onclick="S.cal.cache={};cargarCalendario()">Reintentar</button></span></div>` : ''}
+    <div class="grupo-tit"><span>${esc(C.dia === S.hoy ? 'Hoy' : fechaLarga(C.dia))}</span><span style="font-size:14px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink)">${delDia.length ? `${delDia.length} ${delDia.length === 1 ? 'clase' : 'clases'} · ${miles(delDia.reduce((t, p) => t + p.km, 0))} km` : ''}</span></div>
+    <div class="card">${delDia.length ? delDia.map(filaHist).join('') : `<div class="vacio">${!cargado && !C.error ? 'Cargando…' : 'Sin clases este día.'}</div>`}</div>`;
+  activarSwipeHist();
+}
+function estadoPill(p) {
+  if (p.en_curso) return '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>';
+  if (p.sin_cerrar) return '<span class="pill pill-warn">Sin cerrar</span>';
+  if (!(p.km > 0)) return '<span class="pill pill-warn">Km pendientes</span>';
+  return p.firmada ? `<span class="pill pill-ok">${ic('ok', 13, 'style="stroke-width:2.6"')} Firmada</span>` : '<span class="pill pill-warn">Sin firmar</span>';
+}
+function filaHist(p) {
+  return `<button class="fila" onclick="abrirDetalle(${p.id})"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span>
+    <div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div>
+    <div class="fila-sub"><span class="mono">${p.km > 0 ? miles(p.km_inicial) + ' → ' + miles(p.km_final) + ' · ' + p.km + ' km' : (p.km_inicial > 0 ? 'km ' + miles(p.km_inicial) : 'Sin km')}</span>${p.matricula ? ' · ' + esc(p.matricula) : ''}</div>
+    ${p.zonas && p.zonas.length ? `<div class="fila-sub">${esc(zonasTxt(p.zonas))}</div>` : ''}</div>${estadoPill(p)}</button>`;
+}
+function elegirDiaHist(iso) { S.cal.dia = iso; S.cal.autoDia = false; pintarHistorial(); }
+function filtroHist(id) { S.cal.filtro = id; cargarCalendario(); }
+function mesHist(n) {
+  const [y, m] = S.cal.mes.split('-').map(Number); const d = new Date(y, m - 1 + n, 1);
+  S.cal.mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  if (S.cal.mes === mesDe(S.hoy)) { S.cal.dia = S.hoy; S.cal.autoDia = false; } else S.cal.autoDia = true;
+  cargarCalendario();
+}
+function activarSwipeHist() {
+  const el = document.getElementById('cal-hist'); if (!el) return;
+  let x0 = null, y0 = null;
+  el.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  el.addEventListener('touchend', e => {
+    if (x0 == null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) mesHist(dx < 0 ? 1 : -1);
+  }, { passive: true });
+}
+
+// ─── DETALLE DE UNA CLASE (con la firma) ─────────────────────────────────────
+const FIRMA_VALIDA = /^data:image\/png;base64,[A-Za-z0-9+/=]+$/;
+async function abrirDetalle(id) {
+  abrirHoja(`<div class="hoja-tit"><h3>Clase</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div><div class="cargando">Cargando…</div>`);
+  try {
+    const res = await apiFetch('/api/practica-detalle?id=' + id);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cargar la clase');
+    pintarDetalle(data.practica);
+  } catch (e) {
+    if (e.message !== 'Sesión expirada') abrirHoja(`<div class="hoja-tit"><h3>Clase</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div><div class="vacio">${esc(e.message)}</div>`);
+  }
+}
+function pintarDetalle(p) {
+  S.detalle = p;
+  const dur = p.hora_inicio && p.hora_fin ? Math.max(1, horaAMin(p.hora_fin) - horaAMin(p.hora_inicio)) : null;
+  const firmable = p.km_final > 0 && !p.firma;
+  const fila = (etq, val, ancho) => `<div${ancho ? ' style="grid-column:1/-1"' : ''}><div class="etq2">${etq}</div><div class="val" style="font-size:16px">${val}</div></div>`;
+  abrirHoja(`<div class="hoja-tit"><h3>Clase Nº ${p.clase_n}</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+    <div class="hoja-scroll">
+      <div class="card rev-grid">
+        ${fila('Alumno', esc(p.alumno_nombre) + (p.permiso ? ` <small class="fila-sub">· Permiso ${esc(p.permiso)}</small>` : ''), true)}
+        ${fila('Fecha', `${esc(fechaCorta(p.fecha))} ${partes(p.fecha).y}`)}
+        ${fila('Horario', `<span class="mono">${esc(p.hora_inicio || '--:--')}${p.hora_fin ? ' - ' + esc(p.hora_fin) : ''}</span>${dur ? ` <small class="fila-sub">(${dur} min)</small>` : ''}`)}
+        ${fila('Profesor', esc(p.profesor_nombre || '—'))}
+        ${fila('Vehículo', placa(p.matricula) || esc(p.vehiculo_nombre || '—'))}
+        ${fila('Km', `<span class="mono">${p.km_final > 0 ? miles(p.km_inicial) + ' → ' + miles(p.km_final) : (p.km_inicial > 0 ? miles(p.km_inicial) + ' → …' : '—')}</span>`)}
+        ${fila('Recorridos', `<span class="mono">${p.km} km</span>`)}
+        ${p.zonas.length ? fila('Zonas recorridas', esc(zonasTxt(p.zonas)), true) : ''}
+        ${p.trabajado.length ? fila('Qué se ha trabajado', esc(p.trabajado.join(' · ')), true) : ''}
+        ${p.nota ? fila('Observación', esc(p.nota), true) : ''}
+      </div>
+      <div class="etq" style="margin:10px 0 4px">Firma del alumno</div>
+      ${p.firma && FIRMA_VALIDA.test(p.firma)
+        ? `<div class="firma-vista"><img src="${p.firma}" alt="Firma de ${esc(p.alumno_nombre)}"></div>`
+        : `<div class="msg msg-warn" style="margin-top:0">${ic('aviso', 18)}<span>${p.km_final > 0 ? 'Esta clase todavía no está firmada.' : 'La clase no está cerrada: falta el km final.'}</span></div>`}
+    </div>
+    ${firmable ? `<button class="btn btn-pri btn-lg" onclick="firmarDesdeDetalle()">${ic('lapiz', 18)} Firmar ahora</button>` : ''}
+    ${p.cancelable ? `<button class="btn btn-sec" style="color:var(--err)" onclick="cancelarPractica(${p.id})">Cancelar esta práctica</button>` : ''}`);
+}
+function firmarDesdeDetalle() {
+  const p = S.detalle; if (!p) return;
+  if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada && S.flujo.practica_id !== p.id) { toast('Termina primero la práctica en curso.'); return; }
+  S.flujo = {
+    practica_id: p.id, alumno_id: p.alumno_id, alumno_nombre: p.alumno_nombre, vehiculo_id: p.vehiculo_id, vehiculo_nombre: p.vehiculo_nombre, matricula: p.matricula,
+    km_inicial: p.km_inicial, km_final: p.km_final, inicio_ms: Date.now(), hora_inicio: p.hora_inicio, hora_fin: p.hora_fin,
+    zonas: p.zonas, trabajado: p.trabajado, observacion: '', clase_n: p.clase_n, fecha: p.fecha, cerrada: true,
+    profesor_nombre: p.profesor_nombre, volverA: S.vista === 'ficha' ? 'ficha' : 'historial'
+  };
+  guardarFlujo(); cerrarHoja(); go('firma');
+}
+async function cancelarPractica(id) {
+  const p = S.detalle;
+  if (!confirm(`¿Cancelar la práctica de ${p ? p.alumno_nombre : 'este alumno'}? Se quita del historial y de los km.`)) return;
   try {
     const res = await postJSON('/api/cancelar-practica', { practica_id: id });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cancelar');
     if (S.flujo && S.flujo.practica_id === id) { S.flujo = null; guardarFlujo(); }
-    toast('Práctica cancelada'); await cargarBase(); renderHistorial();
+    cerrarHoja(); toast('Práctica cancelada');
+    if (S.cal) S.cal.cache = {};
+    await cargarBase(); await cargarJornada();
+    if (S.vista === 'historial') cargarCalendario();
+    else if (S.vista === 'ficha' && S.ficha) abrirFicha(S.ficha.id);
+    else if (S.vista === 'hoy') renderHoy();
+    renderRiel();
   } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message); }
 }
 
 // ─── RIEL DE TABLET (jornada siempre a la vista) ─────────────────────────────
 function renderRiel() {
   const cab = document.getElementById('riel-cab'); if (!cab || !window.matchMedia('(min-width:900px)').matches) return;
-  const r = resumenJornada();
+  const J = S.jornadaHoy;
+  const r = resumenJornada(J);
   cab.innerHTML = `<div style="display:flex;align-items:flex-start;justify-content:space-between"><div><div class="fecha-lin">${esc(fechaLarga(S.hoy))}</div><div class="grande" style="margin-top:4px">Hoy</div>
     ${vehiculo(S.vehId) ? `<div style="margin-top:8px;display:flex;align-items:center;gap:8px">${placa(vehiculo(S.vehId).matricula)}<span class="fila-sub">${esc(vehiculo(S.vehId).nombre)} · <b class="mono" style="color:var(--ink)">${miles(kmSugerido(S.vehId))}</b> km</span></div>` : ''}</div>
     <button class="avatar" onclick="menuPerfil()" aria-label="Perfil y opciones">${esc(iniciales(S.perfil ? S.perfil.nombre : '?'))}</button></div>`;
   const filas = [];
-  S.jornada.practicas.forEach(p => filas.push({ h: p.hora_inicio || '99', html: `<button class="riel-fila ${S.flujo && S.flujo.practica_id === p.id && ['curso', 'kmfinal', 'firma'].includes(S.vista) ? 'activa' : ''}" onclick="continuarPractica(${p.id})"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(p.alumno_nombre)}</div><div class="fila-sub">${p.en_curso ? 'en curso' : p.km + ' km'}</div></div>${p.en_curso ? '<span class="pill pill-dark">En curso</span>' : (p.firmada ? '<span class="pill pill-ok">Firmada</span>' : '<span class="pill pill-warn">Sin firmar</span>')}</button>` }));
-  pendientesReservas().forEach(rv => filas.push({ h: rv.hora_inicio || '99', html: `<button class="riel-fila" onclick="abrirIniciar({alumno_id:${rv.alumno_id},vehiculo_id:${rv.vehiculo_id || 'null'}})"><span class="fila-hora">${esc(rv.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(rv.alumno_nombre || 'Alumno')}</div><div class="fila-sub">${esc(rv.nota || 'Programada')}</div></div></button>` }));
+  J.practicas.forEach(p => filas.push({ h: p.hora_inicio || '99', html: `<button class="riel-fila ${S.flujo && S.flujo.practica_id === p.id && ['curso', 'kmfinal', 'firma'].includes(S.vista) ? 'activa' : ''}" onclick="continuarPractica(${p.id})"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(p.alumno_nombre)}</div><div class="fila-sub">${p.en_curso ? 'en curso' : p.km + ' km'}</div></div>${p.en_curso ? '<span class="pill pill-dark">En curso</span>' : (p.firmada ? '<span class="pill pill-ok">Firmada</span>' : '<span class="pill pill-warn">Sin firmar</span>')}</button>` }));
+  pendientesReservas(J).forEach(rv => filas.push({ h: rv.hora_inicio || '99', html: `<button class="riel-fila" onclick="abrirIniciar({alumno_id:${rv.alumno_id},vehiculo_id:${rv.vehiculo_id || 'null'}})"><span class="fila-hora">${esc(rv.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(rv.alumno_nombre || 'Alumno')}</div><div class="fila-sub">${esc(rv.nota || 'Programada')}</div></div></button>` }));
   filas.sort((a, b) => a.h.localeCompare(b.h));
   document.getElementById('riel-lista').innerHTML = filas.length ? filas.map(f => f.html).join('') : '<div class="vacio">Sin clases hoy.</div>';
   document.getElementById('riel-pie').innerHTML = `<span><b class="mono" style="color:var(--ink)">${miles(r.km)}</b> km hoy</span><span>${r.firmadas} de ${r.cerradas.length} firmadas</span>`;

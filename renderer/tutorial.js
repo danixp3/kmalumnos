@@ -30,30 +30,47 @@ const TUTORIAL_PASOS = {
   dashboard: [
     { sel: '#panel-kpis', pos: 'bottom',
       titulo: 'Tu día de un vistazo',
-      texto: 'Prácticas de hoy, kilómetros del mes, alumnos en prácticas y lo que queda por revisar. Debajo, en Ajustes → Preferencias, puedes añadir más tarjetas.' },
+      texto: 'Prácticas de hoy, kilómetros del mes, alumnos en prácticas y lo que queda por revisar. En Ajustes → Panel principal eliges qué más tarjetas ver.' },
     { sel: '#dash-alertas', pos: 'top',
       titulo: 'Avisos que puedes seguir',
       texto: 'Km sin rellenar, solapamientos, caducidades, bonos casi agotados o solicitudes de reserva: cada aviso tiene un botón que te lleva directo a la pantalla donde resolverlo.' },
     { sel: '#graficos-dashboard', pos: 'bottom',
       titulo: 'Gráficos del panel',
-      texto: 'Activa los que te interesen desde Ajustes → Preferencias: kilómetros y prácticas por mes, por profesor, por vehículo o ingresos.' },
+      texto: 'Activa los que te interesen desde Ajustes → Panel principal: kilómetros y prácticas por mes, por profesor, por vehículo o ingresos.' },
     { sel: '.quick-card-primary', pos: 'right',
       titulo: 'Registro Rápido',
       texto: 'Es el acceso al día a día: apunta en segundos las prácticas de todos los alumnos de un vehículo en una fecha.' },
     { sel: '#sync-bar', pos: 'right',
       titulo: 'Estado de la nube',
-      texto: 'Aquí ves si tus datos están sincronizados. Haz clic para forzar una sincronización manual.' }
+      texto: 'Aquí ves si tus datos están sincronizados con la web del móvil y los demás equipos. Haz clic para sincronizar ahora.' },
+    { sel: '.nav-personalizar', pos: 'right',
+      titulo: 'Menú a tu medida',
+      texto: 'Oculta las funciones que todavía no uses (bonos, caja, captación…) para ver solo lo que necesitas. No se borra nada: vuelves a mostrarlas cuando quieras.' },
+    { sel: '#titlebar', pos: 'bottom',
+      titulo: 'Barra de accesos rápidos',
+      texto: 'Deja el ratón quieto un momento sobre esta barra y se despliega con la fecha, el resumen del día y accesos para registrar prácticas, dar de alta un alumno o una cita. Se desactiva en Ajustes → Menú lateral.' }
   ],
   alumnos: [
-    { sel: '#a-permiso', pos: 'bottom',
-      titulo: 'El permiso importa',
-      texto: 'El permiso que elijas aquí determina la tarifa que se aplica y, por tanto, la deuda que genera cada práctica del alumno.' },
-    { sel: '#f-alumnos-nombre', pos: 'bottom',
-      titulo: 'Filtra la lista',
-      texto: 'Busca por nombre o combina los filtros de vehículo, permiso y profesor para encontrar a un alumno al momento.' },
-    { sel: '#tabla-alumnos tbody .btn-primary', pos: 'top',
-      titulo: 'Prácticas y anotaciones',
-      texto: 'El botón Prácticas abre su historial de km; Anotaciones guarda notas sueltas del alumno sin crear una práctica.' }
+    { sel: '#alumnos-tabs', pos: 'bottom',
+      titulo: 'Grupos de alumnos',
+      texto: 'Activos, nuevos, en riesgo de abandono… Cada pestaña filtra la lista; los filtros de profesor, vehículo y permiso se combinan con ella.' },
+    { sel: '#f-alumnos-profesor', pos: 'bottom',
+      titulo: 'Asigna cada alumno a su profesor',
+      texto: 'Es lo que hace que en la web del móvil cada profesor vea «sus» alumnos. Se asigna al editar el alumno o, para todos a la vez, en Puesta en marcha.' },
+    { sel: '#tabla-alumnos', pos: 'top',
+      titulo: 'La ficha del alumno',
+      texto: 'Haz clic en un alumno para abrir su ficha: progreso, km por clase, calendario de prácticas y el historial con la firma de cada clase.' }
+  ],
+  ficha: [
+    { sel: '#ficha-cab', pos: 'bottom',
+      titulo: 'El progreso del alumno',
+      texto: 'Clases, km recorridos y horas al volante. Si el alumno empezó antes de usar la app, sus clases anteriores ya están sumadas (se ajustan al editar el alumno).' },
+    { sel: '#ficha-kmclase', pos: 'bottom',
+      titulo: 'Km por clase',
+      texto: 'Una barra por clase; pasa el ratón por encima para ver la fecha. La última, en ámbar.' },
+    { sel: '#tabla-practicas .firma-pill', pos: 'left',
+      titulo: 'Firma del alumno',
+      texto: 'Cada clase dada con el móvil se firma al terminar. Pulsa «Firmada» para ver la firma y todos los datos de la clase; también se imprime en la Ficha de clases prácticas (Documentos).' }
   ],
   vehiculos: [
     { sel: '#veh-tarjetas', pos: 'bottom',
@@ -62,9 +79,9 @@ const TUTORIAL_PASOS = {
     { sel: '#veh-continuidad', pos: 'top',
       titulo: 'Continuidad del cuentakilómetros',
       texto: 'Cada práctica debe empezar en el km donde acabó la anterior. Los tramos rayados en rojo son kilómetros que nadie ha registrado.' },
-    { sel: '.card-banner', pos: 'bottom',
-      titulo: 'Relleno masivo de km',
-      texto: 'Para las prácticas que se quedaron sin kilómetros, esto los genera automáticamente respetando el rango por defecto de Ajustes.' }
+    { sel: '#veh-relleno', pos: 'bottom',
+      titulo: 'Km en blanco',
+      texto: 'Las prácticas que se quedaron sin kilómetros se rellenan en Kilómetros → Generar km, con tres métodos distintos.' }
   ],
   'registro-rapido': [
     { sel: '#rr-vehiculo', pos: 'bottom',
@@ -97,7 +114,45 @@ const TUTORIAL_PASOS = {
       texto: 'Visualiza la línea de tiempo de kilómetros del vehículo elegido: cada tramo es una práctica.' },
     { sel: '#tab-kilometros-conflictos', pos: 'top', antes: () => cambiarTabKilometros('conflictos'),
       titulo: '¿Qué es un solapamiento?',
-      texto: 'Ocurre cuando dos prácticas del mismo vehículo comparten el mismo tramo de km. "Corregir todo automáticamente" los reordena respetando la duración de cada una.' }
+      texto: 'Ocurre cuando dos prácticas del mismo vehículo comparten el mismo tramo de km. "Corregir todo automáticamente" los reordena respetando la duración de cada una.' },
+    { sel: '#kilometros-tabs', pos: 'bottom',
+      titulo: 'Generar km',
+      texto: 'La tercera pestaña rellena los km de las prácticas en blanco: encadenado desde el odómetro, hasta un km máximo o repartido en un rango.' }
+  ],
+  'generar-km': [
+    { sel: '#gk-vehiculo', pos: 'bottom',
+      titulo: 'Elige el vehículo',
+      texto: 'Al lado verás cuántas prácticas de ese coche tienen los km en blanco.' },
+    { sel: '#generar-km-tabs', pos: 'bottom',
+      titulo: 'Tres formas de generar',
+      texto: 'Encadenado: sigue desde el odómetro actual. Hasta un máximo: das el km final y se reparte hacia atrás. Por rango: entre dos km con una media. Los dos últimos te enseñan el resultado antes de guardarlo.' }
+  ],
+  reservas: [
+    { sel: '#page-reservas .page-tabs', pos: 'bottom',
+      titulo: 'Lista o semana',
+      texto: 'La misma agenda en dos vistas: la lista con filtros por estado y la semana, donde arrastras una cita para cambiarla de día.' },
+    { sel: '#tabla-reservas', pos: 'top',
+      titulo: 'Citas y solicitudes',
+      texto: 'Las solicitudes llegan también desde el portal del alumno. Confírmalas, cancélalas o márcalas como realizadas; las del día aparecen al profesor en la web del móvil.' }
+  ],
+  'practicas-global': [
+    { sel: '#pg-tabs', pos: 'bottom',
+      titulo: 'Todas las prácticas',
+      texto: 'Las de todos los alumnos, con pestañas para hoy, esta semana, sin km o en curso (las que un profesor está dando ahora desde el móvil).' },
+    { sel: '#tabla-practicas-global', pos: 'top',
+      titulo: 'Despliega una práctica',
+      texto: 'Haz clic en una fila para ver si el km encaja con la práctica anterior del coche, las zonas recorridas, la observación del profesor y la firma del alumno.' }
+  ],
+  'puesta-en-marcha': [
+    { sel: '#pm-paso-vehiculos', pos: 'bottom',
+      titulo: '1 · El km real de cada coche',
+      texto: 'Escribe lo que marca hoy el cuentakilómetros. La primera clase que registre un profesor empezará ahí.' },
+    { sel: '#pm-paso-alumnos', pos: 'top',
+      titulo: '2 · Lo que cada alumno ya lleva hecho',
+      texto: 'Clases y km anteriores a la app: la numeración continúa (si lleva 12, la siguiente será la 13) sin inventarse prácticas. Puedes pegar la lista desde Excel.' },
+    { sel: '#pm-borrar', pos: 'top',
+      titulo: 'Empezar limpio (opcional)',
+      texto: 'Si has hecho pruebas con alumnos inventados, bórralos aquí antes de meter los reales. Se guarda antes una copia de seguridad.' }
   ],
   datos: [
     { sel: '#tab-datos-importar', pos: 'bottom', antes: () => cambiarTabDatos('importar'),
@@ -121,15 +176,18 @@ const TUTORIAL_PASOS = {
       texto: 'Aquí quedan registradas las operaciones automáticas (rellenos masivos, correcciones) y los conflictos de sincronización entre dispositivos.' }
   ],
   ajustes: [
-    { sel: '#ajustes-sync-estado', pos: 'bottom',
-      titulo: 'Cuenta de empresa',
-      texto: 'Inicia sesión para que tus datos viajen solo entre tus dispositivos, protegidos de otras autoescuelas que usen la app.' },
-    { sel: '.card-banner-success', pos: 'top',
-      titulo: 'Copias de seguridad',
-      texto: 'Guarda una copia cuando quieras; las tarjetas de al lado te dejan restaurar la última automática o elegir un archivo antiguo.' },
-    { sel: '#pref-km-min', pos: 'bottom',
-      titulo: 'Tus preferencias',
-      texto: 'Aquí fijas el rango de km por defecto, qué tarjetas ver en el panel principal, y puedes volver a lanzar estos tutoriales cuando quieras.' }
+    { sel: '#aj-cuadros', pos: 'bottom',
+      titulo: 'Todo por secciones',
+      texto: 'Cada cuadro abre una parte de la configuración y te enseña su estado actual. Vuelves aquí con «Todos los ajustes».' },
+    { sel: '[data-aj-cuadro="puesta"]', pos: 'bottom',
+      titulo: 'Puesta en marcha',
+      texto: 'Si vas a empezar con tus datos reales, empieza aquí: km de cada coche y clases que ya lleva cada alumno.' },
+    { sel: '[data-aj-cuadro="zonas"]', pos: 'bottom',
+      titulo: 'Zonas de prácticas',
+      texto: 'Las zonas que el profesor marca en el móvil al dar la clase (centro, polígono, autovía…). Sin zonas, la web no las pide.' },
+    { sel: '[data-aj-cuadro="menu"]', pos: 'bottom',
+      titulo: 'Menú lateral',
+      texto: 'Muestra solo las funciones que uses y activa o desactiva la barra superior desplegable.' }
   ],
   jornada: [
     { sel: '#jor-empleado', pos: 'bottom',

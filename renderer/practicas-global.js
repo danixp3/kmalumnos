@@ -153,8 +153,11 @@ function detallePracticaGlobal(p) {
   }
   return `<div class="pg-detalle">
     <div><div class="eyebrow">Kilometraje</div>${km}</div>
-    <div><div class="eyebrow">Observación del profesor</div><div class="pg-obs">${p.nota ? esc(p.nota) : '<span style="color:var(--text-faint)">Sin observaciones</span>'}</div></div>
+    <div><div class="eyebrow">Observación del profesor</div><div class="pg-obs">${p.nota ? esc(p.nota) : '<span style="color:var(--text-faint)">Sin observaciones</span>'}</div>
+      ${p.zonas && p.zonas.length ? `<div class="eyebrow" style="margin-top:10px">Zonas recorridas</div><div>${esc(p.zonas.join(' · '))}</div>` : ''}</div>
+    <div><div class="eyebrow">Firma del alumno</div>${p.en_curso || p.sin_km || p.sin_cerrar ? '<span style="color:var(--text-faint)">—</span>' : (p.firmada ? '<span class="pill pill-ok">Firmada</span>' : '<span class="pill pill-line">Sin firmar</span>')}</div>
     <div class="pg-detalle-acc">
+      <button class="btn btn-outline btn-sm" onclick="verClasePractica(${p.id})">${svgMini('ficha')} Ver clase${p.firmada ? ' y firma' : ''}</button>
       <button class="btn btn-outline btn-sm" onclick="editarPracticaGlobal(${p.id})">${svgMini('editar')} Editar</button>
       <button class="btn btn-outline btn-sm" onclick="verFichaDesdePracticas(${p.alumno_id},${p.vehiculo_id || 'null'},'${esc(p.alumno_nombre)}')">${svgMini('ficha')} Ficha del alumno</button>
     </div>
