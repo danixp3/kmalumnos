@@ -5,7 +5,7 @@
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError,
   hhmmValido, kmEntero, insertarPractica
-} from './_utils.js';
+} from '../../api/_utils.js';
 
 const TIPOS = ['pista', 'circulacion'];
 

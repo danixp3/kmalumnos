@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    { "source": "/api/hoy", "destination": "/api/movil?op=hoy" },
+    { "source": "/api/iniciar-practica", "destination": "/api/movil?op=iniciar-practica" },
+    { "source": "/api/finalizar-practica", "destination": "/api/movil?op=finalizar-practica" },
+    { "source": "/api/firmar-practica", "destination": "/api/movil?op=firmar-practica" },
+    { "source": "/api/cancelar-practica", "destination": "/api/movil?op=cancelar-practica" }
+  ]
+}

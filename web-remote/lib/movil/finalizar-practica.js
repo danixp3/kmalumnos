@@ -4,7 +4,7 @@
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError,
   hhmmValido, kmEntero, conFallbackColumnas, kmDePractica
-} from './_utils.js';
+} from '../../api/_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
