@@ -9,9 +9,7 @@
       "Bash(git diff *)",
       "Bash(git log *)",
       "Bash(git show *)",
-      "Bash(git add *)"
-    ],
-    "ask": [
+      "Bash(git add *)",
       "Bash(git push *)",
       "Bash(git commit *)",
       "Bash(npm run dist)",

@@ -5,7 +5,8 @@
       "Bash(sed -i 's/mailbox/mailbox|dconf/' /tmp/claude-0/-home-user-kmalumnos/a4301bc6-3620-5b88-8deb-a01936797921/scratchpad/smoke.sh)",
       "Bash(python3 -)",
       "Bash(cat)",
-      "Bash(node .claude/skills/desplegar-web/scripts/desplegar_web.js)"
+      "Bash(node .claude/skills/desplegar-web/scripts/desplegar_web.js)",
+      "Bash(curl -s -m 15 -o /dev/null -w \"rest:%{http_code}\\\\n\" https://dmwoqugdnwgkcqtixhyw.supabase.co/rest/v1/)"
     ]
   }
 }
