@@ -1,8 +1,8 @@
-// Ajustes de la empresa que la web necesita (hoy: las zonas de prácticas que
-// se configuran en el escritorio). Solo lectura. Sin la tabla ajustes_empresa
+// Ajustes de la empresa que la web necesita: las zonas de prácticas y los
+// minutos que dura una clase (ambos se configuran en el escritorio). Solo lectura. Sin la tabla ajustes_empresa
 // (migración 2026-10-01 sin aplicar) responde con la lista vacía y la web
 // simplemente no muestra "Zonas recorridas".
-import { setCorsHeaders, requireAuth, getSupabase, withRetry, limpiarZonas } from '../../api/_utils.js';
+import { setCorsHeaders, requireAuth, getSupabase, withRetry, limpiarZonas, duracionClaseValida } from '../../api/_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -18,6 +18,10 @@ export default async function handler(req, res) {
     .eq('empresa_id', auth.empresaId));
   const ajustes = error ? [] : (data || []);
   const zonas = ajustes.find(a => a.clave === 'zonas');
+  const duracion = ajustes.find(a => a.clave === 'duracion_clase_min');
 
-  return res.status(200).json({ ok: true, zonas: limpiarZonas(zonas ? zonas.valor : []) });
+  return res.status(200).json({
+    ok: true, zonas: limpiarZonas(zonas ? zonas.valor : []),
+    duracion_clase_min: duracionClaseValida(duracion ? duracion.valor : 45)
+  });
 }

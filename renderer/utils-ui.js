@@ -79,12 +79,31 @@ function placaHTML(matricula, grande) {
 }
 
 // Menús "⋯" de las filas de tabla (<details class="menu-fila">): se cierran al
-// hacer clic fuera o al elegir una opción, y solo puede haber uno abierto.
+// hacer clic fuera, al elegir una opción o al desplazar la página, y solo puede
+// haber uno abierto. La lista flota junto a su botón (position:fixed): así no la
+// recorta la tabla (que hace scroll lateral en ventanas estrechas) ni la tapa lo
+// que viene detrás; si no cabe por debajo, se abre hacia arriba.
 document.addEventListener('click', e => {
   document.querySelectorAll('details.menu-fila[open]').forEach(d => {
     if (!d.contains(e.target) || e.target.closest('.menu-fila-lista button')) d.removeAttribute('open');
   });
 });
+document.addEventListener('toggle', e => {
+  const d = e.target;
+  if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('menu-fila')) return;
+  const lista = d.querySelector('.menu-fila-lista');
+  if (!lista) return;
+  if (!d.open) { lista.style.cssText = ''; return; }
+  document.querySelectorAll('details.menu-fila[open]').forEach(o => { if (o !== d) o.removeAttribute('open'); });
+  const b = d.querySelector('summary').getBoundingClientRect();
+  Object.assign(lista.style, { position: 'fixed', zIndex: '160', left: 'auto', right: Math.max(8, window.innerWidth - b.right) + 'px' });
+  const alto = lista.offsetHeight;
+  if (b.bottom + 4 + alto > window.innerHeight - 8 && b.top - 4 - alto > 8) Object.assign(lista.style, { top: 'auto', bottom: (window.innerHeight - b.top + 4) + 'px' });
+  else Object.assign(lista.style, { bottom: 'auto', top: (b.bottom + 4) + 'px' });
+}, true);
+const cerrarMenusFila = () => document.querySelectorAll('details.menu-fila[open]').forEach(d => d.removeAttribute('open'));
+window.addEventListener('scroll', e => { if (!(e.target.closest && e.target.closest('.menu-fila-lista'))) cerrarMenusFila(); }, true);
+window.addEventListener('resize', cerrarMenusFila);
 
 // ─── UTILS ───────────────────────────────────────────────────────────────────
 function fmt(num) {

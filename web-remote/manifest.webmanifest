@@ -1,0 +1,23 @@
+{
+  "id": "/",
+  "name": "AulaMovil · Prácticas",
+  "short_name": "AulaMovil",
+  "description": "Registra las prácticas de la autoescuela desde el móvil: km del coche, firma del alumno y agenda del día.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F3F2EE",
+  "theme_color": "#F3F2EE",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Nueva práctica", "short_name": "Nueva", "url": "/?accion=nueva", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}

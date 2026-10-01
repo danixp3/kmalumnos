@@ -37,13 +37,33 @@ test('getDatosFichaDGT filtra por tipo (destreza -> pista, circulacion -> circul
   expect(destreza.profesor).toEqual({ nombre: 'Juan', dni: '11111111A' });
   // Solo las 2 prácticas de tipo 'pista', ordenadas por fecha ascendente.
   expect(destreza.practicas).toEqual([
-    { fecha: '05/07/2026', hora: '', km_inicial: '40', km_final: '80' },
-    { fecha: '10/07/2026', hora: '10:30', km_inicial: '100', km_final: '150' },
+    { fecha: '05/07/2026', hora: '', km_inicial: '40', km_final: '80', clases: 1, ejercicio: '1 CLASE' },
+    { fecha: '10/07/2026', hora: '10:30', km_inicial: '100', km_final: '150', clases: 1, ejercicio: '1 CLASE' },
   ]);
 
   const circulacion = db.getDatosFichaDGT(aid, 'circulacion');
   expect(circulacion.practicas).toEqual([
-    { fecha: '01/07/2026', hora: '09:00', km_inicial: '0', km_final: '40' },
+    { fecha: '01/07/2026', hora: '09:00', km_inicial: '0', km_final: '40', clases: 1, ejercicio: '1 CLASE' },
+  ]);
+});
+
+test('getDatosFichaDGT agrupa las clases del mismo día en una fila: "1 CLASE" si fue una, "2 CLASES" si fueron 2 o más', () => {
+  const vid = db.addVehiculo('Coche 1', '1234ABC', 1000);
+  const aid = db.addAlumno('Ana', 'B', vid);
+  // Día 1: dos clases seguidas (sembradas al revés para comprobar el orden por hora)
+  db.addPractica(aid, vid, '2026-09-08', 207955, 208000, null, 'circulacion', null, '10:45');
+  db.addPractica(aid, vid, '2026-09-08', 207908, 207955, null, 'circulacion', null, '10:00');
+  // Día 2: una sola clase
+  db.addPractica(aid, vid, '2026-09-09', 208000, 208040, null, 'circulacion', null, '09:00');
+  // Día 3: tres clases (el impreso admite como mucho "2 CLASES")
+  db.addPractica(aid, vid, '2026-09-10', 208040, 208080, null, 'circulacion', null, '09:00');
+  db.addPractica(aid, vid, '2026-09-10', 208080, 208120, null, 'circulacion', null, '09:45');
+  db.addPractica(aid, vid, '2026-09-10', 208120, 208160, null, 'circulacion', null, '10:30');
+
+  expect(db.getDatosFichaDGT(aid, 'circulacion').practicas).toEqual([
+    { fecha: '08/09/2026', hora: '10:00', km_inicial: '207908', km_final: '208000', clases: 2, ejercicio: '2 CLASES' },
+    { fecha: '09/09/2026', hora: '09:00', km_inicial: '208000', km_final: '208040', clases: 1, ejercicio: '1 CLASE' },
+    { fecha: '10/09/2026', hora: '09:00', km_inicial: '208040', km_final: '208160', clases: 3, ejercicio: '2 CLASES' },
   ]);
 });
 

@@ -4,15 +4,18 @@
  * profesores y los alumnos con su PUNTO DE PARTIDA (clases y km que ya hicieron
  * antes de usar la app), más el borrado opcional de los datos de prueba.
  *
- * El punto de partida (alumno.clases_previas / alumno.km_previos) no crea
- * prácticas ficticias: solo desplaza la numeración de clases y suma a los
- * totales (ficha, lista, semáforo de examen y la web del móvil). Así no se
- * inventan km en el cuentakilómetros de ningún coche ni aparecen solapamientos.
+ * El punto de partida (alumno.clases_previas / alumno.km_previos) por sí solo
+ * no crea prácticas: desplaza la numeración de clases y suma a los totales
+ * (ficha, lista, semáforo de examen y la web del móvil). Si además se quieren
+ * esas clases con fecha y km (ficha DGT), se anotan o se crean con
+ * db/clases-anteriores.js, que va descontando de clases_previas.
+ * En esta pantalla «Clases ya hechas» = clases_previas + las ya creadas.
  */
 
 // ─── PUESTA EN MARCHA ────────────────────────────────────────────────────────
 
 const { load, save, nextId, _sync, addLog, crearBackup } = require('./core');
+const { contarClasesAnteriores } = require('./clases-anteriores');
 
 const entero = (v, max = 2000000) => {
   const n = Math.round(Number(v));
@@ -47,6 +50,7 @@ function getPuestaEnMarcha() {
     a.n++; a.km += kmDe(p);
     porAlumno.set(p.alumno_id, a);
   }
+  const anteriores = contarClasesAnteriores(d);
   const vehiculos = d.vehiculos.filter(v => !v.deleted).map(v => ({
     id: v.id, nombre: v.nombre, matricula: v.matricula || '', km_actual: Math.round(v.km_actual || 0),
     practicas: (porVehiculo.get(v.id) || {}).n || 0, km_max_practicas: (porVehiculo.get(v.id) || {}).maxKm || 0
@@ -57,15 +61,22 @@ function getPuestaEnMarcha() {
     id: a.id, nombre: a.nombre || '', primer_apellido: a.primer_apellido || '', segundo_apellido: a.segundo_apellido || '',
     permiso: a.permiso || 'B', profesor_id: a.profesor_id || null, vehiculo_id: a.vehiculo_id || null,
     clases_previas: a.clases_previas || 0, km_previos: a.km_previos || 0,
+    anteriores: anteriores.get(a.id) || 0,
     practicas: (porAlumno.get(a.id) || {}).n || 0, km_practicas: Math.round((porAlumno.get(a.id) || {}).km || 0)
   })).sort((a, b) => (a.nombre + ' ' + a.primer_apellido).localeCompare(b.nombre + ' ' + b.primer_apellido));
+  // Clases anteriores que aún se pueden crear con fecha y km (sin «km ya hechos»)
+  const porCrear = alumnos.filter(a => a.clases_previas > 0 && !(a.km_previos > 0));
   return {
     vehiculos, profesores, alumnos,
     resumen: {
       vehiculos: vehiculos.length, profesores: profesores.length, alumnos: alumnos.length,
       practicas: practicas.length,
       alumnos_sin_profesor: alumnos.filter(a => !a.profesor_id).length,
-      alumnos_sin_vehiculo: alumnos.filter(a => !a.vehiculo_id).length
+      alumnos_sin_vehiculo: alumnos.filter(a => !a.vehiculo_id).length,
+      clases_por_crear: porCrear.reduce((s, a) => s + a.clases_previas, 0),
+      alumnos_por_crear: porCrear.length,
+      clases_anteriores: alumnos.reduce((s, a) => s + a.anteriores, 0),
+      anteriores_sin_km: practicas.filter(p => p.tipo_detalle === 'anterior' && !(p.km_final > 0)).length
     }
   };
 }
@@ -96,10 +107,15 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
       matriculas.set(mat, v.id || `nuevo-${i}`);
     }
   });
+  const anteriores = contarClasesAnteriores(d);
   alumnos.forEach((a, i) => {
     const nombre = texto(a.nombre);
     const hayDatos = texto(a.primer_apellido) || entero(a.clases_previas) || entero(a.km_previos);
     if (!a.id && !nombre && hayDatos) errores.push(`Alumno de la fila ${i + 1}: falta el nombre.`);
+    const creadas = a.id ? anteriores.get(a.id) || 0 : 0;
+    if (creadas && entero(a.clases_previas, 500) < creadas) {
+      errores.push(`${nombre || 'Alumno de la fila ' + (i + 1)}: ya tiene ${creadas} clases anteriores creadas; para poner menos, borra antes algunas en «Anotar».`);
+    }
   });
   if (errores.length) return { ok: false, errores, creados, actualizados };
 
@@ -146,7 +162,7 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
       permiso: texto(a.permiso, 6) || 'B',
       profesor_id: idONull(a.profesor_id),
       vehiculo_id: vehiculoId(a.vehiculo_id),
-      clases_previas: entero(a.clases_previas, 500),
+      clases_previas: Math.max(0, entero(a.clases_previas, 500) - (a.id ? anteriores.get(a.id) || 0 : 0)),
       km_previos: entero(a.km_previos, 100000)
     };
     if (a.id) {

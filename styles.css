@@ -700,6 +700,9 @@
   }
 
   /* ── ENTRADA ESCALONADA DE BLOQUES AL ABRIR/CAMBIAR DE PANTALLA ── */
+  /* fill-mode "backwards" (no "both"): con "both" cada bloque se quedaba con un
+     transform residual que lo convierte en capa propia, y el bloque siguiente
+     (p. ej. el pie de la tabla) se pintaba ENCIMA de los menús «⋯» y popups. */
   @keyframes blockIn {
     from { opacity: 0; transform: translateY(9px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -707,7 +710,7 @@
   .page.active > *,
   #page-alumnos.active #view-alumnos > *,
   #page-alumnos.active #view-practicas > * {
-    animation: blockIn .36s cubic-bezier(.22,.61,.36,1) both;
+    animation: blockIn .36s cubic-bezier(.22,.61,.36,1) backwards;
   }
   .page.active > *:nth-child(1),
   #page-alumnos.active #view-alumnos > *:nth-child(1),
@@ -736,7 +739,7 @@
     from { opacity: 0; transform: translateY(5px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  .page.entrando tbody tr { animation: filaIn .32s ease both; }
+  .page.entrando tbody tr { animation: filaIn .32s ease backwards; }
   .page.entrando tbody tr:nth-child(1)  { animation-delay: .04s; }
   .page.entrando tbody tr:nth-child(2)  { animation-delay: .07s; }
   .page.entrando tbody tr:nth-child(3)  { animation-delay: .10s; }
@@ -758,11 +761,34 @@
   }
   .valor-flash { animation: valorFlash .8s ease; border-radius: 6px; }
 
+  /* ── Mapa visual de km (Kilómetros → Mapa del vehículo) con zoom ── */
+  .tl-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .tl-zoom { display: flex; align-items: center; gap: 6px; }
+  .tl-zoom-info { font-size: 12px; color: var(--text-muted); margin-right: 4px; font-variant-numeric: tabular-nums; }
+  .tl-tramos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; font-size: 12px; color: var(--text-muted); }
+  .tl-tramos:empty { display: none; }
+  .tl-tramo { border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 12px; cursor: pointer; }
+  .tl-tramo:hover { border-color: var(--primary); }
+  .tl-tramo.on { background: var(--accent-light); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  .tl-track { position: relative; height: 56px; background: var(--gray-light); border-radius: 10px; overflow: hidden; cursor: grab; touch-action: none; user-select: none; outline: none; }
+  .tl-track:focus-visible { box-shadow: 0 0 0 2px var(--primary); }
+  .tl-track.arrastrando { cursor: grabbing; }
+  #timeline-chart-bars { position: absolute; inset: 8px 0; }
+  .tl-eje { position: relative; height: 18px; margin-top: 6px; font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+  .tl-eje span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+  .tl-eje span::before { content: ''; position: absolute; left: 50%; top: -6px; width: 1px; height: 4px; background: var(--border-strong, var(--border)); }
+  .tl-mini { position: relative; height: 22px; margin-top: 8px; background: var(--gray-light); border-radius: 6px; cursor: crosshair; user-select: none; touch-action: none; }
+  #tl-mini-barras { position: absolute; inset: 4px 0; }
+  #tl-mini-barras i { position: absolute; top: 0; bottom: 0; min-width: 1px; opacity: .7; }
+  .tl-mini-ventana { position: absolute; top: 0; bottom: 0; border: 2px solid var(--primary); border-radius: 5px; background: color-mix(in srgb, var(--primary) 10%, transparent); cursor: grab; box-sizing: border-box; }
+  .tl-mini-ventana.oculta { display: none; }
+  .tl-ayuda { margin-top: 8px; font-size: 11.5px; color: var(--text-faint); }
+
   /* Barras del mapa de km que crecen desde su borde izquierdo al dibujarse. */
   @keyframes barraCrece { from { transform: scaleX(0); } to { transform: scaleX(1); } }
   #timeline-chart-bars .tl-bar {
     transform-origin: left center;
-    animation: barraCrece .5s cubic-bezier(.22,.61,.36,1) both;
+    animation: barraCrece .5s cubic-bezier(.22,.61,.36,1) backwards;
   }
 
   /* Barras de los gráficos del panel que crecen desde su base al dibujarse:
@@ -771,11 +797,11 @@
   @keyframes gbarCrece { from { transform: scaleX(0); } to { transform: scaleX(1); } }
   .grafico-svg-wrap .grafico-barra-v {
     transform-box: fill-box; transform-origin: bottom;
-    animation: gbarSube .6s cubic-bezier(.22,.61,.36,1) both;
+    animation: gbarSube .6s cubic-bezier(.22,.61,.36,1) backwards;
   }
   .grafico-svg-wrap .grafico-barra-h {
     transform-box: fill-box; transform-origin: left;
-    animation: gbarCrece .6s cubic-bezier(.22,.61,.36,1) both;
+    animation: gbarCrece .6s cubic-bezier(.22,.61,.36,1) backwards;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1124,8 +1150,11 @@
   .btn-icon { padding: 7px; border-radius: 8px; }
 
   /* ── TABLES ─────────────────────────────────── */
-  .table-wrap { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: var(--card); }
-  .table-wrap.con-menus { overflow: visible; }
+  /* Con la ventana estrecha, las tablas anchas se desplazan en horizontal DENTRO
+     de su tarjeta (antes se cortaban las últimas columnas o desbordaban la
+     página). Los menús «⋯» de las filas flotan fuera (position:fixed, ver
+     utils-ui.js), así que el scroll no los recorta. */
+  .table-wrap { border-radius: var(--radius); overflow-x: auto; overflow-y: hidden; border: 1px solid var(--border); background: var(--card); }
   .table-wrap.con-menus thead th:first-child { border-top-left-radius: var(--radius); }
   .table-wrap.con-menus thead th:last-child { border-top-right-radius: var(--radius); }
 
@@ -2228,6 +2257,7 @@
   .tabla-alumnos th, .tabla-alumnos td { padding-left: 10px; padding-right: 10px; }
   .tabla-alumnos th { white-space: nowrap; }
   .tabla-alumnos td:nth-child(5), .tabla-alumnos td:nth-child(6) { min-width: 84px; }
+  .tabla-alumnos td:first-child { min-width: 190px; }
   .menu-fila { display: inline-block; position: relative; vertical-align: middle; margin-left: 4px; }
   .menu-fila > summary { list-style: none; cursor: pointer; }
   .menu-fila > summary::-webkit-details-marker { display: none; }
@@ -2494,7 +2524,30 @@
   .pm-tabla td { padding-top: 6px; padding-bottom: 6px; vertical-align: middle; }
   .pm-tabla input[type=text], .pm-tabla input[type=number], .pm-tabla select { width: 100%; min-width: 90px; padding: 6px 8px; }
   .pm-tabla td.col-num input { width: auto; }
+  #pm-alumnos td:nth-child(5) select, #pm-alumnos td:nth-child(6) select { min-width: 140px; }
   .pm-aviso { display: block; font-size: 11.5px; color: var(--accent-text); margin-top: 3px; }
+  .pm-anotar { white-space: nowrap; }
+  .pm-anotar.hecho { border-color: var(--success); color: var(--success-fg); }
+  .pm-ant-estado { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 16px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+  .pm-ant-estado .pm-ant-txt { flex: 1; min-width: 240px; font-size: 14px; line-height: 1.5; }
+  .pm-ant-estado.ok { background: var(--success-light, var(--surface-2)); }
+  .pm-prop-tot { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 14px; }
+  .pm-prop-tot .pill b { font-variant-numeric: tabular-nums; }
+  .pm-prop-lista { margin: 8px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+  .pm-prop-err { color: var(--danger-fg); }
+  .pm-prop-aviso { color: var(--accent-text); }
+  .pm-prop-det td, .pm-anot-tabla td { padding-top: 5px; padding-bottom: 5px; }
+  .pm-prop-det details summary { cursor: pointer; color: var(--text-muted); font-size: 12.5px; }
+  .pm-prop-dias { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .pm-anot-tabla input { width: 100%; padding: 6px 8px; }
+  .pm-anot-tabla td:nth-child(2) input { min-width: 110px; }
+  .pm-anot-tabla td:nth-child(3) input { min-width: 70px; }
+  .pm-anot-tabla td:nth-child(4) input, .pm-anot-tabla td:nth-child(5) input { min-width: 100px; text-align: right; }
+  .pm-anot-pie { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .pm-anot-pie .pm-anot-cuenta { margin-right: auto; font-size: 13px; color: var(--text-muted); }
+  .pm-anot-scroll { max-height: 52vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+  .pm-anot-scroll table { margin: 0; }
+  .pm-anot-scroll thead th { position: sticky; top: 0; background: var(--card); z-index: 1; }
   .pm-borrar-op { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; font-size: 13.5px; }
   .pm-borrar-op label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
   .pm-barra { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 10px; justify-content: flex-end; padding: 12px 16px; margin-top: 8px; background: var(--card); border: 1px solid var(--accent); border-radius: var(--radius); box-shadow: var(--shadow-md); }

@@ -18,7 +18,8 @@ Localizar siempre por **anclas** (cadenas literales) con Grep + Read parcial; lo
 
 **Componentes globales (styles.css, ancla → uso):**
 - `.card` / `.card-title` · `.stat` / `.kpi` (`.kpi-val`, `.kpi-unit`: cifra grande condensada + unidad) · `.toolbar` · `.seg` (pestañas segmentadas; `renderer/*` las pintan con `onclick` de cambio de pestaña).
-- `.btn-primary` = **ámbar con texto tinta**; `.btn-secondary` contorno; en tablas `td .btn.btn-sm` contorneado y acciones raras en `details.menu-fila` (`⋯`, se cierra con el manejador global de `utils-ui.js`).
+- `.btn-primary` = **ámbar con texto tinta**; `.btn-secondary` contorno; en tablas `td .btn.btn-sm` contorneado y acciones raras en `details.menu-fila` (`⋯`, se cierra con el manejador global de `utils-ui.js`; la lista flota con `position:fixed` para que el scroll de la tabla no la recorte).
+- **Ventana pequeña:** `.table-wrap` hace scroll horizontal propio (nunca `overflow:hidden` en una tabla ancha). Animaciones de entrada siempre con `animation-fill-mode: backwards` (con `both` queda un `transform` que crea capas y tapa menús/popups). Ejes y marcas de gráficos: paso según el ancho real, sin decimales en recuentos. Comprobar con `npm run barrido`.
 - `.pill` + `-dark/-warn/-ok/-err/-info/-line` y `.pill-dot` (estado); `pillEstadoAlumno` en `renderer/alumnos.js`.
 - **`.placa` / `.placa-e` / `.placa-num` / `.placa-lg`** = matrícula europea; helper `placaHTML(matricula)` en `utils-ui.js` (úsalo, no copies el HTML).
 - Modales: `.overlay` + `.modal` (`.modal-ancho` para fichas, `max-height:90vh` con scroll). Toasts y diálogos propios (`confirmar/avisar/pedirTexto`, nunca `alert`/`confirm` nativos).

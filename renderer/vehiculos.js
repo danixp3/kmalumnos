@@ -82,31 +82,66 @@ function pintarTarjetasVehiculos(panel) {
 }
 
 // Línea de tiempo de HOY por vehículo: bloques a escala horaria + línea de "ahora".
+// Las marcas horarias se espacian según el ancho real (con la ventana pequeña o
+// un día largo, p. ej. una práctica a las 00:30, iban todas pegadas y se
+// pisaban) y se vuelve a pintar al cambiar el tamaño de la ventana.
+let contUltimoPanel = null;
 function pintarContinuidadVehiculos(panel) {
+  contUltimoPanel = panel;
   const cuerpo = document.getElementById('veh-continuidad-cuerpo');
+  if (!cuerpo.dataset.vigilado && window.ResizeObserver) {
+    cuerpo.dataset.vigilado = '1';
+    let ancho = 0, raf = 0;
+    new ResizeObserver(([e]) => {
+      const w = Math.round(e.contentRect.width);
+      if (!w || w === ancho) return;
+      ancho = w; cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => { if (contUltimoPanel) pintarContinuidadVehiculos(contUltimoPanel); });
+    }).observe(cuerpo);
+  }
   const aMin = t => { const [h, mi] = t.split(':').map(Number); return h * 60 + mi; };
   const bloques = panel.vehiculos.flatMap(v => v.bloques_hoy.filter(b => b.inicio));
-  let t0 = 8 * 60, t1 = 19 * 60;
-  bloques.forEach(b => { t0 = Math.min(t0, Math.floor(aMin(b.inicio) / 60) * 60); if (b.fin) t1 = Math.max(t1, Math.ceil(aMin(b.fin) / 60) * 60); });
-  const span = t1 - t0;
+  let h0 = 8, h1 = 19;
+  bloques.forEach(b => { h0 = Math.min(h0, Math.floor(aMin(b.inicio) / 60)); h1 = Math.max(h1, Math.ceil(aMin(b.fin || b.inicio) / 60), Math.ceil((aMin(b.inicio) + 45) / 60)); });
+  h1 = Math.min(24, h1);
+  // Ancho útil de la pista: el de la tarjeta menos la columna de etiquetas (200 + 12)
+  const anchoPista = Math.max(120, (cuerpo.clientWidth || 900) - 212);
+  const paso = [1, 2, 3, 4, 6].find(p => anchoPista / ((h1 - h0) / p) >= 54) || 6;
+  h0 = Math.floor(h0 / paso) * paso; h1 = Math.min(24, Math.ceil(h1 / paso) * paso);
+  const t0 = h0 * 60, t1 = h1 * 60, span = t1 - t0;
   const pos = min => Math.max(0, Math.min(100, ((min - t0) / span) * 100));
   const horas = [];
-  for (let h = t0 / 60; h <= t1 / 60; h++) horas.push(h);
+  for (let h = h0; h <= h1; h += paso) horas.push(h);
   const ahora = new Date();
   const minAhora = ahora.getHours() * 60 + ahora.getMinutes();
   const lineaAhora = (minAhora >= t0 && minAhora <= t1) ? `<span class="cont-ahora" style="left:${pos(minAhora)}%"><em>${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}</em></span>` : '';
+  const px = pct => (pct / 100) * anchoPista;
 
-  const filas = panel.vehiculos.map(v => {
-    const bl = v.bloques_hoy.filter(b => b.inicio).map(b => {
-      const ini = aMin(b.inicio), fin = b.fin ? aMin(b.fin) : ini + 45;
+  // La hora de «ahora» solo se rotula en la primera fila (en las demás, la línea)
+  const lineaSinHora = lineaAhora.replace(/<em>.*<\/em>/, '');
+  const filas = panel.vehiculos.map((v, iv) => {
+    // Una práctica sin hora de fin se dibuja de 45 min; si la siguiente empezó
+    // antes, se acorta hasta ahí para que los bloques no se monten.
+    const conHora = v.bloques_hoy.filter(b => b.inicio).sort((x, y) => aMin(x.inicio) - aMin(y.inicio));
+    const finDe = (b, i) => {
+      const ini = aMin(b.inicio);
+      let fin = b.fin ? aMin(b.fin) : ini + 45;
+      const sig = b.tipo === 'hueco' ? null : conHora.slice(i + 1).find(x => x.tipo !== 'hueco');
+      if (!b.fin && sig && aMin(sig.inicio) < fin) fin = Math.max(ini + 5, aMin(sig.inicio));
+      return fin;
+    };
+    const bl = conHora.map((b, i) => {
+      const ini = aMin(b.inicio), fin = finDe(b, i);
       const l = pos(ini), w = Math.max(1.2, pos(fin) - l);
       const primerNombre = (b.alumno || '').split(' ')[0];
       if (b.tipo === 'hueco') return `<span class="bl-el bl-hueco-el" style="left:${l}%;width:${Math.max(w, 1.8)}%" title="${b.km} km sin asignar"><em>+${b.km} km</em></span>`;
       const txt = b.tipo === 'hecha' ? `${b.km} km` : esc(primerNombre);
-      return `<span class="bl-el bl-${b.tipo}-el" style="left:${l}%;width:${w}%" title="${esc(b.alumno)}${b.km ? ' · ' + b.km + ' km' : ''}">${txt}</span>`;
+      // Si el bloque es más estrecho que su texto, el dato queda en el tooltip
+      const cabe = px(w) >= String(txt).length * 7.5 + 8;
+      return `<span class="bl-el bl-${b.tipo}-el" style="left:${l}%;width:${w}%" title="${esc(b.alumno)}${b.km ? ' · ' + b.km + ' km' : ''}${b.inicio ? ' · ' + b.inicio + (b.fin ? '–' + b.fin : '') : ''}">${cabe ? txt : ''}</span>`;
     }).join('');
     const sub = `${v.profesor_habitual ? esc(v.profesor_habitual) + ' · ' : ''}${v.km_hoy} km hoy${v.hueco_hoy ? ' + ' + v.hueco_hoy : ''}`;
-    return `<div class="cont-fila"><div class="cont-etq">${placaHTML(v.matricula) || esc(v.nombre)}<span>${sub}</span></div><div class="cont-pista">${bl}${lineaAhora}</div></div>`;
+    return `<div class="cont-fila"><div class="cont-etq">${placaHTML(v.matricula) || esc(v.nombre)}<span>${sub}</span></div><div class="cont-pista" style="background-size:calc(100% / ${horas.length - 1}) 100%">${bl}${iv === 0 ? lineaAhora : lineaSinHora}</div></div>`;
   }).join('');
   cuerpo.innerHTML = `<div class="cont-cab"><span class="cont-etq"></span><div class="cont-horas">${horas.map(h => `<span style="left:${pos(h * 60)}%">${String(h).padStart(2, '0')}:00</span>`).join('')}</div></div>${filas}`;
 }

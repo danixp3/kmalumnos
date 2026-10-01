@@ -473,10 +473,29 @@ function getDatosFichaDGT(alumno_id, tipo) {
   const fmt = (f) => { if (!f) return ''; const [y, m, dd] = String(f).split('-'); return (y && m && dd) ? `${dd}/${m}/${y}` : String(f); };
   const km = (n) => (n == null ? '' : String(Number.isInteger(n) ? n : n));
 
-  const practicas = d.practicas
+  // Una fila por día (y coche): las clases del mismo día se agrupan en una sola
+  // fila con el km inicial de la primera y el final de la última. "Ejercicio":
+  // "1 CLASE" si ese día hubo una sola; si hubo 2 o más, "2 CLASES" (el máximo
+  // por día que admite el impreso).
+  const delTipo = d.practicas
     .filter(p => p.alumno_id === aid && !p.deleted && (p.tipo || 'circulacion') === tipoPractica)
-    .sort((x, y) => x.fecha.localeCompare(y.fecha) || x.id - y.id)
-    .map(p => ({ fecha: fmt(p.fecha), hora: p.hora_inicio || '', km_inicial: km(p.km_inicial), km_final: km(p.km_final) }));
+    .sort((x, y) => x.fecha.localeCompare(y.fecha) || (x.hora_inicio || '99').localeCompare(y.hora_inicio || '99') ||
+      (x.km_inicial || 0) - (y.km_inicial || 0) || x.id - y.id);
+  const grupos = new Map();
+  for (const p of delTipo) {
+    const clave = `${p.fecha}|${p.vehiculo_id}`;
+    if (!grupos.has(clave)) grupos.set(clave, []);
+    grupos.get(clave).push(p);
+  }
+  const practicas = [...grupos.values()].map(g => {
+    const conKm = g.filter(p => p.km_final > 0);
+    const primera = conKm[0] || g[0], ultima = conKm[conKm.length - 1] || g[g.length - 1];
+    const hora = (g.find(p => p.hora_inicio) || {}).hora_inicio || '';
+    return {
+      fecha: fmt(g[0].fecha), hora, km_inicial: km(primera.km_inicial), km_final: km(ultima.km_final),
+      clases: g.length, ejercicio: g.length === 1 ? '1 CLASE' : '2 CLASES'
+    };
+  });
 
   return {
     alumno: {

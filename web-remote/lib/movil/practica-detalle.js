@@ -3,7 +3,8 @@
 // clase del alumno y si todavía se puede cancelar desde la web.
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError,
-  COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_MOVIL, conFallbackColumnas, kmDePractica, nombreCompleto
+  COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_MOVIL, conFallbackColumnas, kmDePractica, nombreCompleto,
+  sesionDePractica
 } from '../../api/_utils.js';
 
 export default async function handler(req, res) {
@@ -41,6 +42,21 @@ export default async function handler(req, res) {
   const pos = orden.findIndex(x => x.id === p.id);
   const claseN = ((alumno && alumno.clases_previas) || 0) + (pos >= 0 ? pos + 1 : orden.length);
 
+  // Sesión de varias clases (90 min = 2 clases...): para firmarlas de una vez.
+  let sesion = null;
+  if (!p.firma && p.km_final > 0) {
+    const cadena = await sesionDePractica(supabase, auth.empresaId, p);
+    const sinFirmar = cadena.filter(x => x.id === p.id || !x.firmada);
+    if (sinFirmar.length > 1) {
+      sesion = {
+        ids: sinFirmar.map(x => x.id), n: sinFirmar.length,
+        km_inicial: sinFirmar[0].km_inicial, km_final: sinFirmar[sinFirmar.length - 1].km_final,
+        hora_inicio: sinFirmar[0].hora_inicio || null, hora_fin: sinFirmar[sinFirmar.length - 1].hora_fin || null,
+        clase_n_desde: claseN - sinFirmar.findIndex(x => x.id === p.id)
+      };
+    }
+  }
+
   const cancelable = p.source === 'web-remote' && p.updated_at && (Date.now() - new Date(p.updated_at).getTime()) < 24 * 3600 * 1000;
 
   return res.status(200).json({
@@ -53,7 +69,8 @@ export default async function handler(req, res) {
       km_inicial: p.km_inicial, km_final: p.km_final, km: kmDePractica(p), clase_n: claseN,
       tipo: p.tipo || 'circulacion', tipo_detalle: p.tipo_detalle || null,
       zonas: Array.isArray(p.zonas) ? p.zonas : [], trabajado: Array.isArray(p.trabajado) ? p.trabajado : [],
-      nota: p.nota || '', firma: p.firma || null, source: p.source || null, cancelable: !!cancelable
+      nota: p.nota || '', firma: p.firma || null, source: p.source || null, cancelable: !!cancelable,
+      sesion
     }
   });
 }

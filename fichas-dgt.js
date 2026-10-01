@@ -3,7 +3,9 @@
 // los impresos oficiales (como si se rellenaran a mano), no texto superpuesto.
 //
 // Se usa desde el proceso principal (main.js) vía IPC. Reglas de negocio fijadas:
-//   - "Ejercicio" siempre "2 CLASES" (máximo de clases/sesión que admite la DGT).
+//   - Una fila por día: las clases del mismo día van juntas (db.getDatosFichaDGT).
+//     "Ejercicio": "1 CLASE" si ese día hubo una; "2 CLASES" si hubo 2 o más
+//     (máximo de clases/día que admite la DGT).
 //   - Observaciones y firmas se dejan en blanco.
 //   - Página 1 lleva cabecera (escuela + alumno) + 11 clases; el resto de clases
 //     van en tantas páginas de "continuación" (32 clases/pág) como haga falta.
@@ -129,7 +131,7 @@ async function _rellenarContinuacion(out, mapa, filas) {
  *   centro: { numero, seccion, digito_control, denominacion, direccion, codigo_postal, poblacion },
  *   alumno: { dni, permiso, nombre, primer_apellido, segundo_apellido, direccion, codigo_postal, poblacion },
  *   profesor: { nombre, dni },
- *   practicas: [ { fecha, hora, km_inicial, km_final } ],  // ya ordenadas y formateadas
+ *   practicas: [ { fecha, hora, km_inicial, km_final, clases, ejercicio } ],  // una fila por día, ya ordenadas y formateadas
  *   rellenarFecha?: boolean,    // preferencia Ajustes; false = fecha del documento (pie) en blanco (por defecto true)
  *   lugar?, dia?, mes?, anio?   // pie; por defecto la fecha de hoy y la población del centro
  * }
@@ -147,9 +149,9 @@ async function generarFichaDGT(datos) {
     mes: rellenarFecha ? (datos.mes || MESES[hoy.getMonth()]) : '',
     anio: rellenarFecha ? (datos.anio || String(hoy.getFullYear())) : '',
   };
-  // "Ejercicio" siempre "2 CLASES" (máximo de clases/sesión que admite la DGT)
+  // "Ejercicio": lo calcula getDatosFichaDGT por día ("1 CLASE" / "2 CLASES")
   const practicas = (datos.practicas || []).map(p => ({
-    fecha: p.fecha, hora: p.hora, ejercicio: '2 CLASES',
+    fecha: p.fecha, hora: p.hora, ejercicio: p.ejercicio || (p.clases === 1 ? '1 CLASE' : '2 CLASES'),
     km_inicial: p.km_inicial, km_final: p.km_final,
   }));
 

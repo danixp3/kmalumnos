@@ -258,5 +258,60 @@ export async function insertarPractica(supabase, fila) {
   return { data: res.data, error: res.error, degradado };
 }
 
+// ─── Sesiones de varias clases (p. ej. 90 min = 2 clases de 45) ─────────────
+
+// Duración de una clase (minutos): la fija el escritorio en Ajustes y viaja por
+// ajustes_empresa (clave 'duracion_clase_min'). Fuera de rango → 45.
+export function duracionClaseValida(v) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 10 && n <= 240 ? n : 45;
+}
+
+const aMin = h => { const [a, b] = h.split(':').map(Number); return a * 60 + b; };
+const aHHMM = m => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+// Reparte una sesión cerrada en `n` clases consecutivas: los km se dividen a
+// partes iguales (el resto, de uno en uno a las primeras) y el horario igual.
+// Cada clase sale con al menos 1 km. Sin horas válidas, solo la primera lleva
+// hora de inicio. Devuelve [{ km_inicial, km_final, hora_inicio, hora_fin }].
+export function partirEnClases(kmIni, kmFin, horaIni, horaFin, n) {
+  const total = kmFin - kmIni;
+  if (!(n >= 1) || total < n) return null;
+  const base = Math.floor(total / n), resto = total % n;
+  const conHoras = hhmmValido(horaIni) && hhmmValido(horaFin) && aMin(horaFin) > aMin(horaIni);
+  const m0 = conHoras ? aMin(horaIni) : 0, mT = conHoras ? aMin(horaFin) - m0 : 0;
+  const partes = [];
+  let km = kmIni;
+  for (let i = 0; i < n; i++) {
+    const kmF = km + base + (i < resto ? 1 : 0);
+    partes.push({
+      km_inicial: km, km_final: kmF,
+      hora_inicio: conHoras ? aHHMM(m0 + Math.round(mT * i / n)) : (i === 0 && hhmmValido(horaIni) ? horaIni : null),
+      hora_fin: conHoras ? aHHMM(m0 + Math.round(mT * (i + 1) / n)) : (i === n - 1 && hhmmValido(horaFin) ? horaFin : null)
+    });
+    km = kmF;
+  }
+  return partes;
+}
+
+// Clases de la misma sesión que `p`: mismo alumno, coche y día, cerradas y con
+// los km encadenados (la final de una = la inicial de la siguiente). Sirve para
+// firmar de una vez todas las clases de una sesión partida. Devuelve la lista
+// ordenada (incluye `p`); si falla la consulta, solo [p].
+export async function sesionDePractica(supabase, empresaId, p, columnas = 'id, km_inicial, km_final, hora_inicio, hora_fin, firmada') {
+  if (!p || !(p.km_final > 0)) return [p];
+  const { data, error } = await supabase.from('practicas').select(columnas)
+    .eq('alumno_id', p.alumno_id).eq('vehiculo_id', p.vehiculo_id).eq('fecha', p.fecha)
+    .eq('deleted', false).eq('empresa_id', empresaId).gt('km_final', 0);
+  if (error || !Array.isArray(data)) return [p];
+  const porInicio = new Map(), porFin = new Map();
+  for (const x of data) { if (!porInicio.has(x.km_inicial)) porInicio.set(x.km_inicial, x); if (!porFin.has(x.km_final)) porFin.set(x.km_final, x); }
+  const yo = data.find(x => x.id === p.id) || p;
+  const cadena = [yo];
+  for (let x = porFin.get(yo.km_inicial); x && !cadena.includes(x) && cadena.length < 8; x = porFin.get(x.km_inicial)) cadena.unshift(x);
+  for (let x = porInicio.get(yo.km_final); x && !cadena.includes(x) && cadena.length < 8; x = porInicio.get(x.km_final)) cadena.push(x);
+  return cadena;
+}
+
 // Km de una práctica (0 si está en blanco o sin cerrar).
 export const kmDePractica = p => (p && p.km_final > 0 && p.km_inicial >= 0) ? Math.max(0, p.km_final - p.km_inicial) : 0;

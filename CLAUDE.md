@@ -37,9 +37,10 @@ db/           → CRUD + algoritmos de km, por módulo
   sucursales.js → CRUD sucursales (modo multi-empresa con migración pendiente)
   ajustes-empresa.js → ajustes compartidos con la web (zonas de prácticas)
   puesta-en-marcha.js → arranque con datos reales: km de coches, punto de partida del alumno, borrar datos de prueba
+  clases-anteriores.js → clases previas a la app: anotarlas a mano y crear las que falten con fecha y km (sin solapes)
 sync.js       → sincronización bidireccional con Supabase (auto-sync cada 2 min), resolución de colisiones
 migraciones/  → migraciones SQL de Supabase escritas pero NO APLICADAS (roles + sucursales)
-web-remote/   → web móvil + API serverless (deploy: cd web-remote && vercel --prod --yes)
+web-remote/   → web móvil + API serverless (deploy: cd web-remote && vercel --prod --yes); instalable como app (PWA: manifest.webmanifest, sw.js, icons/)
 CONTEXT.md    → documentación técnica detallada (arquitectura, funciones, endpoints)
 RELEASE.md    → proceso paso a paso para publicar una nueva versión (automatizado en /publicar-release)
 CHANGELOG-SECURITY.md → auditoría de seguridad de julio 2026 y pendientes
@@ -56,6 +57,7 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 | Tests | `npm test` (Jest; tests en `tests/`, mock de Electron en `tests/mocks/`) |
 | Tests de la API móvil | `npm run test:api` (Supabase falso en `web-remote/tests/`, sin red) |
 | Prueba de interfaz | `npm run smoke` (arranca la app real y recorre todas las secciones del menú) |
+| Barrido visual | `npm run barrido` (copia de datos, sin nube: textos que se pisan, cortes y desbordes a 920×620 y 1366×768) |
 
 ## Convenciones
 - Todo en español: nombres de funciones/variables de dominio (`getVehiculos`, `rellenarKmMasivo`), mensajes de UI y commits (`v1.X.X - descripción breve`).
@@ -67,6 +69,8 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
 _Última actualización: 2026-10-01. El detalle histórico completo está en HISTORIAL.md._
+
+- **Lote 2026-10-01 (2) — SIN desplegar ni publicar (pendiente de aprobación):** web: una sesión de N × «minutos por clase» se guarda como N clases (km y horario repartidos, firma única para todas; `finalizar-practica` con `n_clases`, `firmar-practica` con `practica_ids`; los minutos viajan del escritorio por `ajustes_empresa.duracion_clase_min`) y la web es instalable como app (PWA). Escritorio: ficha DGT con una fila por día («1 CLASE» / «2 CLASES»), Puesta en marcha con clases anteriores anotadas a mano + creadas por la app (`db/clases-anteriores.js`, previsualizar→crear, `tipo_detalle='anterior'`, cuentan en cobros), mapa de km con zoom, menús «⋯» flotantes y tablas con scroll propio (animaciones con `backwards`), ejes/horas que se adaptan al ancho. Jest 425/48 + test:api 25 + smoke + `npm run barrido` OK.
 
 - **Lote 2026-10-01 (web DESPLEGADA; escritorio PUBLICADO en v1.19.0):** web: «Zonas recorridas» (config en escritorio → tabla `ajustes_empresa`), historial en calendario con detalle y firma, «Hoy» se recalcula tras medianoche/al volver, alumnos sin tope de 1.000. Escritorio: menú reorganizado y personalizable (`renderer/menu.js`), Ajustes por cuadros, Puesta en marcha (`db/puesta-en-marcha.js`: km real de coches + `clases_previas`/`km_previos` del alumno, sin prácticas ficticias), firma visible (ficha, detalle de clase, impreso), gráfico km/clase adaptable, barra superior desplegable (sensor en `main.js`), tutoriales. Jest 414/47 + test:api 21 + smoke OK.
 - **Sync endurecido (2026-10-01):** las subidas comprueban `{error}` y solo sale de la cola lo confirmado (antes se perdían registros en silencio: alumno 86 y 75 prácticas de este PC, recuperados por la autorreparación diaria `_verificarIntegridad`); fusión con disco al guardar (`_fusionarConDisco`), bajada paginada (`_traerTodo`), `lastSync` = inicio − 10 min, `pushAll` no manda firma/zonas. Ids creados en la web ≥ 1e9 (`*_web_id_seq`); el contador local nunca entra ahí (`_avanzarSeq`/`_repararSeqWeb`).

@@ -49,4 +49,21 @@ function setZonasPractica(lista) {
   return limpia;
 }
 
-module.exports = { getAjusteEmpresa, setAjusteEmpresa, getZonasPractica, setZonasPractica, MAX_ZONAS };
+// Minutos que dura una clase. La web del móvil lo usa para guardar una sesión
+// de 90 min como 2 clases de 45 (y la agenda para calcular duraciones). null =
+// aún no configurado en la nube (el escritorio usa su valor local).
+function getDuracionClase() {
+  const n = Math.round(Number(getAjusteEmpresa('duracion_clase_min')));
+  return Number.isFinite(n) && n >= 10 && n <= 240 ? n : null;
+}
+
+function setDuracionClase(min) {
+  const n = Math.round(Number(min));
+  if (!Number.isFinite(n) || n < 10 || n > 240) return getDuracionClase();
+  if (getDuracionClase() === n) return n;
+  addLog('ajustes', `Minutos por clase: ${n}`, []);
+  setAjusteEmpresa('duracion_clase_min', n);
+  return n;
+}
+
+module.exports = { getAjusteEmpresa, setAjusteEmpresa, getZonasPractica, setZonasPractica, getDuracionClase, setDuracionClase, MAX_ZONAS };

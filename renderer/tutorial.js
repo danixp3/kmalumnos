@@ -149,7 +149,10 @@ const TUTORIAL_PASOS = {
       texto: 'Escribe lo que marca hoy el cuentakilómetros. La primera clase que registre un profesor empezará ahí.' },
     { sel: '#pm-paso-alumnos', pos: 'top',
       titulo: '2 · Lo que cada alumno ya lleva hecho',
-      texto: 'Clases y km anteriores a la app: la numeración continúa (si lleva 12, la siguiente será la 13) sin inventarse prácticas. Puedes pegar la lista desde Excel.' },
+      texto: 'Cuántas clases hizo antes de usar la app: la numeración continúa (si lleva 12, la siguiente será la 13). Puedes pegar la lista desde Excel. Con «Anotar» copias del papel sus fechas (y km, si los tienes).' },
+    { sel: '#pm-paso-anteriores', pos: 'top',
+      titulo: '3 · Clases anteriores con fecha y km',
+      texto: 'Para que salgan en la ficha DGT, la app crea las que no hayas anotado: las reparte en días laborables sin pasar de 12 clases por profesor y día y con km encadenados en el coche de cada alumno. Antes de crear nada verás la propuesta.' },
     { sel: '#pm-borrar', pos: 'top',
       titulo: 'Empezar limpio (opcional)',
       texto: 'Si has hecho pruebas con alumnos inventados, bórralos aquí antes de meter los reales. Se guarda antes una copia de seguridad.' }

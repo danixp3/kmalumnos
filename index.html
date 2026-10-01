@@ -1251,15 +1251,29 @@
         <!-- Gráfico visual de km -->
         <div id="timeline-chart-wrap" style="display:none;margin-bottom:16px">
           <div class="card" style="padding:18px 22px">
-            <div class="card-title" style="margin-bottom:12px">
-              <div class="card-title-icon" style="background:var(--accent-light);color:var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
-              Mapa visual de kilómetros
+            <div class="tl-cab">
+              <div class="card-title" style="margin-bottom:0">
+                <div class="card-title-icon" style="background:var(--accent-light);color:var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+                Mapa visual de kilómetros
+              </div>
+              <div class="tl-zoom">
+                <span class="tl-zoom-info" id="tl-zoom-info"></span>
+                <button type="button" class="btn btn-gray btn-sm btn-icon" onclick="tlZoom(1 / 1.6)" title="Alejar (rueda del ratón hacia atrás)" aria-label="Alejar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                <button type="button" class="btn btn-gray btn-sm btn-icon" onclick="tlZoom(1.6)" title="Acercar (rueda del ratón hacia delante)" aria-label="Acercar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                <button type="button" class="btn btn-gray btn-sm" id="tl-ver-todo" onclick="tlVerTodo()">Ver todo</button>
+              </div>
             </div>
-            <div id="timeline-chart-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;font-size:12px"></div>
-            <div style="position:relative;height:56px;background:var(--gray-light);border-radius:10px;overflow:visible" id="timeline-chart-track">
-              <div id="timeline-chart-bars" style="position:absolute;inset:8px"></div>
+            <div id="timeline-chart-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;font-size:12px"></div>
+            <div class="tl-tramos" id="tl-tramos"></div>
+            <div class="tl-track" id="timeline-chart-track" tabindex="0" aria-label="Mapa de kilómetros: rueda para acercar, arrastra para moverte, flechas y + / − con el teclado">
+              <div id="timeline-chart-bars"></div>
             </div>
-            <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--text-faint)" id="timeline-chart-axis"></div>
+            <div class="tl-eje" id="timeline-chart-axis"></div>
+            <div class="tl-mini" id="tl-mini" title="Toda la vida del cuentakilómetros: arrastra el recuadro o marca una zona para verla de cerca">
+              <div id="tl-mini-barras"></div>
+              <div class="tl-mini-ventana" id="tl-mini-ventana"></div>
+            </div>
+            <div class="tl-ayuda">Rueda del ratón para acercar o alejar · arrastra para moverte · doble clic para ampliar ese punto · en la tira de abajo, marca una zona para verla de cerca</div>
           </div>
         </div>
 
@@ -1660,7 +1674,8 @@
         </div>
         <div class="form-group">
           <label>Minutos por clase/práctica</label>
-          <input type="number" id="pref-duracion-clase" min="1" max="999" style="width:100px" title="Minutos que dura una clase/práctica, usado por la agenda" onchange="guardarDuracionClaseDesdeAjustes()">
+          <input type="number" id="pref-duracion-clase" min="10" max="240" style="width:100px" title="Minutos que dura una clase/práctica: lo usan la agenda y el móvil (una sesión de 90 min con clases de 45 se guarda como 2 clases)" onchange="guardarDuracionClaseDesdeAjustes()">
+          <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">También lo usa el móvil: una sesión de 90 min con clases de 45 se guarda como 2 clases.</div>
         </div>
         <div class="form-group">
           <label>Plazo mínimo de cancelación (horas)</label>
@@ -1945,14 +1960,16 @@
 
       <div class="card pm-guia">
         <div class="pm-guia-txt">
-          <b>Cómo empezar con buen pie.</b> La app no necesita inventarse prácticas antiguas: basta con que cada coche empiece en el
-          <b>km que marca hoy su cuentakilómetros</b> y que cada alumno tenga apuntado <b>cuántas clases y km lleva ya</b>. Así, cuando el
-          profesor registre la siguiente clase desde el móvil, saldrá como <b>«Clase nº X»</b> (lo hecho + 1) y empezará en el km real del coche.
+          <b>Cómo empezar con buen pie.</b> Cada coche empieza en el <b>km que marca hoy su cuentakilómetros</b> y cada alumno lleva
+          apuntadas <b>las clases que ya ha hecho</b>. Esas clases anteriores pueden quedarse solo como número o convertirse en clases de
+          verdad, con fecha y km (para la ficha DGT): las que tengas en papel se anotan a mano y <b>la app crea el resto</b> sin solapes.
+          Cuando el profesor registre la siguiente clase desde el móvil, saldrá como <b>«Clase nº X»</b> y empezará en el km real del coche.
         </div>
         <ol class="pm-pasos-lista">
           <li><b>Vehículos</b>: km actual de cada coche.</li>
           <li><b>Profesores</b>: todos los que darán clase.</li>
-          <li><b>Alumnos</b>: su profesor, su coche y lo que ya llevan hecho.</li>
+          <li><b>Alumnos</b>: su profesor, su coche y cuántas clases llevan.</li>
+          <li><b>Clases anteriores</b>: anotar las del papel y crear el resto.</li>
           <li><b>Guardar todo</b> y enseñar la web a los profesores.</li>
         </ol>
       </div>
@@ -1981,17 +1998,23 @@
 
       <section class="card pm-paso" id="pm-paso-alumnos">
         <div class="pm-paso-cab"><span class="pm-num">3</span><div><h3>Alumnos y su punto de partida</h3>
-          <p><b>Clases ya hechas</b> y <b>km ya hechos</b> = lo que el alumno hizo antes de usar la app (con papel u otro programa). No crean prácticas: solo hacen que la numeración y los totales continúen donde iban. Si no sabes los km, déjalos en 0.
+          <p><b>Clases ya hechas</b> = las que el alumno hizo antes de usar la app (con papel u otro programa). <b>Km ya hechos</b> es opcional: déjalo <b>vacío</b> y la app podrá crear esas clases con su fecha y sus km en el paso 4; si lo rellenas, las clases se quedan solo como número (la numeración y los totales continúan donde iban).
           <br><span class="pm-consejo">Consejo: puedes copiar varias filas de Excel (Nombre · 1er apellido · 2º apellido · Clases · Km) y pegarlas en la casilla «Nombre» de una fila vacía.</span></p></div></div>
         <div class="table-wrap"><table class="pm-tabla" id="pm-alumnos">
-          <thead><tr><th>Nombre</th><th>1er apellido</th><th>2º apellido</th><th>Permiso</th><th>Profesor</th><th>Vehículo</th><th class="col-num">Clases ya hechas</th><th class="col-num">Km ya hechos</th><th class="col-num">En la app</th><th></th></tr></thead>
+          <thead><tr><th>Nombre</th><th>1er apellido</th><th>2º apellido</th><th>Permiso</th><th>Profesor</th><th>Vehículo</th><th class="col-num">Clases ya hechas</th><th class="col-num">Km ya hechos <small>(opcional)</small></th><th>Clases anteriores</th><th class="col-num">En la app</th><th></th></tr></thead>
           <tbody></tbody>
         </table></div>
         <button class="btn btn-outline btn-sm" onclick="pmAnadirFila('alumnos', 5)">+ Añadir 5 filas</button>
       </section>
 
+      <section class="card pm-paso" id="pm-paso-anteriores">
+        <div class="pm-paso-cab"><span class="pm-num">4</span><div><h3>Clases anteriores con fecha y km</h3>
+          <p>Para que las clases ya hechas salgan en la <b>ficha DGT</b> y en el historial, conviértelas en clases de verdad. Si las tienes en papel, pulsa <b>«Anotar»</b> en la fila del alumno y escribe sus fechas (y los km, si los tienes). <b>Las que no anotes las crea la app</b>: las reparte hacia atrás en días laborables —como mucho 2 por alumno y día y 12 por profesor y por coche, sin pisarse de horario— y les pone km encadenados en el coche de cada alumno, terminando en el km de hoy (paso 1) o donde empiece lo ya registrado. Antes de crear nada verás la propuesta.</p></div></div>
+        <div id="pm-anteriores-estado"></div>
+      </section>
+
       <section class="card pm-paso" id="pm-paso-despues">
-        <div class="pm-paso-cab"><span class="pm-num">4</span><div><h3>Después de guardar</h3>
+        <div class="pm-paso-cab"><span class="pm-num">5</span><div><h3>Después de guardar</h3>
           <p>Los profesores entran en <b>aulamovil.vercel.app</b> con la cuenta de empresa, eligen su nombre y en «Iniciar práctica» ya verán el km del coche y el número de clase correcto. Si quieres que marquen por dónde han circulado, configura las <a href="#" onclick="event.preventDefault();navegarA('ajustes');ajustesAbrir('zonas')">zonas de prácticas</a>.</p></div></div>
       </section>
 
