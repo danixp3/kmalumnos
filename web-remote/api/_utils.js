@@ -175,12 +175,12 @@ export const validators = {
 // puede no estar aplicada). Todo el código que las toca pasa por
 // conFallbackColumnas: si el servidor no las tiene, reintenta sin ellas.
 export const COLUMNAS_PRACTICA_BASE = 'id, alumno_id, vehiculo_id, fecha, km_inicial, km_final, tipo, nota, profesor_id, hora_inicio, source';
-export const COLUMNAS_PRACTICA_MOVIL = 'firma, trabajado, tipo_detalle, hora_fin, zonas';
-export const CLAVES_PRACTICA_MOVIL = ['firma', 'trabajado', 'tipo_detalle', 'hora_fin', 'zonas'];
+export const COLUMNAS_PRACTICA_MOVIL = 'firma, trabajado, tipo_detalle, hora_fin, zonas, fraccion';
+export const CLAVES_PRACTICA_MOVIL = ['firma', 'trabajado', 'tipo_detalle', 'hora_fin', 'zonas', 'fraccion'];
 // Para listas (hoy, calendario, ficha): `firmada` es una columna generada
 // (firma IS NOT NULL, migración 2026-10-01) — dice si hay firma sin descargar
 // la imagen de cada una.
-export const COLUMNAS_PRACTICA_LISTA = 'trabajado, tipo_detalle, hora_fin, zonas, firmada';
+export const COLUMNAS_PRACTICA_LISTA = 'trabajado, tipo_detalle, hora_fin, zonas, firmada, fraccion';
 
 // Zonas recorridas: lista corta de textos (las configura el escritorio).
 export function limpiarZonas(v) {
@@ -270,26 +270,105 @@ export function duracionClaseValida(v) {
 const aMin = h => { const [a, b] = h.split(':').map(Number); return a * 60 + b; };
 const aHHMM = m => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-// Reparte una sesión cerrada en `n` clases consecutivas: los km se dividen a
-// partes iguales (el resto, de uno en uno a las primeras) y el horario igual.
-// Cada clase sale con al menos 1 km. Sin horas válidas, solo la primera lleva
-// hora de inicio. Devuelve [{ km_inicial, km_final, hora_inicio, hora_fin }].
-export function partirEnClases(kmIni, kmFin, horaIni, horaFin, n) {
-  const total = kmFin - kmIni;
-  if (!(n >= 1) || total < n) return null;
-  const base = Math.floor(total / n), resto = total % n;
+// ─── Fracciones de clase (¼ ½ ¾) y clases por minutos ───────────────────────
+export const MAX_CLASES = 6;
+
+// Lo que vale una práctica en clases: 1, o su fracción (columna `fraccion`).
+export const clasesDe = p => { const f = Number(p && p.fraccion); return f > 0 && f < 1 ? f : 1; };
+// 2.5 → «2 ½»; 0.75 → «¾» (para los mensajes).
+export function fmtClases(n) {
+  const v = Math.round((Number(n) || 0) * 4) / 4;
+  const ent = Math.floor(v), frac = ['', '¼', '½', '¾'][Math.round((v - ent) * 4)];
+  return ent && frac ? `${ent} ${frac}` : frac || String(ent);
+}
+
+// Cantidad de clases de ¼ en ¼, entre ¼ y MAX_CLASES. Admite 1, 1.5, "0.75"...
+export function cantidadClases(v) {
+  const n = Number(v);
+  const q = Math.round(n * 4);
+  if (!Number.isFinite(n) || Math.abs(n * 4 - q) > 1e-6 || q < 1 || q > MAX_CLASES * 4) {
+    return { valid: false, error: `Las clases van de ¼ en ¼, entre ¼ y ${MAX_CLASES}.` };
+  }
+  return { valid: true, value: q / 4 };
+}
+
+// Minutos de una sesión registrada por minutos (1–600).
+export function minutosValidos(v) {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n) || n < 1 || n > 600) return { valid: false, error: 'Los minutos deben estar entre 1 y 600.' };
+  return { valid: true, value: n };
+}
+
+// Clases por minutos: a los minutos de la sesión se suman los que el alumno
+// tenía acumulados y se cuentan los cuartos de clase completos; lo que no
+// llega a ¼ se queda acumulado para la próxima. 100 min con clases de 45 →
+// 2 clases y sobran 10; la próxima de 50 → 60 min = 1 ¼ y sobran 3,75.
+export function clasesPorMinutos(minutos, acumulados, duracion) {
+  const cuarto = duracion / 4;
+  const total = minutos + (acumulados > 0 ? acumulados : 0);
+  const cuartos = Math.min(MAX_CLASES * 4, Math.floor(total / cuarto + 1e-9));
+  return { cantidad: cuartos / 4, sobran: Math.round((total - cuartos * cuarto) * 100) / 100, total };
+}
+
+// Minutos que dura una clase (Ajustes del escritorio → ajustes_empresa).
+export async function leerDuracionClase(supabase, empresaId) {
+  const { data, error } = await supabase.from('ajustes_empresa').select('valor')
+    .eq('empresa_id', empresaId).eq('clave', 'duracion_clase_min').maybeSingle();
+  return duracionClaseValida(!error && data ? data.valor : 45);
+}
+
+// Minutos acumulados del alumno (alumnos.minutos_sobrantes, migración
+// 2026-10-02). Sin la columna → { disponible: false } y se cuenta con 0.
+export async function leerMinutosAlumno(supabase, empresaId, alumnoId) {
+  const { data, error } = await supabase.from('alumnos').select('id, minutos_sobrantes')
+    .eq('id', alumnoId).eq('empresa_id', empresaId).maybeSingle();
+  if (error) return { disponible: false, minutos: 0 };
+  return { disponible: true, minutos: Math.max(0, Number(data && data.minutos_sobrantes) || 0) };
+}
+export async function guardarMinutosAlumno(supabase, empresaId, alumnoId, minutos) {
+  const { error } = await supabase.from('alumnos')
+    .update({ minutos_sobrantes: minutos > 0 ? minutos : null, updated_at: new Date().toISOString() })
+    .eq('id', alumnoId).eq('empresa_id', empresaId);
+  return error || null;
+}
+
+// Reparte una sesión cerrada en clases consecutivas: `cantidad` = clases de ¼
+// en ¼ (2 → dos clases; 1.5 → una entera y una de ½). Los km y el horario se
+// reparten en proporción a lo que vale cada clase (con clases enteras, a
+// partes iguales; el resto de km, de uno en uno a las primeras). Cada clase
+// sale con al menos 1 km. Sin horas válidas, solo la primera lleva hora de
+// inicio. Devuelve [{ km_inicial, km_final, hora_inicio, hora_fin, fraccion }]
+// (fraccion null = clase entera).
+export function partirEnClases(kmIni, kmFin, horaIni, horaFin, cantidad) {
+  const c = Math.round(Number(cantidad) * 4) / 4;
+  if (!(c >= 0.25)) return null;
+  const pesos = Array(Math.floor(c)).fill(1);
+  if (c % 1) pesos.push(c % 1);
+  const n = pesos.length, total = kmFin - kmIni;
+  if (total < n) return null;
+  // Km: mayor resto, desempate por orden (con pesos iguales = reparto clásico)
+  const ideal = pesos.map(w => (total * w) / c);
+  const km = ideal.map(Math.floor);
+  let resto = total - km.reduce((a, b) => a + b, 0);
+  ideal.map((x, i) => [x - km[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1])
+    .forEach(([, i]) => { if (resto > 0) { km[i]++; resto--; } });
+  for (let i = 0; i < n; i++) {
+    if (km[i] > 0) continue; // una fracción pequeña con pocos km: se le cede 1 km de la mayor
+    const mayor = km.indexOf(Math.max(...km)); km[mayor]--; km[i]++;
+  }
   const conHoras = hhmmValido(horaIni) && hhmmValido(horaFin) && aMin(horaFin) > aMin(horaIni);
   const m0 = conHoras ? aMin(horaIni) : 0, mT = conHoras ? aMin(horaFin) - m0 : 0;
   const partes = [];
-  let km = kmIni;
+  let k = kmIni, acum = 0;
   for (let i = 0; i < n; i++) {
-    const kmF = km + base + (i < resto ? 1 : 0);
+    const desde = acum; acum += pesos[i];
     partes.push({
-      km_inicial: km, km_final: kmF,
-      hora_inicio: conHoras ? aHHMM(m0 + Math.round(mT * i / n)) : (i === 0 && hhmmValido(horaIni) ? horaIni : null),
-      hora_fin: conHoras ? aHHMM(m0 + Math.round(mT * (i + 1) / n)) : (i === n - 1 && hhmmValido(horaFin) ? horaFin : null)
+      km_inicial: k, km_final: k + km[i],
+      hora_inicio: conHoras ? aHHMM(m0 + Math.round((mT * desde) / c)) : (i === 0 && hhmmValido(horaIni) ? horaIni : null),
+      hora_fin: conHoras ? aHHMM(m0 + Math.round((mT * acum) / c)) : (i === n - 1 && hhmmValido(horaFin) ? horaFin : null),
+      fraccion: pesos[i] < 1 ? pesos[i] : null
     });
-    km = kmF;
+    k += km[i];
   }
   return partes;
 }

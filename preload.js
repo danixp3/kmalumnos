@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('api', {
   addProfesor:      (n, nota, sucursalId, dni) => ipcRenderer.invoke('add-profesor', n, nota, sucursalId, dni),
   deleteProfesor:   (id)                     => ipcRenderer.invoke('delete-profesor', id),
   updateProfesor:   (id, n, nota, dni)       => ipcRenderer.invoke('update-profesor', id, n, nota, dni),
+  getFirmaProfesor: (id)                     => ipcRenderer.invoke('get-firma-profesor', id),
+  setFirmaProfesor: (id, firma)              => ipcRenderer.invoke('set-firma-profesor', id, firma),
 
   // Tarifas
   getTarifas:        ()                          => ipcRenderer.invoke('get-tarifas'),
@@ -53,7 +55,7 @@ contextBridge.exposeInMainWorld('api', {
   deletePractica:    (id)                    => ipcRenderer.invoke('delete-practica', id),
   getPracticasDuplicadas:    (alumnoId)              => ipcRenderer.invoke('get-practicas-duplicadas', alumnoId),
   eliminarPracticasDuplicadas: (ids)                 => ipcRenderer.invoke('eliminar-practicas-duplicadas', ids),
-  updatePractica:    (id, f, ki, kf, pid, tipo, horaInicio) => ipcRenderer.invoke('update-practica', id, f, ki, kf, pid, tipo, horaInicio),
+  updatePractica:    (id, f, ki, kf, pid, tipo, horaInicio, fraccion) => ipcRenderer.invoke('update-practica', id, f, ki, kf, pid, tipo, horaInicio, fraccion),
   getTodasPracticas: (filtros)                => ipcRenderer.invoke('get-todas-practicas', filtros),
 
   // Pagos
@@ -99,7 +101,9 @@ contextBridge.exposeInMainWorld('api', {
   guardarPuestaEnMarcha: (datos)                 => ipcRenderer.invoke('guardar-puesta-en-marcha', datos),
   vaciarDatosPrueba:     (opciones)              => ipcRenderer.invoke('vaciar-datos-prueba', opciones),
   getClasesAnteriores:   (alumnoId)              => ipcRenderer.invoke('get-clases-anteriores', alumnoId),
-  guardarClasesAnteriores: (alumnoId, filas)     => ipcRenderer.invoke('guardar-clases-anteriores', alumnoId, filas),
+  guardarClasesAnteriores: (alumnoId, filas, opciones) => ipcRenderer.invoke('guardar-clases-anteriores', alumnoId, filas, opciones),
+  leerArchivoClasesAnteriores: (texto)          => ipcRenderer.invoke('leer-archivo-clases-anteriores', texto),
+  guardarPlantillaClasesAnteriores: ()          => ipcRenderer.invoke('guardar-plantilla-clases-anteriores'),
   planificarClasesAnteriores: (opciones)         => ipcRenderer.invoke('planificar-clases-anteriores', opciones),
   aplicarClasesAnteriores: (plan)                => ipcRenderer.invoke('aplicar-clases-anteriores', plan),
   setPuntoDePartidaAlumno: (id, clases, km)      => ipcRenderer.invoke('set-punto-de-partida-alumno', id, clases, km),

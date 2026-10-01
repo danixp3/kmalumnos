@@ -2,7 +2,17 @@
 // CRUD de prácticas individuales y registro rápido/masivo por vehículo+fecha
 // (usado en la pantalla de registro rápido de km).
 
-const { load, save, nextId, _sync, addLog, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, hoyLocalISO } = require('./core');
+const { load, save, nextId, _sync, addLog, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, hoyLocalISO,
+  clasesDePractica, fmtClases, firmaValida } = require('./core');
+
+// Profesor que firma una clase: el que la dio; si no consta, el del alumno; y
+// si tampoco, el profesor de la autoescuela cuando solo hay uno.
+function profesorDeClase(d, p, alumno) {
+  const pid = (p && p.profesor_id) || (alumno && alumno.profesor_id) || null;
+  if (pid) return d.profesores.find(x => x.id === pid) || null;
+  const activos = d.profesores.filter(x => !x.deleted);
+  return activos.length === 1 ? activos[0] : null;
+}
 
 function getPracticasByAlumno(alumno_id) {
   const d = load();
@@ -51,7 +61,9 @@ function deletePractica(id) {
   const s = _sync(); if (s) s.markDeleted('practicas', id);
 }
 
-function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tipo = 'circulacion', hora_inicio = null) {
+// fraccion (opcional): 0.25 / 0.5 / 0.75 = fracción de clase; null = entera;
+// sin pasarla (undefined) se deja como estaba (llamadas antiguas).
+function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tipo = 'circulacion', hora_inicio = null, fraccion) {
   const d = load();
   const p = d.practicas.find(x => x.id === id);
   if (p) {
@@ -61,6 +73,7 @@ function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tip
     p.profesor_id = profesor_id ? parseInt(profesor_id) : null;
     p.tipo = tipo || 'circulacion';
     p.hora_inicio = hora_inicio || null;
+    if (fraccion !== undefined) p.fraccion = [0.25, 0.5, 0.75].includes(Number(fraccion)) ? Number(fraccion) : null;
     save();
     const s = _sync(); if (s) s.markDirty('practicas', id);
   }
@@ -80,21 +93,28 @@ function getFichaPracticasAlumno(alumno_id) {
   if (!a) return null;
 
   const previas = a.clases_previas > 0 ? a.clases_previas : 0;
+  let llevadas = previas;
   const practicas = d.practicas
     .filter(p => p.alumno_id === aid && !p.deleted)
     .sort((a2, b2) => a2.fecha.localeCompare(b2.fecha) || (a2.hora_inicio || '').localeCompare(b2.hora_inicio || '') || a2.id - b2.id)
-    .map((p, i) => {
+    .map(p => {
       const v = d.vehiculos.find(x => x.id === p.vehiculo_id);
       const prof = d.profesores.find(x => x.id === p.profesor_id);
+      const firmante = profesorDeClase(d, p, a);
       const ki = p.km_inicial || 0;
       const kf = p.km_final || 0;
+      const clases = clasesDePractica(p);
+      llevadas += clases;
       return {
         id: p.id,
-        n: previas + i + 1,
+        n: Math.ceil(llevadas),
+        clases,
+        clases_txt: clases < 1 ? fmtClases(clases) : '',
         fecha: p.fecha,
         hora_inicio: p.hora_inicio || null,
-        // Firma del alumno hecha en el móvil (se imprime en su casilla)
-        firma: typeof p.firma === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(p.firma) ? p.firma : null,
+        // Firma del alumno hecha en el móvil y la del profesor (guardada una vez)
+        firma: firmaValida(p.firma) ? p.firma : null,
+        firma_profesor: firmante && firmaValida(firmante.firma) ? firmante.firma : null,
         vehiculo_nombre: v ? v.nombre : null,
         matricula: v ? v.matricula : null,
         profesor_nombre: prof ? prof.nombre : null,
@@ -106,7 +126,7 @@ function getFichaPracticasAlumno(alumno_id) {
     });
 
   const totales = {
-    nClases: practicas.length,
+    nClases: practicas.reduce((sum, p) => sum + p.clases, 0),
     kmTotales: practicas.reduce((sum, p) => sum + p.km_recorridos, 0),
     clasesPrevias: previas,
     kmPrevios: a.km_previos > 0 ? a.km_previos : 0,
@@ -220,6 +240,7 @@ function getTodasPracticas(filtros = {}) {
         profesor_nombre: prof ? prof.nombre : '—',
         km_inicial: p.km_inicial,
         km_final: p.km_final,
+        fraccion: clasesDePractica(p) < 1 ? clasesDePractica(p) : null,
         km_recorridos: (sinKm || enCurso || sinCerrar) ? 0 : p.km_final - p.km_inicial,
         tipo: p.tipo || 'circulacion',
         hora_inicio: p.hora_inicio || null,
@@ -468,7 +489,7 @@ function getDatosFichaDGT(alumno_id, tipo) {
   const a = d.alumnos.find(x => x.id === aid);
   if (!a) return null;
 
-  const prof = a.profesor_id ? d.profesores.find(x => x.id === a.profesor_id) : null;
+  const prof = profesorDeClase(d, null, a);
   const tipoPractica = tipo === 'destreza' ? 'pista' : 'circulacion';
   const fmt = (f) => { if (!f) return ''; const [y, m, dd] = String(f).split('-'); return (y && m && dd) ? `${dd}/${m}/${y}` : String(f); };
   const km = (n) => (n == null ? '' : String(Number.isInteger(n) ? n : n));
@@ -476,7 +497,8 @@ function getDatosFichaDGT(alumno_id, tipo) {
   // Una fila por día (y coche): las clases del mismo día se agrupan en una sola
   // fila con el km inicial de la primera y el final de la última. "Ejercicio":
   // "1 CLASE" si ese día hubo una sola; si hubo 2 o más, "2 CLASES" (el máximo
-  // por día que admite el impreso).
+  // por día que admite el impreso). Las fracciones (¼, ½, ¾) suman lo que valen:
+  // "½ CLASE", "1 ½ CLASES".
   const delTipo = d.practicas
     .filter(p => p.alumno_id === aid && !p.deleted && (p.tipo || 'circulacion') === tipoPractica)
     .sort((x, y) => x.fecha.localeCompare(y.fecha) || (x.hora_inicio || '99').localeCompare(y.hora_inicio || '99') ||
@@ -487,13 +509,23 @@ function getDatosFichaDGT(alumno_id, tipo) {
     if (!grupos.has(clave)) grupos.set(clave, []);
     grupos.get(clave).push(p);
   }
+  // Firmas: la del alumno es la que hizo en el móvil al terminar (una sesión de
+  // varias clases lleva la misma en todas); la del profesor, la que tiene
+  // guardada el profesor que dio la clase (o el del alumno si no consta).
+  const sinFirma = new Map();
   const practicas = [...grupos.values()].map(g => {
     const conKm = g.filter(p => p.km_final > 0);
     const primera = conKm[0] || g[0], ultima = conKm[conKm.length - 1] || g[g.length - 1];
     const hora = (g.find(p => p.hora_inicio) || {}).hora_inicio || '';
+    const clases = g.reduce((s, p) => s + clasesDePractica(p), 0);
+    const conFirma = g.find(p => firmaValida(p.firma));
+    const firmante = g.map(p => profesorDeClase(d, p, a)).find(Boolean) || null;
+    if (firmante && !firmaValida(firmante.firma)) sinFirma.set(firmante.id, firmante.nombre);
     return {
       fecha: fmt(g[0].fecha), hora, km_inicial: km(primera.km_inicial), km_final: km(ultima.km_final),
-      clases: g.length, ejercicio: g.length === 1 ? '1 CLASE' : '2 CLASES'
+      clases, ejercicio: clases >= 2 ? '2 CLASES' : `${fmtClases(clases)} ${clases > 1 ? 'CLASES' : 'CLASE'}`,
+      firma_alumno: conFirma ? conFirma.firma : null,
+      firma_profesor: firmante && firmaValida(firmante.firma) ? firmante.firma : null,
     };
   });
 
@@ -505,6 +537,8 @@ function getDatosFichaDGT(alumno_id, tipo) {
     },
     profesor: { nombre: prof ? prof.nombre : '', dni: prof ? (prof.dni || '') : '' },
     practicas,
+    // Profesores de estas clases que aún no han guardado su firma (la app se la pide)
+    profesores_sin_firma: [...sinFirma].map(([id, nombre]) => ({ id, nombre })),
   };
 }
 

@@ -176,6 +176,13 @@
   .instalar-pasos b { white-space: nowrap; }
   .seg3 button small { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-top: 2px; }
   .nclases { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 8px 8px 8px 16px; }
+  .cant { margin-top: 10px; padding: 10px; }
+  .cant .nclases { margin-top: 8px; padding: 2px 0 2px 6px; }
+  .cant-frac { margin-top: 10px; }
+  .cant-frac button { font-size: 19px; }
+  .cant-min { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .cant-min .campo { flex: 1; font-family: var(--font-mono, monospace); font-size: 28px; font-weight: 600; text-align: right; }
+  .cant-min span { font-size: 18px; font-weight: 600; color: var(--muted); }
   .paso-n { display: flex; align-items: center; gap: 4px; background: var(--soft); border-radius: 14px; padding: 4px; flex-shrink: 0; }
   .paso-n button { width: 42px; height: 42px; border: none; border-radius: 10px; background: #fff; font-size: 24px; font-weight: 600; color: var(--ink); box-shadow: 0 1px 2px rgba(20,22,27,.14); }
   .paso-n button:disabled { opacity: .35; box-shadow: none; }
@@ -383,6 +390,9 @@
 
     <!-- ANOTAR CLASE PASADA -->
     <section class="vista sin-tab" id="v-anotar"></section>
+
+    <!-- MI FIRMA (firma del profesor para la ficha DGT) -->
+    <section class="vista sin-tab" id="v-mifirma"></section>
   </div>
 
   <nav id="tabbar" aria-label="Secciones">
@@ -426,17 +436,29 @@ function fechaLocal(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 const hhmm = (d = new Date()) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-const sumaMin = (h, m) => { if (!h) return ''; const [a, b] = h.split(':').map(Number); const t = a * 60 + b + m; return String(Math.floor(t / 60) % 24).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
+const sumaMin = (h, m) => { if (!h) return ''; const [a, b] = h.split(':').map(Number); const t = a * 60 + b + Math.round(m); return String(Math.floor(t / 60) % 24).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
 const miles = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 // Minutos por clase (Ajustes del escritorio → /api/config). Una sesión de N
 // clases dura N × durClase() y se guarda como N prácticas (90 min = 2 clases).
+// Las clases van de ¼ en ¼: 1 ½ = una práctica entera y otra de ½ (fraccion).
 const MAX_CLASES = 6;
 const durClase = () => S.duracionClase || 45;
-const nClasesGuardado = () => Math.min(3, Math.max(1, parseInt(localStorage.getItem(NCLASES_KEY)) || 1));
-const nDeReserva = rv => rv && rv.duracion_min ? Math.min(MAX_CLASES, Math.max(1, Math.round(rv.duracion_min / durClase()))) : 0;
-const durTxt = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}`;
-const clasesTxt = n => `${n} ${n === 1 ? 'clase' : 'clases'}`;
-const claseTxt = F => (F.n_clases || 1) > 1 ? `Clases ${F.clase_n}–${F.clase_n + F.n_clases - 1}` : `Clase ${F.clase_n}`;
+const aCuartos = n => Math.round(Number(n) * 4) / 4;
+const nClasesGuardado = () => { const n = aCuartos(localStorage.getItem(NCLASES_KEY)); return n >= 0.25 && n <= 3 ? n : 1; };
+const nDeReserva = rv => rv && rv.duracion_min ? Math.min(MAX_CLASES, Math.max(0.25, aCuartos(rv.duracion_min / durClase()))) : 0;
+const durTxt = m => { m = Math.round(m); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}`; };
+// 2.5 → «2 ½»; 0.75 → «¾»
+const fmtC = n => { const v = aCuartos(n) || 0, e = Math.floor(v), f = ['', '¼', '½', '¾'][Math.round((v - e) * 4)]; return e && f ? `${e} ${f}` : f || String(e); };
+const clasesTxt = n => `${fmtC(n)} ${n > 1 ? 'clases' : 'clase'}`;
+// «Clase 8», «Clases 8–9», «Clase 8 · ½ clase». Con fracciones, cada clase
+// lleva el nº de la clase en la que acaba (como en el detalle): tras 1 ½,
+// otra ½ es la 2.ª. Con clases_antes (las que tenía al empezar) se calcula exacto.
+const claseTxt = F => {
+  const n = F.n_clases || 1;
+  let desde = F.clase_n, hasta = desde + Math.ceil(n - 1e-9) - 1;
+  if (F.clases_antes != null) { desde = Math.ceil(F.clases_antes + Math.min(1, n) - 1e-9); hasta = Math.ceil(F.clases_antes + n - 1e-9); }
+  return (hasta > desde ? `Clases ${desde}–${hasta}` : `Clase ${desde}`) + (n % 1 ? ` · ${clasesTxt(n)}` : '');
+};
 const esc = t => { const d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; };
 const iniciales = n => { const p = String(n || '').trim().split(/\s+/).filter(Boolean); return p.length ? (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase() : '?'; };
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -461,7 +483,8 @@ const IC = {
   menu: '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
   hist: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>', salir: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
   persona: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-3.6 3.3-6 7-6s6.4 2.4 7 6"/>', cerrar: '<path d="M6 6l12 12M18 6L6 18"/>',
-  compartir: '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11v9h12v-9"/>'
+  compartir: '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11v9h12v-9"/>',
+  firma: '<path d="M3 17c2.5-4 4-9 6-9s-1 8 1.5 8 2.5-4 4-4 1 3 2.5 3H21"/><path d="M3 21h18"/>'
 };
 const ic = (k, w = 20, extra = '') => `<svg class="ic" width="${w}" height="${w}" viewBox="0 0 24 24" ${extra} aria-hidden="true">${IC[k]}</svg>`;
 const placa = m => m ? `<span class="placa"><span class="placa-e">E</span><span class="placa-n">${esc(m)}</span></span>` : '';
@@ -574,7 +597,7 @@ function go(vista, opciones = {}) {
   document.querySelectorAll('#tabbar button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === vista));
   setTema(vista === 'curso');
   window.scrollTo(0, 0);
-  const render = { hoy: renderHoy, iniciar: renderIniciar, curso: renderCurso, kmfinal: renderKmFinal, firma: renderFirma, alumnos: renderAlumnos, ficha: renderFicha, nuevo: renderNuevo, historial: renderHistorial, anotar: renderAnotar }[vista];
+  const render = { hoy: renderHoy, iniciar: renderIniciar, curso: renderCurso, kmfinal: renderKmFinal, firma: renderFirma, alumnos: renderAlumnos, ficha: renderFicha, nuevo: renderNuevo, historial: renderHistorial, anotar: renderAnotar, mifirma: renderMiFirma }[vista];
   if (render) render(opciones);
   // Alumnos: si los datos tienen más de 30 s se recargan en segundo plano
   // (altas o asignaciones hechas en el escritorio mientras la web estaba abierta).
@@ -659,6 +682,8 @@ const nombreAlumno = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].
 // Clases y km TOTALES del alumno: las de la app + su punto de partida (lo que
 // hizo antes de usar la app, se configura en el escritorio).
 const clasesAlumno = a => a ? (a.clases || 0) + (a.clases_previas || 0) : 0;
+// Nº de la próxima clase (las fracciones suman lo que valen: tras 7 ½ va la 9.ª)
+const siguienteClase = a => Math.ceil(clasesAlumno(a) + 1 - 1e-9);
 const kmAlumno = a => a ? (a.km || 0) + (a.km_previos || 0) : 0;
 const zonasTxt = z => (z && z.length ? z.join(' · ') : '');
 
@@ -727,6 +752,7 @@ async function entrarApp() {
   await cargarJornada();
   if (S.vista === 'hoy') renderHoy();
   renderRiel();
+  cargarMiFirma().then(() => { if (S.vista === 'hoy' && S.miFirma === false) renderHoy(); });
   // Atajo «Nueva práctica» del icono de la app (mantener pulsado el icono)
   if (new URLSearchParams(location.search).get('accion') === 'nueva') {
     history.replaceState({ vista: 'hoy' }, '', location.pathname);
@@ -773,6 +799,9 @@ function renderHoy() {
       <div class="grande" style="margin-top:4px">${esHoy ? 'Hoy' : esc(cap(DIAS[partes(S.fecha).dow]))}</div></div>
       <button class="avatar" onclick="menuPerfil()" aria-label="Perfil y opciones">${esc(perfilIni)}</button></div>`;
   if (!esHoy) html += `<button class="btn btn-sec btn-peq" style="margin-bottom:12px" onclick="cambiarDia(0)">Volver a hoy</button>`;
+  if (esHoy && S.miFirma === false && !localStorage.getItem(MIFIRMA_VISTO_KEY)) html += `<div class="card instalar-card"><span class="veh-ic">${ic('firma', 24)}</span>
+    <div style="flex:1;min-width:0"><div class="fila-tit">Guarda tu firma</div><div class="fila-sub">Una vez, y sale en todas tus fichas DGT.</div></div>
+    <button class="btn btn-pri btn-peq" onclick="go('mifirma')">Firmar</button><button class="cab-atras" onclick="localStorage.setItem(MIFIRMA_VISTO_KEY,'1');renderHoy()" aria-label="Ahora no">${ic('cerrar', 20)}</button></div>`;
   if (esHoy && puedeInstalar() && !localStorage.getItem(INSTALAR_VISTO_KEY)) html += `<div class="card instalar-card"><img src="/icons/maskable-192.png" alt="">
     <div style="flex:1;min-width:0"><div class="fila-tit">Instala AulaMovil</div><div class="fila-sub">Como una app más del móvil.</div></div>
     <button class="btn btn-pri btn-peq" onclick="instalarApp()">Instalar</button><button class="cab-atras" onclick="localStorage.setItem(INSTALAR_VISTO_KEY,'1');renderHoy()" aria-label="Ahora no">${ic('cerrar', 20)}</button></div>`;
@@ -810,7 +839,7 @@ function renderHoy() {
   if (r.cerradas.length) {
     html += `<div class="grupo-tit"><span>Completadas</span><button onclick="go('historial')">Ver calendario</button></div><div class="card">` + agruparSesiones(r.cerradas).reverse().map(p =>
       `<button class="fila" onclick="${p.firmada ? `abrirDetalle(${p.id})` : `continuarPractica(${p.id})`}"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span>
-        <div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div><div class="fila-sub mono">${p.n > 1 ? `<b style="color:var(--ink)">${clasesTxt(p.n)}</b> · ` : ''}${miles(p.km_inicial)} → ${miles(p.km_final)} · ${p.km} km</div></div>
+        <div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div><div class="fila-sub mono">${p.n !== 1 ? `<b style="color:var(--ink)">${clasesTxt(p.n)}</b> · ` : ''}${miles(p.km_inicial)} → ${miles(p.km_final)} · ${p.km} km</div></div>
         ${p.firmada ? `<span class="pill pill-ok">${ic('ok', 14, 'style="stroke-width:2.6"')} Firmada</span>` : '<span class="pill pill-warn">Sin firmar</span>'}</button>`).join('') + '</div>';
   }
   if (!r.total && !S.jornada.sin_cerrar.length && !esHoy) html += '<div class="vacio">Sin clases este día.</div>';
@@ -829,7 +858,7 @@ function agruparSesiones(lista) {
     if (u && u.alumno_id === p.alumno_id && u.vehiculo_id === p.vehiculo_id && u.km_final > 0 && u.km_final === p.km_inicial && !!u.firmada === !!p.firmada) g.push(p);
     else grupos.push([p]);
   }
-  return grupos.map(g => ({ ...g[0], ids: g.map(x => x.id), n: g.length, km_final: g[g.length - 1].km_final, hora_fin: g[g.length - 1].hora_fin, km: g.reduce((t, x) => t + (x.km || 0), 0) }));
+  return grupos.map(g => ({ ...g[0], ids: g.map(x => x.id), n: g.reduce((t, x) => t + (x.fraccion || 1), 0), km_final: g[g.length - 1].km_final, hora_fin: g[g.length - 1].hora_fin, km: g.reduce((t, x) => t + (x.km || 0), 0) }));
 }
 async function cambiarDia(n) {
   actualizarHoy();
@@ -842,6 +871,7 @@ function menuPerfil() {
   abrirHoja(`<div class="hoja-tit"><h3>${esc(S.perfil ? S.perfil.nombre : '')}</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
     <div class="card"><button class="fila" onclick="cerrarHoja();refrescar({ silencioso: false })"><span class="veh-ic">${ic('deshacer', 22)}</span><div class="fila-tit" style="flex:1">Actualizar datos</div></button>
     ${puedeInstalar() ? `<button class="fila" onclick="cerrarHoja();instalarApp()"><span class="veh-ic">${ic('tel', 22)}</span><div class="fila-tit" style="flex:1">Instalar como app</div>${ic('chev', 20)}</button>` : ''}
+    ${S.perfil && S.perfil.id ? `<button class="fila" onclick="cerrarHoja();go('mifirma')"><span class="veh-ic">${ic('firma', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Mi firma</div><div class="fila-sub">Sale en tus clases de la ficha DGT</div></div>${S.miFirma === false ? '<span class="pill pill-warn">Falta</span>' : (S.miFirma ? '<span class="pill pill-ok">Guardada</span>' : '')}${ic('chev', 20)}</button>` : ''}
     <button class="fila" onclick="cerrarHoja();cambiarPerfil()"><span class="veh-ic">${ic('persona', 22)}</span><div class="fila-tit" style="flex:1">Cambiar de perfil</div>${ic('chev', 20)}</button>
     <button class="fila" onclick="cerrarSesion()"><span class="veh-ic">${ic('salir', 22)}</span><div class="fila-tit" style="flex:1">Cerrar sesión</div></button></div>`);
 }
@@ -892,12 +922,12 @@ function renderIniciar() {
   const al = alumno(I.alumno_id); const v = vehiculo(I.vehiculo_id);
   const c = msgContinuidad(I.vehiculo_id, I.km);
   const ahora = hhmm();
-  const clase = al ? clasesAlumno(al) + 1 : null;
+  const clase = al ? siguienteClase(al) : null;
   document.getElementById('v-iniciar').innerHTML = `
     <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Iniciar práctica</h1></div><span class="fecha-lin">${ic('reloj', 16)} ${ahora}</span></div>
     <div class="card">
       <div class="veh-card">${al ? `<span class="ini">${esc(iniciales(nombreAlumno(al)))}</span>` : `<span class="ini">${ic('persona', 22)}</span>`}
-        <div style="flex:1;min-width:0"><div class="fila-tit">${al ? esc(nombreAlumno(al)) : 'Elige un alumno'}</div><div class="fila-sub">${al ? `Permiso ${esc(al.permiso)} · ${I.n_clases > 1 ? `Clases ${clase}–${clase + I.n_clases - 1}` : `Clase ${clase}`}` : 'Obligatorio para empezar'}</div></div>
+        <div style="flex:1;min-width:0"><div class="fila-tit">${al ? esc(nombreAlumno(al)) : 'Elige un alumno'}</div><div class="fila-sub">${al ? `Permiso ${esc(al.permiso)} · ${esc(claseTxt({ n_clases: I.n_clases, clase_n: clase, clases_antes: clasesAlumno(al) }))}` : 'Obligatorio para empezar'}</div></div>
         <button class="lnk" onclick="elegirAlumnoIniciar()">${al ? 'Cambiar' : 'Elegir'}</button></div>
       <div class="veh-card" style="border-top:1px solid var(--soft)"><span class="veh-ic">${ic('coche', 22)}</span>
         <div style="flex:1;min-width:0">${v ? `<div class="fila-tit" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.nombre)}</div><div style="margin-top:3px">${placa(v.matricula)}</div>` : '<span class="fila-tit">Sin vehículo</span>'}</div>
@@ -912,7 +942,7 @@ function renderIniciar() {
     ${S.zonas.length ? `<div class="etq">Zonas recorridas <small>Opcional · se puede cambiar durante la clase</small></div>
     <div class="chips">${S.zonas.map((z, i) => `<button class="chip ${I.zonas.includes(z) ? 'on' : ''}" onclick="toggleZonaIniciar(${i})">${I.zonas.includes(z) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(z)}</button>`).join('')}</div>` : ''}
     <div class="etq">Clases <small>${durTxt(I.n_clases * durClase())} · termina a las ${esc(sumaMin(ahora, I.n_clases * durClase()))}</small></div>
-    <div class="seg3 dos-lineas">${[...new Set([1, 2, 3, I.n_clases])].sort((a, b) => a - b).map(n => `<button class="${n === I.n_clases ? 'on' : ''}" onclick="S.iniciar.n_clases=${n};renderIniciar()">${clasesTxt(n)}<small>${durTxt(n * durClase())}</small></button>`).join('')}</div>
+    <div class="seg3 dos-lineas">${[...new Set([0.5, 1, 2, 3, I.n_clases])].sort((a, b) => a - b).map(n => `<button class="${n === I.n_clases ? 'on' : ''}" onclick="S.iniciar.n_clases=${n};renderIniciar()">${clasesTxt(n)}<small>${durTxt(n * durClase())}</small></button>`).join('')}</div>
     <div style="text-align:center;margin-top:18px;display:flex;flex-direction:column;gap:14px;align-items:center"><button class="lnk lnk-suave" onclick="registrarSinCronometro()">Registrar sin cronómetro (rellenar los km después)</button>
       <button class="lnk lnk-suave" onclick="abrirAnotar({alumno_id:S.iniciar.alumno_id,volverA:'hoy'})">¿Ya la diste otro día y se te olvidó? Anotar clase pasada</button></div>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-empezar" onclick="empezarPractica()" ${al && v && parseInt(I.km) > 0 ? '' : 'disabled'}>${ic('play', 18)} Empezar práctica</button></div>`;
@@ -949,7 +979,7 @@ function filtrarHojaAlumnos(q) {
   q = (q || '').toLowerCase().trim();
   const lista = (elegirAlumnoIniciar._orden || []).filter(a => !q || nombreAlumno(a).toLowerCase().includes(q));
   document.getElementById('hoja-alumnos').innerHTML = lista.length ? lista.map(a =>
-    `<button class="fila-alumno" onclick="fijarAlumnoIniciar(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">Permiso ${esc(a.permiso)} · ${clasesAlumno(a)} ${clasesAlumno(a) === 1 ? 'clase' : 'clases'}</div></div>${S.perfil && a.profesor_id === S.perfil.id ? '<span class="pill">Tuyo</span>' : ''}</button>`).join('')
+    `<button class="fila-alumno" onclick="fijarAlumnoIniciar(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">Permiso ${esc(a.permiso)} · ${fmtC(clasesAlumno(a))} ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'}</div></div>${S.perfil && a.profesor_id === S.perfil.id ? '<span class="pill">Tuyo</span>' : ''}</button>`).join('')
     : '<div class="vacio">Ningún alumno coincide.</div>';
 }
 function fijarAlumnoIniciar(id) {
@@ -988,7 +1018,7 @@ async function empezarPractica() {
     S.flujo = {
       practica_id: data.practica_id, alumno_id: I.alumno_id, alumno_nombre: nombreAlumno(al), vehiculo_id: I.vehiculo_id, vehiculo_nombre: v ? v.nombre : '', matricula: v ? v.matricula : null,
       km_inicial: km, km_final: 0, inicio_ms: ahora.getTime(), hora_inicio: hhmm(ahora), n_clases: I.n_clases, duracion_min: I.n_clases * durClase(),
-      zonas: I.zonas.slice(), trabajado: [], observacion: '', clase_n: clasesAlumno(al) + 1, fecha: fechaLocal(ahora), cerrada: false
+      zonas: I.zonas.slice(), trabajado: [], observacion: '', clase_n: siguienteClase(al), clases_antes: clasesAlumno(al), fecha: fechaLocal(ahora), cerrada: false
     };
     guardarFlujo();
     go('curso');
@@ -1023,7 +1053,7 @@ function abrirAnotar(op = {}) {
   const minimo = sumaDias(S.hoy, -DIAS_ANOTAR);
   const fecha = op.fecha && op.fecha <= S.hoy && op.fecha >= minimo ? op.fecha : sumaDias(S.hoy, -1);
   S.anotar = {
-    alumno_id: al ? al.id : null, vehiculo_id: vid, fecha, hora: '', n_clases: nClasesGuardado(),
+    alumno_id: al ? al.id : null, vehiculo_id: vid, fecha, hora: '', n_clases: nClasesGuardado(), modo: modoGuardado(), minutos: '',
     km_ini: '', km_fin: '', zonas: [], trabajado: [], obs: '', volverA: op.volverA || 'hoy'
   };
   go('anotar');
@@ -1035,8 +1065,9 @@ function estadoKmAnotar() {
   if (!i || !f) return { ok: false, cls: 'msg-warn', txt: `Pon también el km ${i ? 'final' : 'inicial'}, o deja los dos en blanco.` };
   if (f <= i) return { ok: false, cls: 'msg-err', txt: 'El km final tiene que ser mayor que el inicial.' };
   if (f - i > 1000) return { ok: false, cls: 'msg-err', txt: 'Más de 1.000 km en una clase: revisa los números.' };
-  if (f - i < A.n_clases) return { ok: false, cls: 'msg-err', txt: `Con ${f - i} km no se pueden guardar ${A.n_clases} clases.` };
-  return { ok: true, cls: 'msg-ok', txt: `${miles(f - i)} km recorridos${A.n_clases > 1 ? ` en ${A.n_clases} clases` : ''}.` };
+  const n = cantidadDe(A);
+  if (n >= 0.25 && f - i < Math.ceil(n - 1e-9)) return { ok: false, cls: 'msg-err', txt: `Con ${f - i} km no se pueden guardar ${clasesTxt(n)}.` };
+  return { ok: true, cls: 'msg-ok', txt: `${miles(f - i)} km recorridos${n !== 1 && n >= 0.25 ? ` en ${clasesTxt(n)}` : ''}.` };
 }
 function renderAnotar() {
   const A = S.anotar; if (!A) { go('hoy'); return; }
@@ -1045,7 +1076,9 @@ function renderAnotar() {
   const otroDia = !dias.includes(A.fecha);
   const nombreDia = d => d === S.hoy ? 'Hoy' : d === sumaDias(S.hoy, -1) ? 'Ayer' : cap(DIAS[partes(d).dow].slice(0, 3));
   const k = estadoKmAnotar();
-  const fin = A.hora ? sumaMin(A.hora, A.n_clases * durClase()) : '';
+  if (!A.modo) A.modo = modoGuardado();
+  const fin = A.hora && minutosDe(A) ? sumaMin(A.hora, minutosDe(A)) : '';
+  const nA = cantidadDe(A);
   document.getElementById('v-anotar').innerHTML = `
     <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Anotar clase pasada</h1></div></div>
     <div class="msg msg-gris" style="margin-top:0">${ic('hist', 20)}<span>Para una clase que ya se dio y no se registró. Hasta ${DIAS_ANOTAR} días atrás.</span></div>
@@ -1063,8 +1096,8 @@ function renderAnotar() {
         <input type="date" aria-label="Otro día" min="${sumaDias(S.hoy, -DIAS_ANOTAR)}" max="${S.hoy}" value="${A.fecha}" onchange="if(this.value){S.anotar.fecha=this.value;renderAnotar()}"></label></div>
     <div class="etq">Hora de inicio <small>Opcional</small></div>
     <input class="campo" type="time" id="an-hora" value="${esc(A.hora)}" onchange="S.anotar.hora=this.value;renderAnotar()" style="font-family:var(--font-mono,monospace);font-size:20px;font-weight:600">
-    <div class="etq">Clases <small>${durTxt(A.n_clases * durClase())}${fin ? ' · de ' + esc(A.hora) + ' a ' + esc(fin) : ''}</small></div>
-    <div class="seg3 dos-lineas">${[1, 2, 3].map(n => `<button class="${n === A.n_clases ? 'on' : ''}" onclick="S.anotar.n_clases=${n};renderAnotar()">${clasesTxt(n)}<small>${durTxt(n * durClase())}</small></button>`).join('')}</div>
+    <div class="etq">Duración <small id="an-dur">${fin ? 'de ' + esc(A.hora) + ' a ' + esc(fin) : ''}</small></div>
+    ${bloqueCantidad(A, 'anotar')}
     <div class="etq">Kilómetros <small>Si no los sabes, déjalos en blanco</small></div>
     <div class="card card-pad">
       <div class="km-par">
@@ -1079,14 +1112,23 @@ function renderAnotar() {
     <div class="chips">${TRABAJADO.map((t, i) => `<button class="chip ${A.trabajado.includes(t) ? 'on' : ''}" onclick="toggleListaAnotar('trabajado', TRABAJADO[${i}])">${A.trabajado.includes(t) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(t)}</button>`).join('')}</div>
     <div class="etq">Observación <small>Opcional</small></div>
     <textarea class="campo" id="an-obs" maxlength="500" placeholder="Qué ha ido bien, qué repasar…" oninput="S.anotar.obs=this.value">${esc(A.obs)}</textarea>
-    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-anotar" onclick="enviarAnotar()" ${al && v && k.ok ? '' : 'disabled'}>${ic('ok', 20, 'style="stroke-width:2.6"')} ${A.n_clases > 1 ? `Anotar ${A.n_clases} clases` : 'Anotar clase'}</button></div>`;
+    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-anotar" onclick="enviarAnotar()" ${al && v && k.ok && nA >= 0.25 ? '' : 'disabled'}>${ic('ok', 20, 'style="stroke-width:2.6"')} ${textoBotonAnotar(nA)}</button></div>`;
 }
+const textoBotonAnotar = n => n > 1 ? `Anotar ${clasesTxt(n)}` : (n < 1 && n >= 0.25 ? `Anotar ${clasesTxt(n)}` : 'Anotar clase');
 function tecleaKmAnotar(inp, campo) {
   inp.value = inp.value.replace(/\D/g, '').slice(0, 7);
   S.anotar[campo] = inp.value;
-  const k = estadoKmAnotar();
+  pintarEstadoAnotar();
+}
+// Mensaje de km y botón de Anotar sin volver a pintar la pantalla (no se pierde el teclado)
+function pintarEstadoAnotar() {
+  const A = S.anotar, k = estadoKmAnotar(), n = cantidadDe(A);
   const m = document.getElementById('an-km-msg'); m.className = 'msg ' + k.cls; m.innerHTML = `<span>${k.txt}</span>`;
-  document.getElementById('btn-anotar').disabled = !(alumno(S.anotar.alumno_id) && vehiculo(S.anotar.vehiculo_id) && k.ok);
+  const fin = A.hora && minutosDe(A) ? sumaMin(A.hora, minutosDe(A)) : '';
+  const d = document.getElementById('an-dur'); if (d) d.textContent = fin ? `de ${A.hora} a ${fin}` : '';
+  const b = document.getElementById('btn-anotar');
+  b.disabled = !(alumno(A.alumno_id) && vehiculo(A.vehiculo_id) && k.ok && n >= 0.25);
+  b.innerHTML = `${ic('ok', 20, 'style="stroke-width:2.6"')} ${textoBotonAnotar(n)}`;
 }
 function toggleListaAnotar(campo, valor) {
   const l = S.anotar[campo]; const i = l.indexOf(valor);
@@ -1100,7 +1142,8 @@ async function enviarAnotar(forzar = false) {
   try {
     const res = await postJSON('/api/anotar-practica', {
       alumno_id: A.alumno_id, vehiculo_id: A.vehiculo_id, fecha: A.fecha, hoy: S.hoy,
-      hora_inicio: A.hora || null, hora_fin: A.hora ? sumaMin(A.hora, A.n_clases * durClase()) : null, n_clases: A.n_clases,
+      hora_inicio: A.hora || null, hora_fin: A.hora && minutosDe(A) ? sumaMin(A.hora, minutosDe(A)) : null,
+      ...(A.modo === 'minutos' ? { minutos: parseInt(A.minutos) } : { n_clases: A.n_clases || 1 }),
       km_inicial: A.km_ini || null, km_final: A.km_fin || null, zonas: A.zonas, trabajado: A.trabajado, observacion: A.obs,
       profesor_id: S.perfil ? S.perfil.id : null, forzar
     });
@@ -1115,8 +1158,9 @@ async function enviarAnotar(forzar = false) {
     S.anotar = null;
     if (S.cal) S.cal.cache = {};
     await cargarBase();
+    if (data.minutos_sobrantes > 0) toast(`Le quedan ${minTxt(data.minutos_sobrantes)} acumulados para la próxima.`, 4200);
     if (data.con_km) {
-      abrirHoja(`<div class="hoja-tit"><h3>${data.clases > 1 ? data.clases + ' clases anotadas' : 'Clase anotada'}</h3><button class="cab-atras" onclick="cerrarHoja();volverDeAnotar('${A.volverA}','${A.fecha}',${A.alumno_id})" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+      abrirHoja(`<div class="hoja-tit"><h3>${data.clases > 1 ? fmtC(data.clases) + ' clases anotadas' : 'Clase anotada'}</h3><button class="cab-atras" onclick="cerrarHoja();volverDeAnotar('${A.volverA}','${A.fecha}',${A.alumno_id})" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
         <div class="msg msg-ok" style="margin-top:0">${ic('ok', 20)}<span>${esc(data.mensaje || 'Guardada')}.</span></div>
         <p class="fila-sub" style="font-size:16px;margin:14px 2px">¿Está ${esc(al ? nombreAlumno(al).split(' ')[0] : 'el alumno')} contigo? Puede firmarla ahora.</p>
         <button class="btn btn-pri btn-lg" onclick="firmarAnotada(${data.practica_ids[0]},'${A.volverA}')">${ic('lapiz', 18)} Que firme ahora</button>
@@ -1167,8 +1211,8 @@ async function continuarPractica(id) {
     const ses = agruparSesiones(J.practicas.filter(x => x.km_final > 0)).find(g => g.ids.includes(id));
     const F = S.flujo;
     F.cerrada = true; F.km_final = p.km_final;
-    if (ses && ses.n > 1) Object.assign(F, { practica_id: ses.ids[0], practica_ids: ses.ids, n_clases: ses.n, clase_n: ses.clase_n, km_inicial: ses.km_inicial, km_final: ses.km_final, hora_inicio: ses.hora_inicio, hora_fin: ses.hora_fin });
-    else Object.assign(F, { practica_ids: [p.id], n_clases: 1 });
+    if (ses && ses.ids.length > 1) Object.assign(F, { practica_id: ses.ids[0], practica_ids: ses.ids, n_clases: ses.n, clase_n: ses.clase_n, km_inicial: ses.km_inicial, km_final: ses.km_final, hora_inicio: ses.hora_inicio, hora_fin: ses.hora_fin });
+    else Object.assign(F, { practica_ids: [p.id], n_clases: p.fraccion || 1 });
     guardarFlujo(); go('firma'); return;
   }
   go('curso');
@@ -1256,35 +1300,112 @@ async function cancelarCurso() {
 
 // ─── KM FINAL ────────────────────────────────────────────────────────────────
 function abrirKmFinal() { const F = S.flujo; S.kmFinal = ''; pararTimer(); go('kmfinal'); }
+// ─── CANTIDAD DE CLASES: de ¼ en ¼ o por minutos ────────────────────────────
+// «Clases»: clases enteras (− / +) y, si hace falta, ¼, ½ o ¾ más.
+// «Minutos»: se escriben los minutos y se calculan las clases sumando los que
+// el alumno tenía acumulados; lo que no llega a ¼ queda para la próxima (lo
+// guarda la nube al cerrar la clase). Sirve a Finalizar (S.flujo) y a Anotar
+// (S.anotar): obj.modo, obj.n_clases, obj.minutos.
+const MODO_CLASES_KEY = 'km_modo_clases';
+const modoGuardado = () => localStorage.getItem(MODO_CLASES_KEY) === 'minutos' ? 'minutos' : 'clases';
+const minutosAlumno = a => Math.max(0, Number(a && a.minutos_sobrantes) || 0);
+const minTxt = m => `${String(Math.round(m * 100) / 100).replace('.', ',')} min`;
+function calcMinutos(min, acum) {
+  const cuarto = durClase() / 4, total = (parseInt(min) || 0) + acum;
+  const cuartos = Math.min(MAX_CLASES * 4, Math.floor(total / cuarto + 1e-9));
+  return { cantidad: cuartos / 4, sobran: Math.round((total - cuartos * cuarto) * 100) / 100, total, cuarto };
+}
+const objCantidad = quien => quien === 'flujo' ? S.flujo : S.anotar;
+// Clases que se guardarán
+function cantidadDe(obj) {
+  if (obj.modo === 'minutos') return calcMinutos(obj.minutos, minutosAlumno(alumno(obj.alumno_id))).cantidad;
+  return obj.n_clases || 1;
+}
+// Minutos que dura lo que se guarda (para la hora de fin)
+const minutosDe = obj => obj.modo === 'minutos' ? (parseInt(obj.minutos) || 0) : (obj.n_clases || 1) * durClase();
+function msgMinutos(obj) {
+  const al = alumno(obj.alumno_id), acum = minutosAlumno(al), m = parseInt(obj.minutos) || 0;
+  const quien = al ? esc(nombreAlumno(al).split(' ')[0]) : 'El alumno';
+  if (!m) return ['msg-gris', `<span>Escribe los minutos que ha durado.${acum ? ` ${quien} tiene ${minTxt(acum)} acumulados de otras clases.` : ''}</span>`];
+  const c = calcMinutos(m, acum);
+  if (c.cantidad < 0.25) return ['msg-err', `<span>${minTxt(c.total)} no llegan a ¼ de clase (${minTxt(c.cuarto)}).</span>`];
+  return ['msg-ok', `<span>${minTxt(m)}${acum ? ` + ${minTxt(acum)} acumulados` : ''} = <b>${clasesTxt(c.cantidad)}</b>${c.sobran ? ` · sobran ${minTxt(c.sobran)} para la próxima` : ''}</span>`];
+}
+function bloqueCantidad(obj, quien, sugerencia = '') {
+  const modo = obj.modo === 'minutos' ? 'minutos' : 'clases';
+  const cab = `<div class="seg3 cant-modo" role="group" aria-label="Cómo contar las clases"><button class="${modo === 'clases' ? 'on' : ''}" onclick="fijarModoCantidad('${quien}','clases')">Clases</button><button class="${modo === 'minutos' ? 'on' : ''}" onclick="fijarModoCantidad('${quien}','minutos')">Minutos</button></div>`;
+  if (modo === 'minutos') {
+    const [cls, html] = msgMinutos(obj);
+    return `<div class="card cant">${cab}
+      <div class="cant-min"><input class="campo" id="cant-min" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off" value="${esc(obj.minutos || '')}" placeholder="0" oninput="tecleaMinutos(this,'${quien}')" aria-label="Minutos de clase"><span>min</span></div>
+      <div class="msg ${cls}" id="cant-msg" style="margin-top:10px">${html}</div></div>`;
+  }
+  const n = obj.n_clases || 1, ent = Math.floor(n), q = Math.round((n - ent) * 4);
+  return `<div class="card cant">${cab}
+    <div class="nclases"><div style="flex:1;min-width:0"><div class="fila-tit">Se ${n > 1 ? 'guardan' : 'guarda'} ${clasesTxt(n)}</div><div class="fila-sub">${durTxt(n * durClase())} · clases de ${durClase()} min</div>${sugerencia}</div>
+      <div class="paso-n"><button onclick="fijarCantidad('${quien}',${n - 1})" ${n - 1 < 0.25 ? 'disabled' : ''} aria-label="Una clase menos">−</button><b>${ent}</b><button onclick="fijarCantidad('${quien}',${n + 1})" ${n + 1 > MAX_CLASES ? 'disabled' : ''} aria-label="Una clase más">+</button></div></div>
+    <div class="seg3 cant-frac" role="group" aria-label="Fracción de clase">${['—', '¼', '½', '¾'].map((t, k) => `<button class="${k === q ? 'on' : ''}" onclick="fijarCantidad('${quien}',${ent + k / 4})" ${ent + k / 4 < 0.25 ? 'disabled' : ''} aria-label="${k ? 'Y ' + t + ' de clase' : 'Sin fracción'}">${k ? (ent ? '+ ' + t : t) : (ent > 1 ? 'Enteras' : ent ? 'Entera' : t)}</button>`).join('')}</div></div>`;
+}
+function fijarCantidad(quien, n) {
+  const o = objCantidad(quien); if (!o) return;
+  o.n_clases = Math.min(MAX_CLASES, Math.max(0.25, aCuartos(n)));
+  if (quien === 'flujo') { o.duracion_min = o.n_clases * durClase(); guardarFlujo(); renderKmFinal(); } else renderAnotar();
+}
+function fijarModoCantidad(quien, modo) {
+  const o = objCantidad(quien); if (!o) return;
+  o.modo = modo; localStorage.setItem(MODO_CLASES_KEY, modo);
+  // Minutos: se propone lo que marca el cronómetro (o lo de las clases elegidas)
+  if (modo === 'minutos' && !o.minutos) o.minutos = String(quien === 'flujo' && o.inicio_ms ? Math.max(1, Math.round((Date.now() - o.inicio_ms) / 60000)) : Math.round((o.n_clases || 1) * durClase()));
+  if (quien === 'flujo') { guardarFlujo(); renderKmFinal(); } else renderAnotar();
+}
+function tecleaMinutos(inp, quien) {
+  inp.value = inp.value.replace(/\D/g, '').slice(0, 3);
+  const o = objCantidad(quien); if (!o) return;
+  o.minutos = inp.value;
+  const [cls, html] = msgMinutos(o);
+  const m = document.getElementById('cant-msg'); m.className = 'msg ' + cls; m.innerHTML = html;
+  if (quien === 'flujo') { guardarFlujo(); pintarAvisoKmFinal(); } else pintarEstadoAnotar();
+}
+
+function estadoKmFinal() {
+  const F = S.flujo, kf = parseInt(S.kmFinal) || 0, rec = kf ? kf - F.km_inicial : 0;
+  const al = alumno(F.alumno_id), n = cantidadDe(F);
+  const err = t => ({ ok: false, html: `<span style="color:var(--err);font-weight:600">${t}</span>` });
+  if (kf && rec <= 0) return err(`El km final debe ser mayor que ${miles(F.km_inicial)}.`);
+  if (n < 0.25) return { ok: false, html: 'Escribe los minutos de la clase (al menos ¼ de clase).' };
+  if (kf && rec < Math.ceil(n - 1e-9)) return err(`Con ${rec} km no caben ${clasesTxt(n)}.`);
+  if (!kf) return { ok: false, html: 'Escribe el km que marca el coche.' };
+  const antes = F.clases_antes != null ? F.clases_antes : Math.max(0, (F.clase_n || 1) - 1);
+  return { ok: true, html: al ? `Con ${n > 1 ? 'estas' : 'esta'}, ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${clasesTxt(antes + n)}</b> y <b>${miles(kmAlumno(al) + rec)} km</b>.` : '' };
+}
+function pintarAvisoKmFinal() {
+  const st = estadoKmFinal();
+  const a = document.getElementById('km-aviso'); if (a) a.innerHTML = st.html;
+  const b = document.getElementById('btn-firma'); if (b) b.disabled = !st.ok;
+}
 function renderKmFinal() {
   const F = S.flujo; if (!F) { go('hoy'); return; }
+  if (!F.modo) F.modo = modoGuardado();
   const kf = parseInt(S.kmFinal) || 0;
   const rec = kf ? kf - F.km_inicial : 0;
-  const al = alumno(F.alumno_id);
-  const ini = Date.parse ? new Date(F.inicio_ms) : null;
   const minutos = Math.max(1, Math.round((Date.now() - F.inicio_ms) / 60000));
+  if (F.modo === 'minutos' && !F.minutos) F.minutos = String(minutos);
   const n = F.n_clases || 1;
-  const sugeridas = Math.min(MAX_CLASES, Math.max(1, Math.round(minutos / durClase())));
-  const caben = !kf || rec >= n;
+  const sugeridas = Math.min(MAX_CLASES, Math.max(0.25, aCuartos(minutos / durClase())));
+  const sugerencia = sugeridas !== n ? `<button class="lnk" style="font-size:14px;margin-top:2px" onclick="fijarCantidad('flujo',${sugeridas})">Han pasado ${minutos} min: ¿${clasesTxt(sugeridas)}?</button>` : '';
+  const st = estadoKmFinal();
   document.getElementById('v-kmfinal').innerHTML = `
     <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="go('curso')" aria-label="Volver">${ic('atras', 26)}</button><h1>Finalizar práctica</h1></div><span class="pill">Paso 1 de 2</span></div>
     <div class="card veh-card"><span class="ini">${esc(iniciales(F.alumno_nombre))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(F.alumno_nombre)}</div><div class="fila-sub mono">${esc(F.hora_inicio)} – ${esc(hhmm())} · ${minutos} min</div></div>${placa(F.matricula)}</div>
-    <div class="card nclases"><div style="flex:1;min-width:0"><div class="fila-tit">Se ${n > 1 ? 'guardan' : 'guarda'} ${clasesTxt(n)} <span class="fila-sub" style="font-weight:500">de ${durClase()} min</span></div>
-      ${sugeridas !== n ? `<button class="lnk" style="font-size:14px;margin-top:2px" onclick="fijarNClases(${sugeridas})">Han pasado ${minutos} min: ¿${clasesTxt(sugeridas)}?</button>` : ''}</div>
-      <div class="paso-n"><button onclick="fijarNClases(${n - 1})" ${n <= 1 ? 'disabled' : ''} aria-label="Una clase menos">−</button><b>${n}</b><button onclick="fijarNClases(${n + 1})" ${n >= MAX_CLASES ? 'disabled' : ''} aria-label="Una clase más">+</button></div></div>
+    ${bloqueCantidad(F, 'flujo', sugerencia)}
     <div class="card card-pad" style="margin-top:12px"><div class="etq" style="margin:0 0 10px">Km final <small>Lo que marca el coche ahora</small></div>
       <div class="odo">${digitos(S.kmFinal || '')}<span class="odo-km">km</span></div>
       <div class="dos-col"><div class="stat-box"><span class="etq2">Inicial</span><span class="val">${miles(F.km_inicial)}</span></div>
         <div class="stat-box osc"><span class="etq2">Recorridos</span><span class="val">${kf ? (rec > 0 ? '+' + rec : rec) + ' km' : '—'}</span></div></div>
-      <div id="km-aviso" class="fila-sub" style="margin-top:10px">${kf && rec <= 0 ? `<span style="color:var(--err);font-weight:600">El km final debe ser mayor que ${miles(F.km_inicial)}.</span>` : (!caben ? `<span style="color:var(--err);font-weight:600">Con ${rec} km no caben ${n} clases.</span>` : (kf && al ? `Con ${n > 1 ? 'estas' : 'esta'}, ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${(F.clase_n || clasesAlumno(al) + 1) + n - 1} clases</b> y <b>${miles(kmAlumno(al) + rec)} km</b>.` : 'Escribe el km que marca el coche.'))}</div></div>
+      <div id="km-aviso" class="fila-sub" style="margin-top:10px">${st.html}</div></div>
     <div class="teclado">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button onclick="tecla('${n}')">${n}</button>`).join('')}
       <button class="f" onclick="tecla('C')">Borrar</button><button onclick="tecla('0')">0</button><button class="f" onclick="tecla('<')" aria-label="Borrar un dígito">${ic('borrar', 26)}</button></div>
-    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-firma" onclick="continuarFirma()" ${rec > 0 && caben ? '' : 'disabled'}>Continuar a la firma ${ic('flecha', 20)}</button></div>`;
-}
-function fijarNClases(n) {
-  const F = S.flujo; if (!F) return;
-  F.n_clases = Math.min(MAX_CLASES, Math.max(1, n)); F.duracion_min = F.n_clases * durClase();
-  guardarFlujo(); renderKmFinal();
+    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-firma" onclick="continuarFirma()" ${st.ok ? '' : 'disabled'}>Continuar a la firma ${ic('flecha', 20)}</button></div>`;
 }
 function tecla(k) {
   if (k === 'C') S.kmFinal = ''; else if (k === '<') S.kmFinal = S.kmFinal.slice(0, -1); else if (S.kmFinal.length < 7) S.kmFinal += k;
@@ -1292,23 +1413,27 @@ function tecla(k) {
 }
 async function continuarFirma() {
   const F = S.flujo; const kf = parseInt(S.kmFinal) || 0;
-  const n = F.n_clases || 1;
-  if (kf <= F.km_inicial || kf - F.km_inicial < n) return;
+  if (!estadoKmFinal().ok) return;
+  const porMinutos = F.modo === 'minutos';
   if (kf - F.km_inicial > 300 && !confirm(`Son ${kf - F.km_inicial} km en una sola práctica. ¿Es correcto?`)) return;
   const btn = document.getElementById('btn-firma'); btn.disabled = true; btn.textContent = 'Guardando…';
   try {
     const res = await postJSON('/api/finalizar-practica', {
       practica_id: F.practica_id, km_final: kf, trabajado: F.trabajado, observacion: F.observacion, hora_fin: hhmm(),
-      zonas: F.zonas || [], n_clases: n
+      zonas: F.zonas || [], ...(porMinutos ? { minutos: parseInt(F.minutos) } : { n_clases: F.n_clases || 1 })
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cerrar la práctica');
     F.km_final = kf; F.hora_fin = hhmm(); F.cerrada = true; F.resumen = data.alumno; F.recorridos = data.recorridos; F.campos_guardados = data.campos_guardados;
     F.practica_ids = Array.isArray(data.practica_ids) && data.practica_ids.length ? data.practica_ids : [F.practica_id];
-    F.n_clases = F.practica_ids.length;
+    F.n_clases = data.clases || cantidadDe(F);
     guardarFlujo();
     // refresca datos locales del alumno y del vehículo
     const al = alumno(F.alumno_id); if (al && data.alumno) { al.clases = data.alumno.clases; al.km = data.alumno.km; }
+    if (al && data.minutos_sobrantes !== undefined) {
+      al.minutos_sobrantes = data.minutos_sobrantes;
+      if (data.minutos_sobrantes > 0) toast(`${clasesTxt(F.n_clases)} guardadas. A ${nombreAlumno(al).split(' ')[0]} le quedan ${minTxt(data.minutos_sobrantes)} acumulados para la próxima.`, 4200);
+    }
     const v = vehiculo(F.vehiculo_id); if (v) { v.km_actual = Math.max(v.km_actual || 0, kf); v.ultimo = { km_final: kf, hora: F.hora_inicio, alumno: F.alumno_nombre, fecha: F.fecha }; }
     go('firma');
   } catch (e) { if (e.message !== 'Sesión expirada') { toast(e.message); btn.disabled = false; btn.innerHTML = 'Continuar a la firma ' + ic('flecha', 20); } }
@@ -1326,7 +1451,7 @@ function renderFirma() {
     <div class="card rev-grid">
       <div><div class="etq2">Fecha</div><div class="val">${esc(fechaCorta(F.fecha || S.hoy))} ${partes(F.fecha || S.hoy).y}</div></div>
       <div><div class="etq2">Horario</div><div class="val mono">${F.hora_inicio ? `${esc(F.hora_inicio)} - ${esc(F.hora_fin || hhmm())}` : '—'}</div></div>
-      <div><div class="etq2">${(F.n_clases || 1) > 1 ? 'Clases' : 'Clase'}</div><div class="val">Nº ${(F.n_clases || 1) > 1 ? F.clase_n + '–' + (F.clase_n + F.n_clases - 1) : F.clase_n} · ${F.hora_inicio ? Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio)))) : (F.n_clases || 1) * durClase()} min</div></div>
+      <div><div class="etq2">${(F.n_clases || 1) > 1 ? 'Clases' : 'Clase'}</div><div class="val">${esc(claseTxt(F).replace(/^Clases? /, 'Nº '))} · ${F.hora_inicio ? Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio)))) : Math.round((F.n_clases || 1) * durClase())} min</div></div>
       <div><div class="etq2">Profesor</div><div class="val">${esc(F.profesor_nombre || (S.perfil && S.perfil.nombre !== 'Sin profesor' ? S.perfil.nombre : '—'))}</div></div>
       <div><div class="etq2">Km ${F.matricula ? '(' + esc(F.matricula) + ')' : ''}</div><div class="val mono">${miles(F.km_inicial)} → ${miles(F.km_final)}</div></div>
       <div><div class="etq2">Recorridos</div><div class="val mono" style="font-size:24px">${F.km_final - F.km_inicial} km</div></div>
@@ -1335,7 +1460,7 @@ function renderFirma() {
     </div>
     <div class="etq"><span>Firma de ${esc(F.alumno_nombre)}</span><button class="lnk" style="color:var(--ink);font-size:15px" onclick="borrarFirma()">${ic('deshacer', 16)} Borrar</button></div>
     <div class="firma-caja" id="firma-caja"><canvas id="firma-cv"></canvas><div class="firma-ayuda" id="firma-ayuda">Firma aquí con el dedo</div><div class="firma-guia"><span>×</span></div></div>
-    <p class="fila-sub" style="margin:8px 2px 0">Al firmar confirmas que has recibido ${(F.n_clases || 1) > 1 ? `estas ${F.n_clases} clases prácticas` : 'esta clase práctica'} con los datos de arriba.</p>
+    <p class="fila-sub" style="margin:8px 2px 0">Al firmar confirmas que has recibido ${(F.n_clases || 1) > 1 ? `estas ${fmtC(F.n_clases)} clases prácticas` : `esta clase práctica${(F.n_clases || 1) < 1 ? ` (${fmtC(F.n_clases)} de clase)` : ''}`} con los datos de arriba.</p>
     <div class="barra-fija"><div style="display:flex;flex-direction:column;gap:6px;align-items:center"><button class="btn btn-pri btn-lg" id="btn-conf" onclick="confirmarFirma()" disabled>${ic('ok', 20, 'style="stroke-width:2.6"')} Confirmar firma</button>
       <button class="lnk" onclick="firmarMasTarde()">Firmar más tarde</button></div></div>`;
   iniciarLienzo();
@@ -1402,6 +1527,64 @@ async function confirmarFirma() {
   } catch (e) { if (e.message !== 'Sesión expirada') { toast(e.message); btn.disabled = false; btn.innerHTML = ic('ok', 20) + ' Confirmar firma'; } }
 }
 function firmarMasTarde() { terminarFlujo('Queda pendiente de firma'); }
+
+// ─── MI FIRMA (firma del profesor) ──────────────────────────────────────────
+// Se dibuja una vez; el escritorio la pone en la casilla «Firma del profesor»
+// de todas sus clases en la ficha DGT. S.miFirma: imagen, false (no tiene) o
+// undefined (sin perfil o sin saber aún).
+const MIFIRMA_VISTO_KEY = 'km_mifirma_visto';
+async function cargarMiFirma() {
+  S.miFirma = undefined;
+  if (!S.perfil || !S.perfil.id) return;
+  try {
+    const res = await apiFetch('/api/firma-profesor?profesor_id=' + S.perfil.id);
+    const data = await res.json();
+    if (res.ok && data.disponible !== false) S.miFirma = data.firma || false;
+  } catch { /* sin conexión: se vuelve a mirar al abrir «Mi firma» */ }
+}
+async function renderMiFirma() {
+  const v = document.getElementById('v-mifirma');
+  // El lienzo usa los mismos ids que la firma del alumno: se vacía esa vista
+  // (se vuelve a pintar entera al entrar en ella).
+  document.getElementById('v-firma').innerHTML = '';
+  const cab = `<div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Mi firma</h1></div></div>`;
+  if (!S.perfil || !S.perfil.id) {
+    v.innerHTML = cab + `<div class="vacio">Elige tu perfil de profesor para guardar tu firma.</div><button class="btn btn-pri btn-lg" onclick="cambiarPerfil()">Elegir perfil</button>`;
+    return;
+  }
+  if (S.miFirma === undefined) { v.innerHTML = cab + '<div class="cargando">Cargando…</div>'; await cargarMiFirma(); if (S.vista !== 'mifirma') return; }
+  const tiene = typeof S.miFirma === 'string';
+  v.innerHTML = cab + `
+    <p class="fila-sub" style="margin:0 2px 14px;font-size:16px">${esc(S.perfil.nombre)}: tu firma sale en la casilla «Firma del profesor» de todas tus clases en la ficha DGT. Se guarda una vez y sirve para todos tus alumnos.</p>
+    ${tiene ? `<div class="etq">Firma guardada</div><div class="card" style="background:#fff;display:flex;justify-content:center;padding:14px"><img src="${S.miFirma}" alt="Tu firma guardada" style="max-width:100%;max-height:120px"></div>` : ''}
+    <div class="etq"><span>${tiene ? 'Para cambiarla, firma de nuevo' : 'Firma aquí'}</span><button class="lnk" style="color:var(--ink);font-size:15px" onclick="borrarFirma()">${ic('deshacer', 16)} Borrar</button></div>
+    <div class="firma-caja" id="firma-caja"><canvas id="firma-cv"></canvas><div class="firma-ayuda" id="firma-ayuda">Firma aquí con el dedo</div><div class="firma-guia"><span>×</span></div></div>
+    <div class="barra-fija"><div style="display:flex;flex-direction:column;gap:6px;align-items:center"><button class="btn btn-pri btn-lg" id="btn-conf" onclick="guardarMiFirma()" disabled>${ic('ok', 20, 'style="stroke-width:2.6"')} Guardar mi firma</button>
+      ${tiene ? '<button class="lnk" onclick="quitarMiFirma()">Quitar mi firma</button>' : ''}</div></div>`;
+  iniciarLienzo();
+}
+async function enviarMiFirma(firma) {
+  const res = await postJSON('/api/firma-profesor', { profesor_id: S.perfil.id, firma });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo guardar la firma');
+}
+async function guardarMiFirma() {
+  const btn = document.getElementById('btn-conf');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  let firma = firmaComoPNG();
+  if (firma.length > 150000) firma = firmaComoPNG(300); // firma muy densa: se reduce más
+  try {
+    await enviarMiFirma(firma);
+    S.miFirma = firma; localStorage.setItem(MIFIRMA_VISTO_KEY, '1');
+    toast('Firma guardada: saldrá en tus fichas DGT');
+    volver();
+  } catch (e) { if (e.message !== 'Sesión expirada') { toast(e.message, 5000); btn.disabled = false; btn.innerHTML = ic('ok', 20) + ' Guardar mi firma'; } }
+}
+async function quitarMiFirma() {
+  if (!confirm('¿Quitar tu firma? Tus clases saldrán sin firma del profesor en la ficha DGT hasta que vuelvas a firmar.')) return;
+  try { await enviarMiFirma(null); S.miFirma = false; toast('Firma quitada'); renderMiFirma(); }
+  catch (e) { if (e.message !== 'Sesión expirada') toast(e.message, 5000); }
+}
 // Salir de la firma sin firmar: la práctica ya está cerrada, queda pendiente.
 function salirDeFirma() { if (S.flujo && S.flujo.volverA) terminarFlujo('Queda pendiente de firma'); else go('hoy'); }
 async function terminarFlujo(msg) {
@@ -1439,7 +1622,7 @@ function pintarListaAlumnos() {
   });
   document.getElementById('lista-alumnos').innerHTML = lista.length ? lista.map(a =>
     `<button class="fila-alumno" onclick="abrirFicha(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span>
-      <div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub"><b style="color:var(--ink)">${clasesAlumno(a)}</b> ${clasesAlumno(a) === 1 ? 'clase' : 'clases'} · <span class="mono">${miles(kmAlumno(a))}</span> km</div></div>
+      <div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub"><b style="color:var(--ink)">${fmtC(clasesAlumno(a))}</b> ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'} · <span class="mono">${miles(kmAlumno(a))}</span> km</div></div>
       ${clasesAlumno(a) > 0 ? '' : '<span class="pill pill-info">Nuevo</span>'}${ic('chev', 20, 'style="color:var(--faint)"')}</button>`).join('')
     : (S.filtroAlumnos === 'mios' && !q
       ? `<div class="vacio">Todavía no tienes alumnos asignados.<small>Se asignan en la app de escritorio (ficha del alumno → Profesor).</small><button class="btn btn-sec btn-peq" style="margin-top:12px" onclick="S.filtroAlumnos='todos';S.filtroElegido=true;renderAlumnos()">Ver todos</button></div>`
@@ -1491,15 +1674,16 @@ function renderFicha() {
   cont.innerHTML = cab + `
     <div style="display:flex;align-items:center;gap:14px;margin:4px 0 16px"><span class="ini ini-lg">${esc(iniciales(nombre))}</span>
       <div style="min-width:0"><div class="grande" style="font-size:34px">${esc(nombre)}</div><div class="fila-sub" style="font-size:15px">Permiso ${esc(a.permiso)}${a.profesor_nombre ? ' · Prof. ' + esc(a.profesor_nombre) : ''}</div></div></div>
-    <div class="tres"><div class="stat-box osc"><span class="val">${totalClases}</span><span class="etq2">${totalClases === 1 ? 'clase hecha' : 'clases hechas'}</span></div>
+    <div class="tres"><div class="stat-box osc"><span class="val">${fmtC(totalClases)}</span><span class="etq2">${totalClases > 0 && totalClases <= 1 ? 'clase hecha' : 'clases hechas'}</span></div>
       <div class="stat-box" style="background:#fff;border:1px solid var(--line)"><span class="val">${miles(totalKm)}</span><span class="etq2">km recorridos</span></div>
       <div class="stat-box" style="background:#fff;border:1px solid var(--line)"><span class="val">${horas}</span><span class="etq2">h al volante</span></div></div>
     ${previas || kmPrevios ? `<div class="fila-sub" style="margin:8px 2px 0">Incluye ${previas} ${previas === 1 ? 'clase' : 'clases'} y ${miles(kmPrevios)} km hechos antes de usar la app.</div>` : ''}
+    ${a.minutos_sobrantes > 0 ? `<div class="fila-sub" style="margin:8px 2px 0">Tiene <b>${minTxt(a.minutos_sobrantes)}</b> acumulados de clases por minutos: se anotan en cuanto lleguen a ¼ de clase (${minTxt(durClase() / 4)}).</div>` : ''}
     <div class="card cal" style="margin-top:14px"><div class="cal-cab"><button onclick="mesFicha(-1)" aria-label="Mes anterior">${ic('chevIzq', 20)}</button><div style="text-align:center"><b>${cap(MESES[m - 1])} ${y}</b><div class="fila-sub">${nDiasPractica} ${nDiasPractica === 1 ? 'día con práctica' : 'días con práctica'}</div></div><button onclick="mesFicha(1)" aria-label="Mes siguiente">${ic('chev', 20)}</button></div>
       <div class="cal-sem"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div><div class="cal-dias">${celdas}</div>
       <div class="leyenda"><span><i style="background:var(--ink)"></i>Día con práctica</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--ink)"></i>Programada</span><span><i style="box-shadow:0 0 0 2px var(--amber);width:8px;height:8px"></i>Hoy</span></div></div>
     ${proximas ? `<div class="grupo-tit"><span>Próximas clases</span></div><div class="card">${proximas}</div>` : ''}
-    <div class="grupo-tit"><span>Últimas prácticas</span><span style="font-size:14px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink)">${d.total > 6 ? 'Las 6 últimas de ' + d.total : ''}</span></div>
+    <div class="grupo-tit"><span>Últimas prácticas</span><span style="font-size:14px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink)">${(d.n_practicas || d.total) > 6 ? 'Las 6 últimas de ' + (d.n_practicas || d.total) : ''}</span></div>
     <div class="card">${filas || '<div class="vacio">Todavía no tiene prácticas.</div>'}</div>
     <button class="lnk lnk-suave lnk-olvido" onclick="abrirAnotar({alumno_id:${a.id},volverA:'ficha'})">${ic('hist', 18)} Anotar una clase pasada de ${esc((a.nombre || '').split(' ')[0])}</button>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" onclick="abrirIniciar({alumno_id:${a.id},vehiculo_id:${a.vehiculo_id || 'null'}})">${ic('play', 18)} Iniciar práctica con ${esc((a.nombre || '').split(' ')[0])}</button></div>`;
@@ -1651,7 +1835,7 @@ function pintarDetalle(p) {
   const dur = p.hora_inicio && p.hora_fin ? Math.max(1, horaAMin(p.hora_fin) - horaAMin(p.hora_inicio)) : null;
   const firmable = p.km_final > 0 && !p.firma;
   const fila = (etq, val, ancho) => `<div${ancho ? ' style="grid-column:1/-1"' : ''}><div class="etq2">${etq}</div><div class="val" style="font-size:16px">${val}</div></div>`;
-  abrirHoja(`<div class="hoja-tit"><h3>Clase Nº ${p.clase_n}</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+  abrirHoja(`<div class="hoja-tit"><h3>Clase Nº ${p.clase_n}${p.fraccion ? ` <small class="fila-sub">· ${clasesTxt(p.fraccion)}</small>` : ''}</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
     <div class="hoja-scroll">
       <div class="card rev-grid">
         ${fila('Alumno', esc(p.alumno_nombre) + (p.permiso ? ` <small class="fila-sub">· Permiso ${esc(p.permiso)}</small>` : ''), true)}
@@ -1680,10 +1864,10 @@ function firmarDesdeDetalle() {
     practica_id: p.id, alumno_id: p.alumno_id, alumno_nombre: p.alumno_nombre, vehiculo_id: p.vehiculo_id, vehiculo_nombre: p.vehiculo_nombre, matricula: p.matricula,
     km_inicial: p.km_inicial, km_final: p.km_final, inicio_ms: Date.now(), hora_inicio: p.hora_inicio, hora_fin: p.hora_fin,
     zonas: p.zonas, trabajado: p.trabajado, observacion: '', clase_n: p.clase_n, fecha: p.fecha, cerrada: true,
-    profesor_nombre: p.profesor_nombre, volverA: S.vista === 'ficha' ? 'ficha' : 'historial', practica_ids: [p.id], n_clases: 1
+    profesor_nombre: p.profesor_nombre, volverA: S.vista === 'ficha' ? 'ficha' : 'historial', practica_ids: [p.id], n_clases: p.fraccion || 1
   };
   const ses = p.sesion;
-  if (ses && ses.n > 1) Object.assign(S.flujo, { practica_id: ses.ids[0], practica_ids: ses.ids, n_clases: ses.n, clase_n: ses.clase_n_desde, km_inicial: ses.km_inicial, km_final: ses.km_final, hora_inicio: ses.hora_inicio || p.hora_inicio, hora_fin: ses.hora_fin || p.hora_fin });
+  if (ses && ses.ids.length > 1) Object.assign(S.flujo, { practica_id: ses.ids[0], practica_ids: ses.ids, n_clases: ses.n, clase_n: ses.clase_n_desde, km_inicial: ses.km_inicial, km_final: ses.km_final, hora_inicio: ses.hora_inicio || p.hora_inicio, hora_fin: ses.hora_fin || p.hora_fin });
   guardarFlujo(); cerrarHoja(); go('firma');
 }
 async function cancelarPractica(id) {
@@ -1713,7 +1897,7 @@ function renderRiel() {
     ${vehiculo(S.vehId) ? `<div style="margin-top:8px;display:flex;align-items:center;gap:8px">${placa(vehiculo(S.vehId).matricula)}<span class="fila-sub">${esc(vehiculo(S.vehId).nombre)} · <b class="mono" style="color:var(--ink)">${miles(kmSugerido(S.vehId))}</b> km</span></div>` : ''}</div>
     <button class="avatar" onclick="menuPerfil()" aria-label="Perfil y opciones">${esc(iniciales(S.perfil ? S.perfil.nombre : '?'))}</button></div>`;
   const filas = [];
-  [...J.practicas.filter(p => !(p.km_final > 0)), ...agruparSesiones(J.practicas.filter(p => p.km_final > 0))].forEach(p => filas.push({ h: p.hora_inicio || '99', html: `<button class="riel-fila ${S.flujo && (S.flujo.practica_id === p.id || (S.flujo.practica_ids || []).includes(p.id)) && ['curso', 'kmfinal', 'firma'].includes(S.vista) ? 'activa' : ''}" onclick="continuarPractica(${p.id})"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(p.alumno_nombre)}</div><div class="fila-sub">${p.en_curso ? 'en curso' : (p.n > 1 ? clasesTxt(p.n) + ' · ' : '') + p.km + ' km'}</div></div>${p.en_curso ? '<span class="pill pill-dark">En curso</span>' : (p.firmada ? '<span class="pill pill-ok">Firmada</span>' : '<span class="pill pill-warn">Sin firmar</span>')}</button>` }));
+  [...J.practicas.filter(p => !(p.km_final > 0)), ...agruparSesiones(J.practicas.filter(p => p.km_final > 0))].forEach(p => filas.push({ h: p.hora_inicio || '99', html: `<button class="riel-fila ${S.flujo && (S.flujo.practica_id === p.id || (S.flujo.practica_ids || []).includes(p.id)) && ['curso', 'kmfinal', 'firma'].includes(S.vista) ? 'activa' : ''}" onclick="continuarPractica(${p.id})"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(p.alumno_nombre)}</div><div class="fila-sub">${p.en_curso ? 'en curso' : (p.n !== 1 ? clasesTxt(p.n) + ' · ' : '') + p.km + ' km'}</div></div>${p.en_curso ? '<span class="pill pill-dark">En curso</span>' : (p.firmada ? '<span class="pill pill-ok">Firmada</span>' : '<span class="pill pill-warn">Sin firmar</span>')}</button>` }));
   pendientesReservas(J).forEach(rv => filas.push({ h: rv.hora_inicio || '99', html: `<button class="riel-fila" onclick="abrirIniciar({alumno_id:${rv.alumno_id},vehiculo_id:${rv.vehiculo_id || 'null'},n_clases:${nDeReserva(rv)}})"><span class="fila-hora">${esc(rv.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(rv.alumno_nombre || 'Alumno')}</div><div class="fila-sub">${esc(rv.nota || 'Programada')}</div></div></button>` }));
   filas.sort((a, b) => a.h.localeCompare(b.h));
   document.getElementById('riel-lista').innerHTML = filas.length ? filas.map(f => f.html).join('') : '<div class="vacio">Sin clases hoy.</div>';

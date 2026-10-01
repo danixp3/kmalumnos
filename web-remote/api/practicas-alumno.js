@@ -1,6 +1,6 @@
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, withRetry, handleSupabaseError,
-  conFallbackColumnas, COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_LISTA, esErrorColumnaInexistente
+  conFallbackColumnas, COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_LISTA, esErrorColumnaInexistente, clasesDe
 } from './_utils.js';
 
 // Ficha de un alumno para el móvil: datos básicos, totales y sus últimas
@@ -22,13 +22,12 @@ export default async function handler(req, res) {
   }
 
   // Verificar que el alumno existe, no está borrado y pertenece a la empresa
-  let { data: alumno, error: errAlumno } = await supabase
-    .from('alumnos')
-    .select('id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta, clases_previas, km_previos')
-    .eq('id', alumnoIdVal.value)
-    .eq('deleted', false)
-    .eq('empresa_id', auth.empresaId)
-    .maybeSingle();
+  // minutos_sobrantes: lo acumulado de clases por minutos (migración 2026-10-02)
+  const leerAlumno = cols => supabase.from('alumnos').select(cols)
+    .eq('id', alumnoIdVal.value).eq('deleted', false).eq('empresa_id', auth.empresaId).maybeSingle();
+  const COLS = 'id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta, clases_previas, km_previos';
+  let { data: alumno, error: errAlumno } = await leerAlumno(COLS + ', minutos_sobrantes');
+  if (errAlumno && esErrorColumnaInexistente(errAlumno)) ({ data: alumno, error: errAlumno } = await leerAlumno(COLS));
   if (errAlumno && esErrorColumnaInexistente(errAlumno)) {
     ({ data: alumno, error: errAlumno } = await supabase
       .from('alumnos').select('id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta')
@@ -103,6 +102,7 @@ export default async function handler(req, res) {
       trabajado: Array.isArray(p.trabajado) ? p.trabajado : [],
       zonas: Array.isArray(p.zonas) ? p.zonas : [],
       firmada: !!p.firmada,
+      fraccion: clasesDe(p) < 1 ? clasesDe(p) : null,
       sin_cerrar: p.km_inicial > 0 && !p.km_final && p.fecha < hoy,
       en_curso: p.km_inicial > 0 && !p.km_final && p.fecha === hoy
     };
@@ -116,9 +116,12 @@ export default async function handler(req, res) {
       profesor_nombre: alumno.profesor_id ? (mapaProfesores.get(alumno.profesor_id) || null) : null,
       primer_apellido: alumno.primer_apellido || null, segundo_apellido: alumno.segundo_apellido || null,
       estado: alumno.estado || null, fecha_alta: alumno.fecha_alta || null,
-      clases_previas: alumno.clases_previas || 0, km_previos: alumno.km_previos || 0
+      clases_previas: alumno.clases_previas || 0, km_previos: alumno.km_previos || 0,
+      minutos_sobrantes: Number(alumno.minutos_sobrantes) || 0
     },
-    total: todas.length,
+    // Clases (las fracciones ¼ ½ ¾ suman lo que valen) y nº de prácticas
+    total: todas.reduce((n, p) => n + clasesDe(p), 0),
+    n_practicas: todas.length,
     km_totales: kmTotales,
     fechas: [...new Set(todas.map(p => p.fecha))],
     practicas: practicasFormateadas,

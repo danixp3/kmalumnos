@@ -3,14 +3,17 @@
 // alumno (clases y km) para la pantalla de km final.
 // Con `n_clases` > 1 (p. ej. 90 min con clases de 45) la sesión se guarda como
 // N clases consecutivas: la práctica abierta pasa a ser la primera y se crean
-// las demás con los km y el horario repartidos a partes iguales.
+// las demás con los km y el horario repartidos. `n_clases` va de ¼ en ¼
+// (1.5 = una clase entera y otra de ½, con `fraccion` = 0.5).
+// Con `minutos` (clases por minutos) se suman los minutos acumulados del
+// alumno, se guardan los cuartos de clase completos y lo que sobra queda
+// acumulado (alumnos.minutos_sobrantes) para la próxima.
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError,
   hhmmValido, kmEntero, conFallbackColumnas, kmDePractica, limpiarZonas,
-  partirEnClases, insertarPractica, sesionDePractica
+  partirEnClases, insertarPractica, sesionDePractica, cantidadClases, minutosValidos,
+  clasesPorMinutos, leerDuracionClase, leerMinutosAlumno, guardarMinutosAlumno, clasesDe, fmtClases
 } from '../../api/_utils.js';
-
-const MAX_CLASES = 6;
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -21,16 +24,22 @@ export default async function handler(req, res) {
   if (!auth) return;
   const supabase = getSupabase(auth.token);
 
-  const { practica_id, km_final, trabajado, observacion, hora_fin, zonas, n_clases } = req.body || {};
+  const { practica_id, km_final, trabajado, observacion, hora_fin, zonas, n_clases, minutos } = req.body || {};
   const idVal = validators.positiveInt(practica_id, 'practica_id');
   if (!idVal.valid) return res.status(400).json({ error: idVal.error });
   const kmVal = kmEntero(km_final, 'El km final');
   if (!kmVal.valid) return res.status(400).json({ error: kmVal.error });
   let nClases = 1;
   if (n_clases !== undefined && n_clases !== null && n_clases !== '') {
-    const nv = validators.positiveInt(n_clases, 'n_clases');
-    if (!nv.valid || nv.value > MAX_CLASES) return res.status(400).json({ error: `El número de clases debe estar entre 1 y ${MAX_CLASES}.` });
+    const nv = cantidadClases(n_clases);
+    if (!nv.valid) return res.status(400).json({ error: nv.error });
     nClases = nv.value;
+  }
+  const porMinutos = minutos !== undefined && minutos !== null && minutos !== '';
+  let minVal = null;
+  if (porMinutos) {
+    minVal = minutosValidos(minutos);
+    if (!minVal.valid) return res.status(400).json({ error: minVal.error });
   }
 
   const { data: practica, error: errFind } = await supabase
@@ -39,17 +48,32 @@ export default async function handler(req, res) {
   if (errFind && isAuthError(errFind)) return res.status(401).json({ error: 'Sesión expirada. Inicia sesión de nuevo.' });
   if (errFind || !practica) return res.status(404).json({ error: 'Práctica no encontrada' });
 
-  // Reintento de una sesión ya partida (la respuesta anterior no llegó al
-  // móvil): no se vuelve a partir, se devuelven las clases que ya existen.
-  if (nClases > 1 && practica.km_final > 0) {
-    const sesion = await sesionDePractica(supabase, auth.empresaId, practica);
-    if (sesion.length > 1) {
+  // Reintento de una sesión ya cerrada (la respuesta anterior no llegó al
+  // móvil): no se vuelve a partir ni a contar minutos, se devuelven las clases
+  // que ya existen.
+  if ((nClases > 1 || porMinutos) && practica.km_final > 0) {
+    const sesion = await sesionDePractica(supabase, auth.empresaId, practica, 'id, km_inicial, km_final, hora_inicio, hora_fin, firmada, fraccion');
+    if (sesion.length > 1 || porMinutos) {
+      const acumulado = porMinutos ? await leerMinutosAlumno(supabase, auth.empresaId, practica.alumno_id) : null;
       return res.status(200).json({
-        ok: true, ya_cerrada: true, practica_ids: sesion.map(x => x.id), clases: sesion.length,
+        ok: true, ya_cerrada: true, practica_ids: sesion.map(x => x.id), clases: sesion.reduce((n, x) => n + clasesDe(x), 0),
         recorridos: sesion[sesion.length - 1].km_final - sesion[0].km_inicial,
+        minutos_sobrantes: acumulado ? acumulado.minutos : undefined,
         alumno: await resumenAlumno(supabase, auth.empresaId, practica.alumno_id), campos_guardados: true
       });
     }
+  }
+
+  // Clases por minutos: lo acumulado del alumno + los minutos de hoy
+  let acumulado = null, calculo = null;
+  if (porMinutos) {
+    const duracion = await leerDuracionClase(supabase, auth.empresaId);
+    acumulado = await leerMinutosAlumno(supabase, auth.empresaId, practica.alumno_id);
+    calculo = clasesPorMinutos(minVal.value, acumulado.minutos, duracion);
+    if (calculo.cantidad < 0.25) {
+      return res.status(400).json({ error: `${calculo.total} min no llegan a ¼ de clase (${duracion / 4} min). Elige la cantidad de clases a mano.` });
+    }
+    nClases = calculo.cantidad;
   }
 
   if (kmVal.value <= practica.km_inicial) {
@@ -60,7 +84,7 @@ export default async function handler(req, res) {
   }
   const partes = partirEnClases(practica.km_inicial, kmVal.value, practica.hora_inicio, hhmmValido(hora_fin) ? hora_fin : null, nClases);
   if (!partes) {
-    return res.status(400).json({ error: `Con ${kmVal.value - practica.km_inicial} km no se pueden guardar ${nClases} clases.` });
+    return res.status(400).json({ error: `Con ${kmVal.value - practica.km_inicial} km no se pueden guardar ${fmtClases(nClases)} clases.` });
   }
 
   const cambios = { km_final: kmVal.value, updated_at: new Date().toISOString() };
@@ -70,6 +94,7 @@ export default async function handler(req, res) {
   if (lista.length) cambios.trabajado = lista;
   if (hhmmValido(hora_fin)) cambios.hora_fin = hora_fin;
   if (Array.isArray(zonas)) cambios.zonas = limpiarZonas(zonas); // [] = el profesor las desmarcó todas
+  cambios.fraccion = partes[0].fraccion; // null = clase entera
 
   // Clases 2..N de la sesión: se crean ANTES de tocar la abierta; si alguna
   // falla se retiran (borrado suave) y la práctica sigue abierta como estaba.
@@ -89,6 +114,7 @@ export default async function handler(req, res) {
     };
     if (cambios.trabajado) fila.trabajado = cambios.trabajado;
     if (parte.hora_fin) fila.hora_fin = parte.hora_fin;
+    if (parte.fraccion) fila.fraccion = parte.fraccion;
     const zonasFila = cambios.zonas || zonasOrig;
     if (zonasFila.length) fila.zonas = zonasFila;
     const { data, error, degradado } = await insertarPractica(supabase, fila);
@@ -100,14 +126,14 @@ export default async function handler(req, res) {
     if (degradado) degradadoNuevas = true;
     nuevas.push(data.id);
   }
-  if (nClases > 1) {
+  if (partes.length > 1) {
     cambios.km_final = partes[0].km_final;
     if (partes[0].hora_fin) cambios.hora_fin = partes[0].hora_fin; else delete cambios.hora_fin;
   }
 
   const { res: rUp, degradado } = await conFallbackColumnas(conOpc => {
     const payload = { ...cambios };
-    if (!conOpc) { delete payload.trabajado; delete payload.hora_fin; delete payload.zonas; }
+    if (!conOpc) { delete payload.trabajado; delete payload.hora_fin; delete payload.zonas; delete payload.fraccion; }
     return supabase.from('practicas').update(payload).eq('id', practica.id).eq('empresa_id', auth.empresaId);
   });
   if (rUp.error) await retirar(supabase, auth.empresaId, nuevas);
@@ -119,9 +145,14 @@ export default async function handler(req, res) {
     await supabase.from('vehiculos').update({ km_actual: kmVal.value, updated_at: new Date().toISOString() }).eq('id', practica.vehiculo_id);
   }
 
+  // Minutos que no llegan a ¼ de clase: quedan acumulados para la próxima
+  let errMinutos = null;
+  if (porMinutos && acumulado.disponible) errMinutos = await guardarMinutosAlumno(supabase, auth.empresaId, practica.alumno_id, calculo.sobran);
+
   return res.status(200).json({
     ok: true, recorridos: kmVal.value - practica.km_inicial,
     practica_ids: [practica.id, ...nuevas], clases: nClases,
+    minutos_sobrantes: porMinutos && acumulado.disponible && !errMinutos ? calculo.sobran : undefined,
     alumno: await resumenAlumno(supabase, auth.empresaId, practica.alumno_id),
     campos_guardados: !degradado && !degradadoNuevas
   });
@@ -129,10 +160,11 @@ export default async function handler(req, res) {
 
 // Resumen del alumno (clases y km de la app, incluidas las recién cerradas)
 async function resumenAlumno(supabase, empresaId, alumnoId) {
-  const { data: todas } = await supabase
-    .from('practicas').select('id, km_inicial, km_final')
-    .eq('alumno_id', alumnoId).eq('deleted', false).eq('empresa_id', empresaId);
-  return { clases: (todas || []).length, km: (todas || []).reduce((s, p) => s + kmDePractica(p), 0) };
+  const { res: r } = await conFallbackColumnas(conOpc => supabase
+    .from('practicas').select('id, km_inicial, km_final' + (conOpc ? ', fraccion' : ''))
+    .eq('alumno_id', alumnoId).eq('deleted', false).eq('empresa_id', empresaId));
+  const todas = r.data || [];
+  return { clases: todas.reduce((n, p) => n + clasesDe(p), 0), km: todas.reduce((s, p) => s + kmDePractica(p), 0) };
 }
 
 // Retira (borrado suave) las clases creadas si la operación no se completa.

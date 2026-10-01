@@ -614,7 +614,7 @@
 
       <div class="table-wrap">
         <table id="tabla-profesores">
-          <thead><tr><th>Nombre</th><th>Nota</th><th>Prácticas impartidas</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Nota</th><th>Prácticas impartidas</th><th>Firma</th><th>Acciones</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -3319,6 +3319,15 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
       <select id="edit-p-tipo">
         <option value="circulacion">Circulación</option>
         <option value="pista">Pista</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Cuánto vale</label>
+      <select id="edit-p-fraccion" title="Las fracciones se cobran en proporción a la tarifa">
+        <option value="">Clase entera</option>
+        <option value="0.75">¾ de clase</option>
+        <option value="0.5">½ clase</option>
+        <option value="0.25">¼ de clase</option>
       </select>
     </div>
     <div class="form-group">

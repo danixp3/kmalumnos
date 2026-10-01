@@ -42,7 +42,9 @@ class Consulta {
     }
     if (this.modo === 'update') {
       const c = faltan.find(k => k in this.payload); if (c) return { data: null, error: errCol(c) };
-      this.filas().filter(r => this.filtros.every(f => f(r))).forEach(r => Object.assign(r, this.payload)); return { data: null, error: null };
+      const afectadas = this.filas().filter(r => this.filtros.every(f => f(r)));
+      afectadas.forEach(r => Object.assign(r, this.payload));
+      return { data: this.retorna ? afectadas.map(r => ({ id: r.id })) : null, error: null };
     }
     const c = faltan.find(k => new RegExp(`\\b${k}\\b`).test(this.cols)); if (c) return { data: null, error: errColSel(c) };
     let filas = this.filas().filter(r => this.filtros.every(f => f(r)));

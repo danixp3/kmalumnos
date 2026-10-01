@@ -6,7 +6,9 @@
 //   - Una fila por día: las clases del mismo día van juntas (db.getDatosFichaDGT).
 //     "Ejercicio": "1 CLASE" si ese día hubo una; "2 CLASES" si hubo 2 o más
 //     (máximo de clases/día que admite la DGT).
-//   - Observaciones y firmas se dejan en blanco.
+//   - Observaciones en blanco. Firmas: en cada fila, la del alumno (la que hizo
+//     en el móvil al terminar la clase) en «Firma del alumno» y la guardada del
+//     profesor que dio la clase en «Firma del profesor». Sin firma → en blanco.
 //   - Página 1 lleva cabecera (escuela + alumno) + 11 clases; el resto de clases
 //     van en tantas páginas de "continuación" (32 clases/pág) como haga falta.
 //   - La casilla DESTREZA/CIRCULACIÓN se marca con una "X" (su estado /Yes_xxx no
@@ -17,7 +19,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+const { PDFDocument, PDFName, PDFDict, PDFCheckBox, StandardFonts, rgb } = require('pdf-lib');
 
 const DIR = path.join(__dirname, 'assets', 'fichas');
 const RUTA_PLANTILLA_1 = path.join(DIR, 'ficha_practicas_dgt.pdf');
@@ -29,6 +31,16 @@ const CHECKBOX_RECT = {
   destreza:    { x: 127, yTop: 96, lado: 11 },
   circulacion: { x: 396, yTop: 97, lado: 11 },
 };
+
+// Columnas de firma de la página 1 (el impreso no trae campos ahí): medidas
+// sobre la plantilla, en puntos desde arriba. `filas` = líneas horizontales de
+// las 11 filas de clases (12 bordes).
+const FIRMAS_P1 = {
+  alumno: { x0: 454.5, x1: 516 },
+  profesor: { x0: 516, x1: 577.25 },
+  filas: [369, 388.4, 407.9, 427.4, 446.9, 466.4, 485.75, 505.25, 524.6, 544.1, 563.5, 583],
+};
+const MARGEN_FIRMA = 1.6;
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
   'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -42,6 +54,81 @@ function cargarMapa() {
 function setText(form, name, value) {
   if (!name || value == null || value === '') return;
   try { form.getTextField(name).setText(String(value)); } catch (_) { /* campo ausente: ignorar */ }
+}
+
+// Imágenes de firma ya incrustadas en el documento de salida (una sesión de
+// varias clases y el profesor repiten la misma imagen: se incrusta una vez).
+function _cacheFirmas(doc) {
+  const cache = new Map();
+  return async (dataUrl) => {
+    if (typeof dataUrl !== 'string' || !/^data:image\/png;base64,/.test(dataUrl)) return null;
+    if (!cache.has(dataUrl)) {
+      let img = null;
+      try { img = await doc.embedPng(Buffer.from(dataUrl.split(',')[1], 'base64')); } catch (_) { /* imagen dañada: casilla en blanco */ }
+      cache.set(dataUrl, img);
+    }
+    return cache.get(dataUrl);
+  };
+}
+
+// Dibuja la firma dentro de la casilla (x0..x1, yTop..yBot desde arriba),
+// centrada y sin deformar.
+function _dibujarFirma(page, img, caja) {
+  if (!img || !caja) return;
+  const H = page.getSize().height;
+  const anchoMax = caja.x1 - caja.x0 - 2 * MARGEN_FIRMA;
+  const altoMax = caja.yBot - caja.yTop - 2 * MARGEN_FIRMA;
+  if (anchoMax <= 0 || altoMax <= 0) return;
+  const k = Math.min(anchoMax / img.width, altoMax / img.height);
+  const w = img.width * k, h = img.height * k;
+  page.drawImage(img, {
+    x: caja.x0 + (caja.x1 - caja.x0 - w) / 2,
+    y: H - (caja.yTop + (caja.yBot - caja.yTop + h) / 2),
+    width: w, height: h,
+  });
+}
+
+// Firmas de las filas de una página (cajas = [{ alumno, profesor }] por fila).
+async function _firmarFilas(page, filas, cajas, imagen) {
+  for (let i = 0; i < filas.length && i < cajas.length; i++) {
+    _dibujarFirma(page, await imagen(filas[i].firma_alumno), cajas[i].alumno);
+    _dibujarFirma(page, await imagen(filas[i].firma_profesor), cajas[i].profesor);
+  }
+}
+
+// form.flatten() de pdf-lib borra los campos pero deja sus referencias en la
+// lista de anotaciones de la página: el PDF quedaba con cientos de referencias
+// rotas (los visores lo toleran, pero avisan). Se quitan las que ya no existen.
+function _limpiarAnotaciones(doc, page) {
+  const annots = page.node.lookup(PDFName.of('Annots'));
+  if (!annots || typeof annots.size !== 'function') return;
+  for (let i = annots.size() - 1; i >= 0; i--) {
+    if (!doc.context.lookup(annots.get(i))) annots.remove(i);
+  }
+  if (!annots.size()) page.node.delete(PDFName.of('Annots'));
+}
+
+// Las casillas DESTREZA/CIRCULACIÓN guardan su dibujo por estados (/Off y
+// /Yes_xxx) y flatten() de pdf-lib las aplana mal (un XObject sin tipo que el
+// visor rechaza). Se deja solo el dibujo de la casilla vacía: la X se pinta a mano.
+function _casillasSinEstados(form) {
+  for (const campo of form.getFields()) {
+    if (!(campo instanceof PDFCheckBox)) continue;
+    for (const w of campo.acroField.getWidgets()) {
+      const ap = w.dict.lookup(PDFName.of('AP'));
+      const n = ap instanceof PDFDict ? ap.lookup(PDFName.of('N')) : null;
+      if (n instanceof PDFDict && n.get(PDFName.of('Off'))) ap.set(PDFName.of('N'), n.get(PDFName.of('Off')));
+    }
+  }
+}
+
+// Caja de un campo de formulario (desde arriba) — la página de continuación sí
+// trae campos en las columnas de firma.
+function _cajaCampo(form, nombre, H) {
+  try {
+    const r = form.getTextField(nombre).acroField.getWidgets()[0].getRectangle();
+    return { x0: r.x, x1: r.x + r.width, yTop: H - r.y - r.height, yBot: H - r.y };
+  } catch (_) { return null; }
 }
 
 async function _rellenarPagina1(out, mapa, datos, filas) {
@@ -92,7 +179,9 @@ async function _rellenarPagina1(out, mapa, datos, filas) {
   setText(form, c.foot_mes, datos.mes);
   setText(form, c.foot_anio, datos.anio);
 
+  _casillasSinEstados(form);
   form.flatten();
+  _limpiarAnotaciones(tpl, tpl.getPage(0));
 
   // Marca de la casilla elegida (X), imitando el tick manual
   const tipo = datos.tipo === 'destreza' ? 'destreza' : 'circulacion';
@@ -102,6 +191,12 @@ async function _rellenarPagina1(out, mapa, datos, filas) {
   const H = page0.getSize().height;
   page0.drawText('X', { x: r.x + 1.5, y: H - (r.yTop + r.lado - 1), size: 11, font, color: rgb(0, 0, 0) });
 
+  const cajas = FIRMAS_P1.filas.slice(0, -1).map((yTop, i) => ({
+    alumno: { ...FIRMAS_P1.alumno, yTop, yBot: FIRMAS_P1.filas[i + 1] },
+    profesor: { ...FIRMAS_P1.profesor, yTop, yBot: FIRMAS_P1.filas[i + 1] },
+  }));
+  await _firmarFilas(page0, filas, cajas, _cacheFirmas(tpl));
+
   const [pg] = await out.copyPages(tpl, [0]);
   out.addPage(pg);
 }
@@ -110,6 +205,10 @@ async function _rellenarContinuacion(out, mapa, filas) {
   const bytes = fs.readFileSync(RUTA_PLANTILLA_CONT);
   const tpl = await PDFDocument.load(bytes);
   const form = tpl.getForm();
+  const page = tpl.getPage(0);
+  const H = page.getSize().height;
+  // Cajas de firma leídas antes de aplanar (después los campos desaparecen)
+  const cajas = mapa.ficha2.filas.map(f => ({ alumno: _cajaCampo(form, f.firma_alumno, H), profesor: _cajaCampo(form, f.firma_profesor, H) }));
   mapa.ficha2.filas.forEach((fila, i) => {
     const pr = filas[i];
     if (!pr) return;
@@ -120,6 +219,8 @@ async function _rellenarContinuacion(out, mapa, filas) {
     setText(form, fila.km_final, pr.km_final);
   });
   form.flatten();
+  _limpiarAnotaciones(tpl, page);
+  await _firmarFilas(page, filas, cajas, _cacheFirmas(tpl));
   const [pg] = await out.copyPages(tpl, [0]);
   out.addPage(pg);
 }
@@ -131,7 +232,7 @@ async function _rellenarContinuacion(out, mapa, filas) {
  *   centro: { numero, seccion, digito_control, denominacion, direccion, codigo_postal, poblacion },
  *   alumno: { dni, permiso, nombre, primer_apellido, segundo_apellido, direccion, codigo_postal, poblacion },
  *   profesor: { nombre, dni },
- *   practicas: [ { fecha, hora, km_inicial, km_final, clases, ejercicio } ],  // una fila por día, ya ordenadas y formateadas
+ *   practicas: [ { fecha, hora, km_inicial, km_final, clases, ejercicio, firma_alumno?, firma_profesor? } ],  // una fila por día; firmas = PNG en data URL
  *   rellenarFecha?: boolean,    // preferencia Ajustes; false = fecha del documento (pie) en blanco (por defecto true)
  *   lugar?, dia?, mes?, anio?   // pie; por defecto la fecha de hoy y la población del centro
  * }
@@ -153,6 +254,7 @@ async function generarFichaDGT(datos) {
   const practicas = (datos.practicas || []).map(p => ({
     fecha: p.fecha, hora: p.hora, ejercicio: p.ejercicio || (p.clases === 1 ? '1 CLASE' : '2 CLASES'),
     km_inicial: p.km_inicial, km_final: p.km_final,
+    firma_alumno: p.firma_alumno || null, firma_profesor: p.firma_profesor || null,
   }));
 
   const out = await PDFDocument.create();

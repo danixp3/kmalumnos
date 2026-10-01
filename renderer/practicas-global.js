@@ -128,7 +128,7 @@ async function editarPracticaGlobal(id) {
   const p = practicasGlobalCache.find(x => x.id === id);
   if (!p) return;
   currentAlumnoVehiculoId = p.vehiculo_id;   // para la validación de solapamientos al guardar
-  await openEditPractica(p.id, p.fecha, p.km_inicial, p.km_final, p.profesor_id, p.tipo, p.hora_inicio);
+  await openEditPractica(p.id, p.fecha, p.km_inicial, p.km_final, p.profesor_id, p.tipo, p.hora_inicio, p.fraccion);
 }
 
 function verFichaDesdePracticas(alumnoId, vehiculoId, nombre) {

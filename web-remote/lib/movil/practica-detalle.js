@@ -4,7 +4,7 @@
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError,
   COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_MOVIL, conFallbackColumnas, kmDePractica, nombreCompleto,
-  sesionDePractica
+  sesionDePractica, clasesDe
 } from '../../api/_utils.js';
 
 export default async function handler(req, res) {
@@ -35,21 +35,23 @@ export default async function handler(req, res) {
   if (p.profesor_id) ({ data: profesor } = await supabase.from('profesores').select('id, nombre').eq('id', p.profesor_id).maybeSingle());
 
   // Nº de clase: previas + posición entre las prácticas del alumno
-  const { data: hist } = await supabase.from('practicas').select('id, fecha, hora_inicio')
-    .eq('alumno_id', p.alumno_id).eq('deleted', false).eq('empresa_id', auth.empresaId);
-  const orden = (hist || []).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') ||
+  const { res: rh } = await conFallbackColumnas(conOpc => supabase.from('practicas').select('id, fecha, hora_inicio' + (conOpc ? ', fraccion' : ''))
+    .eq('alumno_id', p.alumno_id).eq('deleted', false).eq('empresa_id', auth.empresaId));
+  const orden = (rh.data || []).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') ||
     (a.hora_inicio || '').localeCompare(b.hora_inicio || '') || a.id - b.id);
   const pos = orden.findIndex(x => x.id === p.id);
-  const claseN = ((alumno && alumno.clases_previas) || 0) + (pos >= 0 ? pos + 1 : orden.length);
+  // Las fracciones (¼ ½ ¾) suman lo que valen
+  const hasta = pos >= 0 ? orden.slice(0, pos + 1) : orden;
+  const claseN = ((alumno && alumno.clases_previas) || 0) + Math.max(1, Math.ceil(hasta.reduce((n, x) => n + clasesDe(x), 0) - 1e-9));
 
   // Sesión de varias clases (90 min = 2 clases...): para firmarlas de una vez.
   let sesion = null;
   if (!p.firma && p.km_final > 0) {
-    const cadena = await sesionDePractica(supabase, auth.empresaId, p);
+    const cadena = await sesionDePractica(supabase, auth.empresaId, p, 'id, km_inicial, km_final, hora_inicio, hora_fin, firmada, fraccion');
     const sinFirmar = cadena.filter(x => x.id === p.id || !x.firmada);
     if (sinFirmar.length > 1) {
       sesion = {
-        ids: sinFirmar.map(x => x.id), n: sinFirmar.length,
+        ids: sinFirmar.map(x => x.id), n: sinFirmar.reduce((n, x) => n + clasesDe(x), 0),
         km_inicial: sinFirmar[0].km_inicial, km_final: sinFirmar[sinFirmar.length - 1].km_final,
         hora_inicio: sinFirmar[0].hora_inicio || null, hora_fin: sinFirmar[sinFirmar.length - 1].hora_fin || null,
         clase_n_desde: claseN - sinFirmar.findIndex(x => x.id === p.id)
@@ -67,6 +69,7 @@ export default async function handler(req, res) {
       vehiculo_id: p.vehiculo_id, vehiculo_nombre: vehiculo ? vehiculo.nombre : null, matricula: vehiculo ? vehiculo.matricula : null,
       profesor_id: p.profesor_id, profesor_nombre: profesor ? profesor.nombre : null,
       km_inicial: p.km_inicial, km_final: p.km_final, km: kmDePractica(p), clase_n: claseN,
+      fraccion: clasesDe(p) < 1 ? clasesDe(p) : null,
       tipo: p.tipo || 'circulacion', tipo_detalle: p.tipo_detalle || null,
       zonas: Array.isArray(p.zonas) ? p.zonas : [], trabajado: Array.isArray(p.trabajado) ? p.trabajado : [],
       nota: p.nota || '', firma: p.firma || null, source: p.source || null, cancelable: !!cancelable,

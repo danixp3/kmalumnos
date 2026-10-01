@@ -287,6 +287,8 @@ ipcMain.handle('get-profesores', (_, sucursalId) => db.getProfesores(sucursalId)
 ipcMain.handle('add-profesor', (_, nombre, nota, sucursalId, dni) => db.addProfesor(nombre, nota, sucursalId, dni));
 ipcMain.handle('delete-profesor', (_, id) => { db.deleteProfesor(id); return true; });
 ipcMain.handle('update-profesor', (_, id, nombre, nota, dni) => { db.updateProfesor(id, nombre, nota, dni); return true; });
+ipcMain.handle('get-firma-profesor', (_, id) => db.getFirmaProfesor(id));
+ipcMain.handle('set-firma-profesor', (_, id, firma) => db.setFirmaProfesor(id, firma));
 
 ipcMain.handle('get-tarifas', () => db.getTarifas());
 ipcMain.handle('set-tarifa', (_, permiso, tipo, precio) => db.setTarifa(permiso, tipo, precio));
@@ -314,7 +316,7 @@ ipcMain.handle('add-practica', (_, alumno_id, vehiculo_id, fecha, km_inicial, km
 ipcMain.handle('delete-practica', (_, id) => { db.deletePractica(id); return true; });
 ipcMain.handle('get-practicas-duplicadas', (_, alumno_id) => db.getPracticasDuplicadas(alumno_id));
 ipcMain.handle('eliminar-practicas-duplicadas', (_, ids) => db.deletePracticasBulk(ids));
-ipcMain.handle('update-practica', (_, id, fecha, km_inicial, km_final, profesor_id, tipo, hora_inicio) => { db.updatePractica(id, fecha, km_inicial, km_final, profesor_id, tipo, hora_inicio); return true; });
+ipcMain.handle('update-practica', (_, id, fecha, km_inicial, km_final, profesor_id, tipo, hora_inicio, fraccion) => { db.updatePractica(id, fecha, km_inicial, km_final, profesor_id, tipo, hora_inicio, fraccion); return true; });
 
 ipcMain.handle('get-pagos-alumno', (_, alumno_id) => db.getPagosByAlumno(alumno_id));
 ipcMain.handle('add-pago', (_, alumno_id, fecha, cantidad, nota, sucursalId, forma_pago, empleado) => db.addPago(alumno_id, fecha, cantidad, nota, sucursalId, forma_pago, empleado));
@@ -445,7 +447,22 @@ ipcMain.handle('guardar-puesta-en-marcha', (_, datos) => db.guardarPuestaEnMarch
 ipcMain.handle('vaciar-datos-prueba', (_, opciones) => db.vaciarDatosDePrueba(opciones));
 // Clases anteriores a la app: anotarlas a mano y crear las que falten (con fecha y km)
 ipcMain.handle('get-clases-anteriores', (_, alumnoId) => db.getClasesAnteriores(alumnoId));
-ipcMain.handle('guardar-clases-anteriores', (_, alumnoId, filas) => db.guardarClasesAnteriores(alumnoId, filas));
+ipcMain.handle('guardar-clases-anteriores', (_, alumnoId, filas, opciones) => db.guardarClasesAnteriores(alumnoId, filas, opciones));
+ipcMain.handle('leer-archivo-clases-anteriores', (_, texto) => db.leerArchivoClasesAnteriores(texto));
+// Plantilla para importar clases anteriores (la que se le pide a la IA)
+ipcMain.handle('guardar-plantilla-clases-anteriores', async () => {
+  try {
+    const r = await dialog.showSaveDialog(mainWin, {
+      title: 'Guardar plantilla de clases anteriores', defaultPath: 'plantilla_clases_anteriores.csv',
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    });
+    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+    fs.writeFileSync(r.filePath, '﻿' + db.PLANTILLA_CLASES_ANTERIORES, 'utf-8');
+    return { ok: true, path: r.filePath };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+});
 ipcMain.handle('planificar-clases-anteriores', (_, opciones) => db.planificarClasesAnteriores(opciones));
 ipcMain.handle('aplicar-clases-anteriores', (_, plan) => db.aplicarClasesAnteriores(plan));
 ipcMain.handle('set-punto-de-partida-alumno', (_, id, clases, km) => db.setPuntoDePartidaAlumno(id, clases, km));
@@ -548,11 +565,16 @@ ipcMain.handle('exportar-csv', async (_, opciones) => {
 // prácticas. Devuelve el PDF por diálogo de guardado y lo abre al terminar.
 ipcMain.handle('generar-ficha-dgt', async (_, opciones) => {
   try {
-    const { alumnoId, tipo, centro, rellenarFecha } = opciones || {};
+    const { alumnoId, tipo, centro, rellenarFecha, comprobarFirmas } = opciones || {};
     const datosAlumno = db.getDatosFichaDGT(alumnoId, tipo === 'destreza' ? 'destreza' : 'circulacion');
     if (!datosAlumno) return { ok: false, msg: 'Alumno no encontrado.' };
     if (!datosAlumno.practicas.length) {
       return { ok: false, msg: 'Este alumno no tiene prácticas de ' + (tipo === 'destreza' ? 'destreza/pista' : 'circulación') + ' registradas.' };
+    }
+    // Profesores de estas clases sin firma guardada: la pantalla se la pide
+    // antes de generar (y vuelve a llamar con comprobarFirmas=false).
+    if (comprobarFirmas && datosAlumno.profesores_sin_firma.length) {
+      return { ok: false, faltanFirmas: datosAlumno.profesores_sin_firma };
     }
     const { generarFichaDGT } = require('./fichas-dgt');
     const bytes = await generarFichaDGT({
@@ -576,7 +598,11 @@ ipcMain.handle('generar-ficha-dgt', async (_, opciones) => {
     if (result.canceled || !result.filePath) return { ok: false, canceled: true };
     fs.writeFileSync(result.filePath, Buffer.from(bytes));
     shell.openPath(result.filePath);
-    return { ok: true, path: result.filePath, nClases: datosAlumno.practicas.length };
+    return {
+      ok: true, path: result.filePath, nClases: datosAlumno.practicas.reduce((n, p) => n + p.clases, 0),
+      dias: datosAlumno.practicas.length,
+      sinFirmaAlumno: datosAlumno.practicas.filter(p => !p.firma_alumno).length,
+    };
   } catch (e) {
     return { ok: false, msg: e.message };
   }

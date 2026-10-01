@@ -194,32 +194,65 @@ async function pmGuardarSiHaceFalta() {
 }
 
 // ── Anotar (editor por alumno) ──
+// Cada fila es un día: «Clases» = cuántas seguidas ese día (se guardan con la
+// hora y los km repartidos). Se pueden pegar desde Excel o importar de un
+// archivo (p. ej. el que saca una IA de un vídeo de la ficha en papel).
+
+// Clases ya anotadas → filas: las seguidas del mismo día (hora a hora según la
+// duración de clase y km encadenados, o sin hora/km) se juntan en una fila.
+function pmAgruparAnteriores(clases) {
+  const dur = getDuracionClaseMin();
+  const aMin = h => { const [a, b] = String(h).split(':').map(Number); return a * 60 + b; };
+  const filas = [];
+  for (const c of clases) {
+    const f = filas[filas.length - 1], u = f && f._ultima;
+    const seguida = u && u.fecha === c.fecha && u.vehiculo_id === c.vehiculo_id && f.clases < 4 &&
+      (!!u.hora_inicio === !!c.hora_inicio) && (!u.hora_inicio || aMin(c.hora_inicio) - aMin(u.hora_inicio) === dur) &&
+      ((!u.km_final && !c.km_final) || (u.km_final > 0 && u.km_final === c.km_inicial));
+    if (seguida) { f.ids.push(c.id); f.clases++; f.km_final = c.km_final; f._ultima = c; }
+    else filas.push({ ...c, ids: [c.id], clases: 1, _ultima: c });
+  }
+  return filas;
+}
+
 async function pmAnotar(alumnoId) {
   if (!(await pmGuardarSiHaceFalta())) return;
   const datos = await window.api.getClasesAnteriores(alumnoId);
   if (!datos) return;
   pmAnot = datos;
-  const fila = (c = {}) => `<tr data-id="${c.id || ''}">
+  const fila = (c = {}) => `<tr data-ids="${(c.ids || []).join(',')}"${c.revisar ? ' class="pm-anot-revisar" title="La IA no estaba segura de esta fecha: revísala"' : ''}>
       <td class="num-mono" style="color:var(--text-faint);width:34px"></td>
-      <td><input type="text" data-c="fecha" placeholder="dd/mm/aaaa" value="${c.fecha ? fmtFecha(c.fecha) : ''}" oninput="pmAnotCuenta()" onpaste="pmAnotPegar(event)" onkeydown="pmAnotTecla(event)"></td>
+      <td><input type="text" data-c="fecha" placeholder="dd/mm/aaaa" value="${c.fecha ? (/^\d{4}-/.test(c.fecha) ? fmtFecha(c.fecha) : esc(c.fecha)) : ''}" oninput="pmAnotCuenta()" onpaste="pmAnotPegar(event)" onkeydown="pmAnotTecla(event)"></td>
+      <td><input type="number" data-c="clases" min="1" max="4" step="1" class="num-mono" value="${c.clases || 1}" title="Clases seguidas ese día" oninput="pmAnotCuenta()" onkeydown="pmAnotTecla(event)"></td>
       <td><input type="text" data-c="hora_inicio" placeholder="hh:mm" value="${esc(c.hora_inicio || '')}" onkeydown="pmAnotTecla(event)"></td>
       <td><input type="text" data-c="km_inicial" inputmode="numeric" placeholder="opcional" class="num-mono" value="${c.km_final ? c.km_inicial : ''}" onkeydown="pmAnotTecla(event)"></td>
       <td><input type="text" data-c="km_final" inputmode="numeric" placeholder="opcional" class="num-mono" value="${c.km_final ? c.km_final : ''}" onkeydown="pmAnotTecla(event)"></td>
-      <td style="white-space:nowrap"><button type="button" class="btn btn-sm btn-ghost" title="Otra clase el mismo día" onclick="pmAnotMismoDia(this)">+ mismo día</button>
+      <td style="white-space:nowrap"><button type="button" class="btn btn-sm btn-ghost" title="Otra clase el mismo día, a otra hora" onclick="pmAnotMismoDia(this)">+ mismo día</button>
         <button type="button" class="btn btn-sm btn-ghost" title="Quitar" aria-label="Quitar" onclick="this.closest('tr').remove();pmAnotCuenta()">×</button></td></tr>`;
   pmAnotar._fila = fila;
-  const filas = datos.clases.map(fila).join('') + fila();
+  const filas = pmAgruparAnteriores(datos.clases).map(fila).join('') + fila();
+  const nombre = esc(datos.alumno.nombre.split(' ')[0]);
   pmModal('modal-pm-anotar', `
     <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
       <h3 style="margin:0">Clases anteriores de ${esc(datos.alumno.nombre)}</h3>
       <button class="btn btn-outline btn-sm" onclick="closeModal('modal-pm-anotar')">Cerrar</button>
     </div>
-    <p style="font-size:13px;color:var(--text-muted);margin:4px 0 12px">Copia del papel las clases que tengas: la <b>fecha</b> basta. La hora y los km son opcionales (si no los pones, la app los calcula al crear las demás). Puedes pegar desde Excel varias filas (Fecha · Hora · Km inicial · Km final) en la primera casilla.</p>
-    <div class="pm-anot-scroll"><table class="pm-anot-tabla"><thead><tr><th>#</th><th>Fecha</th><th>Hora</th><th>Km inicial</th><th>Km final</th><th></th></tr></thead>
+    <p style="font-size:13px;color:var(--text-muted);margin:4px 0 12px">Copia del papel las clases que tengas: la <b>fecha</b> basta. Si ese día dio varias seguidas, pon cuántas en <b>Clases</b> (se guardan una detrás de otra, de ${getDuracionClaseMin()} min). La hora y los km son opcionales: si no los pones, la app los calcula al crear las demás. Puedes pegar desde Excel varias filas (Fecha · Clases · Hora · Km inicial · Km final) en la primera casilla.</p>
+    <div class="pm-anot-import">
+      <div class="pm-anot-import-txt"><b>¿Tiene muchas clases?</b> Graba un vídeo de su ficha en papel, pásaselo a una IA (ChatGPT, Gemini, Claude…) con las instrucciones y guarda su respuesta como archivo <b>.csv</b> o <b>.txt</b> (o pégala en la primera casilla de Fecha). Se añaden aquí para que las revises antes de guardar.</div>
+      <div class="pm-anot-import-bot">
+        <button type="button" class="btn btn-sm btn-outline" onclick="pmCopiarInstruccionesIA()">Copiar instrucciones para la IA</button>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="pmGuardarPlantilla()">Descargar plantilla</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('pm-anot-archivo').click()">Importar archivo…</button>
+        <input type="file" id="pm-anot-archivo" accept=".csv,.txt,text/csv,text/plain" hidden onchange="pmAnotImportar(this)">
+      </div>
+      <div id="pm-anot-import-msg" class="hidden"></div>
+    </div>
+    <div class="pm-anot-scroll"><table class="pm-anot-tabla"><thead><tr><th>#</th><th>Fecha</th><th title="Clases seguidas ese día">Clases</th><th>Hora</th><th>Km inicial</th><th>Km final</th><th></th></tr></thead>
       <tbody id="pm-anot-filas">${filas}</tbody></table></div>
     <div class="pm-anot-pie">
       <span class="pm-anot-cuenta" id="pm-anot-cuenta"></span>
-      <button class="btn btn-outline btn-sm" onclick="pmAnotNuevaFila(1)">+ Añadir clase</button>
+      <button class="btn btn-outline btn-sm" onclick="pmAnotNuevaFila(1)">+ Añadir día</button>
       <button class="btn btn-outline btn-sm" onclick="pmAnotNuevaFila(5)">+ 5 filas</button>
       <button class="btn btn-primary" onclick="pmAnotGuardar()">Guardar clases</button>
     </div>
@@ -252,25 +285,89 @@ function pmAnotTecla(e) {
   const sig = tr.nextElementSibling || pmAnotNuevaFila(1);
   sig.querySelector(`[data-c="${c}"]`).focus();
 }
-function pmAnotPegar(e) {
-  const txt = (e.clipboardData || window.clipboardData).getData('text');
-  if (!/[\t\n]/.test(txt)) return;
-  e.preventDefault();
-  const lineas = txt.replace(/\r/g, '').split('\n').map(l => l.split('\t')).filter(c => c.some(x => x.trim()));
-  let tr = e.target.closest('tr');
-  for (const celdas of lineas) {
+// Filas leídas (de un archivo o de lo pegado) → al editor: ocupan las filas
+// vacías desde `tr` (o el final) y añaden las que falten.
+function pmAnotRellenar(filas, tr) {
+  const tb = document.getElementById('pm-anot-filas');
+  if (!tr) tr = [...tb.children].find(x => ![...x.querySelectorAll('input')].some(i => i.dataset.c !== 'clases' && i.value.trim()));
+  for (const f of filas) {
     if (!tr) tr = pmAnotNuevaFila(1);
-    ['fecha', 'hora_inicio', 'km_inicial', 'km_final'].forEach((c, k) => { if (celdas[k] != null) tr.querySelector(`[data-c="${c}"]`).value = celdas[k].trim(); });
+    tr.querySelector('[data-c="fecha"]').value = f.fecha;
+    tr.querySelector('[data-c="clases"]').value = f.clases || 1;
+    tr.querySelector('[data-c="hora_inicio"]').value = f.hora_inicio || '';
+    tr.querySelector('[data-c="km_inicial"]').value = f.km_inicial || '';
+    tr.querySelector('[data-c="km_final"]').value = f.km_final || '';
+    tr.classList.toggle('pm-anot-revisar', !!f.revisar);
+    if (f.revisar) tr.title = 'La IA no estaba segura de esta fecha: revísala'; else tr.removeAttribute('title');
     tr = tr.nextElementSibling;
   }
   if (!tr) pmAnotNuevaFila(1);
   pmAnotCuenta();
 }
+function pmAnotAviso(res, origen) {
+  const el = document.getElementById('pm-anot-import-msg'); if (!el) return;
+  const n = res.filas.reduce((t, f) => t + (f.clases || 1), 0);
+  el.className = res.filas.length ? (res.errores.length ? 'alert alert-warn' : 'alert alert-ok') : 'alert alert-err';
+  el.innerHTML = `<div>${res.filas.length ? `<b>${origen}: ${res.filas.length} ${res.filas.length === 1 ? 'día' : 'días'} (${n} ${n === 1 ? 'clase' : 'clases'}).</b> Revísalos y pulsa «Guardar clases».` : `<b>${origen}: no se ha podido leer ninguna clase.</b>`}
+    ${res.errores.length ? `<ul class="pm-prop-lista">${res.errores.slice(0, 8).map(e => `<li>${esc(e)}</li>`).join('')}${res.errores.length > 8 ? `<li>… y ${res.errores.length - 8} avisos más.</li>` : ''}</ul>` : ''}</div>`;
+}
+// Pegar varias filas (Excel, o la respuesta de la IA) en la casilla de Fecha
+async function pmAnotPegar(e) {
+  const txt = (e.clipboardData || window.clipboardData).getData('text');
+  if (!/[\t\n;]/.test(txt.trim())) return; // un solo valor: pegado normal
+  e.preventDefault();
+  const tr = e.target.closest('tr');
+  const res = await window.api.leerArchivoClasesAnteriores(txt);
+  if (res.filas.length) pmAnotRellenar(res.filas, tr);
+  if (res.errores.length || res.filas.length > 1) pmAnotAviso(res, 'Pegado');
+}
+async function pmAnotImportar(input) {
+  const archivo = input.files && input.files[0];
+  input.value = '';
+  if (!archivo) return;
+  if (archivo.size > 2 * 1024 * 1024) { pmAnotAviso({ filas: [], errores: ['El archivo es demasiado grande (más de 2 MB): ¿seguro que es la lista de clases?'] }, archivo.name); return; }
+  const texto = await archivo.text();
+  const res = await window.api.leerArchivoClasesAnteriores(texto);
+  if (res.filas.length) pmAnotRellenar(res.filas);
+  pmAnotAviso(res, esc(archivo.name));
+}
+async function pmGuardarPlantilla() {
+  const r = await window.api.guardarPlantillaClasesAnteriores();
+  const el = document.getElementById('pm-anot-import-msg');
+  if (r && r.ok && el) { el.className = 'alert alert-ok'; el.textContent = `Plantilla guardada en ${r.path}.`; }
+  else if (r && !r.canceled && el) { el.className = 'alert alert-err'; el.textContent = r.msg || 'No se pudo guardar la plantilla.'; }
+}
+// Instrucciones para la IA que lee el vídeo de la ficha en papel
+const PM_INSTRUCCIONES_IA = `Te paso un vídeo de la ficha de clases prácticas de un alumno de autoescuela (en papel). Extrae TODAS las clases que aparecen, en orden, y respóndeme SOLO con un CSV (sin explicaciones ni tablas) con esta cabecera exacta:
+fecha;hora;clases
+
+Reglas:
+- fecha: día de la clase en formato dd/mm/aaaa. Si no se ve el año, deduce el que toca por el orden de las fechas.
+- hora: hora de inicio en formato HH:MM (24 h). Si no aparece, déjala vacía.
+- clases: cuántas clases se dieron ese día a esa hora (normalmente 1; si pone «2 clases» o hay dos firmas seguidas, 2).
+- Una línea por cada fila de la ficha. No inventes clases ni fechas.
+- Si una fecha no se lee con seguridad, escríbela igualmente con un «?» al final (por ejemplo 12/03/2025?) para que la revise.
+
+Ejemplo:
+fecha;hora;clases
+08/09/2025;10:00;1
+10/09/2025;17:30;2
+12/09/2025;;1`;
+async function pmCopiarInstruccionesIA() {
+  let ok = false;
+  try { await navigator.clipboard.writeText(PM_INSTRUCCIONES_IA); ok = true; } catch (_) { /* sin portapapeles: se enseña el texto */ }
+  const el = document.getElementById('pm-anot-import-msg'); if (!el) return;
+  el.className = ok ? 'alert alert-ok' : 'alert alert-warn';
+  el.innerHTML = ok
+    ? '<div><b>Instrucciones copiadas.</b> Pégalas en la IA junto con el vídeo de la ficha; guarda su respuesta como .csv (o pégala en la primera casilla de Fecha).</div>'
+    : `<div style="flex:1">Copia este texto y pégalo en la IA junto con el vídeo:<textarea readonly style="width:100%;height:160px;margin-top:6px;font-size:12px">${esc(PM_INSTRUCCIONES_IA)}</textarea></div>`;
+}
 function pmAnotCuenta() {
   const tb = document.getElementById('pm-anot-filas'); if (!tb || !pmAnot) return;
   const trs = [...tb.children];
   trs.forEach((tr, i) => { tr.firstElementChild.textContent = i + 1; });
-  const n = trs.filter(tr => tr.querySelector('[data-c="fecha"]').value.trim()).length;
+  const n = trs.filter(tr => tr.querySelector('[data-c="fecha"]').value.trim())
+    .reduce((t, tr) => t + Math.min(4, Math.max(1, parseInt(tr.querySelector('[data-c="clases"]').value) || 1)), 0);
   const total = pmAnot.total;
   const el = document.getElementById('pm-anot-cuenta');
   el.innerHTML = n >= total
@@ -279,13 +376,13 @@ function pmAnotCuenta() {
 }
 async function pmAnotGuardar() {
   const filas = [...document.querySelectorAll('#pm-anot-filas tr')].map(tr => {
-    const o = { id: tr.dataset.id ? parseInt(tr.dataset.id) : null };
+    const o = { ids: (tr.dataset.ids || '').split(',').map(x => parseInt(x)).filter(Boolean) };
     tr.querySelectorAll('[data-c]').forEach(el => { o[el.dataset.c] = el.value; });
     return o;
   });
-  const res = await window.api.guardarClasesAnteriores(pmAnot.alumno.id, filas);
+  const res = await window.api.guardarClasesAnteriores(pmAnot.alumno.id, filas, { duracion: getDuracionClaseMin() });
   const err = document.getElementById('pm-anot-error');
-  if (!res.ok) { err.textContent = res.errores.join('\n'); err.classList.remove('hidden'); return; }
+  if (!res.ok) { err.textContent = res.errores.join('\n'); err.classList.remove('hidden'); err.scrollIntoView({ block: 'nearest' }); return; }
   closeModal('modal-pm-anotar');
   await loadPuestaEnMarcha();
   showToast('pm-toast', `${pmAnot.alumno.nombre}: ${res.anotadas} ${res.anotadas === 1 ? 'clase anotada' : 'clases anotadas'}${res.pendientes ? `; faltan ${res.pendientes}, que se crean en el paso 4` : ''}.`, 'ok');

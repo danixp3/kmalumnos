@@ -88,6 +88,24 @@ function esPracticaEnCurso(p, hoy) {
 function esPracticaSinCerrar(p, hoy) {
   return !!p && !p.deleted && p.km_inicial > 0 && !p.km_final && !!p.fecha && p.fecha < hoy;
 }
+// Cuánto vale una práctica en clases: 1 (null/ausente) o una fracción ¼, ½, ¾
+// (columna `fraccion`, la pone el móvil). Cuenta en cobros, ficha DGT y totales.
+function clasesDePractica(p) {
+  const f = p ? Number(p.fraccion) : NaN;
+  return f > 0 && f < 1 ? Math.round(f * 4) / 4 || 0.25 : 1;
+}
+// «2,5» → «2 ½»; «0,75» → «¾». Para textos («2 ½ clases»).
+function fmtClases(n) {
+  const v = Math.round((Number(n) || 0) * 4) / 4;
+  const ent = Math.floor(v), q = Math.round((v - ent) * 4);
+  const frac = ['', '¼', '½', '¾'][q];
+  return ent && frac ? `${ent} ${frac}` : frac || String(ent);
+}
+// Firma dibujada (alumno o profesor): imagen PNG en data URL, tamaño razonable.
+const FIRMA_MAX = 200000;
+function firmaValida(f) {
+  return typeof f === 'string' && f.length <= FIRMA_MAX && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(f);
+}
 function hoyLocalISO() {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
@@ -286,6 +304,10 @@ module.exports = {
   esPracticaEnCurso,
   esPracticaSinCerrar,
   hoyLocalISO,
+  clasesDePractica,
+  fmtClases,
+  firmaValida,
+  FIRMA_MAX,
   // Superficie pública (re-exportada tal cual por db.js)
   _clearCache,
   getLogs,

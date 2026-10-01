@@ -192,7 +192,7 @@ function celdaClasesAlumno(a) {
     const resto = pocas ? ` · <span class="bono-aviso">${a.bono.saldo === 0 ? 'agotado' : (a.bono.saldo === 1 ? 'queda 1' : 'quedan ' + a.bono.saldo)}</span>` : '';
     return `<div class="bono" title="${esc(a.bono.nombre || 'Bono')}: ${a.bono.usadas} usadas de ${a.bono.total}"><div><b>${a.bono.usadas}</b> de ${a.bono.total}${resto}</div><div class="bono-barra${pocas ? ' bono-poco' : ''}"><span style="width:${pct}%"></span></div></div>`;
   }
-  return `<div class="bono"><div><b>${a.num_practicas}</b> ${a.num_practicas === 1 ? 'clase' : 'clases'}</div></div>`;
+  return `<div class="bono"><div><b>${fmtClases(a.num_practicas)}</b> ${a.num_practicas > 0 && a.num_practicas <= 1 ? 'clase' : 'clases'}</div>${a.minutos_sobrantes > 0 ? `<small title="Minutos de clases por minutos del móvil; se anotan al llegar a ¼ de clase">+${fmtDec(a.minutos_sobrantes)} min</small>` : ''}</div>`;
 }
 
 const SVG_MINI = {
@@ -741,7 +741,7 @@ async function renderEconomiaAlumno() {
     tbodyDesglose.innerHTML = desglose.practicas.map(p => `<tr>
       <td>${fmtFecha(p.fecha)}</td>
       <td>${esc(TIPO_LABEL[p.tipo] || p.tipo)}</td>
-      <td>${p.precio != null ? fmt(p.precio) + ' €' : '<span style="color:var(--placeholder)">—</span>'}</td>
+      <td>${p.precio != null ? fmt(p.precio) + ' €' + (p.clases && p.clases < 1 ? ` <small style="color:var(--text-muted)">(${fmtClases(p.clases)} de clase)</small>` : '') : '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${ESTADO_BADGE[p.estado](p)}</td>
     </tr>`).join('');
   }
@@ -904,7 +904,7 @@ async function imprimirFichaAlumno(id) {
 
     <h2>Progreso</h2>
     <div class="ficha-grid">
-      ${filaFicha('Nº de prácticas', a.num_practicas != null ? String(a.num_practicas) : '')}
+      ${filaFicha('Nº de prácticas', a.num_practicas != null ? fmtClases(a.num_practicas) + (a.minutos_sobrantes > 0 ? ` (+ ${fmtDec(a.minutos_sobrantes)} min acumulados)` : '') : '')}
       ${filaFicha('Km totales', kmTotales != null ? `${kmTotales} km` : '')}
       ${filaFicha('Semáforo de examen', semaforo ? (SEM_TEXTO[semaforo.nivel] || semaforo.nivel) : 'Sin datos suficientes')}
       ${semaforo && semaforo.motivo ? filaFicha('Motivo', semaforo.motivo) : ''}
@@ -935,7 +935,7 @@ async function imprimirFichaPracticas(alumnoId) {
   const PERMISO_TEXTO = { B: 'B (Coche)', A: 'A (Moto)', A2: 'A2', AM: 'AM', C: 'C (Camión)' };
 
   const filas = practicas.map((p, i) => `<tr>
-      <td>${p.n || i + 1}</td>
+      <td>${p.n || i + 1}${p.clases_txt ? ` <small>(${p.clases_txt})</small>` : ''}</td>
       <td>${fmtFecha(p.fecha)}</td>
       <td>${esc(p.vehiculo_nombre || '—')}${p.matricula ? ` (${esc(p.matricula)})` : ''}</td>
       <td>${esc(p.profesor_nombre || '—')}</td>
@@ -944,7 +944,7 @@ async function imprimirFichaPracticas(alumnoId) {
       <td>${p.km_final}</td>
       <td>${p.km_recorridos}</td>
       <td class="ficha-firma-celda">${p.firma ? `<img class="ficha-firma-img" src="${p.firma}" alt="Firma del alumno">` : ''}</td>
-      <td class="ficha-firma-celda"></td>
+      <td class="ficha-firma-celda">${p.firma_profesor ? `<img class="ficha-firma-img" src="${p.firma_profesor}" alt="Firma del profesor">` : ''}</td>
     </tr>`).join('');
 
   const ficha = document.getElementById('ficha-print');
@@ -972,7 +972,7 @@ async function imprimirFichaPracticas(alumnoId) {
       <tbody>${filas || '<tr><td colspan="10" style="text-align:center">No hay clases prácticas registradas</td></tr>'}</tbody>
       <tfoot><tr>
         <td colspan="7" style="text-align:right"><strong>Totales</strong></td>
-        <td><strong>${totales.nClases} clase${totales.nClases === 1 ? '' : 's'}</strong></td>
+        <td><strong>${fmtClases(totales.nClases)} clase${totales.nClases === 1 ? '' : 's'}</strong></td>
         <td colspan="2"><strong>${totales.kmTotales} km</strong></td>
       </tr></tfoot>
     </table>
@@ -1016,17 +1016,32 @@ async function abrirFichaDGT(alumnoId) {
   openModal('modal-ficha-dgt');
 }
 
-async function generarFichaDGTUI() {
+async function generarFichaDGTUI(firmasYaPedidas = false) {
   const alumnoId = parseInt(document.getElementById('ficha-dgt-alumno-id').value);
   const tipo = document.querySelector('input[name="ficha-dgt-tipo"]:checked')?.value || 'destreza';
   const centro = (typeof getCentroDatos === 'function') ? getCentroDatos() : {};
   // Preferencia de Ajustes: rellenar o no la fecha del documento (pie de la
   // ficha; por defecto true, solo se omite si el usuario la desmarcó).
   const rellenarFecha = centro.rellenar_fecha !== false;
-  const r = await window.api.generarFichaDGT({ alumnoId, tipo, centro, rellenarFecha });
+  const r = await window.api.generarFichaDGT({ alumnoId, tipo, centro, rellenarFecha, comprobarFirmas: !firmasYaPedidas });
+  // El profesor de estas clases aún no ha guardado su firma: se le pide ahora
+  // (una vez; sirve para todas sus fichas) o se saca sin ella.
+  if (r && r.faltanFirmas) {
+    for (const pf of r.faltanFirmas) {
+      const firmar = await confirmar(`${pf.nombre} todavía no ha guardado su firma, así que sus clases saldrían con la casilla «Firma del profesor» en blanco.
+
+Si firma ahora, se guarda y sale en todas sus clases (también en las fichas de los demás alumnos).`,
+        { titulo: 'Falta la firma del profesor', textoAceptar: 'Firmar ahora', textoCancelar: 'Sacar sin su firma' });
+      if (firmar) await abrirFirmaProfesor(pf.id, { textoGuardar: 'Guardar firma y seguir', textoCerrar: 'Seguir sin firma' });
+    }
+    return generarFichaDGTUI(true);
+  }
   if (r && r.ok) {
     closeModal('modal-ficha-dgt');
-    await avisar(`Ficha generada (${r.nClases} clase${r.nClases === 1 ? '' : 's'}).`);
+    const sinFirma = r.sinFirmaAlumno ? `
+
+${r.sinFirmaAlumno} de ${r.dias} ${r.dias === 1 ? 'día no tiene' : 'días no tienen'} firma del alumno (se registraron sin firmar en el móvil): esas casillas quedan en blanco para firmarlas a mano.` : '';
+    await avisar(`Ficha generada (${fmtClases(r.nClases)} ${r.nClases === 1 ? 'clase' : 'clases'}).${sinFirma}`);
   } else if (!r || !r.canceled) {
     await avisar((r && r.msg) || 'No se pudo generar la ficha.');
   }

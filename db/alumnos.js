@@ -1,7 +1,7 @@
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
 // CRUD de alumnos y anotaciones de alumno (notas guardadas en sus prácticas).
 
-const { load, save, nextId, _sync, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar } = require('./core');
+const { load, save, nextId, _sync, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, clasesDePractica } = require('./core');
 
 // sucursalId opcional: sin argumento devuelve todos los alumnos (modo clásico
 // o "Todas las sucursales") — ver filtrarPorSucursal en core.js.
@@ -69,12 +69,14 @@ function getAlumnosLista(sucursalId, hoy) {
     // Punto de partida: lo hecho antes de usar la app suma a los totales.
     const previas = a.clases_previas > 0 ? a.clases_previas : 0;
     const kmPrevios = a.km_previos > 0 ? a.km_previos : 0;
+    // Las fracciones de clase (¼ ½ ¾, del móvil) suman lo que valen
+    const clasesApp = hechas.reduce((n, p) => n + clasesDePractica(p), 0);
     return {
       ...a,
       vehiculo_matricula: v ? v.matricula || null : null,
-      num_practicas: hechas.length + previas,
+      num_practicas: clasesApp + previas,
       km_total: Math.round(km) + kmPrevios,
-      num_practicas_app: hechas.length,
+      num_practicas_app: clasesApp,
       km_app: Math.round(km),
       clases_previas: previas,
       km_previos: kmPrevios,
@@ -153,7 +155,7 @@ function getFichaAlumno(alumno_id, hoy) {
   return {
     alumno: base,
     metricas: {
-      clases: hechas.length + previas,
+      clases: hechas.reduce((n, p) => n + clasesDePractica(p), 0) + previas,
       km: Math.round(hechas.reduce((s, p) => s + p.km, 0)) + (base.km_previos || 0),
       clases_previas: previas,
       km_previos: base.km_previos || 0,

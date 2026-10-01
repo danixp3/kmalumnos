@@ -122,7 +122,7 @@ function renderDeudasTabla() {
     return `<tr>
       <td>${avisoIcon}<strong>${esc(d.alumno_nombre)}</strong></td>
       <td>${tagPermiso(d.permiso)}</td>
-      <td>${d.num_practicas}</td>
+      <td>${fmtClases(d.num_practicas)}</td>
       <td>${fmt(d.total_generado)} €</td>
       <td>${fmt(d.total_pagado)} €</td>
       <td><span class="${saldoClase}">${fmt(d.saldo)} €</span></td>
@@ -328,7 +328,7 @@ async function abrirDesglosePagos(alumnoId, alumnoNombre) {
     tbody.innerHTML = desglose.practicas.map(p => `<tr>
       <td>${fmtFecha(p.fecha)}</td>
       <td>${esc(TIPO_LABEL[p.tipo] || p.tipo)}</td>
-      <td>${p.precio != null ? fmt(p.precio) + ' €' : '<span style="color:var(--placeholder)">—</span>'}</td>
+      <td>${p.precio != null ? fmt(p.precio) + ' €' + (p.clases && p.clases < 1 ? ` <small style="color:var(--text-muted)">(${fmtClases(p.clases)} de clase)</small>` : '') : '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${ESTADO_BADGE[p.estado](p)}</td>
     </tr>`).join('');
   }

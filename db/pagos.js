@@ -1,7 +1,7 @@
 // ─── PAGOS ───────────────────────────────────────────────────────────────────
 // Pagos y cálculo de deudas (desglose FIFO de prácticas pagadas/pendientes).
 
-const { load, save, nextId, _sync, filtrarPorSucursal } = require('./core');
+const { load, save, nextId, _sync, filtrarPorSucursal, clasesDePractica } = require('./core');
 const { getPracticasByAlumno } = require('./practicas');
 
 // Formas de pago admitidas (tarea D1, arqueo de caja): cualquier otro valor
@@ -84,7 +84,8 @@ function getDeudas(sucursalId) {
         const tipo = p.tipo || 'circulacion';
         const tarifa = d.tarifas.find(t => t.permiso === alumno.permiso && t.tipo === tipo);
         if (tarifa) {
-          generado_practicas += tarifa.precio;
+          // ½ clase = ½ tarifa (fracciones anotadas en el móvil), en céntimos
+          generado_practicas += Math.round(tarifa.precio * clasesDePractica(p) * 100) / 100;
         } else {
           sin_tarifa = true;
         }
@@ -97,7 +98,7 @@ function getDeudas(sucursalId) {
         alumno_id: alumno.id,
         alumno_nombre: alumno.nombre,
         permiso: alumno.permiso,
-        num_practicas: practicasAlumno.length,
+        num_practicas: practicasAlumno.reduce((n, p) => n + clasesDePractica(p), 0),
         total_generado,
         total_cargos,
         total_pagado,
@@ -125,8 +126,10 @@ function getDesglosePagosAlumno(alumno_id) {
     if (!tarifa) {
       return { id: p.id, fecha: p.fecha, tipo, precio: null, estado: 'sin_tarifa', cubierto: 0 };
     }
-    total_generado += tarifa.precio;
-    const precioCts = Math.round(tarifa.precio * 100);
+    // ½ clase = ½ tarifa (fracciones anotadas en el móvil)
+    const precio = Math.round(tarifa.precio * clasesDePractica(p) * 100) / 100;
+    total_generado += precio;
+    const precioCts = Math.round(precio * 100);
     let estado, cubiertoCts;
     if (restanteCts >= precioCts) {
       estado = 'pagada';
@@ -139,7 +142,7 @@ function getDesglosePagosAlumno(alumno_id) {
       cubiertoCts = 0;
     }
     restanteCts -= cubiertoCts;
-    return { id: p.id, fecha: p.fecha, tipo, precio: tarifa.precio, estado, cubierto: cubiertoCts / 100 };
+    return { id: p.id, fecha: p.fecha, tipo, precio, clases: clasesDePractica(p), estado, cubierto: cubiertoCts / 100 };
   });
 
   // Cargos y descuentos (tarea D2): solo afectan a los totales, el FIFO de

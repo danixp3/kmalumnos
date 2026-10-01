@@ -35,6 +35,10 @@
     {
       "source": "/api/anotar-practica",
       "destination": "/api/movil?op=anotar-practica"
+    },
+    {
+      "source": "/api/firma-profesor",
+      "destination": "/api/movil?op=firma-profesor"
     }
   ],
   "headers": [

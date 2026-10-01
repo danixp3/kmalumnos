@@ -758,6 +758,11 @@ async function _columnasDisponibles(sb, tabla, cols) {
 const _practicasZonasDisponible = sb => _columnasDisponibles(sb, 'practicas', 'zonas');
 const _alumnosPreviasDisponible = sb => _columnasDisponibles(sb, 'alumnos', 'clases_previas, km_previos');
 const _ajustesEmpresaDisponible = sb => _columnasDisponibles(sb, 'ajustes_empresa', 'clave, valor, updated_at');
+// Migración 2026-10-02: firma del profesor, fracción de clase (¼ ½ ¾) y minutos
+// acumulados del alumno (los sobrantes de las clases por minutos del móvil).
+const _profesoresFirmaDisponible = sb => _columnasDisponibles(sb, 'profesores', 'firma');
+const _practicasFraccionDisponible = sb => _columnasDisponibles(sb, 'practicas', 'fraccion');
+const _alumnosMinutosDisponible = sb => _columnasDisponibles(sb, 'alumnos', 'minutos_sobrantes');
 
 let _practicasMovilDisponibleCache = null;
 
@@ -1481,6 +1486,10 @@ async function _syncInterno() {
     const zonasOn = await _practicasZonasDisponible(sb);
     const previasOn = await _alumnosPreviasDisponible(sb);
     const ajustesOn = _empresaId ? await _ajustesEmpresaDisponible(sb) : false;
+    const firmaProfOn = await _profesoresFirmaDisponible(sb);
+    const fraccionOn = await _practicasFraccionDisponible(sb);
+    // Marcas locales que cambian al subir (firma_pendiente): hay que guardar data.json.
+    let marcasLocales = false;
     // Conflicto de empresa sin resolver (ver sección "PROPIETARIO DE LOS DATOS
     // LOCALES"): el login de ensureClient() acaba de revelar que data.json
     // pertenece a otra cuenta. No tocar nada — ni subir lo que hay en local
@@ -1580,7 +1589,14 @@ async function _syncInterno() {
           if (_empresaId) payload.empresa_id = _empresaId;
           if (sucursalesOn) payload.sucursal_id = pr.sucursal_id != null ? pr.sucursal_id : null;
           if (profesoresDniOn) payload.dni = pr.dni || null;
-          subidaOk(await sb.from('profesores').upsert(payload, { onConflict: 'id' }), 'profesores', id);
+          // La firma solo viaja cuando se cambió en este PC (firma_pendiente):
+          // así editar el nombre aquí nunca pisa una firma hecha en el móvil.
+          const conFirma = firmaProfOn && pr.firma_pendiente;
+          if (conFirma) payload.firma = pr.firma || null;
+          if (subidaOk(await sb.from('profesores').upsert(payload, { onConflict: 'id' }), 'profesores', id) && conFirma) {
+            delete pr.firma_pendiente;
+            marcasLocales = true;
+          }
         }
       }
     } catch (e) {
@@ -1675,6 +1691,7 @@ async function _syncInterno() {
             if (p.hora_fin) payload.hora_fin = p.hora_fin;
           }
           if (zonasOn && Array.isArray(p.zonas)) payload.zonas = p.zonas;
+          if (fraccionOn) payload.fraccion = p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : null;
           subidaOk(await sb.from('practicas').upsert(payload, { onConflict: 'id' }), 'practicas', id);
         }
       }
@@ -1919,6 +1936,7 @@ async function _syncInterno() {
             id: rp.id, nombre: rp.nombre, nota: rp.nota || '',
             sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null,
             dni: rp.dni != null ? rp.dni : null,
+            firma: typeof rp.firma === 'string' ? rp.firma : null,
             updated_at: rp.updated_at
           });
           _avanzarSeq(data, 'pf', rp.id);
@@ -1931,6 +1949,8 @@ async function _syncInterno() {
             const nuevo = { nombre: rp.nombre, nota: rp.nota || '', sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null, dni: rp.dni != null ? rp.dni : null };
             _detectarYRegistrarConflicto(data, 'profesores', pending.profesores,
               rp.id, ['nombre', 'nota', 'dni'], data.profesores[idx], nuevo, conflictos);
+            // Firma: manda la nube, salvo que aquí haya una cambiada sin subir aún.
+            if ('firma' in rp && !data.profesores[idx].firma_pendiente) nuevo.firma = typeof rp.firma === 'string' ? rp.firma : null;
             Object.assign(data.profesores[idx], nuevo, { updated_at: rp.updated_at });
             dataChanged = true;
             pulled++;
@@ -2028,6 +2048,9 @@ async function _syncInterno() {
           // Punto de partida (clases/km hechos antes de usar la app).
           clases_previas: ra.clases_previas != null ? ra.clases_previas : null,
           km_previos: ra.km_previos != null ? ra.km_previos : null,
+          // Minutos que le sobran de clases por minutos del móvil (solo los
+          // escribe la web; este PC no los sube nunca).
+          minutos_sobrantes: ra.minutos_sobrantes != null ? Number(ra.minutos_sobrantes) : null,
           updated_at: ra.updated_at
         };
         if (idx !== -1) {
@@ -2088,6 +2111,7 @@ async function _syncInterno() {
                 tipo_detalle: rp.tipo_detalle != null ? rp.tipo_detalle : null,
                 hora_fin: rp.hora_fin != null ? rp.hora_fin : null,
                 zonas: Array.isArray(rp.zonas) ? rp.zonas : null,
+                fraccion: Number(rp.fraccion) > 0 && Number(rp.fraccion) < 1 ? Number(rp.fraccion) : null,
                 source: rp.source != null ? rp.source : null,
                 updated_at: rp.updated_at
               };
@@ -2349,7 +2373,7 @@ async function _syncInterno() {
       }
     }
 
-    if (dataChanged || regenerado || vehiculoReconciliado) {
+    if (dataChanged || regenerado || vehiculoReconciliado || marcasLocales) {
       // Respeta lo que la app haya guardado mientras corría el sync.
       _fusionarConDisco(data);
       saveData(data);
@@ -2558,8 +2582,9 @@ async function pushAll() {
     // (columna inexistente en el servidor).
     const profesoresDniOn = await _profesoresDniDisponible(sb);
     const quitarDniProfesor = obj => {
-      if (!profesoresDniOn) { const { dni, ...resto } = obj; return resto; }
-      return { ...obj, dni: obj.dni || null };
+      const { firma, firma_pendiente, ...sinFirma } = obj; // la firma no viaja en bloque
+      if (!profesoresDniOn) { const { dni, ...resto } = sinFirma; return resto; }
+      return { ...sinFirma, dni: sinFirma.dni || null };
     };
     // ficha DGT del alumno (primer_apellido/segundo_apellido/codigo_postal/
     // poblacion), mismo cuidado que quitarPermisos.
@@ -2589,13 +2614,13 @@ async function pushAll() {
     // fuente. En un upsert masivo, la fila que no los tuviera en local los
     // pondría a NULL en la nube (borraría, p. ej., la firma del alumno).
     const quitarMovil = obj => {
-      const { firma, trabajado, tipo_detalle, hora_fin, zonas, ...resto } = obj;
+      const { firma, trabajado, tipo_detalle, hora_fin, zonas, fraccion, ...resto } = obj;
       return resto;
     };
     // Punto de partida del alumno (migración 2026-10-01), mismo cuidado que quitarFichaDgt.
     const previasOn = await _alumnosPreviasDisponible(sb);
     const quitarPrevias = obj => {
-      const { clases_previas, km_previos, ...resto } = obj;
+      const { clases_previas, km_previos, minutos_sobrantes, ...resto } = obj;
       if (!previasOn) return resto;
       return { ...resto, clases_previas: clases_previas > 0 ? Math.round(clases_previas) : null, km_previos: km_previos > 0 ? Math.round(km_previos) : null };
     };

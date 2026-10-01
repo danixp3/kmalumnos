@@ -67,6 +67,7 @@ export default async function handler(req, res) {
       vehiculo_nombre: vehiculos[p.vehiculo_id] ? vehiculos[p.vehiculo_id].nombre : null,
       profesor_id: p.profesor_id, km_inicial: p.km_inicial, km_final: p.km_final, km: kmDePractica(p),
       zonas: Array.isArray(p.zonas) ? p.zonas : [], firmada: !!p.firmada, source: p.source || null,
+      fraccion: Number(p.fraccion) > 0 && Number(p.fraccion) < 1 ? Number(p.fraccion) : null,
       en_curso: !!hoyCliente && p.km_inicial > 0 && !p.km_final && p.fecha === hoyCliente,
       sin_cerrar: !!hoyCliente && p.km_inicial > 0 && !p.km_final && p.fecha < hoyCliente
     }))

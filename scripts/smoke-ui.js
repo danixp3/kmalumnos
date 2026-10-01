@@ -3,14 +3,21 @@
 // Jest NO puede ver: los tests corren en entorno Node (sin DOM), así que cubren
 // db/ y sync.js pero ni una línea de renderer/.
 //
-//   npm run smoke              → solo lectura: recorre todas las secciones y
-//                                abre los modales. No escribe nada.
+//   npm run smoke              → recorre todas las secciones y abre los modales
+//                                (pulsa sus botones: algunos escriben, p. ej. los
+//                                − / + de Registro rápido).
 //   npm run smoke -- --guardar → además rellena y guarda un registro de prueba
 //                                en cada pantalla. Copia data.json antes y lo
 //                                restaura al terminar.
 //
 // Abre la ventana de la app unos segundos y se cierra sola. Termina con
 // SMOKE-OK o SMOKE-FALLOS.
+//
+// SIEMPRE sobre una COPIA de los datos y SIN NUBE (2026-10-02): el barrido
+// pulsa todos los botones y antes trabajaba sobre los datos reales con la
+// sincronización activa; los − / + de Registro rápido borraban la última clase
+// del día de cada alumno (incluso firmadas desde el móvil) y la borraban
+// también en la nube. Ahora ni data.json real ni Supabase se tocan.
 const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -258,6 +265,10 @@ async function principal() {
     // marca de "vistos" del usuario; solo se neutraliza en esta ejecución.
     try { if (typeof cerrarTutorial === 'function') cerrarTutorial(false); } catch(e){}
     try { comprobarTutorial = function(){}; } catch(e){}
+    // Datos de prueba sin cuenta conectada: sin la puerta de bienvenida
+    try { comprobarBienvenida = async function(){}; } catch(e){}
+    try { mostrarAppPorGate(); } catch(e){}
+    document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open'));
     true;
   `);
   await probarDialogos();
@@ -335,4 +346,16 @@ principal()
       app.exit(fallos.length ? 1 : 0);
   });
 
+// Datos de prueba: copia de los reales en una carpeta temporal y sin nube
+// (mismo aislamiento que scripts/barrido-visual.js).
+const os = require('os');
+const UD_PRUEBA = path.join(os.tmpdir(), 'aulamovil-smoke', 'datos');
+const sync = require('../sync');
+for (const f of ['sync', 'pushAll', 'startAutoSync', 'stopAutoSync']) if (typeof sync[f] === 'function') sync[f] = async () => ({ ok: true });
 require('../main.js');
+fs.rmSync(path.dirname(UD_PRUEBA), { recursive: true, force: true });
+fs.mkdirSync(UD_PRUEBA, { recursive: true });
+const datosReales = path.join(app.getPath('appData'), 'KMAlumnos', 'data.json');
+if (fs.existsSync(datosReales)) fs.copyFileSync(datosReales, path.join(UD_PRUEBA, 'data.json'));
+app.setPath('userData', UD_PRUEBA);
+info.push(`datos de prueba (copia, sin nube): ${UD_PRUEBA}`);

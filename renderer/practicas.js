@@ -77,14 +77,14 @@ function pintarCabeceraFicha(f) {
 
   const bono = a.bono && a.bono.total > 0
     ? `<div class="ficha-metrica"><dd>${a.bono.usadas} / ${a.bono.total}</dd><dt>Clases del bono</dt></div>`
-    : `<div class="ficha-metrica"><dd>${m.clases}</dd><dt>${m.clases === 1 ? 'Clase' : 'Clases'}</dt></div>`;
+    : `<div class="ficha-metrica"><dd>${fmtClases(m.clases)}</dd><dt>${m.clases > 0 && m.clases <= 1 ? 'Clase' : 'Clases'}</dt></div>`;
 
   // Pasos del camino hasta el permiso
   const ex = f.proximoExamen;
   const pasos = [
     { tit: 'Matrícula', sub: a.fecha_alta ? fmtFecha(a.fecha_alta) : 'Alumno dado de alta', est: 'hecho' },
     { tit: 'Examen teórico', sub: idx >= 3 ? 'Aprobado' : (idx === 2 ? 'Apto teórico' : (idx === 1 ? 'En teórica' : 'Pendiente')), est: idx >= 2 ? 'hecho' : (idx === 1 ? 'actual' : 'pend') },
-    { tit: 'Prácticas', sub: `${m.clases} ${m.clases === 1 ? 'clase' : 'clases'} · ${fmtMiles(m.km)} km${m.clases_previas ? ` <span title="Clases hechas antes de usar la app (punto de partida)">(${m.clases_previas} anteriores)</span>` : ''}`, est: idx >= 4 ? 'hecho' : (idx >= 2 ? 'actual' : 'pend') },
+    { tit: 'Prácticas', sub: `${fmtClases(m.clases)} ${m.clases > 0 && m.clases <= 1 ? 'clase' : 'clases'} · ${fmtMiles(m.km)} km${m.clases_previas ? ` <span title="Clases hechas antes de usar la app (punto de partida)">(${m.clases_previas} anteriores)</span>` : ''}`, est: idx >= 4 ? 'hecho' : (idx >= 2 ? 'actual' : 'pend') },
     { tit: 'Examen práctico', sub: idx >= 5 ? 'Aprobado' : (ex ? fechaCorta(ex.fecha) : (idx === 4 ? 'Presentado' : 'Sin fecha')), est: idx >= 5 ? 'hecho' : (idx === 4 ? 'actual' : 'pend'), bandera: true },
     { tit: `Permiso ${esc(a.permiso)}`, sub: idx >= 5 ? 'Obtenido' : 'Tras aprobar el práctico', est: idx >= 5 ? 'hecho' : 'pend', ultimo: true }
   ];
@@ -309,7 +309,7 @@ async function loadPracticas() {
     const horaArg = p.hora_inicio ? `'${p.hora_inicio}'` : 'null';
     return `<tr${p.sinKm ? ' style="background:var(--warn-bg-soft)"' : ''}>
       <td class="num-mono">${p.n}</td>
-      <td>${esc(p.fecha === hoyISO() ? 'Hoy, ' + diaMes(p.fecha) : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase()))}${p.tipo === 'pista' ? ' <span class="pill pill-line" style="font-size:11px;padding:1px 7px">Pista</span>' : ''}</td>
+      <td>${esc(p.fecha === hoyISO() ? 'Hoy, ' + diaMes(p.fecha) : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase()))}${p.tipo === 'pista' ? ' <span class="pill pill-line" style="font-size:11px;padding:1px 7px">Pista</span>' : ''}${p.fraccion > 0 && p.fraccion < 1 ? ` <span class="pill pill-line" style="font-size:11px;padding:1px 7px" title="Fracción de clase: se cobra en proporción">${fmtClases(p.fraccion)} clase</span>` : ''}</td>
       <td class="num-mono">${p.hora_inicio ? esc(p.hora_inicio) : guion}</td>
       <td>${p.matricula ? placaHTML(p.matricula) : (p.vehiculo_nombre ? esc(p.vehiculo_nombre) : guion)}</td>
       <td class="col-num num-mono">${kmCell}</td>
@@ -317,7 +317,7 @@ async function loadPracticas() {
       <td>${p.profesor_nombre ? esc(p.profesor_nombre) : guion}</td>
       <td>${celdaFirma(p)}</td>
       <td class="acciones-fila">
-        <button class="btn btn-gray btn-sm btn-icon" title="Editar práctica" aria-label="Editar práctica" onclick="openEditPractica(${p.id},'${p.fecha}',${p.km_inicial},${p.km_final},${profesorIdArg},'${p.tipo}',${horaArg})">${fichaSvg('<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>', 13)}</button>
+        <button class="btn btn-gray btn-sm btn-icon" title="Editar práctica" aria-label="Editar práctica" onclick="openEditPractica(${p.id},'${p.fecha}',${p.km_inicial},${p.km_final},${profesorIdArg},'${p.tipo}',${horaArg},${p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : 'null'})">${fichaSvg('<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>', 13)}</button>
         <button class="btn btn-gray btn-sm btn-icon btn-borrar" title="Borrar práctica" aria-label="Borrar práctica" onclick="deletePractica(${p.id})">${fichaSvg('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>', 13)}</button>
       </td>
     </tr>`;
@@ -388,13 +388,14 @@ async function deletePractica(id) {
   loadPracticas();
 }
 
-async function openEditPractica(id, fecha, ki, kf, profesorId, tipo, horaInicio) {
+async function openEditPractica(id, fecha, ki, kf, profesorId, tipo, horaInicio, fraccion) {
   document.getElementById('edit-p-id').value = id;
   document.getElementById('edit-p-fecha').value = fecha;
   document.getElementById('edit-p-ki').value = ki;
   document.getElementById('edit-p-kf').value = kf;
   document.getElementById('edit-p-tipo').value = tipo || 'circulacion';
   document.getElementById('edit-p-hora-inicio').value = horaInicio || '';
+  document.getElementById('edit-p-fraccion').value = fraccion > 0 && fraccion < 1 ? String(fraccion) : '';
   await llenarSelectProfesores('edit-p-profesor', profesorId);
   openModal('modal-practica');
 }
@@ -407,6 +408,7 @@ async function savePractica() {
   const profesorId = document.getElementById('edit-p-profesor').value;
   const tipo = document.getElementById('edit-p-tipo').value || 'circulacion';
   const horaInicio = document.getElementById('edit-p-hora-inicio').value || null;
+  const fraccion = parseFloat(document.getElementById('edit-p-fraccion').value) || null;
   if (!fecha || isNaN(ki) || isNaN(kf)) { alert('Rellena todos los campos.'); return; }
   if (kf <= ki) { alert('El km final debe ser mayor que el inicial.'); return; }
 
@@ -425,7 +427,7 @@ async function savePractica() {
     }
   }
 
-  await window.api.updatePractica(id, fecha, ki, kf, profesorId, tipo, horaInicio);
+  await window.api.updatePractica(id, fecha, ki, kf, profesorId, tipo, horaInicio, fraccion);
   closeModal('modal-practica');
   // Si venimos de la pestaña Conflictos (Kilómetros), recargar esa vista; si no, las prácticas del alumno
   const kilometrosPage = document.getElementById('page-kilometros');

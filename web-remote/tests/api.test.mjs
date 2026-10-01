@@ -8,7 +8,7 @@ const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const TOKEN = `x.${b64({ sub: 'emp1' })}.y`;
 
 async function llamar(nombre, { method = 'POST', body, query } = {}) {
-  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
+  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','firma-profesor'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
   let status = 200, json;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
   await mod.default({ method, headers: { authorization: 'Bearer ' + TOKEN }, body, query }, res);
@@ -357,4 +357,100 @@ test('crear-alumno: carga los conceptos «al dar de alta» de Ajustes → Cobros
   reiniciar(base());
   const r2 = await llamar('crear-alumno', { body: { nombre: 'Iván', permiso: 'B' } });
   assert.equal(r2.status, 200); assert.deepEqual(r2.json.cobros_alta, []);
+});
+
+// ─── Fracciones de clase, clases por minutos y firma del profesor (2026-10-02) ──
+import { partirEnClases, clasesPorMinutos, cantidadClases } from '../api/_utils.js';
+
+test('partirEnClases: con clases enteras reparte igual que antes; con fracción, en proporción', () => {
+  assert.deepEqual(partirEnClases(1000, 1092, '10:00', '12:15', 3).map(p => [p.km_inicial, p.km_final, p.hora_inicio, p.hora_fin, p.fraccion]),
+    [[1000, 1031, '10:00', '10:45', null], [1031, 1062, '10:45', '11:30', null], [1062, 1092, '11:30', '12:15', null]]);
+  // 1 ½ clases de 45 min (67,5 min): la entera lleva 2/3 de los km y del tiempo
+  assert.deepEqual(partirEnClases(1000, 1030, '10:00', '11:08', 1.5).map(p => [p.km_inicial, p.km_final, p.hora_inicio, p.hora_fin, p.fraccion]),
+    [[1000, 1020, '10:00', '10:45', null], [1020, 1030, '10:45', '11:08', 0.5]]);
+  assert.deepEqual(partirEnClases(1000, 1010, null, null, 0.75).map(p => [p.km_inicial, p.km_final, p.fraccion]), [[1000, 1010, 0.75]]);
+  // ¼ con muy pocos km: sigue teniendo al menos 1 km
+  assert.deepEqual(partirEnClases(1000, 1003, null, null, 2.25).map(p => p.km_final - p.km_inicial), [1, 1, 1]);
+  assert.equal(partirEnClases(1000, 1002, null, null, 2.25), null);
+  assert.equal(cantidadClases(0.3).valid, false); assert.equal(cantidadClases(6.25).valid, false); assert.equal(cantidadClases('1.75').value, 1.75);
+});
+
+test('clasesPorMinutos: suma lo acumulado, cuenta cuartos completos y guarda el resto', () => {
+  assert.deepEqual(clasesPorMinutos(100, 0, 45), { cantidad: 2, sobran: 10, total: 100 });
+  assert.deepEqual(clasesPorMinutos(50, 10, 45), { cantidad: 1.25, sobran: 3.75, total: 60 });
+  assert.deepEqual(clasesPorMinutos(8, 3.75, 45), { cantidad: 0.25, sobran: 0.5, total: 11.75 });
+  assert.deepEqual(clasesPorMinutos(10, 0, 45), { cantidad: 0, sobran: 10, total: 10 });
+  assert.deepEqual(clasesPorMinutos(30, 0, 60), { cantidad: 0.5, sobran: 0, total: 30 });
+});
+
+test('finalizar-practica con n_clases=1.5: una clase entera y otra de ½; el alumno suma 1 ½', async () => {
+  reiniciar(base());
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ hora_inicio: '10:00' }) });
+  const r = await llamar('finalizar-practica', { body: { practica_id, km_final: 1030, hora_fin: '11:08', n_clases: 1.5 } });
+  assert.equal(r.status, 200); assert.equal(r.json.clases, 1.5);
+  const [a, b] = r.json.practica_ids.map(id => BD.tablas.practicas.find(x => x.id === id));
+  assert.deepEqual([a.km_final, a.fraccion, b.km_inicial, b.km_final, b.fraccion], [1020, null, 1020, 1030, 0.5]);
+  assert.deepEqual(r.json.alumno, { clases: 1.5, km: 30 });
+  const lista = await llamar('alumnos', { method: 'GET', query: { resumen: '1' } });
+  assert.equal(lista.json.find(x => x.id === 2).clases, 1.5);
+});
+
+test('finalizar-practica por minutos: usa y actualiza los minutos acumulados del alumno; un reintento no los cuenta dos veces', async () => {
+  reiniciar(base());
+  BD.tablas.ajustes_empresa = [{ empresa_id: 'emp1', clave: 'duracion_clase_min', valor: 45 }];
+  // 1.ª sesión: 100 min → 2 clases y sobran 10
+  let { json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ hora_inicio: '10:00' }) });
+  let r = await llamar('finalizar-practica', { body: { practica_id, km_final: 1060, hora_fin: '11:40', minutos: 100 } });
+  assert.equal(r.status, 200); assert.equal(r.json.clases, 2); assert.equal(r.json.minutos_sobrantes, 10);
+  assert.equal(BD.tablas.alumnos.find(a => a.id === 2).minutos_sobrantes, 10);
+  // Reintento (la respuesta no llegó): mismas clases, minutos sin tocar
+  const r2 = await llamar('finalizar-practica', { body: { practica_id, km_final: 1060, hora_fin: '11:40', minutos: 100 } });
+  assert.equal(r2.json.ya_cerrada, true); assert.deepEqual(r2.json.practica_ids, r.json.practica_ids);
+  assert.equal(BD.tablas.alumnos.find(a => a.id === 2).minutos_sobrantes, 10);
+  // 2.ª sesión: 50 min + 10 acumulados = 60 → 1 ¼ y sobran 3,75
+  ({ json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ hora_inicio: '12:00', km_inicial: 1060 }) }));
+  r = await llamar('finalizar-practica', { body: { practica_id, km_final: 1080, hora_fin: '12:50', minutos: 50 } });
+  assert.equal(r.json.clases, 1.25); assert.equal(r.json.minutos_sobrantes, 3.75);
+  assert.deepEqual(r.json.practica_ids.map(id => BD.tablas.practicas.find(x => x.id === id).fraccion), [null, 0.25]);
+  assert.equal(r.json.alumno.clases, 3.25);
+  // Menos de ¼ de clase → 400 sin tocar nada
+  ({ json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ hora_inicio: '13:00', km_inicial: 1080 }) }));
+  r = await llamar('finalizar-practica', { body: { practica_id, km_final: 1085, minutos: 5 } });
+  assert.equal(r.status, 400); assert.match(r.json.error, /¼ de clase/);
+  assert.equal(BD.tablas.alumnos.find(a => a.id === 2).minutos_sobrantes, 3.75);
+});
+
+test('finalizar-practica por minutos sin la columna de minutos acumulados: cuenta sin acumulado', async () => {
+  reiniciar(base(), { alumnos: ['minutos_sobrantes'] });
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ hora_inicio: '10:00' }) });
+  const r = await llamar('finalizar-practica', { body: { practica_id, km_final: 1060, minutos: 100 } });
+  assert.equal(r.status, 200); assert.equal(r.json.clases, 2); assert.equal(r.json.minutos_sobrantes, undefined);
+});
+
+test('anotar-practica: admite ½ clase y clases por minutos (con el acumulado del alumno)', async () => {
+  reiniciar(base());
+  BD.tablas.alumnos.find(a => a.id === 2).minutos_sobrantes = 5;
+  let r = await llamar('anotar-practica', { body: { alumno_id: 2, vehiculo_id: 1, fecha: hoy(), hoy: hoy(), n_clases: 0.5, km_inicial: 1000, km_final: 1012 } });
+  assert.equal(r.status, 200); assert.equal(r.json.clases, 0.5);
+  assert.equal(BD.tablas.practicas.find(x => x.id === r.json.practica_ids[0]).fraccion, 0.5);
+  r = await llamar('anotar-practica', { body: { alumno_id: 2, vehiculo_id: 1, fecha: hoy(), hoy: hoy(), hora_inicio: '17:00', minutos: 40 } });
+  assert.equal(r.status, 200); assert.equal(r.json.clases, 1); assert.equal(r.json.minutos_sobrantes, 0);
+  assert.equal(BD.tablas.alumnos.find(a => a.id === 2).minutos_sobrantes, null);
+});
+
+test('firma-profesor: guarda, lee y quita la firma; valida la imagen; sin la columna → 501', async () => {
+  const FIRMA = 'data:image/png;base64,iVBORw0KGgo=';
+  reiniciar(base());
+  assert.deepEqual((await llamar('firma-profesor', { method: 'GET', query: { profesor_id: '1' } })).json, { ok: true, firma: null, disponible: true });
+  assert.equal((await llamar('firma-profesor', { body: { profesor_id: 1, firma: 'hola' } })).status, 400);
+  assert.equal((await llamar('firma-profesor', { body: { profesor_id: 1, firma: 'data:image/png;base64,' + 'A'.repeat(200001) } })).status, 400);
+  assert.equal((await llamar('firma-profesor', { body: { profesor_id: 9, firma: FIRMA } })).status, 404);
+  assert.equal((await llamar('firma-profesor', { body: { profesor_id: 1, firma: FIRMA } })).status, 200);
+  assert.equal(BD.tablas.profesores[0].firma, FIRMA); assert.ok(BD.tablas.profesores[0].updated_at);
+  assert.equal((await llamar('firma-profesor', { method: 'GET', query: { profesor_id: '1' } })).json.firma, FIRMA);
+  assert.equal((await llamar('firma-profesor', { body: { profesor_id: 1, firma: null } })).status, 200);
+  assert.equal(BD.tablas.profesores[0].firma, null);
+  reiniciar(base(), { profesores: ['firma'] });
+  assert.equal((await llamar('firma-profesor', { body: { profesor_id: 1, firma: FIRMA } })).status, 501);
+  assert.equal((await llamar('firma-profesor', { method: 'GET', query: { profesor_id: '1' } })).json.disponible, false);
 });
