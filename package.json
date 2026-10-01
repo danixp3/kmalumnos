@@ -9,6 +9,7 @@
     "dist": "electron-builder",
     "smoke": "electron scripts/smoke-ui.js",
     "fuzz": "electron scripts/fuzz-ui.js",
+    "barrido": "electron scripts/barrido-visual.js",
     "test:api": "node --import ./web-remote/tests/register.mjs --test web-remote/tests/api.test.mjs"
   },
   "build": {

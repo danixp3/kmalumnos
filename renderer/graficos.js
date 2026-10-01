@@ -18,15 +18,15 @@ function graficoTruncar(str, max) {
   return str.length > max ? str.slice(0, max - 1) + '…' : str;
 }
 
-// Redondea un máximo hacia arriba a un número "bonito" (1/2/5 × 10^n) para
-// que los pasos del eje sean legibles (0 / 25 / 50... en vez de 0 / 23.4 / ...).
-function graficoTecho(max) {
-  if (max <= 0) return 1;
-  const exp = Math.floor(Math.log10(max));
-  const base = Math.pow(10, exp);
-  const norm = max / base;
-  const niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
-  return niceNorm * base;
+// Escala del eje: paso "bonito" (1/2/5 × 10^n) con 5 marcas como mucho. Si
+// los datos son enteros (nº de prácticas) el paso también lo es: nada de
+// marcas de 12,5 o 37,5 prácticas.
+function graficoEscala(max, enteros) {
+  if (!(max > 0)) return { max: enteros ? 4 : 1, paso: enteros ? 1 : 0.25 };
+  const pot = Math.pow(10, Math.floor(Math.log10(max / 4)));
+  let paso = [1, 2, 5, 10].map(m => m * pot).find(x => Math.ceil(max / x) <= 5) || 10 * pot;
+  if (enteros) paso = Math.max(1, Math.round(paso));
+  return { max: Math.ceil(max / paso) * paso, paso };
 }
 
 // Tooltip compartido por todos los gráficos (misma técnica que #km-chart-tooltip
@@ -104,7 +104,8 @@ function renderGraficoBarras(opts) {
   }
 
   const maxRaw = Math.max(0, ...categorias.flatMap(c => c.valores));
-  const ejeMax = graficoTecho(maxRaw || 1);
+  const escala = graficoEscala(maxRaw, categorias.every(c => c.valores.every(v => Number.isInteger(v))));
+  const ejeMax = escala.max;
 
   const partes = [];  // <rect>/<path> de las barras (con listeners a añadir después)
   const ejeSvg = [];  // rejilla, línea base, marcas y etiquetas
@@ -118,10 +119,10 @@ function renderGraficoBarras(opts) {
     const plotH = viewH - marginTop - marginBottom;
     const groupWidth = plotW / categorias.length;
 
-    // Rejilla horizontal + marcas del eje Y (5 niveles, igual que el timeline)
-    for (let i = 0; i <= 4; i++) {
-      const val = ejeMax * i / 4;
-      const y = marginTop + plotH - (plotH * i / 4);
+    // Rejilla horizontal + marcas del eje Y (pasos redondos, 5 como mucho)
+    for (let k = 0; k * escala.paso <= ejeMax + 1e-9; k++) {
+      const val = Math.round(k * escala.paso * 1000) / 1000;
+      const y = marginTop + plotH - (plotH * val / ejeMax);
       ejeSvg.push(`<line class="grafico-rejilla" x1="${marginLeft}" y1="${y}" x2="${viewW - marginRight}" y2="${y}"/>`);
       ejeSvg.push(`<text class="grafico-eje-texto" x="${marginLeft - 6}" y="${y + 3}" text-anchor="end">${esc(formatoEje(val))}</text>`);
     }

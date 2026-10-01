@@ -10,6 +10,9 @@
 <meta property="og:description" content="Prácticas de autoescuela desde el móvil">
 <meta name="theme-color" content="#F3F2EE" id="meta-theme">
 <link rel="icon" href="/logo.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="AulaMovil">
 <title>AulaMovil</title>
 <style>
   /* ── FUENTES (locales, funcionan sin conexión) ── */
@@ -165,6 +168,18 @@
   .seg3 { display: flex; padding: 4px; background: var(--soft); border-radius: 14px; gap: 2px; }
   .seg3 button { flex: 1; height: 44px; border: none; border-radius: 10px; background: transparent; font-size: 16.5px; font-weight: 600; color: var(--muted-2); }
   .seg3 button.on { background: #fff; color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(20,22,27,.16); }
+  .seg3.dos-lineas button { height: 56px; line-height: 1.15; }
+  .instalar-card { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 12px 14px; }
+  .instalar-card img { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; }
+  .instalar-card .btn { flex-shrink: 0; }
+  .instalar-pasos { margin: 6px 0 0; padding-left: 22px; font-size: 16px; line-height: 1.7; }
+  .instalar-pasos b { white-space: nowrap; }
+  .seg3 button small { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+  .nclases { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 8px 8px 8px 16px; }
+  .paso-n { display: flex; align-items: center; gap: 4px; background: var(--soft); border-radius: 14px; padding: 4px; flex-shrink: 0; }
+  .paso-n button { width: 42px; height: 42px; border: none; border-radius: 10px; background: #fff; font-size: 24px; font-weight: 600; color: var(--ink); box-shadow: 0 1px 2px rgba(20,22,27,.14); }
+  .paso-n button:disabled { opacity: .35; box-shadow: none; }
+  .paso-n b { min-width: 30px; text-align: center; font-size: 22px; font-family: var(--font-mono, monospace); }
   .etq { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 2px 8px; display: flex; justify-content: space-between; align-items: baseline; }
   .etq small { font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; }
   .barra-fija { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, rgba(243,242,238,0)); z-index: 20; }
@@ -310,6 +325,7 @@
     <button class="btn btn-pri" onclick="iniciarSesion()">Entrar</button>
     <p class="acceso-sub" style="font-size:14px">¿Sin cuenta? Créala en la aplicación de escritorio.</p>
   </div>
+  <button class="lnk instalar-lnk" style="margin-top:18px;font-size:15px" onclick="instalarApp()" hidden>Instalar AulaMovil en este móvil</button>
 </div>
 
 <div id="profile-screen" class="acceso" hidden>
@@ -375,7 +391,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const PROFESOR_KEY = 'kmalumnos_profesor';   // perfil de profesor activo
 const FLUJO_KEY = 'km_flujo';                // práctica en marcha (sobrevive a recargas)
 const VEHICULO_KEY = 'km_vehiculo';          // último vehículo usado
-const DURACION_KEY = 'km_duracion';          // última duración elegida
+const NCLASES_KEY = 'km_n_clases';          // nº de clases elegido la última vez
 
 // Zonas recorridas: las configura el escritorio (Ajustes → Zonas de prácticas)
 // y llegan en S.zonas desde /api/config. Sin zonas no se muestra el bloque.
@@ -387,7 +403,7 @@ const S = {
   vehiculos: [], alumnos: [], profesores: [],
   jornada: { practicas: [], sin_cerrar: [], reservas: [] },
   jornadaHoy: { practicas: [], sin_cerrar: [], reservas: [] }, // la del riel: siempre la de HOY
-  zonas: [], cal: null, ultimaCarga: 0,
+  zonas: [], duracionClase: 45, cal: null, ultimaCarga: 0,
   vehId: null, flujo: null, vista: null, filtroAlumnos: 'mios', busqueda: '',
   ficha: null, fichaMes: null, kmFinal: '', timer: null, firmaTrazos: 0
 };
@@ -398,6 +414,15 @@ function fechaLocal(d = new Date()) {
 const hhmm = (d = new Date()) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 const sumaMin = (h, m) => { if (!h) return ''; const [a, b] = h.split(':').map(Number); const t = a * 60 + b + m; return String(Math.floor(t / 60) % 24).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
 const miles = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+// Minutos por clase (Ajustes del escritorio → /api/config). Una sesión de N
+// clases dura N × durClase() y se guarda como N prácticas (90 min = 2 clases).
+const MAX_CLASES = 6;
+const durClase = () => S.duracionClase || 45;
+const nClasesGuardado = () => Math.min(3, Math.max(1, parseInt(localStorage.getItem(NCLASES_KEY)) || 1));
+const nDeReserva = rv => rv && rv.duracion_min ? Math.min(MAX_CLASES, Math.max(1, Math.round(rv.duracion_min / durClase()))) : 0;
+const durTxt = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}`;
+const clasesTxt = n => `${n} ${n === 1 ? 'clase' : 'clases'}`;
+const claseTxt = F => (F.n_clases || 1) > 1 ? `Clases ${F.clase_n}–${F.clase_n + F.n_clases - 1}` : `Clase ${F.clase_n}`;
 const esc = t => { const d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; };
 const iniciales = n => { const p = String(n || '').trim().split(/\s+/).filter(Boolean); return p.length ? (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase() : '?'; };
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -421,7 +446,8 @@ const IC = {
   bandera: '<path d="M6 21V4M6 4h11l-2.5 4 2.5 4H6"/>', tel: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
   menu: '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
   hist: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>', salir: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
-  persona: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-3.6 3.3-6 7-6s6.4 2.4 7 6"/>', cerrar: '<path d="M6 6l12 12M18 6L6 18"/>'
+  persona: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-3.6 3.3-6 7-6s6.4 2.4 7 6"/>', cerrar: '<path d="M6 6l12 12M18 6L6 18"/>',
+  compartir: '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11v9h12v-9"/>'
 };
 const ic = (k, w = 20, extra = '') => `<svg class="ic" width="${w}" height="${w}" viewBox="0 0 24 24" ${extra} aria-hidden="true">${IC[k]}</svg>`;
 const placa = m => m ? `<span class="placa"><span class="placa-e">E</span><span class="placa-n">${esc(m)}</span></span>` : '';
@@ -463,6 +489,7 @@ function mostrarLogin() {
   document.getElementById('login-screen').hidden = false;
   document.getElementById('login-password').value = '';
   setTema(false);
+  pintarInstalar();
 }
 
 async function mostrarPerfiles() {
@@ -565,7 +592,7 @@ async function cargarBase() {
     if (!rv.ok) throw new Error('Error cargando vehículos');
     if (!ra.ok) throw new Error('Error cargando alumnos');
     S.vehiculos = await rv.json(); S.alumnos = await ra.json();
-    if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; }
+    if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; S.duracionClase = parseInt(c.duracion_clase_min) || 45; }
     S.ultimaCarga = Date.now();
   } catch (e) { if (e.message !== 'Sesión expirada') toast('No se pudieron cargar los datos. Reintenta.'); }
   const guardado = parseInt(localStorage.getItem(VEHICULO_KEY));
@@ -606,7 +633,7 @@ function flujoDesdePractica(p) {
   return {
     practica_id: p.id, alumno_id: p.alumno_id, alumno_nombre: p.alumno_nombre, vehiculo_id: p.vehiculo_id, vehiculo_nombre: p.vehiculo_nombre, matricula: p.matricula,
     km_inicial: p.km_inicial, km_final: p.km_final || 0, inicio_ms: inicioMs, hora_inicio: p.hora_inicio, hora_fin: p.hora_fin || null,
-    duracion_min: parseInt(localStorage.getItem(DURACION_KEY)) || 45, zonas: (p.zonas || []).slice(), trabajado: p.trabajado || [], observacion: '',
+    n_clases: nClasesGuardado(), duracion_min: nClasesGuardado() * durClase(), zonas: (p.zonas || []).slice(), trabajado: p.trabajado || [], observacion: '',
     clase_n: p.clase_n, fecha: p.fecha, cerrada: !!p.km_final, sin_cerrar: !!p.sin_cerrar, profesor_nombre: p.profesor_nombre || null
   };
 }
@@ -639,6 +666,42 @@ document.addEventListener('visibilitychange', () => {
 });
 setInterval(() => { if (S.perfil && actualizarHoy() && ['hoy', 'alumnos', 'historial'].includes(S.vista)) refrescar(); }, 60000);
 
+// ─── INSTALAR COMO APP (PWA) ─────────────────────────────────────────────────
+// Android (Chrome): el navegador ofrece instalarla como una app más (icono en el
+// cajón, pantalla completa, se actualiza sola). iOS: Safari → Compartir →
+// «Añadir a pantalla de inicio». Sin tienda ni APK que mantener.
+const INSTALAR_VISTO_KEY = 'km_instalar_visto';
+let avisoInstalar = null;
+const enModoApp = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const esMovil = () => esIOS() || /android/i.test(navigator.userAgent);
+const puedeInstalar = () => !enModoApp() && (!!avisoInstalar || esMovil());
+function pintarInstalar() {
+  document.querySelectorAll('.instalar-lnk').forEach(b => { b.hidden = !puedeInstalar(); });
+  if (S.vista === 'hoy' && !document.getElementById('app').hidden) renderHoy();
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); avisoInstalar = e; pintarInstalar(); });
+window.addEventListener('appinstalled', () => { avisoInstalar = null; localStorage.setItem(INSTALAR_VISTO_KEY, '1'); toast('AulaMovil instalada: ya la tienes con tus aplicaciones.'); pintarInstalar(); });
+async function instalarApp() {
+  if (avisoInstalar) {
+    const aviso = avisoInstalar;
+    aviso.prompt();
+    const { outcome } = await aviso.userChoice.catch(() => ({}));
+    avisoInstalar = null;
+    if (outcome === 'accepted') localStorage.setItem(INSTALAR_VISTO_KEY, '1');
+    pintarInstalar();
+    return;
+  }
+  const pasos = esIOS()
+    ? `<ol class="instalar-pasos"><li>Abre esta página en <b>Safari</b>.</li><li>Pulsa <b>Compartir</b> ${ic('compartir', 18, 'style="vertical-align:-3px"')} (abajo).</li><li>Elige <b>«Añadir a pantalla de inicio»</b> y pulsa <b>Añadir</b>.</li></ol>`
+    : `<ol class="instalar-pasos"><li>Abre esta página en <b>Chrome</b>.</li><li>Pulsa el menú <b>⋮</b> (arriba a la derecha).</li><li>Elige <b>«Instalar aplicación»</b> (o «Añadir a pantalla de inicio») y confirma.</li></ol>`;
+  abrirHoja(`<div class="hoja-tit"><h3>Instalar AulaMovil</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+    <div class="card card-pad"><div class="fila-sub" style="font-size:15.5px">Quedará como una app más del móvil: con su icono, a pantalla completa y siempre actualizada. Es gratis y no ocupa casi nada.</div>${pasos}</div>`);
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+
 async function entrarApp() {
   ocultarAcceso(); document.getElementById('app').hidden = false; document.getElementById('app').classList.add('on-app');
   cargarFlujo();
@@ -650,6 +713,11 @@ async function entrarApp() {
   await cargarJornada();
   if (S.vista === 'hoy') renderHoy();
   renderRiel();
+  // Atajo «Nueva práctica» del icono de la app (mantener pulsado el icono)
+  if (new URLSearchParams(location.search).get('accion') === 'nueva') {
+    history.replaceState({ vista: 'hoy' }, '', location.pathname);
+    abrirIniciar();
+  }
 }
 
 // ─── HOY ─────────────────────────────────────────────────────────────────────
@@ -691,6 +759,9 @@ function renderHoy() {
       <div class="grande" style="margin-top:4px">${esHoy ? 'Hoy' : esc(cap(DIAS[partes(S.fecha).dow]))}</div></div>
       <button class="avatar" onclick="menuPerfil()" aria-label="Perfil y opciones">${esc(perfilIni)}</button></div>`;
   if (!esHoy) html += `<button class="btn btn-sec btn-peq" style="margin-bottom:12px" onclick="cambiarDia(0)">Volver a hoy</button>`;
+  if (esHoy && puedeInstalar() && !localStorage.getItem(INSTALAR_VISTO_KEY)) html += `<div class="card instalar-card"><img src="/icons/maskable-192.png" alt="">
+    <div style="flex:1;min-width:0"><div class="fila-tit">Instala AulaMovil</div><div class="fila-sub">Como una app más del móvil.</div></div>
+    <button class="btn btn-pri btn-peq" onclick="instalarApp()">Instalar</button><button class="cab-atras" onclick="localStorage.setItem(INSTALAR_VISTO_KEY,'1');renderHoy()" aria-label="Ahora no">${ic('cerrar', 20)}</button></div>`;
   html += cardVehiculo(esHoy);
   html += `<div style="margin-top:16px"><div class="prog-lin"><span>${r.cerradas.length} de ${r.total} ${r.total === 1 ? 'clase' : 'clases'} ${r.cerradas.length === 1 ? 'hecha' : 'hechas'}</span><span><b class="mono">${miles(r.km)}</b> <span style="font-weight:500;color:var(--muted)">km ${esHoy ? 'hoy' : ''}</span></span></div>${segmentos(r)}</div>`;
 
@@ -699,8 +770,8 @@ function renderHoy() {
     const enCurso = r.enCurso[0];
     const sinCerrar = S.jornada.sin_cerrar[0];
     if (enCurso) {
-      html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et"><span class="pill-dot"></span>EN CURSO</span><span>${esc(enCurso.hora_inicio || '')} ${enCurso.hora_inicio ? '–' : ''} ${esc(sumaMin(enCurso.hora_inicio, parseInt(localStorage.getItem(DURACION_KEY)) || 45))}</span></div>
-        <div class="ahora-quien"><span class="ini">${esc(iniciales(enCurso.alumno_nombre))}</span><div><div class="ahora-nom">${esc(enCurso.alumno_nombre)}</div><div class="ahora-sub">Clase ${enCurso.clase_n}${enCurso.zonas && enCurso.zonas.length ? ' · ' + esc(zonasTxt(enCurso.zonas)) : ''}</div></div></div>
+      html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et"><span class="pill-dot"></span>EN CURSO</span><span>${esc(enCurso.hora_inicio || '')} ${enCurso.hora_inicio ? '–' : ''} ${esc(sumaMin(enCurso.hora_inicio, S.flujo && S.flujo.practica_id === enCurso.id && S.flujo.duracion_min ? S.flujo.duracion_min : nClasesGuardado() * durClase()))}</span></div>
+        <div class="ahora-quien"><span class="ini">${esc(iniciales(enCurso.alumno_nombre))}</span><div><div class="ahora-nom">${esc(enCurso.alumno_nombre)}</div><div class="ahora-sub">${S.flujo && S.flujo.practica_id === enCurso.id ? esc(claseTxt(S.flujo)) : 'Clase ' + enCurso.clase_n}${enCurso.zonas && enCurso.zonas.length ? ' · ' + esc(zonasTxt(enCurso.zonas)) : ''}</div></div></div>
         <button class="btn btn-pri btn-lg" onclick="continuarPractica(${enCurso.id})">${ic('play', 18)} Continuar práctica</button></div>`;
     } else if (sinCerrar) {
       html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et">${ic('aviso', 16)} SIN CERRAR</span><span>${esc(fechaCorta(sinCerrar.fecha))}</span></div>
@@ -710,7 +781,7 @@ function renderHoy() {
       const sig = r.pend[0];
       html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et"><span class="pill-dot"></span>SIGUIENTE</span><span>${esc(sig.hora_inicio || '')}${sig.duracion_min ? ' – ' + esc(sumaMin(sig.hora_inicio, sig.duracion_min)) : ''}</span></div>
         <div class="ahora-quien"><span class="ini">${esc(iniciales(sig.alumno_nombre))}</span><div><div class="ahora-nom">${esc(sig.alumno_nombre || 'Alumno')}</div><div class="ahora-sub">${esc(sig.nota || 'Práctica programada')}</div></div></div>
-        <button class="btn btn-pri btn-lg" onclick="abrirIniciar({alumno_id:${sig.alumno_id},vehiculo_id:${sig.vehiculo_id || 'null'}})">${ic('play', 18)} Iniciar práctica</button></div>`;
+        <button class="btn btn-pri btn-lg" onclick="abrirIniciar({alumno_id:${sig.alumno_id},vehiculo_id:${sig.vehiculo_id || 'null'},n_clases:${nDeReserva(sig)}})">${ic('play', 18)} Iniciar práctica</button></div>`;
     } else {
       html += `<div class="card card-pad" style="margin-top:16px"><div class="fila-tit">${r.cerradas.length ? '¡Jornada completada!' : 'No hay clases programadas'}</div><div class="fila-sub" style="margin:2px 0 12px">Puedes empezar una práctica cuando quieras.</div><button class="btn btn-pri" onclick="abrirIniciar()">${ic('mas', 20)} Nueva práctica</button></div>`;
     }
@@ -719,17 +790,30 @@ function renderHoy() {
   const resto = esHoy && !r.enCurso.length && !S.jornada.sin_cerrar.length ? r.pend.slice(1) : r.pend;
   if (resto.length) {
     html += `<div class="grupo-tit"><span>${esHoy ? 'Más tarde' : 'Agenda'}</span></div><div class="card">` + resto.map(rv =>
-      `<button class="fila" ${esHoy ? `onclick="abrirIniciar({alumno_id:${rv.alumno_id},vehiculo_id:${rv.vehiculo_id || 'null'}})"` : ''}><span class="fila-hora">${esc(rv.hora_inicio || '--:--')}</span>
+      `<button class="fila" ${esHoy ? `onclick="abrirIniciar({alumno_id:${rv.alumno_id},vehiculo_id:${rv.vehiculo_id || 'null'},n_clases:${nDeReserva(rv)}})"` : ''}><span class="fila-hora">${esc(rv.hora_inicio || '--:--')}</span>
         <div style="flex:1;min-width:0"><div class="fila-tit">${esc(rv.alumno_nombre || 'Alumno')}</div><div class="fila-sub">${esc(rv.nota || (rv.matricula ? rv.matricula : 'Práctica'))}${rv.duracion_min ? ' · ' + rv.duracion_min + ' min' : ''}</div></div>${esHoy ? ic('chev', 20, 'style="color:var(--faint)"') : ''}</button>`).join('') + '</div>';
   }
   if (r.cerradas.length) {
-    html += `<div class="grupo-tit"><span>Completadas</span><button onclick="go('historial')">Ver calendario</button></div><div class="card">` + r.cerradas.slice().reverse().map(p =>
+    html += `<div class="grupo-tit"><span>Completadas</span><button onclick="go('historial')">Ver calendario</button></div><div class="card">` + agruparSesiones(r.cerradas).reverse().map(p =>
       `<button class="fila" onclick="${p.firmada ? `abrirDetalle(${p.id})` : `continuarPractica(${p.id})`}"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span>
-        <div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div><div class="fila-sub mono">${miles(p.km_inicial)} → ${miles(p.km_final)} · ${p.km} km</div></div>
+        <div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div><div class="fila-sub mono">${p.n > 1 ? `<b style="color:var(--ink)">${clasesTxt(p.n)}</b> · ` : ''}${miles(p.km_inicial)} → ${miles(p.km_final)} · ${p.km} km</div></div>
         ${p.firmada ? `<span class="pill pill-ok">${ic('ok', 14, 'style="stroke-width:2.6"')} Firmada</span>` : '<span class="pill pill-warn">Sin firmar</span>'}</button>`).join('') + '</div>';
   }
   if (!r.total && !S.jornada.sin_cerrar.length && !esHoy) html += '<div class="vacio">Sin clases este día.</div>';
   document.getElementById('v-hoy').innerHTML = html;
+}
+// Clases seguidas de una misma sesión (mismo alumno y coche, km encadenados y
+// mismo estado de firma: p. ej. 90 min guardados como 2 clases) se muestran y
+// se firman juntas. Devuelve una fila por sesión con `ids` y `n`.
+function agruparSesiones(lista) {
+  const orden = lista.slice().sort((a, b) => (a.hora_inicio || '').localeCompare(b.hora_inicio || '') || a.km_inicial - b.km_inicial || a.id - b.id);
+  const grupos = [];
+  for (const p of orden) {
+    const g = grupos[grupos.length - 1], u = g && g[g.length - 1];
+    if (u && u.alumno_id === p.alumno_id && u.vehiculo_id === p.vehiculo_id && u.km_final > 0 && u.km_final === p.km_inicial && !!u.firmada === !!p.firmada) g.push(p);
+    else grupos.push([p]);
+  }
+  return grupos.map(g => ({ ...g[0], ids: g.map(x => x.id), n: g.length, km_final: g[g.length - 1].km_final, hora_fin: g[g.length - 1].hora_fin, km: g.reduce((t, x) => t + (x.km || 0), 0) }));
 }
 async function cambiarDia(n) {
   actualizarHoy();
@@ -741,6 +825,7 @@ async function cambiarDia(n) {
 function menuPerfil() {
   abrirHoja(`<div class="hoja-tit"><h3>${esc(S.perfil ? S.perfil.nombre : '')}</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
     <div class="card"><button class="fila" onclick="cerrarHoja();refrescar({ silencioso: false })"><span class="veh-ic">${ic('deshacer', 22)}</span><div class="fila-tit" style="flex:1">Actualizar datos</div></button>
+    ${puedeInstalar() ? `<button class="fila" onclick="cerrarHoja();instalarApp()"><span class="veh-ic">${ic('tel', 22)}</span><div class="fila-tit" style="flex:1">Instalar como app</div>${ic('chev', 20)}</button>` : ''}
     <button class="fila" onclick="cerrarHoja();cambiarPerfil()"><span class="veh-ic">${ic('persona', 22)}</span><div class="fila-tit" style="flex:1">Cambiar de perfil</div>${ic('chev', 20)}</button>
     <button class="fila" onclick="cerrarSesion()"><span class="veh-ic">${ic('salir', 22)}</span><div class="fila-tit" style="flex:1">Cerrar sesión</div></button></div>`);
 }
@@ -766,7 +851,7 @@ function abrirIniciar(op = {}) {
   if (!vehiculo(vid)) vid = S.vehId;
   S.iniciar = {
     alumno_id: al ? al.id : null, vehiculo_id: vid, km: String(kmSugerido(vid) || ''),
-    zonas: [], duracion_min: parseInt(localStorage.getItem(DURACION_KEY)) || 45
+    zonas: [], n_clases: Math.min(MAX_CLASES, op.n_clases || nClasesGuardado())
   };
   go('iniciar');
 }
@@ -796,7 +881,7 @@ function renderIniciar() {
     <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Iniciar práctica</h1></div><span class="fecha-lin">${ic('reloj', 16)} ${ahora}</span></div>
     <div class="card">
       <div class="veh-card">${al ? `<span class="ini">${esc(iniciales(nombreAlumno(al)))}</span>` : `<span class="ini">${ic('persona', 22)}</span>`}
-        <div style="flex:1;min-width:0"><div class="fila-tit">${al ? esc(nombreAlumno(al)) : 'Elige un alumno'}</div><div class="fila-sub">${al ? `Permiso ${esc(al.permiso)} · Clase ${clase}` : 'Obligatorio para empezar'}</div></div>
+        <div style="flex:1;min-width:0"><div class="fila-tit">${al ? esc(nombreAlumno(al)) : 'Elige un alumno'}</div><div class="fila-sub">${al ? `Permiso ${esc(al.permiso)} · ${I.n_clases > 1 ? `Clases ${clase}–${clase + I.n_clases - 1}` : `Clase ${clase}`}` : 'Obligatorio para empezar'}</div></div>
         <button class="lnk" onclick="elegirAlumnoIniciar()">${al ? 'Cambiar' : 'Elegir'}</button></div>
       <div class="veh-card" style="border-top:1px solid var(--soft)"><span class="veh-ic">${ic('coche', 22)}</span>
         <div style="flex:1;min-width:0">${v ? `<div class="fila-tit" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.nombre)}</div><div style="margin-top:3px">${placa(v.matricula)}</div>` : '<span class="fila-tit">Sin vehículo</span>'}</div>
@@ -810,8 +895,8 @@ function renderIniciar() {
       ${v && v.ultimo ? `<button class="btn btn-sec btn-peq" style="flex:1" onclick="usarKmAnterior()">Usar ${miles(v.ultimo.km_final)}</button>` : ''}</div></div>
     ${S.zonas.length ? `<div class="etq">Zonas recorridas <small>Opcional · se puede cambiar durante la clase</small></div>
     <div class="chips">${S.zonas.map((z, i) => `<button class="chip ${I.zonas.includes(z) ? 'on' : ''}" onclick="toggleZonaIniciar(${i})">${I.zonas.includes(z) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(z)}</button>`).join('')}</div>` : ''}
-    <div class="etq">Duración <small>Termina a las ${esc(sumaMin(ahora, I.duracion_min))}</small></div>
-    <div class="seg3">${[45, 60, 90].map(m => `<button class="${m === I.duracion_min ? 'on' : ''}" onclick="S.iniciar.duracion_min=${m};renderIniciar()">${m} min</button>`).join('')}</div>
+    <div class="etq">Clases <small>${durTxt(I.n_clases * durClase())} · termina a las ${esc(sumaMin(ahora, I.n_clases * durClase()))}</small></div>
+    <div class="seg3 dos-lineas">${[...new Set([1, 2, 3, I.n_clases])].sort((a, b) => a - b).map(n => `<button class="${n === I.n_clases ? 'on' : ''}" onclick="S.iniciar.n_clases=${n};renderIniciar()">${clasesTxt(n)}<small>${durTxt(n * durClase())}</small></button>`).join('')}</div>
     <div style="text-align:center;margin-top:18px"><button class="lnk lnk-suave" onclick="registrarSinCronometro()">Registrar sin cronómetro (rellenar los km después)</button></div>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-empezar" onclick="empezarPractica()" ${al && v && parseInt(I.km) > 0 ? '' : 'disabled'}>${ic('play', 18)} Empezar práctica</button></div>`;
 }
@@ -877,10 +962,10 @@ async function empezarPractica() {
     }
     const al = alumno(I.alumno_id), v = vehiculo(I.vehiculo_id);
     localStorage.setItem(VEHICULO_KEY, String(I.vehiculo_id)); S.vehId = I.vehiculo_id;
-    localStorage.setItem(DURACION_KEY, String(I.duracion_min));
+    if (I.n_clases <= 3) localStorage.setItem(NCLASES_KEY, String(I.n_clases));
     S.flujo = {
       practica_id: data.practica_id, alumno_id: I.alumno_id, alumno_nombre: nombreAlumno(al), vehiculo_id: I.vehiculo_id, vehiculo_nombre: v ? v.nombre : '', matricula: v ? v.matricula : null,
-      km_inicial: km, km_final: 0, inicio_ms: ahora.getTime(), hora_inicio: hhmm(ahora), duracion_min: I.duracion_min,
+      km_inicial: km, km_final: 0, inicio_ms: ahora.getTime(), hora_inicio: hhmm(ahora), n_clases: I.n_clases, duracion_min: I.n_clases * durClase(),
       zonas: I.zonas.slice(), trabajado: [], observacion: '', clase_n: clasesAlumno(al) + 1, fecha: fechaLocal(ahora), cerrada: false
     };
     guardarFlujo();
@@ -907,7 +992,15 @@ async function continuarPractica(id) {
     S.jornadaHoy.practicas.find(x => x.id === id) || S.jornadaHoy.sin_cerrar.find(x => x.id === id);
   if (!p) return;
   if (!S.flujo || S.flujo.practica_id !== id) { S.flujo = flujoDesdePractica(p); guardarFlujo(); }
-  if (p.km_final) { S.flujo.cerrada = true; S.flujo.km_final = p.km_final; guardarFlujo(); go('firma'); return; }
+  if (p.km_final) {
+    const J = S.jornada.practicas.some(x => x.id === id) ? S.jornada : S.jornadaHoy;
+    const ses = agruparSesiones(J.practicas.filter(x => x.km_final > 0)).find(g => g.ids.includes(id));
+    const F = S.flujo;
+    F.cerrada = true; F.km_final = p.km_final;
+    if (ses && ses.n > 1) Object.assign(F, { practica_id: ses.ids[0], practica_ids: ses.ids, n_clases: ses.n, clase_n: ses.clase_n, km_inicial: ses.km_inicial, km_final: ses.km_final, hora_inicio: ses.hora_inicio, hora_fin: ses.hora_fin });
+    else Object.assign(F, { practica_ids: [p.id], n_clases: 1 });
+    guardarFlujo(); go('firma'); return;
+  }
   go('curso');
 }
 function pararTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } }
@@ -918,7 +1011,7 @@ function renderCurso() {
   const dur = F.duracion_min || 45;
   document.getElementById('v-curso').innerHTML = `
     <div class="cab"><span class="curso-et"><span class="pill-dot"></span>EN CURSO</span><button class="cab-atras" style="color:#F3F2EE" onclick="menuCurso()" aria-label="Más opciones">${ic('menu', 26)}</button></div>
-    <div class="ahora-quien" style="margin-top:6px"><span class="ini" style="background:#2A2D35;color:#F3F2EE;width:54px;height:54px">${esc(iniciales(F.alumno_nombre))}</span><div><div class="ahora-nom">${esc(F.alumno_nombre)}</div><div class="ahora-sub">Clase ${F.clase_n}${F.zonas && F.zonas.length ? ' · ' + esc(zonasTxt(F.zonas)) : ''}</div></div></div>
+    <div class="ahora-quien" style="margin-top:6px"><span class="ini" style="background:#2A2D35;color:#F3F2EE;width:54px;height:54px">${esc(iniciales(F.alumno_nombre))}</span><div><div class="ahora-nom">${esc(F.alumno_nombre)}</div><div class="ahora-sub">${esc(claseTxt(F))}${F.zonas && F.zonas.length ? ' · ' + esc(zonasTxt(F.zonas)) : ''}</div></div></div>
     <div class="crono" id="crono"><span id="crono-t">00:00</span><small>/ ${tiempoTxt(dur * 60)}</small></div>
     <div class="barra-tiempo"><i id="barra-t" style="width:0%"></i></div>
     <div class="curso-horas"><span>Empezó a las <b>${esc(F.hora_inicio)}</b></span><span>Termina a las <b>${esc(sumaMin(F.hora_inicio, dur))}</b></span></div>
@@ -1000,17 +1093,28 @@ function renderKmFinal() {
   const al = alumno(F.alumno_id);
   const ini = Date.parse ? new Date(F.inicio_ms) : null;
   const minutos = Math.max(1, Math.round((Date.now() - F.inicio_ms) / 60000));
+  const n = F.n_clases || 1;
+  const sugeridas = Math.min(MAX_CLASES, Math.max(1, Math.round(minutos / durClase())));
+  const caben = !kf || rec >= n;
   document.getElementById('v-kmfinal').innerHTML = `
     <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="go('curso')" aria-label="Volver">${ic('atras', 26)}</button><h1>Finalizar práctica</h1></div><span class="pill">Paso 1 de 2</span></div>
     <div class="card veh-card"><span class="ini">${esc(iniciales(F.alumno_nombre))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(F.alumno_nombre)}</div><div class="fila-sub mono">${esc(F.hora_inicio)} – ${esc(hhmm())} · ${minutos} min</div></div>${placa(F.matricula)}</div>
+    <div class="card nclases"><div style="flex:1;min-width:0"><div class="fila-tit">Se ${n > 1 ? 'guardan' : 'guarda'} ${clasesTxt(n)} <span class="fila-sub" style="font-weight:500">de ${durClase()} min</span></div>
+      ${sugeridas !== n ? `<button class="lnk" style="font-size:14px;margin-top:2px" onclick="fijarNClases(${sugeridas})">Han pasado ${minutos} min: ¿${clasesTxt(sugeridas)}?</button>` : ''}</div>
+      <div class="paso-n"><button onclick="fijarNClases(${n - 1})" ${n <= 1 ? 'disabled' : ''} aria-label="Una clase menos">−</button><b>${n}</b><button onclick="fijarNClases(${n + 1})" ${n >= MAX_CLASES ? 'disabled' : ''} aria-label="Una clase más">+</button></div></div>
     <div class="card card-pad" style="margin-top:12px"><div class="etq" style="margin:0 0 10px">Km final <small>Lo que marca el coche ahora</small></div>
       <div class="odo">${digitos(S.kmFinal || '')}<span class="odo-km">km</span></div>
       <div class="dos-col"><div class="stat-box"><span class="etq2">Inicial</span><span class="val">${miles(F.km_inicial)}</span></div>
         <div class="stat-box osc"><span class="etq2">Recorridos</span><span class="val">${kf ? (rec > 0 ? '+' + rec : rec) + ' km' : '—'}</span></div></div>
-      <div id="km-aviso" class="fila-sub" style="margin-top:10px">${kf && rec <= 0 ? `<span style="color:var(--err);font-weight:600">El km final debe ser mayor que ${miles(F.km_inicial)}.</span>` : (kf && al ? `Con esta, ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${clasesAlumno(al) + 1} clases</b> y <b>${miles(kmAlumno(al) + rec)} km</b>.` : 'Escribe el km que marca el coche.')}</div></div>
+      <div id="km-aviso" class="fila-sub" style="margin-top:10px">${kf && rec <= 0 ? `<span style="color:var(--err);font-weight:600">El km final debe ser mayor que ${miles(F.km_inicial)}.</span>` : (!caben ? `<span style="color:var(--err);font-weight:600">Con ${rec} km no caben ${n} clases.</span>` : (kf && al ? `Con ${n > 1 ? 'estas' : 'esta'}, ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${(F.clase_n || clasesAlumno(al) + 1) + n - 1} clases</b> y <b>${miles(kmAlumno(al) + rec)} km</b>.` : 'Escribe el km que marca el coche.'))}</div></div>
     <div class="teclado">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button onclick="tecla('${n}')">${n}</button>`).join('')}
       <button class="f" onclick="tecla('C')">Borrar</button><button onclick="tecla('0')">0</button><button class="f" onclick="tecla('<')" aria-label="Borrar un dígito">${ic('borrar', 26)}</button></div>
-    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-firma" onclick="continuarFirma()" ${rec > 0 ? '' : 'disabled'}>Continuar a la firma ${ic('flecha', 20)}</button></div>`;
+    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-firma" onclick="continuarFirma()" ${rec > 0 && caben ? '' : 'disabled'}>Continuar a la firma ${ic('flecha', 20)}</button></div>`;
+}
+function fijarNClases(n) {
+  const F = S.flujo; if (!F) return;
+  F.n_clases = Math.min(MAX_CLASES, Math.max(1, n)); F.duracion_min = F.n_clases * durClase();
+  guardarFlujo(); renderKmFinal();
 }
 function tecla(k) {
   if (k === 'C') S.kmFinal = ''; else if (k === '<') S.kmFinal = S.kmFinal.slice(0, -1); else if (S.kmFinal.length < 7) S.kmFinal += k;
@@ -1018,17 +1122,20 @@ function tecla(k) {
 }
 async function continuarFirma() {
   const F = S.flujo; const kf = parseInt(S.kmFinal) || 0;
-  if (kf <= F.km_inicial) return;
+  const n = F.n_clases || 1;
+  if (kf <= F.km_inicial || kf - F.km_inicial < n) return;
   if (kf - F.km_inicial > 300 && !confirm(`Son ${kf - F.km_inicial} km en una sola práctica. ¿Es correcto?`)) return;
   const btn = document.getElementById('btn-firma'); btn.disabled = true; btn.textContent = 'Guardando…';
   try {
     const res = await postJSON('/api/finalizar-practica', {
       practica_id: F.practica_id, km_final: kf, trabajado: F.trabajado, observacion: F.observacion, hora_fin: hhmm(),
-      zonas: F.zonas || []
+      zonas: F.zonas || [], n_clases: n
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cerrar la práctica');
     F.km_final = kf; F.hora_fin = hhmm(); F.cerrada = true; F.resumen = data.alumno; F.recorridos = data.recorridos; F.campos_guardados = data.campos_guardados;
+    F.practica_ids = Array.isArray(data.practica_ids) && data.practica_ids.length ? data.practica_ids : [F.practica_id];
+    F.n_clases = F.practica_ids.length;
     guardarFlujo();
     // refresca datos locales del alumno y del vehículo
     const al = alumno(F.alumno_id); if (al && data.alumno) { al.clases = data.alumno.clases; al.km = data.alumno.km; }
@@ -1049,7 +1156,7 @@ function renderFirma() {
     <div class="card rev-grid">
       <div><div class="etq2">Fecha</div><div class="val">${esc(fechaCorta(F.fecha || S.hoy))} ${partes(F.fecha || S.hoy).y}</div></div>
       <div><div class="etq2">Horario</div><div class="val mono">${esc(F.hora_inicio)} - ${esc(F.hora_fin || hhmm())}</div></div>
-      <div><div class="etq2">Clase</div><div class="val">Nº ${F.clase_n} · ${Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio))))} min</div></div>
+      <div><div class="etq2">${(F.n_clases || 1) > 1 ? 'Clases' : 'Clase'}</div><div class="val">Nº ${(F.n_clases || 1) > 1 ? F.clase_n + '–' + (F.clase_n + F.n_clases - 1) : F.clase_n} · ${Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio))))} min</div></div>
       <div><div class="etq2">Profesor</div><div class="val">${esc(F.profesor_nombre || (S.perfil && S.perfil.nombre !== 'Sin profesor' ? S.perfil.nombre : '—'))}</div></div>
       <div><div class="etq2">Km ${F.matricula ? '(' + esc(F.matricula) + ')' : ''}</div><div class="val mono">${miles(F.km_inicial)} → ${miles(F.km_final)}</div></div>
       <div><div class="etq2">Recorridos</div><div class="val mono" style="font-size:24px">${F.km_final - F.km_inicial} km</div></div>
@@ -1058,7 +1165,7 @@ function renderFirma() {
     </div>
     <div class="etq"><span>Firma de ${esc(F.alumno_nombre)}</span><button class="lnk" style="color:var(--ink);font-size:15px" onclick="borrarFirma()">${ic('deshacer', 16)} Borrar</button></div>
     <div class="firma-caja" id="firma-caja"><canvas id="firma-cv"></canvas><div class="firma-ayuda" id="firma-ayuda">Firma aquí con el dedo</div><div class="firma-guia"><span>×</span></div></div>
-    <p class="fila-sub" style="margin:8px 2px 0">Al firmar confirmas que has recibido esta clase práctica con los datos de arriba.</p>
+    <p class="fila-sub" style="margin:8px 2px 0">Al firmar confirmas que has recibido ${(F.n_clases || 1) > 1 ? `estas ${F.n_clases} clases prácticas` : 'esta clase práctica'} con los datos de arriba.</p>
     <div class="barra-fija"><div style="display:flex;flex-direction:column;gap:6px;align-items:center"><button class="btn btn-pri btn-lg" id="btn-conf" onclick="confirmarFirma()" disabled>${ic('ok', 20, 'style="stroke-width:2.6"')} Confirmar firma</button>
       <button class="lnk" onclick="firmarMasTarde()">Firmar más tarde</button></div></div>`;
   iniciarLienzo();
@@ -1117,7 +1224,7 @@ async function confirmarFirma() {
   let firma = firmaComoPNG();
   if (firma.length > 150000) firma = firmaComoPNG(300); // firma muy densa: se reduce más
   try {
-    const res = await postJSON('/api/firmar-practica', { practica_id: F.practica_id, firma });
+    const res = await postJSON('/api/firmar-practica', { practica_id: F.practica_id, practica_ids: F.practica_ids || [F.practica_id], firma });
     const data = await res.json();
     if (res.status === 501) { toast(data.error, 6000); btn.disabled = false; btn.innerHTML = ic('ok', 20) + ' Confirmar firma'; return; }
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo guardar la firma');
@@ -1192,7 +1299,7 @@ function renderFicha() {
   const nombre = [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
   const previas = a.clases_previas || 0, kmPrevios = a.km_previos || 0;
   const totalClases = d.total + previas, totalKm = d.km_totales + kmPrevios;
-  const minutos = totalClases * (parseInt(localStorage.getItem(DURACION_KEY)) || 45);
+  const minutos = totalClases * durClase();
   const horas = (minutos / 60).toFixed(1).replace('.', ',');
   const [y, m] = S.fichaMes.split('-').map(Number);
   const primero = (new Date(y, m - 1, 1).getDay() + 6) % 7, ndias = new Date(y, m, 0).getDate();
@@ -1391,7 +1498,7 @@ function pintarDetalle(p) {
         ? `<div class="firma-vista"><img src="${p.firma}" alt="Firma de ${esc(p.alumno_nombre)}"></div>`
         : `<div class="msg msg-warn" style="margin-top:0">${ic('aviso', 18)}<span>${p.km_final > 0 ? 'Esta clase todavía no está firmada.' : 'La clase no está cerrada: falta el km final.'}</span></div>`}
     </div>
-    ${firmable ? `<button class="btn btn-pri btn-lg" onclick="firmarDesdeDetalle()">${ic('lapiz', 18)} Firmar ahora</button>` : ''}
+    ${firmable ? `<button class="btn btn-pri btn-lg" onclick="firmarDesdeDetalle()">${ic('lapiz', 18)} ${p.sesion ? `Firmar las ${p.sesion.n} clases` : 'Firmar ahora'}</button>` : ''}
     ${p.cancelable ? `<button class="btn btn-sec" style="color:var(--err)" onclick="cancelarPractica(${p.id})">Cancelar esta práctica</button>` : ''}`);
 }
 function firmarDesdeDetalle() {
@@ -1401,8 +1508,10 @@ function firmarDesdeDetalle() {
     practica_id: p.id, alumno_id: p.alumno_id, alumno_nombre: p.alumno_nombre, vehiculo_id: p.vehiculo_id, vehiculo_nombre: p.vehiculo_nombre, matricula: p.matricula,
     km_inicial: p.km_inicial, km_final: p.km_final, inicio_ms: Date.now(), hora_inicio: p.hora_inicio, hora_fin: p.hora_fin,
     zonas: p.zonas, trabajado: p.trabajado, observacion: '', clase_n: p.clase_n, fecha: p.fecha, cerrada: true,
-    profesor_nombre: p.profesor_nombre, volverA: S.vista === 'ficha' ? 'ficha' : 'historial'
+    profesor_nombre: p.profesor_nombre, volverA: S.vista === 'ficha' ? 'ficha' : 'historial', practica_ids: [p.id], n_clases: 1
   };
+  const ses = p.sesion;
+  if (ses && ses.n > 1) Object.assign(S.flujo, { practica_id: ses.ids[0], practica_ids: ses.ids, n_clases: ses.n, clase_n: ses.clase_n_desde, km_inicial: ses.km_inicial, km_final: ses.km_final, hora_inicio: ses.hora_inicio || p.hora_inicio, hora_fin: ses.hora_fin || p.hora_fin });
   guardarFlujo(); cerrarHoja(); go('firma');
 }
 async function cancelarPractica(id) {
@@ -1432,8 +1541,8 @@ function renderRiel() {
     ${vehiculo(S.vehId) ? `<div style="margin-top:8px;display:flex;align-items:center;gap:8px">${placa(vehiculo(S.vehId).matricula)}<span class="fila-sub">${esc(vehiculo(S.vehId).nombre)} · <b class="mono" style="color:var(--ink)">${miles(kmSugerido(S.vehId))}</b> km</span></div>` : ''}</div>
     <button class="avatar" onclick="menuPerfil()" aria-label="Perfil y opciones">${esc(iniciales(S.perfil ? S.perfil.nombre : '?'))}</button></div>`;
   const filas = [];
-  J.practicas.forEach(p => filas.push({ h: p.hora_inicio || '99', html: `<button class="riel-fila ${S.flujo && S.flujo.practica_id === p.id && ['curso', 'kmfinal', 'firma'].includes(S.vista) ? 'activa' : ''}" onclick="continuarPractica(${p.id})"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(p.alumno_nombre)}</div><div class="fila-sub">${p.en_curso ? 'en curso' : p.km + ' km'}</div></div>${p.en_curso ? '<span class="pill pill-dark">En curso</span>' : (p.firmada ? '<span class="pill pill-ok">Firmada</span>' : '<span class="pill pill-warn">Sin firmar</span>')}</button>` }));
-  pendientesReservas(J).forEach(rv => filas.push({ h: rv.hora_inicio || '99', html: `<button class="riel-fila" onclick="abrirIniciar({alumno_id:${rv.alumno_id},vehiculo_id:${rv.vehiculo_id || 'null'}})"><span class="fila-hora">${esc(rv.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(rv.alumno_nombre || 'Alumno')}</div><div class="fila-sub">${esc(rv.nota || 'Programada')}</div></div></button>` }));
+  [...J.practicas.filter(p => !(p.km_final > 0)), ...agruparSesiones(J.practicas.filter(p => p.km_final > 0))].forEach(p => filas.push({ h: p.hora_inicio || '99', html: `<button class="riel-fila ${S.flujo && (S.flujo.practica_id === p.id || (S.flujo.practica_ids || []).includes(p.id)) && ['curso', 'kmfinal', 'firma'].includes(S.vista) ? 'activa' : ''}" onclick="continuarPractica(${p.id})"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(p.alumno_nombre)}</div><div class="fila-sub">${p.en_curso ? 'en curso' : (p.n > 1 ? clasesTxt(p.n) + ' · ' : '') + p.km + ' km'}</div></div>${p.en_curso ? '<span class="pill pill-dark">En curso</span>' : (p.firmada ? '<span class="pill pill-ok">Firmada</span>' : '<span class="pill pill-warn">Sin firmar</span>')}</button>` }));
+  pendientesReservas(J).forEach(rv => filas.push({ h: rv.hora_inicio || '99', html: `<button class="riel-fila" onclick="abrirIniciar({alumno_id:${rv.alumno_id},vehiculo_id:${rv.vehiculo_id || 'null'},n_clases:${nDeReserva(rv)}})"><span class="fila-hora">${esc(rv.hora_inicio || '--:--')}</span><div style="flex:1;min-width:0"><div class="fila-tit" style="font-size:16px">${esc(rv.alumno_nombre || 'Alumno')}</div><div class="fila-sub">${esc(rv.nota || 'Programada')}</div></div></button>` }));
   filas.sort((a, b) => a.h.localeCompare(b.h));
   document.getElementById('riel-lista').innerHTML = filas.length ? filas.map(f => f.html).join('') : '<div class="vacio">Sin clases hoy.</div>';
   document.getElementById('riel-pie').innerHTML = `<span><b class="mono" style="color:var(--ink)">${miles(r.km)}</b> km hoy</span><span>${r.firmadas} de ${r.cerradas.length} firmadas</span>`;

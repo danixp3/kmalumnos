@@ -36,7 +36,9 @@ function guardarRangoPrefDesdeAjustes() {
 
 // Minutos por clase/práctica: usado por la agenda (renderer/reservas.js) para
 // calcular la duración de una reserva a partir del nº de prácticas que pide
-// el modal. Mismo patrón localStorage que PREF_RANGO_KEY.
+// el modal, y por la web del móvil (90 min = 2 clases de 45). Se comparte por
+// la nube (ajustes_empresa 'duracion_clase_min'); localStorage es su copia
+// local para leerlo sin esperar (getDuracionClaseMin es síncrona).
 const DURACION_CLASE_KEY = 'km_duracion_clase_min';
 
 function getDuracionClaseMin() {
@@ -50,6 +52,19 @@ function getDuracionClaseMin() {
 
 function guardarDuracionClaseMin(min) {
   try { localStorage.setItem(DURACION_CLASE_KEY, String(Math.max(1, parseInt(min) || 45))); } catch (e) {}
+  if (window.api.setDuracionClase) window.api.setDuracionClase(getDuracionClaseMin()).catch(() => {});
+}
+
+// Al arrancar y al abrir Ajustes: el valor de la nube manda (lo cambió otro PC);
+// si la nube aún no lo tiene, se sube el de este PC para que lo vea el móvil.
+async function sincronizarDuracionClase() {
+  try {
+    const remota = await window.api.getDuracionClase();
+    if (remota) { localStorage.setItem(DURACION_CLASE_KEY, String(remota)); return remota; }
+    const local = parseInt(localStorage.getItem(DURACION_CLASE_KEY));
+    if (local >= 10 && local <= 240) await window.api.setDuracionClase(local);
+  } catch (e) {}
+  return getDuracionClaseMin();
 }
 
 function guardarDuracionClaseDesdeAjustes() {
@@ -274,7 +289,7 @@ async function loadAjustes() {
   ajustesInicio(); // siempre se entra por los cuadros (el buscador abre luego la sección)
   aplicarRangoPref('pref-km-min', 'pref-km-max');
   const elDuracionClase = document.getElementById('pref-duracion-clase');
-  if (elDuracionClase) elDuracionClase.value = getDuracionClaseMin();
+  if (elDuracionClase) elDuracionClase.value = await sincronizarDuracionClase();
   const elPrecioCombustible = document.getElementById('pref-precio-combustible');
   if (elPrecioCombustible) elPrecioCombustible.value = getPrecioCombustible();
   const elConsumoMedio = document.getElementById('pref-consumo-medio');

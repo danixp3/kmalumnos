@@ -234,3 +234,55 @@ test('alumnos?resumen=1: pagina las prácticas (más de 1.000) y devuelve el pun
   assert.equal(pablo.clases, 1500); assert.equal(pablo.km, 1500);
   assert.equal(pablo.clases_previas, 8); assert.equal(pablo.km_previos, 300);
 });
+
+// ─── 2026-10-01 (2): sesiones de varias clases (90 min = 2 clases de 45) ───
+
+test('config: devuelve los minutos por clase del escritorio (por defecto 45)', async () => {
+  const t = base(); t.ajustes_empresa = [{ empresa_id: 'emp1', clave: 'duracion_clase_min', valor: 50 }];
+  reiniciar(t);
+  assert.equal((await llamar('config', { method: 'GET' })).json.duracion_clase_min, 50);
+  reiniciar(base());
+  assert.equal((await llamar('config', { method: 'GET' })).json.duracion_clase_min, 45);
+});
+
+test('finalizar-practica con n_clases=2: guarda 2 clases encadenadas (km y horario repartidos)', async () => {
+  reiniciar(base());
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ hora_inicio: '10:00', zonas: ['Centro'] }) });
+  const r = await llamar('finalizar-practica', { body: { practica_id, km_final: 1061, hora_fin: '11:30', n_clases: 2, trabajado: ['Glorietas'] } });
+  assert.equal(r.status, 200); assert.equal(r.json.clases, 2); assert.equal(r.json.practica_ids.length, 2);
+  const [a, b] = r.json.practica_ids.map(id => BD.tablas.practicas.find(x => x.id === id));
+  assert.deepEqual([a.km_inicial, a.km_final, a.hora_inicio, a.hora_fin], [1000, 1031, '10:00', '10:45']);
+  assert.deepEqual([b.km_inicial, b.km_final, b.hora_inicio, b.hora_fin], [1031, 1061, '10:45', '11:30']);
+  assert.deepEqual([b.alumno_id, b.vehiculo_id, b.fecha, b.profesor_id, b.source, b.deleted], [2, 1, hoy(), 1, 'web-remote', false]);
+  assert.deepEqual(b.trabajado, ['Glorietas']); assert.deepEqual(b.zonas, ['Centro']);
+  assert.deepEqual(r.json.alumno, { clases: 2, km: 61 });
+  assert.equal(BD.tablas.vehiculos[0].km_actual, 1061);
+});
+
+test('finalizar-practica con n_clases: reintento no duplica; pocos km o n fuera de rango → 400', async () => {
+  reiniciar(base());
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ hora_inicio: '10:00' }) });
+  const r1 = await llamar('finalizar-practica', { body: { practica_id, km_final: 1040, hora_fin: '11:30', n_clases: 2 } });
+  const r2 = await llamar('finalizar-practica', { body: { practica_id, km_final: 1040, hora_fin: '11:30', n_clases: 2 } });
+  assert.equal(r2.status, 200); assert.equal(r2.json.ya_cerrada, true);
+  assert.deepEqual(r2.json.practica_ids, r1.json.practica_ids);
+  assert.equal(BD.tablas.practicas.filter(p => !p.deleted && p.alumno_id === 2).length, 2);
+  reiniciar(base());
+  const { json: { practica_id: otra } } = await llamar('iniciar-practica', { body: ini() });
+  assert.equal((await llamar('finalizar-practica', { body: { practica_id: otra, km_final: 1001, n_clases: 2 } })).status, 400);
+  assert.equal((await llamar('finalizar-practica', { body: { practica_id: otra, km_final: 1080, n_clases: 9 } })).status, 400);
+});
+
+test('firmar-practica con practica_ids: una firma para todas las clases de la sesión; el detalle las agrupa', async () => {
+  reiniciar(base());
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ hora_inicio: '10:00' }) });
+  const { json: fin } = await llamar('finalizar-practica', { body: { practica_id, km_final: 1060, hora_fin: '11:30', n_clases: 2 } });
+  const det = await llamar('practica-detalle', { method: 'GET', query: { id: String(fin.practica_ids[1]) } });
+  assert.deepEqual(det.json.practica.sesion.ids, fin.practica_ids);
+  assert.deepEqual([det.json.practica.sesion.km_inicial, det.json.practica.sesion.km_final, det.json.practica.sesion.n], [1000, 1060, 2]);
+  const firma = 'data:image/png;base64,iVBORw0KGgo=';
+  const r = await llamar('firmar-practica', { body: { practica_ids: fin.practica_ids, firma } });
+  assert.equal(r.status, 200); assert.equal(r.json.firmadas, 2);
+  assert.ok(fin.practica_ids.every(id => BD.tablas.practicas.find(x => x.id === id).firma === firma));
+  assert.equal((await llamar('firmar-practica', { body: { practica_ids: [fin.practica_ids[0], 999], firma } })).status, 404);
+});

@@ -68,3 +68,4 @@ window.api.getVersion().then(v => {
   if (el) el.textContent = 'v' + v;
 });
 window.api.ventanaEstaMaximizada().then(actualizarIconoMaximizar).catch(() => {});
+sincronizarDuracionClase();

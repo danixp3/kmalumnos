@@ -42,6 +42,7 @@ function pmPintar() {
   tbA.innerHTML = d.alumnos.map((a, i) => pmFilaAlumno(a, i)).join('');
   pmAnadirFila('alumnos', d.alumnos.length ? 3 : 8, false);
   document.getElementById('pm-barra').hidden = true;
+  pmEstadoAnteriores();
 }
 
 const pmNum = v => (v ? String(v) : '');
@@ -72,8 +73,9 @@ function pmFilaAlumno(a, i) {
     <td><select data-c="permiso" onchange="pmMarcarSucio()">${permisos.map(p => `<option ${p === (a.permiso || 'B') ? 'selected' : ''}>${p}</option>`).join('')}</select></td>
     <td><select data-c="profesor_id" onchange="pmMarcarSucio()">${pmOpciones(pmDatos.profesores, a.profesor_id, '— Sin asignar —')}</select></td>
     <td><select data-c="vehiculo_id" onchange="pmMarcarSucio()">${pmOpciones(pmDatos.vehiculos, a.vehiculo_id, '— Sin asignar —')}</select></td>
-    <td class="col-num"><input type="number" data-c="clases_previas" min="0" max="500" value="${pmNum(a.clases_previas)}" placeholder="0" class="num-mono" style="width:80px;text-align:right" oninput="pmMarcarSucio()"></td>
-    <td class="col-num"><input type="number" data-c="km_previos" min="0" value="${pmNum(a.km_previos)}" placeholder="0" class="num-mono" style="width:90px;text-align:right" oninput="pmMarcarSucio()"></td>
+    <td class="col-num"><input type="number" data-c="clases_previas" min="0" max="500" value="${pmNum((a.clases_previas || 0) + (a.anteriores || 0))}" placeholder="0" class="num-mono" style="width:80px;text-align:right" oninput="pmMarcarSucio()"></td>
+    <td class="col-num"><input type="number" data-c="km_previos" min="0" value="${pmNum(a.km_previos)}" placeholder="vacío" title="Déjalo vacío para que la app cree las clases con sus km (paso 4)" class="num-mono" style="width:90px;text-align:right" oninput="pmMarcarSucio()"></td>
+    <td>${a.id ? `<button type="button" class="btn btn-sm btn-outline pm-anotar${a.anteriores ? ' hecho' : ''}" onclick="pmAnotar(${a.id})" title="Anotar las fechas (y km) de sus clases anteriores">${a.anteriores ? `${a.anteriores} ${a.anteriores === 1 ? 'creada' : 'creadas'} · ver` : 'Anotar'}</button>` : '<span style="color:var(--text-faint);font-size:12px">al guardar</span>'}</td>
     <td class="col-num num-mono">${a.id ? `${a.practicas} · ${fmtMiles(a.km_practicas)} km` : '—'}</td>
     <td>${a.id ? '' : '<button class="btn btn-sm btn-ghost" title="Quitar fila" onclick="this.closest(\'tr\').remove()">×</button>'}</td></tr>`;
 }
@@ -145,4 +147,195 @@ async function vaciarDatosPruebaUI() {
   if (!res.ok) { showToast('pm-borrar-toast', res.error, 'err'); return; }
   await loadPuestaEnMarcha();
   showToast('pm-borrar-toast', `Datos de prueba borrados. Copia de seguridad guardada en: ${res.copia}`, 'ok');
+}
+
+// ─── CLASES ANTERIORES (anotar del papel / crear con fecha y km) ─────────────
+// «Anotar» abre el editor de las clases anteriores de un alumno; el paso 4
+// prepara una propuesta para TODAS las que falten (db.planificarClasesAnteriores),
+// la enseña y solo al confirmar la guarda tal cual (db.aplicarClasesAnteriores).
+let pmPlan = null;
+let pmAnot = null;   // { alumno, clases, total }
+
+function pmEstadoAnteriores() {
+  const el = document.getElementById('pm-anteriores-estado'); if (!el || !pmDatos) return;
+  const r = pmDatos.resumen;
+  const conKmPrevios = pmDatos.alumnos.filter(a => a.clases_previas > 0 && a.km_previos > 0);
+  const pendientes = (r.clases_por_crear || 0) + (r.anteriores_sin_km || 0);
+  const partes = [];
+  if (r.clases_por_crear) partes.push(`<b>${r.clases_por_crear}</b> ${r.clases_por_crear === 1 ? 'clase' : 'clases'} de <b>${r.alumnos_por_crear}</b> ${r.alumnos_por_crear === 1 ? 'alumno' : 'alumnos'} están solo como número.`);
+  if (r.anteriores_sin_km) partes.push(`<b>${r.anteriores_sin_km}</b> ${r.anteriores_sin_km === 1 ? 'clase anotada no tiene' : 'clases anotadas no tienen'} km todavía.`);
+  if (r.clases_anteriores) partes.push(`Ya hay <b>${r.clases_anteriores}</b> ${r.clases_anteriores === 1 ? 'clase anterior creada o anotada' : 'clases anteriores creadas o anotadas'}.`);
+  if (conKmPrevios.length) partes.push(`<span style="color:var(--text-muted)">${conKmPrevios.length} ${conKmPrevios.length === 1 ? 'alumno tiene' : 'alumnos tienen'} «km ya hechos» y se ${conKmPrevios.length === 1 ? 'queda' : 'quedan'} solo como número.</span>`);
+  el.innerHTML = `<div class="pm-ant-estado ${pendientes ? '' : 'ok'}">
+    <div class="pm-ant-txt">${partes.length ? partes.join(' ') : 'No hay clases anteriores apuntadas. Si un alumno ya había hecho clases, escribe cuántas en «Clases ya hechas» (paso 3).'}</div>
+    ${pendientes ? `<button class="btn btn-primary" onclick="pmVerPropuesta()">Ver propuesta y crear…</button>` : ''}
+  </div>`;
+}
+
+// Modal creado en JS (mismo patrón que #modal-clase)
+function pmModal(id, html) {
+  let modal = document.getElementById(id);
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'overlay'; modal.id = id;
+    modal.innerHTML = '<div class="modal modal-ancho" role="dialog" aria-modal="true"><div class="pm-modal-cuerpo"></div></div>';
+    document.body.appendChild(modal);
+  }
+  modal.querySelector('.pm-modal-cuerpo').innerHTML = html;
+  openModal(id);
+  return modal;
+}
+
+async function pmGuardarSiHaceFalta() {
+  if (!pmSucio) return true;
+  if (!(await confirmar('Hay cambios sin guardar en las tablas. Se guardan primero para que la propuesta los tenga en cuenta.', { titulo: 'Guardar antes', textoAceptar: 'Guardar y seguir' }))) return false;
+  await guardarPuestaEnMarchaUI();
+  return !pmSucio;
+}
+
+// ── Anotar (editor por alumno) ──
+async function pmAnotar(alumnoId) {
+  if (!(await pmGuardarSiHaceFalta())) return;
+  const datos = await window.api.getClasesAnteriores(alumnoId);
+  if (!datos) return;
+  pmAnot = datos;
+  const fila = (c = {}) => `<tr data-id="${c.id || ''}">
+      <td class="num-mono" style="color:var(--text-faint);width:34px"></td>
+      <td><input type="text" data-c="fecha" placeholder="dd/mm/aaaa" value="${c.fecha ? fmtFecha(c.fecha) : ''}" oninput="pmAnotCuenta()" onpaste="pmAnotPegar(event)" onkeydown="pmAnotTecla(event)"></td>
+      <td><input type="text" data-c="hora_inicio" placeholder="hh:mm" value="${esc(c.hora_inicio || '')}" onkeydown="pmAnotTecla(event)"></td>
+      <td><input type="text" data-c="km_inicial" inputmode="numeric" placeholder="opcional" class="num-mono" value="${c.km_final ? c.km_inicial : ''}" onkeydown="pmAnotTecla(event)"></td>
+      <td><input type="text" data-c="km_final" inputmode="numeric" placeholder="opcional" class="num-mono" value="${c.km_final ? c.km_final : ''}" onkeydown="pmAnotTecla(event)"></td>
+      <td style="white-space:nowrap"><button type="button" class="btn btn-sm btn-ghost" title="Otra clase el mismo día" onclick="pmAnotMismoDia(this)">+ mismo día</button>
+        <button type="button" class="btn btn-sm btn-ghost" title="Quitar" aria-label="Quitar" onclick="this.closest('tr').remove();pmAnotCuenta()">×</button></td></tr>`;
+  pmAnotar._fila = fila;
+  const filas = datos.clases.map(fila).join('') + fila();
+  pmModal('modal-pm-anotar', `
+    <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <h3 style="margin:0">Clases anteriores de ${esc(datos.alumno.nombre)}</h3>
+      <button class="btn btn-outline btn-sm" onclick="closeModal('modal-pm-anotar')">Cerrar</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin:4px 0 12px">Copia del papel las clases que tengas: la <b>fecha</b> basta. La hora y los km son opcionales (si no los pones, la app los calcula al crear las demás). Puedes pegar desde Excel varias filas (Fecha · Hora · Km inicial · Km final) en la primera casilla.</p>
+    <div class="pm-anot-scroll"><table class="pm-anot-tabla"><thead><tr><th>#</th><th>Fecha</th><th>Hora</th><th>Km inicial</th><th>Km final</th><th></th></tr></thead>
+      <tbody id="pm-anot-filas">${filas}</tbody></table></div>
+    <div class="pm-anot-pie">
+      <span class="pm-anot-cuenta" id="pm-anot-cuenta"></span>
+      <button class="btn btn-outline btn-sm" onclick="pmAnotNuevaFila(1)">+ Añadir clase</button>
+      <button class="btn btn-outline btn-sm" onclick="pmAnotNuevaFila(5)">+ 5 filas</button>
+      <button class="btn btn-primary" onclick="pmAnotGuardar()">Guardar clases</button>
+    </div>
+    <div id="pm-anot-error" class="alert alert-err hidden" style="margin-top:10px;white-space:pre-line"></div>`);
+  pmAnotCuenta();
+  setTimeout(() => document.querySelector('#pm-anot-filas input')?.focus(), 60);
+}
+function pmAnotNuevaFila(n = 1, tras) {
+  const tb = document.getElementById('pm-anot-filas'); if (!tb) return null;
+  let ultima = null;
+  for (let k = 0; k < n; k++) {
+    if (tras) { tras.insertAdjacentHTML('afterend', pmAnotar._fila()); ultima = tras.nextElementSibling; tras = ultima; }
+    else { tb.insertAdjacentHTML('beforeend', pmAnotar._fila()); ultima = tb.lastElementChild; }
+  }
+  pmAnotCuenta();
+  return ultima;
+}
+function pmAnotMismoDia(btn) {
+  const tr = btn.closest('tr');
+  const nueva = pmAnotNuevaFila(1, tr);
+  nueva.querySelector('[data-c="fecha"]').value = tr.querySelector('[data-c="fecha"]').value;
+  pmAnotCuenta();
+  nueva.querySelector('[data-c="hora_inicio"]').focus();
+}
+// Intro = misma casilla de la fila siguiente (como en una hoja de cálculo)
+function pmAnotTecla(e) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const tr = e.target.closest('tr'), c = e.target.dataset.c;
+  const sig = tr.nextElementSibling || pmAnotNuevaFila(1);
+  sig.querySelector(`[data-c="${c}"]`).focus();
+}
+function pmAnotPegar(e) {
+  const txt = (e.clipboardData || window.clipboardData).getData('text');
+  if (!/[\t\n]/.test(txt)) return;
+  e.preventDefault();
+  const lineas = txt.replace(/\r/g, '').split('\n').map(l => l.split('\t')).filter(c => c.some(x => x.trim()));
+  let tr = e.target.closest('tr');
+  for (const celdas of lineas) {
+    if (!tr) tr = pmAnotNuevaFila(1);
+    ['fecha', 'hora_inicio', 'km_inicial', 'km_final'].forEach((c, k) => { if (celdas[k] != null) tr.querySelector(`[data-c="${c}"]`).value = celdas[k].trim(); });
+    tr = tr.nextElementSibling;
+  }
+  if (!tr) pmAnotNuevaFila(1);
+  pmAnotCuenta();
+}
+function pmAnotCuenta() {
+  const tb = document.getElementById('pm-anot-filas'); if (!tb || !pmAnot) return;
+  const trs = [...tb.children];
+  trs.forEach((tr, i) => { tr.firstElementChild.textContent = i + 1; });
+  const n = trs.filter(tr => tr.querySelector('[data-c="fecha"]').value.trim()).length;
+  const total = pmAnot.total;
+  const el = document.getElementById('pm-anot-cuenta');
+  el.innerHTML = n >= total
+    ? `<b>${n}</b> ${n === 1 ? 'clase anotada' : 'clases anotadas'}${n > total ? ` (son más de las ${total} que tenía apuntadas: el total sube a ${n})` : ' — todas'}.`
+    : `<b>${n}</b> de <b>${total}</b> anotadas · las <b>${total - n}</b> que faltan las crea la app (paso 4).`;
+}
+async function pmAnotGuardar() {
+  const filas = [...document.querySelectorAll('#pm-anot-filas tr')].map(tr => {
+    const o = { id: tr.dataset.id ? parseInt(tr.dataset.id) : null };
+    tr.querySelectorAll('[data-c]').forEach(el => { o[el.dataset.c] = el.value; });
+    return o;
+  });
+  const res = await window.api.guardarClasesAnteriores(pmAnot.alumno.id, filas);
+  const err = document.getElementById('pm-anot-error');
+  if (!res.ok) { err.textContent = res.errores.join('\n'); err.classList.remove('hidden'); return; }
+  closeModal('modal-pm-anotar');
+  await loadPuestaEnMarcha();
+  showToast('pm-toast', `${pmAnot.alumno.nombre}: ${res.anotadas} ${res.anotadas === 1 ? 'clase anotada' : 'clases anotadas'}${res.pendientes ? `; faltan ${res.pendientes}, que se crean en el paso 4` : ''}.`, 'ok');
+}
+
+// ── Propuesta y creación (paso 4) ──
+async function pmVerPropuesta() {
+  if (!(await pmGuardarSiHaceFalta())) return;
+  const rango = getRangoPref();
+  pmPlan = await window.api.planificarClasesAnteriores({ kmMin: rango.min, kmMax: rango.max, duracion: getDuracionClaseMin() });
+  pmPintarPropuesta();
+}
+function pmPintarPropuesta() {
+  const p = pmPlan; if (!p) return;
+  const total = p.altas.length + p.km.length;
+  const fechaC = f => fmtFecha(f);
+  const filas = p.alumnos.map(a => `<tr>
+      <td><b>${esc(a.nombre)}</b><details><summary>Ver las ${a.clases.length} clases</summary><div class="pm-prop-dias">${a.clases.map(c => `<span>${fechaC(c.fecha)}${c.hora_inicio ? ' ' + esc(c.hora_inicio) : ''} · ${c.km_final ? fmtMiles(c.km_inicial) + '–' + fmtMiles(c.km_final) : '—'}${c.anotada ? ' ✎' : ''}</span>`).join('')}</div></details></td>
+      <td>${placaHTML(a.vehiculo) || esc(a.vehiculo)}</td>
+      <td class="col-num num-mono">${a.nuevas}${a.anotadas_sin_km ? ` <small title="Anotadas a mano que reciben km">+${a.anotadas_sin_km} ✎</small>` : ''}</td>
+      <td class="col-num num-mono">${a.dias}</td>
+      <td class="num-mono">${fechaC(a.desde)} → ${fechaC(a.hasta)}</td>
+      <td class="num-mono">${Number.isFinite(a.km_desde) ? fmtMiles(a.km_desde) + ' → ' + fmtMiles(a.km_hasta) : '—'}</td></tr>`).join('');
+  const lista = (cls, xs) => xs.length ? `<ul class="pm-prop-lista ${cls}">${xs.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
+  pmModal('modal-pm-propuesta', `
+    <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <h3 style="margin:0">Crear las clases anteriores</h3>
+      <button class="btn btn-outline btn-sm" onclick="closeModal('modal-pm-propuesta')">Cerrar</button>
+    </div>
+    ${p.vacio ? '<p>No hay clases anteriores pendientes de crear.</p>' : `
+    <div class="pm-prop-tot">
+      ${p.altas.length ? `<span class="pill pill-line"><b>${p.altas.length}</b>&nbsp;${p.altas.length === 1 ? 'clase nueva' : 'clases nuevas'}</span>` : ''}
+      ${p.km.length ? `<span class="pill pill-line"><b>${p.km.length}</b>&nbsp;anotadas reciben km</span>` : ''}
+      <span class="pill pill-line">km de ${p.opciones.kmMin} a ${p.opciones.kmMax} por clase · ${p.opciones.duracion} min</span>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 10px">Días laborables hacia atrás, como mucho 2 clases por alumno y día y 12 por profesor y por coche, sin pisarse de horario. Los km encadenan con lo ya registrado en cada coche y nunca se solapan. Cuentan como clases normales (también en cobros). Antes de crearlas se guarda una copia de seguridad.</p>
+    ${p.alumnos.length ? `<div class="table-wrap pm-prop-det"><table><thead><tr><th>Alumno</th><th>Coche</th><th class="col-num">Clases</th><th class="col-num">Días</th><th>Fechas</th><th>Km</th></tr></thead><tbody>${filas}</tbody></table></div>` : ''}`}
+    ${lista('pm-prop-err', p.errores)}${lista('pm-prop-aviso', p.avisos)}
+    <div class="pm-anot-pie" style="justify-content:flex-end">
+      ${!p.vacio ? `<button class="btn btn-outline" onclick="pmVerPropuesta()" title="Los km de cada clase se eligen al azar dentro del rango">Otra propuesta</button>` : ''}
+      ${total && p.ok ? `<button class="btn btn-primary" onclick="pmCrearPropuesta()">${p.altas.length ? `Crear ${p.altas.length} ${p.altas.length === 1 ? 'clase' : 'clases'}${p.km.length ? ` y poner km a ${p.km.length}` : ''}` : `Poner km a ${p.km.length} ${p.km.length === 1 ? 'clase' : 'clases'}`}</button>` : ''}
+    </div>`);
+}
+async function pmCrearPropuesta() {
+  const p = pmPlan; if (!p) return;
+  const res = await window.api.aplicarClasesAnteriores(p);
+  if (!res.ok) { await avisar(res.error, { titulo: 'No se han creado las clases' }); return; }
+  closeModal('modal-pm-propuesta');
+  pmPlan = null;
+  await loadPuestaEnMarcha();
+  showToast('pm-toast', `Creadas ${res.creadas} clases anteriores${res.km_rellenadas ? ` y puestos los km a ${res.km_rellenadas} anotadas` : ''}. Se sincronizan con la nube en unos segundos. Copia de seguridad previa: ${res.copia}`, 'ok');
+  document.getElementById('pm-toast')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }

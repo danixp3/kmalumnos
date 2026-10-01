@@ -79,6 +79,15 @@ test('zonas de prácticas: limpia, sin duplicados y queda pendiente de subir', (
   expect(pend.ajustes_empresa).toEqual(['zonas']);
 });
 
+test('minutos por clase: se comparte con la web (ajustes_empresa), valida el rango y no se re-marca si no cambia', () => {
+  expect(db.getDuracionClase()).toBeNull();
+  expect(db.setDuracionClase(50)).toBe(50);
+  expect(db.getDuracionClase()).toBe(50);
+  expect(db.setDuracionClase(3)).toBe(50);      // fuera de rango: se ignora
+  const pend = JSON.parse(fs.readFileSync(path.join(userDataDir, 'pending_sync.json'), 'utf-8'));
+  expect(pend.ajustes_empresa).toEqual(['duracion_clase_min']);
+});
+
 test('la firma del móvil llega a la ficha imprimible y al detalle de la clase; una firma no válida se ignora', () => {
   const vid = db.addVehiculo('Coche', '1234ABC', 1000);
   const aid = db.addAlumno('Ana', 'B', vid);

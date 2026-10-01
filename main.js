@@ -434,10 +434,17 @@ ipcMain.handle('aplicar-plan-km', (_, vehiculo_id, asignaciones) => db.aplicarPl
 ipcMain.handle('get-zonas-practica', () => db.getZonasPractica());
 ipcMain.handle('get-practica-detalle', (_, id) => db.getPracticaDetalle(id));
 ipcMain.handle('set-zonas-practica', (_, lista) => db.setZonasPractica(lista));
+ipcMain.handle('get-duracion-clase', () => db.getDuracionClase());
+ipcMain.handle('set-duracion-clase', (_, min) => db.setDuracionClase(min));
 // Puesta en marcha: datos reales de arranque y punto de partida de cada alumno
 ipcMain.handle('get-puesta-en-marcha', () => db.getPuestaEnMarcha());
 ipcMain.handle('guardar-puesta-en-marcha', (_, datos) => db.guardarPuestaEnMarcha(datos));
 ipcMain.handle('vaciar-datos-prueba', (_, opciones) => db.vaciarDatosDePrueba(opciones));
+// Clases anteriores a la app: anotarlas a mano y crear las que falten (con fecha y km)
+ipcMain.handle('get-clases-anteriores', (_, alumnoId) => db.getClasesAnteriores(alumnoId));
+ipcMain.handle('guardar-clases-anteriores', (_, alumnoId, filas) => db.guardarClasesAnteriores(alumnoId, filas));
+ipcMain.handle('planificar-clases-anteriores', (_, opciones) => db.planificarClasesAnteriores(opciones));
+ipcMain.handle('aplicar-clases-anteriores', (_, plan) => db.aplicarClasesAnteriores(plan));
 ipcMain.handle('set-punto-de-partida-alumno', (_, id, clases, km) => db.setPuntoDePartidaAlumno(id, clases, km));
 ipcMain.handle('get-timeline-vehiculo', (_, vehiculo_id) => db.getTimelineVehiculo(vehiculo_id));
 
