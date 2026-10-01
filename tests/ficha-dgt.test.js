@@ -36,7 +36,7 @@ test('getDatosFichaDGT filtra por tipo (destreza -> pista, circulacion -> circul
     primer_apellido: 'García', segundo_apellido: 'López',
     direccion: 'Calle Mayor 1', codigo_postal: '28001', poblacion: 'Madrid',
   });
-  expect(destreza.profesor).toEqual({ nombre: 'Juan', dni: '11111111A' });
+  expect(destreza.profesor).toEqual({ id: pid, nombre: 'Juan', dni: '11111111A', firma: null });
   // Solo las 2 prácticas de tipo 'pista', ordenadas por fecha ascendente.
   expect(sinFirmas(destreza.practicas)).toEqual([
     { fecha: '05/07/2026', hora: '', km_inicial: '40', km_final: '80', clases: 1, ejercicio: '1 CLASE' },
@@ -250,7 +250,7 @@ test('getDatosFichaDGT: sin profesor en la clase ni en el alumno, firma el únic
   const aid = db.addAlumno('Ana', 'B', vid);
   db.addPractica(aid, vid, '2026-09-01', 100, 140, null, 'circulacion', null, '10:00');
   let datos = db.getDatosFichaDGT(aid, 'circulacion');
-  expect(datos.profesor).toEqual({ nombre: 'Juan', dni: '11111111A' });
+  expect(datos.profesor).toEqual({ id: juan, nombre: 'Juan', dni: '11111111A', firma: PNG });
   expect(datos.practicas[0].firma_profesor).toBe(PNG);
   // Con dos profesores ya no se sabe quién fue: en blanco
   db.addProfesor('Eva', '');
@@ -258,3 +258,97 @@ test('getDatosFichaDGT: sin profesor en la clase ni en el alumno, firma el únic
   expect(datos.profesor.nombre).toBe('');
   expect(datos.practicas[0].firma_profesor).toBeNull();
 });
+
+// ─── PIE: FIRMAS DEL DIRECTOR Y DEL PROFESOR ────────────────────────────────
+
+test('director del centro: otra persona con su propia firma (validada, sin la imagen en getDirector)', () => {
+  expect(db.getDirector()).toEqual({ nombre: '', dni: '', profesor_id: null, tiene_firma: false, configurado: false });
+  expect(db.setFirmaDirector(PNG).ok).toBe(false);          // sin perfil todavía
+  expect(db.setDirector({ nombre: '  ' }).ok).toBe(false);  // sin nombre
+  expect(db.setDirector({ nombre: ' Marta  Ruiz ', dni: '33333333c' })).toEqual({ ok: true });
+  expect(db.setFirmaDirector('no-es-una-imagen').ok).toBe(false);
+  expect(db.setFirmaDirector(PNG)).toEqual({ ok: true });
+  expect(db.getDirector()).toEqual({ nombre: 'Marta Ruiz', dni: '33333333C', profesor_id: null, tiene_firma: true, configurado: true });
+  expect(db.getFirmaDirector()).toBe(PNG);
+  // Cambiar sus datos conserva la firma; se guarda como ajuste compartido (sube a la nube)
+  db.setDirector({ nombre: 'Marta Ruiz Gil', dni: '' });
+  expect(db.getFirmaDirector()).toBe(PNG);
+  expect(core.load().ajustes_empresa.director.valor).toMatchObject({ nombre: 'Marta Ruiz Gil', profesor_id: null, firma: PNG });
+  // Quitarla
+  expect(db.setFirmaDirector(null)).toEqual({ ok: true });
+  expect(db.getDirector().tiene_firma).toBe(false);
+});
+
+test('director del centro que también es profesor: usa los datos y la firma de ese profesor', () => {
+  const juan = db.addProfesor('Juan', '', null, '11111111A');
+  expect(db.setDirector({ profesor_id: 999 }).ok).toBe(false);
+  db.setDirector({ nombre: 'Marta' });
+  db.setFirmaDirector(PNG2);                       // firma propia de antes
+  expect(db.setDirector({ profesor_id: juan })).toEqual({ ok: true });
+  expect(db.getDirector()).toMatchObject({ nombre: 'Juan', dni: '11111111A', profesor_id: juan, tiene_firma: false });
+  // Firmar como director = firmar como ese profesor (una sola firma)
+  expect(db.setFirmaDirector(PNG)).toEqual({ ok: true });
+  expect(db.getFirmaProfesor(juan)).toBe(PNG);
+  expect(db.getFirmaDirector()).toBe(PNG);
+  expect(db.getFirmaDirector(true)).toBe(PNG2);    // la propia sigue guardada
+  // Si ese profesor se borra, vuelve a los datos propios
+  db.deleteProfesor(juan);
+  expect(db.getDirector()).toMatchObject({ profesor_id: null, nombre: 'Juan', tiene_firma: true });
+  expect(db.getFirmaDirector()).toBe(PNG2);
+});
+
+test('getDatosFichaDGT trae la firma del profesor de la cabecera y la del director para el pie', () => {
+  const vid = db.addVehiculo('Coche 1', '1234ABC', 1000);
+  const juan = db.addProfesor('Juan', '');
+  const aid = db.addAlumno('Ana', 'B', vid, juan);
+  db.addPractica(aid, vid, '2026-09-01', 100, 140, juan, 'circulacion', null, '10:00');
+  let datos = db.getDatosFichaDGT(aid, 'circulacion');
+  expect(datos.profesor).toMatchObject({ id: juan, firma: null });
+  expect(datos.director).toEqual({ nombre: '', firma: null, profesor_id: null });
+  db.setFirmaProfesor(juan, PNG);
+  db.setDirector({ nombre: 'Marta' });
+  db.setFirmaDirector(PNG2);
+  datos = db.getDatosFichaDGT(aid, 'circulacion');
+  expect(datos.profesor.firma).toBe(PNG);
+  expect(datos.director).toEqual({ nombre: 'Marta', firma: PNG2, profesor_id: null });
+});
+
+test('generarFichaDGT firma el pie (director y profesor) salvo con firmarPie: false', async () => {
+  const { PDFDocument, PDFName, PDFDict: Dict, PDFRawStream, decodePDFRawStream } = require('pdf-lib');
+  const { generarFichaDGT } = require('../fichas-dgt');
+  // Posiciones (x, y desde abajo) de las imágenes pintadas en la página 1
+  const posiciones = doc => {
+    const pg = doc.getPage(0);
+    const xo = pg.node.Resources().lookup(PDFName.of('XObject'), Dict);
+    const nombres = new Set(xo.keys().filter(k => xo.lookup(k).dict.get(PDFName.of('Subtype')) === PDFName.of('Image')).map(k => k.asString()));
+    const contenido = pg.node.Contents();
+    const flujos = contenido.asArray ? contenido.asArray().map(r => doc.context.lookup(r)) : [contenido];
+    const texto = flujos.map(f => Buffer.from(f instanceof PDFRawStream ? decodePDFRawStream(f).decode() : f.getContents()).toString('latin1')).join(' ');
+    const out = [];
+    // drawImage de pdf-lib: traslación, rotación, escala (ancho × alto), sesgo y Do
+    const re = /1 0 0 1 ([-\d.]+) ([-\d.]+) cm\s+1 0 0 1 0 0 cm\s+([-\d.]+) 0 0 ([-\d.]+) 0 0 cm\s+1 0 0 1 0 0 cm\s+(\/\S+) Do/g;
+    let m;
+    while ((m = re.exec(texto))) if (nombres.has(m[5])) out.push({ x: +m[1], y: +m[2], w: +m[3], h: +m[4] });
+    return out;
+  };
+  const datos = {
+    tipo: 'circulacion', centro: {}, alumno: {},
+    profesor: { nombre: 'Juan', firma: PNG }, director: { firma: PNG2 },
+    practicas: [{ fecha: '01/09/2026', hora: '10:00', km_inicial: '100', km_final: '140', clases: 1, ejercicio: '1 CLASE' }],
+  };
+  const H = 841.89;
+  const pie = l => l.filter(p => H - p.y > 700); // por debajo de la tabla de clases
+  const con = pie(posiciones(await PDFDocument.load(await generarFichaDGT(datos))));
+  const sin = pie(posiciones(await PDFDocument.load(await generarFichaDGT({ ...datos, firmarPie: false }))));
+  expect(con.length - sin.length).toBe(2);
+  const nuevas = con.filter(p => !sin.some(q => q.x === p.x && q.y === p.y));
+  // Director a la izquierda (bajo «Firma del Director», x≈91) y profesor a la
+  // derecha (bajo «Firma del profesor», x≈440), entre el rótulo y el texto legal
+  const [dir, prof] = nuevas.sort((a, b) => a.x - b.x);
+  expect(Math.abs(dir.x + dir.w / 2 - 91)).toBeLessThan(2);
+  expect(Math.abs(prof.x + prof.w / 2 - 440)).toBeLessThan(2);
+  for (const p of nuevas) {
+    expect(H - (p.y + p.h)).toBeGreaterThanOrEqual(718);  // no pisa el rótulo
+    expect(H - p.y).toBeLessThanOrEqual(748.5);           // ni el texto de protección de datos
+  }
+}, 30000);

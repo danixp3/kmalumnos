@@ -561,83 +561,210 @@ async function moverZonaUI(i, d) {
   await guardarZonasUI(nueva, 'Orden guardado.');
 }
 
-// ─── AUTO-UPDATE ──────────────────────────────────────────────────────────────
-function checkUpdates() {
+// ─── ACTUALIZACIONES ──────────────────────────────────────────────────────────
+// Ventanas propias (nada de cuadros de Windows), en dos pasos:
+//   1. Hay versión nueva → «¿Descargarla?» (con las novedades). Se descarga
+//      mientras se sigue trabajando; el progreso va en una pastilla abajo.
+//   2. Ya descargada → «¿Instalar ahora?». Si no, se instala sola al cerrar la
+//      app y la pastilla queda con «Instalar» por si se quiere antes.
+// El proceso principal (main.js → ACTUALIZACIONES) busca, descarga e instala;
+// `estadoActualizacion()` da la fase actual por si el aviso llegó antes de
+// que la pantalla terminara de cargar.
+let updPreguntada = new Set();   // versiones ya preguntadas solas en esta sesión
+let updManual = false;           // la búsqueda la lanzó el usuario desde Ajustes
+let updEstado = { fase: 'nada' };
+
+const UPD_ICONO = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+const UPD_ICONO_OK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+
+const updMB = bytes => bytes ? `${Math.max(1, Math.round(bytes / 1048576))} MB` : '';
+
+function updModal() {
+  let ov = document.getElementById('modal-actualizacion');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.className = 'overlay'; ov.id = 'modal-actualizacion';
+    ov.innerHTML = '<div class="modal modal-upd" role="dialog" aria-modal="true" aria-labelledby="upd-titulo"></div>';
+    document.body.appendChild(ov);
+  }
+  document.body.appendChild(ov); // siempre por encima de lo que haya abierto
+  return ov;
+}
+
+// Paso 1: hay versión nueva. manual = la pidió el usuario (se enseña aunque
+// ya se hubiera dicho «Ahora no» al arrancar).
+function mostrarActualizacionDisponible(e, manual) {
+  if (!e || e.fase !== 'disponible') return;
+  if (!manual && updPreguntada.has(e.version)) return;
+  updPreguntada.add(e.version);
+  const ov = updModal();
+  ov.firstElementChild.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-header-icon">${UPD_ICONO}</div>
+      <h3 id="upd-titulo">Hay una versión nueva de AulaMovil</h3>
+    </div>
+    <div class="upd-versiones">
+      <span class="upd-version-nueva">Versión ${esc(e.version)}</span>
+      ${e.actual ? `<span>tienes la ${esc(e.actual)}</span>` : ''}
+      ${e.tamano ? `<span>${updMB(e.tamano)}</span>` : ''}
+    </div>
+    ${e.notas ? `<div class="upd-notas-tit">Novedades</div><div class="upd-notas">${esc(e.notas)}</div>` : ''}
+    <p class="upd-texto">Se descarga mientras sigues trabajando. Cuando termine, te preguntará si quieres instalarla.</p>
+    <div class="modal-actions upd-acciones">
+      <button class="btn btn-gray" type="button" onclick="cerrarActualizacion()">Ahora no</button>
+      <button class="btn btn-primary" type="button" id="upd-aceptar" onclick="descargarActualizacionUI()">${UPD_ICONO.replace(/18/g, '14')} Descargar</button>
+    </div>`;
+  ov.classList.add('open');
+  setTimeout(() => document.getElementById('upd-aceptar')?.focus(), 30);
+}
+
+// Paso 2: ya descargada.
+function mostrarActualizacionLista(e) {
+  if (!e || e.fase !== 'descargada') return;
+  const ov = updModal();
+  ov.firstElementChild.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-header-icon upd-icono-ok">${UPD_ICONO_OK}</div>
+      <h3 id="upd-titulo">Actualización lista para instalar</h3>
+    </div>
+    <p class="upd-texto">La versión <strong>${esc(e.version || '')}</strong> ya está descargada. Al instalarla, AulaMovil se cierra unos segundos y se vuelve a abrir sola; lo que tengas guardado se conserva.</p>
+    <p class="upd-texto upd-texto-suave">Si estás escribiendo algo, guárdalo antes. Si eliges «Más tarde», se instalará sola la próxima vez que cierres la aplicación.</p>
+    <div class="modal-actions upd-acciones">
+      <button class="btn btn-gray" type="button" onclick="cerrarActualizacion(); pintarPastillaUpd()">Más tarde</button>
+      <button class="btn btn-primary" type="button" id="upd-aceptar" onclick="instalarActualizacionUI()">Instalar ahora</button>
+    </div>`;
+  ov.classList.add('open');
+  setTimeout(() => document.getElementById('upd-aceptar')?.focus(), 30);
+}
+
+function cerrarActualizacion() {
+  document.getElementById('modal-actualizacion')?.classList.remove('open');
+}
+
+async function descargarActualizacionUI() {
+  cerrarActualizacion();
+  const r = await window.api.descargarActualizacion();
+  if (!r || !r.ok) refrescarEstadoUpd();
+}
+
+async function instalarActualizacionUI() {
+  const btn = document.getElementById('upd-aceptar') || document.getElementById('upd-pastilla-instalar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Instalando…'; }
+  const r = await window.api.installUpdate();
+  if (!r || !r.ok) { if (btn) { btn.disabled = false; btn.textContent = 'Instalar ahora'; } refrescarEstadoUpd(); }
+}
+
+// Pastilla flotante (abajo a la derecha): progreso de la descarga y, ya
+// descargada, acceso a «Instalar».
+function pintarPastillaUpd() {
+  let el = document.getElementById('upd-pastilla');
+  const e = updEstado;
+  if (e.fase !== 'descargando' && e.fase !== 'descargada') { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'upd-pastilla'; el.className = 'upd-pastilla'; el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+  }
+  if (e.fase === 'descargando') {
+    const pct = Math.max(0, Math.min(100, e.pct || 0));
+    el.innerHTML = `<span class="upd-pastilla-icono">${UPD_ICONO.replace(/18/g, '15')}</span>
+      <span class="upd-pastilla-texto">Descargando la versión ${esc(e.version || '')}<b>${pct}%</b></span>
+      <span class="upd-pastilla-barra"><span style="width:${pct}%"></span></span>`;
+  } else {
+    el.innerHTML = `<span class="upd-pastilla-icono upd-icono-ok">${UPD_ICONO_OK.replace(/18/g, '15')}</span>
+      <span class="upd-pastilla-texto">Versión ${esc(e.version || '')} lista</span>
+      <button type="button" class="btn btn-primary btn-sm" id="upd-pastilla-instalar" onclick="instalarActualizacionUI()">Instalar</button>
+      <button type="button" class="upd-pastilla-cerrar" title="Ocultar (se instalará al cerrar la app)" aria-label="Ocultar" onclick="document.getElementById('upd-pastilla').remove()">×</button>`;
+  }
+}
+
+// Botón de Ajustes → Actualizaciones
+function pintarBotonUpd(texto, color) {
   const label = document.getElementById('update-label');
-  const bar   = document.getElementById('update-bar');
-  label.textContent = 'Buscando...';
-  bar.style.pointerEvents = 'none';
+  const bar = document.getElementById('update-bar');
+  if (!label || !bar) return;
+  label.textContent = texto;
+  bar.style.color = color || '';
+}
+
+async function refrescarEstadoUpd() {
+  try { updEstado = await window.api.estadoActualizacion() || { fase: 'nada' }; } catch (e) { return; }
+  pintarPastillaUpd();
+  if (updEstado.fase === 'descargada') pintarBotonUpd(`Versión ${updEstado.version} lista — instalar`, 'rgba(16,185,129,.8)');
+  else if (updEstado.fase === 'disponible') pintarBotonUpd(`Versión ${updEstado.version} disponible — descargar`, '');
+  return updEstado;
+}
+
+async function checkUpdates() {
+  const e = await refrescarEstadoUpd();
+  // Ya hay una versión nueva en marcha: se enseña su paso en vez de buscar otra vez
+  if (e && e.fase === 'descargada') return mostrarActualizacionLista(e);
+  if (e && e.fase === 'disponible') return mostrarActualizacionDisponible(e, true);
+  if (e && e.fase === 'descargando') return;
+  updManual = true;
+  pintarBotonUpd('Buscando...');
+  document.getElementById('update-bar').style.pointerEvents = 'none';
   window.api.checkForUpdates();
 }
 
-window.api.onUpdateNotAvailable(() => {
-  const label = document.getElementById('update-label');
-  const bar   = document.getElementById('update-bar');
-  label.textContent = '✓ Ya tienes la última versión';
-  bar.style.color = 'rgba(16,185,129,.7)';
-  bar.style.pointerEvents = '';
-  setTimeout(() => {
-    label.textContent = 'Buscar actualizaciones';
-    bar.style.color = '';
-  }, 3000);
+window.api.onUpdateAvailable((e) => {
+  updEstado = e || { fase: 'nada' };
+  const bar = document.getElementById('update-bar');
+  if (bar) bar.style.pointerEvents = '';
+  pintarBotonUpd(`Versión ${updEstado.version} disponible — descargar`, '');
+  mostrarActualizacionDisponible(updEstado, updManual);
+  updManual = false;
 });
 
-// Cuando el usuario acepta descargar
+window.api.onUpdateNotAvailable(() => {
+  const bar = document.getElementById('update-bar');
+  if (bar) bar.style.pointerEvents = '';
+  if (!updManual) return;
+  updManual = false;
+  pintarBotonUpd('✓ Ya tienes la última versión', 'rgba(16,185,129,.7)');
+  setTimeout(() => pintarBotonUpd('Buscar actualizaciones'), 3000);
+});
+
 window.api.onUpdateDownloadStart((version) => {
-  const label = document.getElementById('update-label');
-  const bar   = document.getElementById('update-bar');
-  label.innerHTML = `<span style="display:flex;align-items:center;gap:6px">⬇ v${version} <span id="update-pct">0%</span></span>`;
-  bar.style.color = 'rgba(99,102,241,.8)';
-  bar.style.pointerEvents = 'none';
-  
-  // Mostrar barra de progreso
-  showUpdateProgress(0);
+  updEstado = { ...updEstado, fase: 'descargando', version: version || updEstado.version, pct: 0 };
+  pintarBotonUpd(`Descargando la versión ${updEstado.version}…`, 'rgba(99,102,241,.8)');
+  pintarPastillaUpd();
 });
 
 window.api.onUpdateDownloadProgress((pct) => {
-  const pctEl = document.getElementById('update-pct');
-  if (pctEl) pctEl.textContent = `${pct}%`;
-  showUpdateProgress(pct);
+  if (updEstado.fase !== 'descargando') updEstado = { ...updEstado, fase: 'descargando' };
+  updEstado.pct = pct;
+  pintarBotonUpd(`Descargando la versión ${updEstado.version || ''}… ${pct}%`, 'rgba(99,102,241,.8)');
+  pintarPastillaUpd();
 });
 
-function showUpdateProgress(pct) {
-  let progressBar = document.getElementById('update-progress-bar');
-  if (!progressBar) {
-    const bar = document.getElementById('update-bar');
-    progressBar = document.createElement('div');
-    progressBar.id = 'update-progress-bar';
-    progressBar.style.cssText = 'position:absolute;bottom:0;left:0;height:3px;background:var(--accent);border-radius:0 2px 2px 0;transition:width .2s';
-    bar.style.position = 'relative';
-    bar.appendChild(progressBar);
-  }
-  progressBar.style.width = `${pct}%`;
-  if (pct >= 100) {
-    setTimeout(() => { if (progressBar) progressBar.remove(); }, 500);
-  }
-}
-
-window.api.onUpdateDownloaded(() => {
-  const label = document.getElementById('update-label');
-  const bar   = document.getElementById('update-bar');
-  label.textContent = '✓ Descargada — clic para instalar';
-  bar.style.color = 'rgba(16,185,129,.8)';
-  bar.style.pointerEvents = '';
-  bar.onclick = async () => {
-    if (await confirmar('¿Instalar la actualización ahora?\n\nLa aplicación se cerrará y reiniciará.')) {
-      window.api.installUpdate();
-    }
-  };
+window.api.onUpdateDownloaded((e) => {
+  updEstado = e || { ...updEstado, fase: 'descargada' };
+  const bar = document.getElementById('update-bar');
+  if (bar) bar.style.pointerEvents = '';
+  pintarBotonUpd(`Versión ${updEstado.version} lista — instalar`, 'rgba(16,185,129,.8)');
+  pintarPastillaUpd();
+  mostrarActualizacionLista(updEstado);
 });
 
 window.api.onUpdateError((msg) => {
-  const label = document.getElementById('update-label');
-  const bar   = document.getElementById('update-bar');
-  label.textContent = '✕ Error al actualizar';
-  bar.style.color = 'rgba(239,68,68,.7)';
-  bar.style.pointerEvents = '';
-  setTimeout(() => {
-    label.textContent = 'Buscar actualizaciones';
-    bar.style.color = '';
-  }, 4000);
+  const descargando = updEstado.fase === 'descargando';
+  const manual = updManual;
+  updManual = false;
+  const bar = document.getElementById('update-bar');
+  if (bar) bar.style.pointerEvents = '';
+  refrescarEstadoUpd();
+  pintarBotonUpd('✕ Error al actualizar', 'rgba(239,68,68,.7)');
+  setTimeout(() => refrescarEstadoUpd().then(e => { if (!e || e.fase === 'nada') pintarBotonUpd('Buscar actualizaciones'); }), 4000);
+  if (descargando || manual) {
+    avisar(`No se pudo ${descargando ? 'descargar' : 'comprobar'} la actualización. Comprueba la conexión a Internet y vuelve a intentarlo desde Ajustes → Actualizaciones (o la próxima vez que abras la app).${msg ? `\n\nDetalle: ${msg}` : ''}`,
+      { titulo: 'Actualización' });
+  }
 });
 
+// Por si el aviso llegó antes de que la pantalla estuviera lista
+refrescarEstadoUpd().then(e => {
+  if (!e) return;
+  if (e.fase === 'disponible') mostrarActualizacionDisponible(e, false);
+  else if (e.fase === 'descargada') mostrarActualizacionLista(e);
+});

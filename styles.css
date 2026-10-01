@@ -2615,6 +2615,37 @@
   .firma-pad-actual img { max-height: 90px; }
   .firma-pad-pie { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .firma-pad-quitar { color: var(--danger, #c0392b); }
+  .firma-pad-pie [hidden], .director-datos [hidden] { display: none !important; }
+
+  /* Director del centro (página Profesores + perfil en el mismo panel de firma) */
+  .director-resumen { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .director-quien { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+  .director-dni { color: var(--text-muted); font-family: var(--font-mono); font-size: 12.5px; }
+  .director-vacio { color: var(--text-muted); font-size: 13px; }
+  .director-datos { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 10px 14px; margin-bottom: 14px; }
+  .director-datos .form-group { margin: 0; }
+  .director-datos select, .director-datos input { width: 100%; }
+  .director-quien-campo { grid-column: 1 / -1; }
+
+  /* ── ACTUALIZACIONES (renderer/ajustes.js): ventanas propias y pastilla de descarga ── */
+  .modal-upd { width: 480px; max-width: calc(100vw - 32px); }
+  .upd-versiones { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; margin: 4px 0 14px; font-size: 13px; color: var(--text-muted); }
+  .upd-version-nueva { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--text); }
+  .upd-notas-tit { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+  .upd-notas { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13px; line-height: 1.5; white-space: pre-line; max-height: 180px; overflow: auto; margin-bottom: 12px; }
+  .upd-texto { font-size: 13.5px; line-height: 1.5; margin: 6px 0; }
+  .upd-texto-suave { color: var(--text-muted); font-size: 12.5px; }
+  .upd-acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+  .upd-acciones .btn svg { margin-right: 2px; }
+  .upd-icono-ok { color: var(--success); }
+  .upd-pastilla { position: fixed; right: 18px; bottom: 18px; z-index: 90; display: flex; align-items: center; gap: 10px; min-width: 260px; max-width: calc(100vw - 36px); padding: 10px 12px 12px; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 10px 28px rgba(0,0,0,.18); font-size: 13px; overflow: hidden; }
+  .upd-pastilla-icono { display: inline-flex; color: var(--accent-text, var(--accent)); }
+  .upd-pastilla-texto { flex: 1; display: flex; gap: 8px; justify-content: space-between; font-weight: 600; }
+  .upd-pastilla-texto b { font-family: var(--font-mono); font-weight: 600; }
+  .upd-pastilla-barra { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--border); }
+  .upd-pastilla-barra span { display: block; height: 100%; background: var(--accent); transition: width .25s ease; }
+  .upd-pastilla-cerrar { border: none; background: none; color: var(--text-muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
+  .upd-pastilla-cerrar:hover { color: var(--text); }
 
   /* ── CAJÓN DE LA BARRA DE TÍTULO (renderer/ventana.js) ─────────────────
      Se desliza por debajo de la barra (z 290 < 300) sin mover el contenido. */

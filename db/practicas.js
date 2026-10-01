@@ -4,6 +4,7 @@
 
 const { load, save, nextId, _sync, addLog, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, hoyLocalISO,
   clasesDePractica, fmtClases, firmaValida } = require('./core');
+const { directorResuelto } = require('./ajustes-empresa');
 
 // Profesor que firma una clase: el que la dio; si no consta, el del alumno; y
 // si tampoco, el profesor de la autoescuela cuando solo hay uno.
@@ -535,7 +536,13 @@ function getDatosFichaDGT(alumno_id, tipo) {
       primer_apellido: a.primer_apellido || '', segundo_apellido: a.segundo_apellido || '',
       direccion: a.direccion || '', codigo_postal: a.codigo_postal || '', poblacion: a.poblacion || '',
     },
-    profesor: { nombre: prof ? prof.nombre : '', dni: prof ? (prof.dni || '') : '' },
+    // Profesor de la cabecera; su firma va también en el pie («Firma del profesor»)
+    profesor: {
+      id: prof ? prof.id : null, nombre: prof ? prof.nombre : '', dni: prof ? (prof.dni || '') : '',
+      firma: prof && firmaValida(prof.firma) ? prof.firma : null,
+    },
+    // Director del centro (Profesores → Director del centro): firma el certificado del pie
+    director: (({ nombre, firma, profesor_id }) => ({ nombre, firma, profesor_id }))(directorResuelto(d)),
     practicas,
     // Profesores de estas clases que aún no han guardado su firma (la app se la pide)
     profesores_sin_firma: [...sinFirma].map(([id, nombre]) => ({ id, nombre })),
