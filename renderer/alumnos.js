@@ -1001,10 +1001,16 @@ async function imprimirFichaPracticas(alumnoId) {
 // a window.api.generarFichaDGT (IPC 'generar-ficha-dgt' → fichas-dgt.js). Los
 // datos del centro se leen de Ajustes (getCentroDatos, renderer/ajustes.js);
 // si están vacíos se avisa pero se deja continuar igualmente.
+const FICHA_FIRMAR_PIE_KEY = 'km_ficha_firmar_pie';
+
 async function abrirFichaDGT(alumnoId) {
   document.getElementById('ficha-dgt-alumno-id').value = alumnoId;
   const rDestreza = document.querySelector('input[name="ficha-dgt-tipo"][value="destreza"]');
   if (rDestreza) rDestreza.checked = true;
+  // Firmar el pie (certificado): se recuerda lo último elegido en este PC
+  let firmarPie = true;
+  try { firmarPie = localStorage.getItem(FICHA_FIRMAR_PIE_KEY) !== '0'; } catch (e) {}
+  document.getElementById('ficha-dgt-firmar-pie').checked = firmarPie;
   const aviso = document.getElementById('ficha-dgt-aviso');
   const centro = (typeof getCentroDatos === 'function') ? getCentroDatos() : {};
   if (!centro.denominacion) {
@@ -1023,16 +1029,30 @@ async function generarFichaDGTUI(firmasYaPedidas = false) {
   // Preferencia de Ajustes: rellenar o no la fecha del documento (pie de la
   // ficha; por defecto true, solo se omite si el usuario la desmarcó).
   const rellenarFecha = centro.rellenar_fecha !== false;
-  const r = await window.api.generarFichaDGT({ alumnoId, tipo, centro, rellenarFecha, comprobarFirmas: !firmasYaPedidas });
-  // El profesor de estas clases aún no ha guardado su firma: se le pide ahora
-  // (una vez; sirve para todas sus fichas) o se saca sin ella.
-  if (r && r.faltanFirmas) {
-    for (const pf of r.faltanFirmas) {
-      const firmar = await confirmar(`${pf.nombre} todavía no ha guardado su firma, así que sus clases saldrían con la casilla «Firma del profesor» en blanco.
+  const firmarPie = document.getElementById('ficha-dgt-firmar-pie').checked;
+  try { localStorage.setItem(FICHA_FIRMAR_PIE_KEY, firmarPie ? '1' : '0'); } catch (e) {}
+  const r = await window.api.generarFichaDGT({ alumnoId, tipo, centro, rellenarFecha, firmarPie, comprobarFirmas: !firmasYaPedidas });
+  // El profesor de estas clases (o el del pie) o el director aún no han
+  // guardado su firma: se les pide ahora (una vez; sirve para todas las
+  // fichas) o se saca sin ella.
+  if (r && (r.faltanFirmas || r.faltaDirector)) {
+    for (const pf of r.faltanFirmas || []) {
+      const firmar = await confirmar(`${pf.nombre} todavía no ha guardado su firma, así que la casilla «Firma del profesor» saldría en blanco.
 
 Si firma ahora, se guarda y sale en todas sus clases (también en las fichas de los demás alumnos).`,
         { titulo: 'Falta la firma del profesor', textoAceptar: 'Firmar ahora', textoCancelar: 'Sacar sin su firma' });
       if (firmar) await abrirFirmaProfesor(pf.id, { textoGuardar: 'Guardar firma y seguir', textoCerrar: 'Seguir sin firma' });
+    }
+    if (r.faltaDirector) {
+      const firmar = await confirmar(r.director
+        ? `${r.director}, el director del centro, todavía no ha guardado su firma, así que «Firma del Director» (pie de la ficha) saldría en blanco.
+
+Si firma ahora, se guarda y sale en todas las fichas.`
+        : `Todavía no has indicado quién es el director del centro, así que «Firma del Director» (pie de la ficha) saldría en blanco.
+
+Crea su perfil y su firma una vez y saldrá en todas las fichas. Si no quieres firmar el pie, desmarca «Firmar el certificado del pie».`,
+        { titulo: 'Falta la firma del director', textoAceptar: r.director ? 'Firmar ahora' : 'Crear perfil y firmar', textoCancelar: 'Sacar sin su firma' });
+      if (firmar) await abrirPerfilDirector({ textoGuardar: 'Guardar y seguir', textoCerrar: 'Seguir sin firma' });
     }
     return generarFichaDGTUI(true);
   }

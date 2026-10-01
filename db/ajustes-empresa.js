@@ -8,7 +8,7 @@
 
 // ─── AJUSTES COMPARTIDOS ─────────────────────────────────────────────────────
 
-const { load, save, _sync, addLog } = require('./core');
+const { load, save, _sync, addLog, firmaValida } = require('./core');
 
 const MAX_ZONAS = 30;
 const MAX_LARGO_ZONA = 40;
@@ -103,7 +103,80 @@ function setConceptosCobro(lista) {
   return limpia;
 }
 
+// Director del centro (Profesores → Director del centro): firma el certificado
+// del pie de la ficha DGT. Ajuste compartido 'director' → { nombre, dni,
+// profesor_id, firma }. Si el director también da clases (`profesor_id`), sus
+// datos y su firma son los de ese profesor (una sola firma para todo).
+const _texto = (v, max) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, max);
+
+function _director(d) {
+  const a = (d.ajustes_empresa || {}).director;
+  const v = a && a.valor && typeof a.valor === 'object' ? a.valor : {};
+  return {
+    nombre: _texto(v.nombre, 80), dni: _texto(v.dni, 20),
+    profesor_id: Number.isInteger(v.profesor_id) ? v.profesor_id : null,
+    firma: firmaValida(v.firma) ? v.firma : null,
+  };
+}
+
+// Director con los datos ya resueltos (los del profesor si lo es). Recibe el
+// data.json ya cargado (lo usa también la ficha DGT).
+function directorResuelto(d) {
+  const v = _director(d);
+  const prof = v.profesor_id != null ? (d.profesores || []).find(p => p.id === v.profesor_id && !p.deleted) : null;
+  if (prof) return { nombre: prof.nombre || '', dni: prof.dni || '', profesor_id: prof.id, firma: firmaValida(prof.firma) ? prof.firma : null };
+  return { nombre: v.nombre, dni: v.dni, profesor_id: null, firma: v.firma };
+}
+
+// Para la pantalla: sin la imagen (pesa), solo si la tiene.
+function getDirector() {
+  const { firma, ...resto } = directorResuelto(load());
+  return { ...resto, tiene_firma: !!firma, configurado: !!(resto.nombre || resto.profesor_id || firma) };
+}
+
+// propia = la que se dibujó como director (aunque ahora el director sea un
+// profesor); sin ella, la que sale en la ficha.
+function getFirmaDirector(propia = false) {
+  const d = load();
+  return propia ? _director(d).firma : directorResuelto(d).firma;
+}
+
+// Quién es el director: un profesor (profesor_id) u otra persona (nombre, dni).
+// Conserva la firma propia que ya tuviera.
+function setDirector(datos = {}) {
+  const d = load();
+  const actual = _director(d);
+  let profesor_id = datos.profesor_id == null || datos.profesor_id === '' ? null : parseInt(datos.profesor_id);
+  let nombre = _texto(datos.nombre, 80), dni = _texto(datos.dni, 20).toUpperCase();
+  if (profesor_id != null) {
+    const prof = (d.profesores || []).find(p => p.id === profesor_id && !p.deleted);
+    if (!prof) return { ok: false, error: 'Ese profesor ya no existe.' };
+    nombre = prof.nombre || ''; dni = prof.dni || '';
+  } else if (!nombre) {
+    return { ok: false, error: 'Escribe el nombre del director.' };
+  }
+  addLog('ajustes', `Director del centro: ${nombre}${profesor_id != null ? ' (profesor)' : ''}`, []);
+  setAjusteEmpresa('director', { nombre, dni, profesor_id, firma: actual.firma });
+  return { ok: true };
+}
+
+// Guarda (o quita, con null) la firma del director. Si el director es un
+// profesor, se guarda como la firma de ese profesor.
+function setFirmaDirector(firma) {
+  if (firma != null && !firmaValida(firma)) return { ok: false, error: 'La firma no es válida o es demasiado grande.' };
+  const d = load();
+  const actual = _director(d);
+  if (actual.profesor_id != null && (d.profesores || []).some(p => p.id === actual.profesor_id && !p.deleted)) {
+    return require('./profesores').setFirmaProfesor(actual.profesor_id, firma);
+  }
+  if (!actual.nombre) return { ok: false, error: 'Primero indica quién es el director.' };
+  addLog('ajustes', firma ? 'Firma del director guardada' : 'Firma del director quitada', []);
+  setAjusteEmpresa('director', { ...actual, firma: firma || null });
+  return { ok: true };
+}
+
 module.exports = {
   getAjusteEmpresa, setAjusteEmpresa, getZonasPractica, setZonasPractica, getDuracionClase, setDuracionClase, MAX_ZONAS,
-  getConceptosCobro, setConceptosCobro
+  getConceptosCobro, setConceptosCobro,
+  directorResuelto, getDirector, getFirmaDirector, setDirector, setFirmaDirector,
 };

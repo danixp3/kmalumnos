@@ -3,6 +3,7 @@
 
 // ─── PROFESORES ───────────────────────────────────────────────────────────────
 async function loadProfesores() {
+  cargarDirector();
   profesoresCache = await window.api.getProfesores(getSucursalActual());
   const tbody = document.querySelector('#tabla-profesores tbody');
   if (!profesoresCache.length) {
@@ -60,17 +61,16 @@ async function saveProfesor() {
   loadProfesores();
 }
 
-// ─── FIRMA DEL PROFESOR ──────────────────────────────────────────────────────
-// Se dibuja una vez (aquí o en el móvil: Perfil → Mi firma) y la app la pone en
-// la casilla «Firma del profesor» de todas sus clases en la ficha DGT y en la
-// ficha de clases imprimible. abrirFirmaProfesor devuelve una promesa: true si
-// se guardó (o se quitó) la firma, false si se cerró sin cambios.
-let padFirma = null; // { id, nombre, cv, ctx, trazos, caja, ultimo, medio, resolver }
+// ─── FIRMA DEL PROFESOR / DEL DIRECTOR ─────────────────────────────────────
+// Se dibuja una vez (aquí o, la del profesor, en el móvil: Perfil → Mi firma) y
+// la app la pone en la ficha DGT: la del profesor en «Firma del profesor» de
+// todas sus clases y en el pie; la del director en «Firma del Director» del pie.
+// abrirFirmaProfesor / abrirPerfilDirector devuelven una promesa: true si se
+// guardó (o se quitó) algo, false si se cerró sin cambios. Comparten el mismo
+// panel (#modal-firma-profesor, creado en JS) y el mismo lienzo.
+let padFirma = null; // { trazos, caja, cv, ctx, ultimo, medio, resolver, guardar, quitar, sinTrazo }
 
-async function abrirFirmaProfesor(id, opciones = {}) {
-  const prof = (await window.api.getProfesores()).find(x => x.id === id);
-  if (!prof) return false;
-  const actual = await window.api.getFirmaProfesor(id);
+function _modalPadFirma() {
   if (padFirma && padFirma.resolver) padFirma.resolver(false);
   let modal = document.getElementById('modal-firma-profesor');
   if (!modal) {
@@ -79,15 +79,14 @@ async function abrirFirmaProfesor(id, opciones = {}) {
     modal.innerHTML = '<div class="modal modal-firma" role="dialog" aria-modal="true" aria-labelledby="firma-pad-tit"></div>';
     document.body.appendChild(modal);
   }
-  modal.firstElementChild.innerHTML = `
-    <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-      <h3 id="firma-pad-tit" style="margin:0">Firma de ${esc(prof.nombre)}</h3>
-      <button class="btn btn-outline btn-sm" onclick="cerrarFirmaProfesor(false)">${opciones.textoCerrar || 'Cerrar'}</button>
-    </div>
-    ${opciones.motivo ? `<div class="alert alert-warn" style="margin:12px 0 0">${esc(opciones.motivo)}</div>` : ''}
-    <p class="aj-intro" style="margin:12px 0">Firma con el ratón, el lápiz o el dedo. Se guarda una sola vez y sale en la casilla «Firma del profesor» de todas sus clases en la ficha DGT. También se puede firmar desde el móvil (Perfil → Mi firma).</p>
-    ${actual ? `<div class="clase-firma-tit">Firma guardada</div><div class="clase-firma firma-pad-actual"><img src="${actual}" alt="Firma guardada de ${esc(prof.nombre)}"></div>
-      <div class="clase-firma-tit" style="margin-top:14px">Para cambiarla, firma de nuevo</div>` : ''}
+  return modal.firstElementChild;
+}
+
+// Lienzo + botones. `cfg`: { textoGuardar, quitar (muestra «Quitar la firma
+// guardada»), sinTrazo (Guardar activo sin dibujar: el perfil del director
+// guarda también sus datos) }
+function _htmlPadFirma(cfg) {
+  return `
     <div class="firma-pad" id="firma-pad">
       <canvas id="firma-pad-cv" aria-label="Recuadro para firmar"></canvas>
       <span class="firma-pad-linea" aria-hidden="true"></span>
@@ -95,16 +94,135 @@ async function abrirFirmaProfesor(id, opciones = {}) {
     </div>
     <div class="firma-pad-pie">
       <button type="button" class="btn btn-ghost btn-sm" onclick="borrarPadFirma()">Borrar y repetir</button>
-      ${actual ? '<button type="button" class="btn btn-ghost btn-sm firma-pad-quitar" onclick="quitarFirmaProfesor()">Quitar la firma guardada</button>' : ''}
+      <button type="button" class="btn btn-ghost btn-sm firma-pad-quitar" id="firma-pad-quitar" onclick="quitarFirmaProfesor()"${cfg.quitar ? '' : ' hidden'}>Quitar la firma guardada</button>
       <span style="flex:1"></span>
-      <button type="button" class="btn btn-primary" id="firma-pad-ok" disabled onclick="guardarPadFirma()">${opciones.textoGuardar || 'Guardar firma'}</button>
+      <button type="button" class="btn btn-primary" id="firma-pad-ok"${cfg.sinTrazo ? '' : ' disabled'} onclick="guardarPadFirma()">${cfg.textoGuardar || 'Guardar firma'}</button>
     </div>
     <div id="firma-pad-error" class="alert alert-err hidden" style="margin-top:10px"></div>`;
+}
+
+const _htmlFirmaActual = (img, alt, titulo = 'Firma guardada') => img
+  ? `<div class="clase-firma-tit">${titulo}</div><div class="clase-firma firma-pad-actual"><img src="${img}" alt="${esc(alt)}"></div>
+     <div class="clase-firma-tit" style="margin-top:14px">Para cambiarla, firma de nuevo</div>`
+  : '';
+
+function _abrirPadFirma(cfg) {
   openModal('modal-firma-profesor');
   return new Promise(resolver => {
-    padFirma = { id, nombre: prof.nombre, trazos: 0, caja: null, resolver };
+    padFirma = { trazos: 0, caja: null, resolver, guardar: cfg.guardar, quitar: cfg.quitar || null, sinTrazo: !!cfg.sinTrazo };
     requestAnimationFrame(iniciarPadFirma);
   });
+}
+
+async function abrirFirmaProfesor(id, opciones = {}) {
+  const prof = (await window.api.getProfesores()).find(x => x.id === id);
+  if (!prof) return false;
+  const actual = await window.api.getFirmaProfesor(id);
+  _modalPadFirma().innerHTML = `
+    <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <h3 id="firma-pad-tit" style="margin:0">Firma de ${esc(prof.nombre)}</h3>
+      <button class="btn btn-outline btn-sm" onclick="cerrarFirmaProfesor(false)">${opciones.textoCerrar || 'Cerrar'}</button>
+    </div>
+    ${opciones.motivo ? `<div class="alert alert-warn" style="margin:12px 0 0">${esc(opciones.motivo)}</div>` : ''}
+    <p class="aj-intro" style="margin:12px 0">Firma con el ratón, el lápiz o el dedo. Se guarda una sola vez y sale en la casilla «Firma del profesor» de todas sus clases en la ficha DGT y en el pie de las fichas de sus alumnos. También se puede firmar desde el móvil (Perfil → Mi firma).</p>
+    ${_htmlFirmaActual(actual, 'Firma guardada de ' + prof.nombre)}
+    ${_htmlPadFirma({ textoGuardar: opciones.textoGuardar, quitar: !!actual })}`;
+  return _abrirPadFirma({
+    guardar: firma => window.api.setFirmaProfesor(id, firma),
+    quitar: {
+      texto: `¿Quitar la firma guardada de ${prof.nombre}? Sus clases saldrán sin firma del profesor en la ficha DGT hasta que vuelva a firmar.`,
+      hacer: () => window.api.setFirmaProfesor(id, null),
+    },
+  });
+}
+
+// ─── PERFIL DEL DIRECTOR ─────────────────────────────────────────────────────
+// Quién es (uno de los profesores u otra persona) y su firma, en el mismo
+// panel. Si es un profesor, la firma que se dibuja aquí es la de ese profesor
+// (una sola firma para sus clases y para el pie).
+async function abrirPerfilDirector(opciones = {}) {
+  const [dir, profes, propia] = await Promise.all([
+    window.api.getDirector(), window.api.getProfesores(), window.api.getFirmaDirector(true)]);
+  const opcionesProf = profes.map(p =>
+    `<option value="${p.id}"${dir.profesor_id === p.id ? ' selected' : ''}>${esc(p.nombre)} (profesor)</option>`).join('');
+  const otra = dir.profesor_id == null;
+  _modalPadFirma().innerHTML = `
+    <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <h3 id="firma-pad-tit" style="margin:0">Director del centro</h3>
+      <button class="btn btn-outline btn-sm" onclick="cerrarFirmaProfesor(false)">${opciones.textoCerrar || 'Cerrar'}</button>
+    </div>
+    ${opciones.motivo ? `<div class="alert alert-warn" style="margin:12px 0 0">${esc(opciones.motivo)}</div>` : ''}
+    <p class="aj-intro" style="margin:12px 0">Su firma sale en «Firma del Director», en el certificado del pie de todas las fichas DGT. Firma con el ratón, el lápiz o el dedo.</p>
+    <div class="director-datos">
+      <div class="form-group director-quien-campo">
+        <label for="dir-quien">¿Quién es el director?</label>
+        <select id="dir-quien" onchange="cambiarDirectorQuien()">
+          <option value=""${otra ? ' selected' : ''}>Otra persona (no da clases)</option>
+          ${opcionesProf}
+        </select>
+      </div>
+      <div class="form-group" data-dir-otra>
+        <label for="dir-nombre">Nombre y apellidos</label>
+        <input type="text" id="dir-nombre" maxlength="80" value="${otra ? esc(dir.nombre || '') : ''}" placeholder="Nombre del director">
+      </div>
+      <div class="form-group" data-dir-otra>
+        <label for="dir-dni">DNI/NIE (opcional)</label>
+        <input type="text" id="dir-dni" maxlength="20" value="${otra ? esc(dir.dni || '') : ''}" placeholder="12345678A">
+      </div>
+    </div>
+    <div id="dir-firma-actual"></div>
+    ${_htmlPadFirma({ textoGuardar: opciones.textoGuardar || 'Guardar', sinTrazo: true })}`;
+  const promesa = _abrirPadFirma({
+    sinTrazo: true,
+    guardar: async firma => {
+      const quien = document.getElementById('dir-quien').value;
+      const res = await window.api.setDirector(quien
+        ? { profesor_id: parseInt(quien) }
+        : { nombre: document.getElementById('dir-nombre').value, dni: document.getElementById('dir-dni').value });
+      if (!res || !res.ok || !firma) return res;
+      return window.api.setFirmaDirector(firma);
+    },
+    quitar: {
+      texto: '¿Quitar la firma guardada del director? El pie de la ficha DGT saldrá sin ella hasta que vuelva a firmar.',
+      hacer: () => window.api.setFirmaDirector(null),
+    },
+  });
+  padFirma.propia = propia;
+  await cambiarDirectorQuien();
+  return promesa;
+}
+
+// Al elegir quién es: nombre y DNI solo para «otra persona»; la firma que se
+// enseña es la de ese profesor o la propia del director.
+async function cambiarDirectorQuien() {
+  const sel = document.getElementById('dir-quien'); if (!sel || !padFirma) return;
+  const valor = sel.value, id = valor ? parseInt(valor) : null;
+  document.querySelectorAll('[data-dir-otra]').forEach(el => { el.hidden = id != null; });
+  const nombre = id != null ? sel.selectedOptions[0].textContent.replace(/ \(profesor\)$/, '') : '';
+  const img = id != null ? await window.api.getFirmaProfesor(id) : padFirma.propia;
+  if (!padFirma || sel.value !== valor) return; // cambió mientras se leía
+  document.getElementById('dir-firma-actual').innerHTML = img
+    ? _htmlFirmaActual(img, 'Firma guardada', id != null ? `Firma de ${esc(nombre)} (la misma de sus clases)` : 'Firma guardada')
+    : `<div class="clase-firma-tit">${id != null ? `${esc(nombre)} aún no tiene firma: la que hagas aquí valdrá también para sus clases` : 'Firma del director'}</div>`;
+  // Solo se quita aquí la firma propia del director (la de un profesor, desde su fila)
+  document.getElementById('firma-pad-quitar').hidden = !(id == null && padFirma.propia);
+}
+
+// Tarjeta «Director del centro» de la página Profesores.
+async function cargarDirector() {
+  const caja = document.getElementById('director-resumen'); if (!caja) return;
+  const dir = await window.api.getDirector();
+  if (!dir.configurado) {
+    caja.innerHTML = `<span class="director-vacio">Todavía no has indicado quién es el director.</span>
+      <button class="btn btn-primary btn-sm" onclick="abrirPerfilDirector()">Crear perfil y firmar</button>`;
+    return;
+  }
+  caja.innerHTML = `<div class="director-quien"><strong>${esc(dir.nombre)}</strong>${dir.dni ? ` <span class="director-dni">${esc(dir.dni)}</span>` : ''}${dir.profesor_id != null ? ' <span class="pill">También es profesor</span>' : ''}</div>
+    ${dir.tiene_firma
+      ? `<button type="button" class="pill pill-ok firma-pill" onclick="abrirPerfilDirector()" title="Ver o cambiar su firma">${fichaSvg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 12)} Firma guardada</button>`
+      : `<button type="button" class="pill pill-warn firma-pill" onclick="abrirPerfilDirector()" title="Dibujar su firma para la ficha DGT">Sin firma · Firmar</button>`}
+    <span style="flex:1"></span>
+    <button class="btn btn-outline btn-sm" onclick="abrirPerfilDirector()">Editar perfil</button>`;
 }
 
 function iniciarPadFirma() {
@@ -143,7 +261,7 @@ function borrarPadFirma() {
   if (!padFirma || !padFirma.ctx) return;
   padFirma.ctx.clearRect(0, 0, padFirma.cv.width, padFirma.cv.height);
   padFirma.trazos = 0; padFirma.caja = null;
-  document.getElementById('firma-pad-ok').disabled = true;
+  document.getElementById('firma-pad-ok').disabled = !padFirma.sinTrazo;
   document.getElementById('firma-pad-ayuda').hidden = false;
 }
 
@@ -161,10 +279,15 @@ function padFirmaComoPNG(anchoMax = 480) {
 }
 
 async function guardarPadFirma() {
-  if (!padFirma || !padFirma.caja) return;
-  let firma = padFirmaComoPNG();
-  if (firma.length > 150000) firma = padFirmaComoPNG(300); // firma muy densa: se reduce más
-  const res = await window.api.setFirmaProfesor(padFirma.id, firma);
+  if (!padFirma || (!padFirma.caja && !padFirma.sinTrazo)) return;
+  // Un toque suelto de pocos puntos no cuenta como firma
+  let firma = null;
+  if (padFirma.caja && padFirma.trazos > 8) {
+    firma = padFirmaComoPNG();
+    if (firma.length > 150000) firma = padFirmaComoPNG(300); // firma muy densa: se reduce más
+  }
+  if (!firma && !padFirma.sinTrazo) return; // (null quitaría la firma guardada)
+  const res = await padFirma.guardar(firma);
   if (!res || !res.ok) {
     const err = document.getElementById('firma-pad-error');
     err.textContent = (res && res.error) || 'No se pudo guardar la firma.'; err.classList.remove('hidden');
@@ -174,10 +297,10 @@ async function guardarPadFirma() {
 }
 
 async function quitarFirmaProfesor() {
-  if (!padFirma) return;
-  const { id, nombre } = padFirma;
-  if (!await confirmar(`¿Quitar la firma guardada de ${nombre}? Sus clases saldrán sin firma del profesor en la ficha DGT hasta que vuelva a firmar.`, { peligro: true, textoAceptar: 'Quitar' })) return;
-  await window.api.setFirmaProfesor(id, null);
+  if (!padFirma || !padFirma.quitar) return;
+  const quitar = padFirma.quitar;
+  if (!await confirmar(quitar.texto, { peligro: true, textoAceptar: 'Quitar' })) return;
+  await quitar.hacer();
   cerrarFirmaProfesor(true);
 }
 

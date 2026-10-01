@@ -9,6 +9,9 @@
 //   - Observaciones en blanco. Firmas: en cada fila, la del alumno (la que hizo
 //     en el móvil al terminar la clase) en «Firma del alumno» y la guardada del
 //     profesor que dio la clase en «Firma del profesor». Sin firma → en blanco.
+//   - Pie (certificado): «Firma del Director» con la del director del centro y
+//     «Firma del profesor» con la del profesor de la cabecera, salvo que se pida
+//     dejarlo para firmar a mano (firmarPie: false).
 //   - Página 1 lleva cabecera (escuela + alumno) + 11 clases; el resto de clases
 //     van en tantas páginas de "continuación" (32 clases/pág) como haga falta.
 //   - La casilla DESTREZA/CIRCULACIÓN se marca con una "X" (su estado /Yes_xxx no
@@ -41,6 +44,14 @@ const FIRMAS_P1 = {
   filas: [369, 388.4, 407.9, 427.4, 446.9, 466.4, 485.75, 505.25, 524.6, 544.1, 563.5, 583],
 };
 const MARGEN_FIRMA = 1.6;
+
+// Pie de la página 1 (certificado): hueco entre los rótulos «Firma del
+// Director» / «Firma del profesor» (acaban en y≈716,5, centrados en x≈91 y
+// x≈440) y el texto de protección de datos (empieza en y≈749).
+const FIRMAS_PIE = {
+  director: { x0: 21, x1: 161, yTop: 718.5, yBot: 748 },
+  profesor: { x0: 370, x1: 510, yTop: 718.5, yBot: 748 },
+};
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
   'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -195,7 +206,14 @@ async function _rellenarPagina1(out, mapa, datos, filas) {
     alumno: { ...FIRMAS_P1.alumno, yTop, yBot: FIRMAS_P1.filas[i + 1] },
     profesor: { ...FIRMAS_P1.profesor, yTop, yBot: FIRMAS_P1.filas[i + 1] },
   }));
-  await _firmarFilas(page0, filas, cajas, _cacheFirmas(tpl));
+  const imagen = _cacheFirmas(tpl);
+  await _firmarFilas(page0, filas, cajas, imagen);
+
+  // Pie: firmas del director y del profesor que certifican la formación
+  if (datos.firmarPie !== false) {
+    _dibujarFirma(page0, await imagen((datos.director || {}).firma), FIRMAS_PIE.director);
+    _dibujarFirma(page0, await imagen(profesor.firma), FIRMAS_PIE.profesor);
+  }
 
   const [pg] = await out.copyPages(tpl, [0]);
   out.addPage(pg);
@@ -231,7 +249,9 @@ async function _rellenarContinuacion(out, mapa, filas) {
  *   tipo: 'destreza' | 'circulacion',
  *   centro: { numero, seccion, digito_control, denominacion, direccion, codigo_postal, poblacion },
  *   alumno: { dni, permiso, nombre, primer_apellido, segundo_apellido, direccion, codigo_postal, poblacion },
- *   profesor: { nombre, dni },
+ *   profesor: { nombre, dni, firma? },          // cabecera; su firma va también en el pie
+ *   director?: { firma? },                       // «Firma del Director» del pie
+ *   firmarPie?: boolean,         // false = pie sin firmas (para firmarlo a mano); por defecto true
  *   practicas: [ { fecha, hora, km_inicial, km_final, clases, ejercicio, firma_alumno?, firma_profesor? } ],  // una fila por día; firmas = PNG en data URL
  *   rellenarFecha?: boolean,    // preferencia Ajustes; false = fecha del documento (pie) en blanco (por defecto true)
  *   lugar?, dia?, mes?, anio?   // pie; por defecto la fecha de hoy y la población del centro

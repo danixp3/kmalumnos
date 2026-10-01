@@ -28,6 +28,10 @@ contextBridge.exposeInMainWorld('api', {
   updateProfesor:   (id, n, nota, dni)       => ipcRenderer.invoke('update-profesor', id, n, nota, dni),
   getFirmaProfesor: (id)                     => ipcRenderer.invoke('get-firma-profesor', id),
   setFirmaProfesor: (id, firma)              => ipcRenderer.invoke('set-firma-profesor', id, firma),
+  getDirector:      ()                       => ipcRenderer.invoke('get-director'),
+  setDirector:      (datos)                  => ipcRenderer.invoke('set-director', datos),
+  getFirmaDirector: (propia)                 => ipcRenderer.invoke('get-firma-director', propia),
+  setFirmaDirector: (firma)                  => ipcRenderer.invoke('set-firma-director', firma),
 
   // Tarifas
   getTarifas:        ()                          => ipcRenderer.invoke('get-tarifas'),
@@ -233,11 +237,13 @@ contextBridge.exposeInMainWorld('api', {
   // Auto-update
   checkForUpdates:  ()     => ipcRenderer.invoke('check-for-updates'),
   installUpdate:    ()     => ipcRenderer.invoke('install-update'),
-  onUpdateAvailable:     (cb) => ipcRenderer.on('update-available',        (_, v) => cb(v)),
+  estadoActualizacion:    () => ipcRenderer.invoke('estado-actualizacion'),
+  descargarActualizacion: () => ipcRenderer.invoke('descargar-actualizacion'),
+  onUpdateAvailable:     (cb) => ipcRenderer.on('update-available',        (_, estado) => cb(estado)),
   onUpdateDownloadStart: (cb) => ipcRenderer.on('update-download-start',   (_, v) => cb(v)),
   onUpdateNotAvailable:  (cb) => ipcRenderer.on('update-not-available',    ()     => cb()),
   onUpdateDownloadProgress: (cb) => ipcRenderer.on('update-download-progress', (_, pct) => cb(pct)),
-  onUpdateDownloaded:    (cb) => ipcRenderer.on('update-downloaded',       ()     => cb()),
+  onUpdateDownloaded:    (cb) => ipcRenderer.on('update-downloaded',       (_, estado) => cb(estado)),
   onUpdateError:         (cb) => ipcRenderer.on('update-error',            (_, m) => cb(m)),
 
   // Ficheros de alumno (foto + documentos, D7 — almacenamiento local, sin sync)

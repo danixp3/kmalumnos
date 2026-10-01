@@ -250,11 +250,14 @@ sync-status     → sync.getStatus()
 
 ### Auto-updater
 ```
-check-for-updates → autoUpdater.checkForUpdates()
-install-update    → autoUpdater.quitAndInstall()
+check-for-updates       → autoUpdater.checkForUpdates() (sin instalar: responde 'update-not-available')
+estado-actualizacion    → estadoUpdate { fase: nada|disponible|descargando|descargada, version, actual, notas, tamano, pct }
+descargar-actualizacion → autoUpdater.downloadUpdate() (solo en fase 'disponible')
+install-update          → autoUpdater.quitAndInstall(true, true) (solo en fase 'descargada'; silenciosa y se reabre)
 
+// Sin cuadros de Windows: las preguntas las hace la app (renderer/ajustes.js → ACTUALIZACIONES)
 // Eventos que se envían al renderer:
-'update-available'       → hay nueva versión
+'update-available'       → hay nueva versión (lleva estadoUpdate)
 'update-not-available'   → estás al día
 'update-download-start'  → empezó descarga
 'update-download-progress' → progreso %

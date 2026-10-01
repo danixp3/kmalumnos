@@ -159,8 +159,9 @@ function iniciarSensorBarra(win) {
 
 app.whenReady().then(() => {
   createWindow();
-  // Comprueba actualizaciones 3s después de arrancar (no bloquea el inicio)
-  setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 3000);
+  // Comprueba actualizaciones 3s después de arrancar (no bloquea el inicio).
+  // checkForUpdates y no checkForUpdatesAndNotify: los avisos son de la app.
+  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 3000);
 
   // Cargar credenciales de sincronización (si el usuario ya las configuró)
   const creds = loadSyncCreds();
@@ -186,52 +187,84 @@ app.whenReady().then(() => {
   });
 });
 
+// ─── ACTUALIZACIONES ─────────────────────────────────────────────────────────
+// Sin cuadros de Windows: el proceso principal solo busca, descarga e instala;
+// las preguntas («¿Descargar la nueva versión?» y, ya descargada, «¿Instalar
+// ahora?») las hace la propia app con sus ventanas (renderer/ajustes.js →
+// ACTUALIZACIONES). `estadoUpdate` guarda en qué punto está para que la
+// pantalla lo recupere aunque el aviso llegue antes de que termine de cargar.
+let estadoUpdate = { fase: 'nada' }; // nada | disponible | descargando | descargada
+
+// Notas de la versión (GitHub las da en HTML) → texto plano corto.
+function textoNotas(notas) {
+  const entidades = t => t.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+  // A veces llega con el HTML escapado (&lt;p&gt;): se desescapa antes de quitar etiquetas
+  const html = entidades(Array.isArray(notas) ? notas.map(n => (n && n.note) || '').join('\n') : String(notas || ''));
+  const texto = entidades(html
+    .replace(/<\s*(br|\/p|\/li|\/h\d)\s*\/?>/gi, '\n').replace(/<\s*li[^>]*>/gi, '• ').replace(/<[^>]+>/g, ''))
+    .replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+  return texto.length > 900 ? texto.slice(0, 900).replace(/\s+\S*$/, '') + '…' : texto;
+}
+
+function avisarUpdate(canal, extra) {
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send(canal, extra === undefined ? estadoUpdate : extra);
+}
+
 autoUpdater.on('update-not-available', () => {
-  if (mainWin) mainWin.webContents.send('update-not-available');
+  if (estadoUpdate.fase === 'disponible') estadoUpdate = { fase: 'nada' };
+  avisarUpdate('update-not-available', null);
 });
 
 autoUpdater.on('update-available', (info) => {
-  if (mainWin && !isDownloading) {
-    dialog.showMessageBox(mainWin, {
-      type: 'info',
-      title: 'Actualización disponible',
-      message: `Hay una nueva versión disponible: v${info.version}\n\n¿Deseas descargarla ahora?`,
-      buttons: ['Descargar', 'Más tarde']
-    }).then(({ response }) => {
-      if (response === 0) {
-        isDownloading = true;
-        mainWin.webContents.send('update-download-start', info.version);
-        autoUpdater.downloadUpdate().catch(err => {
-          console.error('Download error:', err);
-          isDownloading = false;
-          mainWin.webContents.send('update-error', err.message);
-        });
-      }
-    });
-  }
+  if (isDownloading || estadoUpdate.fase === 'descargada') return; // ya en marcha: nada que preguntar
+  const archivo = (info.files || [])[0] || {};
+  estadoUpdate = {
+    fase: 'disponible', version: info.version, actual: app.getVersion(),
+    notas: textoNotas(info.releaseNotes), tamano: archivo.size || null,
+  };
+  avisarUpdate('update-available');
 });
 
+function descargarUpdate() {
+  if (isDownloading || estadoUpdate.fase !== 'disponible') return { ok: false };
+  isDownloading = true;
+  estadoUpdate = { ...estadoUpdate, fase: 'descargando', pct: 0 };
+  avisarUpdate('update-download-start', estadoUpdate.version);
+  autoUpdater.downloadUpdate().catch(err => {
+    console.error('Download error:', err);
+    isDownloading = false;
+    estadoUpdate = { ...estadoUpdate, fase: 'disponible' };
+    avisarUpdate('update-error', err.message);
+  });
+  return { ok: true };
+}
+
 autoUpdater.on('download-progress', (p) => {
-  if (mainWin) mainWin.webContents.send('update-download-progress', Math.round(p.percent));
+  estadoUpdate.pct = Math.round(p.percent);
+  avisarUpdate('update-download-progress', estadoUpdate.pct);
 });
 
 autoUpdater.on('error', (err) => {
-  if (!mainWin) return;
   console.error('AutoUpdater error:', err);
+  const descargando = isDownloading;
   isDownloading = false;
+  if (estadoUpdate.fase === 'descargando') estadoUpdate = { ...estadoUpdate, fase: 'disponible' };
+  if (!mainWin) return;
   const msg = (err.message || '').toLowerCase();
   // Si no hay releases en GitHub o da 404/ENOTFOUND, tratar como "no hay actualización"
-  if (msg.includes('404') || msg.includes('no published') || msg.includes('enotfound') ||
-      msg.includes('cannot find') || msg.includes('net::') || msg.includes('httperror')) {
-    mainWin.webContents.send('update-not-available');
+  if (!descargando && (msg.includes('404') || msg.includes('no published') || msg.includes('enotfound') ||
+      msg.includes('cannot find') || msg.includes('net::') || msg.includes('httperror'))) {
+    avisarUpdate('update-not-available', null);
   } else {
-    mainWin.webContents.send('update-error', err.message);
+    avisarUpdate('update-error', err.message);
   }
 });
 
-autoUpdater.on('update-downloaded', () => {
+autoUpdater.on('update-downloaded', (info) => {
   isDownloading = false;
-  if (mainWin) mainWin.webContents.send('update-downloaded');
+  estadoUpdate = { ...estadoUpdate, fase: 'descargada', version: (info && info.version) || estadoUpdate.version, pct: 100 };
+  avisarUpdate('update-downloaded');
 });
 
 app.on('window-all-closed', () => {
@@ -288,6 +321,10 @@ ipcMain.handle('add-profesor', (_, nombre, nota, sucursalId, dni) => db.addProfe
 ipcMain.handle('delete-profesor', (_, id) => { db.deleteProfesor(id); return true; });
 ipcMain.handle('update-profesor', (_, id, nombre, nota, dni) => { db.updateProfesor(id, nombre, nota, dni); return true; });
 ipcMain.handle('get-firma-profesor', (_, id) => db.getFirmaProfesor(id));
+ipcMain.handle('get-director', () => db.getDirector());
+ipcMain.handle('set-director', (_, datos) => db.setDirector(datos));
+ipcMain.handle('get-firma-director', (_, propia) => db.getFirmaDirector(!!propia));
+ipcMain.handle('set-firma-director', (_, firma) => db.setFirmaDirector(firma));
 ipcMain.handle('set-firma-profesor', (_, id, firma) => db.setFirmaProfesor(id, firma));
 
 ipcMain.handle('get-tarifas', () => db.getTarifas());
@@ -566,15 +603,22 @@ ipcMain.handle('exportar-csv', async (_, opciones) => {
 ipcMain.handle('generar-ficha-dgt', async (_, opciones) => {
   try {
     const { alumnoId, tipo, centro, rellenarFecha, comprobarFirmas } = opciones || {};
+    const firmarPie = !opciones || opciones.firmarPie !== false;
     const datosAlumno = db.getDatosFichaDGT(alumnoId, tipo === 'destreza' ? 'destreza' : 'circulacion');
     if (!datosAlumno) return { ok: false, msg: 'Alumno no encontrado.' };
     if (!datosAlumno.practicas.length) {
       return { ok: false, msg: 'Este alumno no tiene prácticas de ' + (tipo === 'destreza' ? 'destreza/pista' : 'circulación') + ' registradas.' };
     }
-    // Profesores de estas clases sin firma guardada: la pantalla se la pide
-    // antes de generar (y vuelve a llamar con comprobarFirmas=false).
-    if (comprobarFirmas && datosAlumno.profesores_sin_firma.length) {
-      return { ok: false, faltanFirmas: datosAlumno.profesores_sin_firma };
+    // Profesores de estas clases (y el del pie) o director sin firma guardada:
+    // la pantalla se la pide antes de generar (y vuelve a llamar con
+    // comprobarFirmas=false).
+    if (comprobarFirmas) {
+      const faltan = [...datosAlumno.profesores_sin_firma];
+      const pf = datosAlumno.profesor;
+      if (firmarPie && pf.id != null && !pf.firma && !faltan.some(f => f.id === pf.id)) faltan.push({ id: pf.id, nombre: pf.nombre });
+      const dir = datosAlumno.director;
+      const faltaDirector = firmarPie && !dir.firma && !(dir.profesor_id != null && faltan.some(f => f.id === dir.profesor_id));
+      if (faltan.length || faltaDirector) return { ok: false, faltanFirmas: faltan, faltaDirector, director: dir.nombre || '' };
     }
     const { generarFichaDGT } = require('./fichas-dgt');
     const bytes = await generarFichaDGT({
@@ -582,6 +626,8 @@ ipcMain.handle('generar-ficha-dgt', async (_, opciones) => {
       centro: centro || {},
       alumno: datosAlumno.alumno,
       profesor: datosAlumno.profesor,
+      director: datosAlumno.director,
+      firmarPie,
       practicas: datosAlumno.practicas,
       rellenarFecha: rellenarFecha !== false,
     });
@@ -602,6 +648,7 @@ ipcMain.handle('generar-ficha-dgt', async (_, opciones) => {
       ok: true, path: result.filePath, nClases: datosAlumno.practicas.reduce((n, p) => n + p.clases, 0),
       dias: datosAlumno.practicas.length,
       sinFirmaAlumno: datosAlumno.practicas.filter(p => !p.firma_alumno).length,
+      pieSinFirmar: firmarPie ? [!datosAlumno.director.firma && 'director', !datosAlumno.profesor.firma && 'profesor'].filter(Boolean) : null,
     };
   } catch (e) {
     return { ok: false, msg: e.message };
@@ -770,10 +817,20 @@ ipcMain.handle('borrar-documento-alumno', (_, ruta) => {
 });
 
 // ─── UPDATER IPC ──────────────────────────────────────────────────────────────
-ipcMain.handle('check-for-updates', () => {
-  try { autoUpdater.checkForUpdates(); } catch(e) {}
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    // null = no se puede buscar (app sin instalar, p. ej. npm start): «no hay»
+    if (!await autoUpdater.checkForUpdates()) avisarUpdate('update-not-available', null);
+  } catch (e) { /* ya lo avisa autoUpdater.on('error') */ }
 });
-ipcMain.handle('install-update', () => autoUpdater.quitAndInstall(true, true));
+ipcMain.handle('estado-actualizacion', () => estadoUpdate);
+ipcMain.handle('descargar-actualizacion', () => descargarUpdate());
+// Instalación silenciosa (sin el asistente de Windows) y se vuelve a abrir sola
+ipcMain.handle('install-update', () => {
+  if (estadoUpdate.fase !== 'descargada') return { ok: false };
+  setImmediate(() => autoUpdater.quitAndInstall(true, true));
+  return { ok: true };
+});
 
 // ─── SYNC IPC HANDLERS ────────────────────────────────────────────────────────
 ipcMain.handle('sync-now', async () => sync.sync());
