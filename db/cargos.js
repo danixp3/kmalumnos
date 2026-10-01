@@ -123,6 +123,40 @@ function deleteCargo(id) {
   const s = _sync(); if (s) s.markDeleted('cargos', id);
 }
 
+// Cobros de alta: al crear un alumno se le cargan los conceptos de Ajustes →
+// Cobros marcados "al dar de alta" (matrícula, tasa, soporte...). La UI manda
+// los que quedaron marcados en el alta (se pueden quitar para un alumno
+// concreto); los de importe 0 se ignoran. Devuelve los cargos creados.
+function addCargosAlta(alumnoId, conceptos, fecha, sucursal_id = null) {
+  const d = load();
+  const aid = parseInt(alumnoId);
+  const alumno = (d.alumnos || []).find(a => a.id === aid);
+  if (!alumno) throw new Error('Alumno no encontrado');
+  _validarFecha(fecha);
+  if (!d.cargos) d.cargos = [];
+  const fechaFinal = fecha || alumno.fecha_alta || new Date().toISOString().slice(0, 10);
+  const ahora = new Date().toISOString();
+  const creados = [];
+  for (const c of Array.isArray(conceptos) ? conceptos : []) {
+    const importe = Math.round((Number(c && c.importe) || 0) * 100) / 100;
+    const concepto = String((c && c.nombre) || '').trim().slice(0, 60);
+    if (!(importe > 0) || !concepto) continue;
+    const tipo = ['matricula', 'tasa'].includes(c.tipo) ? c.tipo : 'cargo';
+    const cargo = {
+      id: nextId('cargo'), alumno_id: aid, concepto, tipo, importe, fecha: fechaFinal,
+      sucursal_id: sucursal_id ? parseInt(sucursal_id) : (alumno.sucursal_id || null),
+      nota: 'Alta del alumno', deleted: false, updated_at: ahora
+    };
+    d.cargos.push(cargo);
+    creados.push(cargo);
+  }
+  if (!creados.length) return [];
+  addLog('cargo', `Cobros de alta de ${alumno.nombre}: ${creados.map(c => `${c.concepto} ${c.importe} €`).join(', ')}`, []);
+  save();
+  const s = _sync(); if (s) creados.forEach(c => s.markDirty('cargos', c.id));
+  return creados;
+}
+
 module.exports = {
-  getCargos, getCargosAlumno, getTotalCargosAlumno, addCargo, updateCargo, deleteCargo,
+  getCargos, getCargosAlumno, getTotalCargosAlumno, addCargo, updateCargo, deleteCargo, addCargosAlta,
 };

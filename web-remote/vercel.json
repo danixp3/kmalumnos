@@ -31,6 +31,10 @@
     {
       "source": "/api/practica-detalle",
       "destination": "/api/movil?op=practica-detalle"
+    },
+    {
+      "source": "/api/anotar-practica",
+      "destination": "/api/movil?op=anotar-practica"
     }
   ],
   "headers": [

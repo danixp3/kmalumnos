@@ -182,6 +182,16 @@
   .paso-n b { min-width: 30px; text-align: center; font-size: 22px; font-family: var(--font-mono, monospace); }
   .etq { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 2px 8px; display: flex; justify-content: space-between; align-items: baseline; }
   .etq small { font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+  /* Anotar clase pasada */
+  .dias-fila { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; margin: 0 -2px; scrollbar-width: none; }
+  .dias-fila::-webkit-scrollbar { display: none; }
+  .dias-fila .chip { flex-shrink: 0; height: 58px; padding: 0 14px; flex-direction: column; justify-content: center; gap: 1px; line-height: 1.1; position: relative; }
+  .dias-fila .chip small { font-size: 12.5px; font-weight: 500; opacity: .75; }
+  .dias-fila .chip input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; }
+  .km-par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .km-par .campo { font-family: var(--font-mono, monospace); font-size: 20px; font-weight: 600; }
+  .km-par .etq2 { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .lnk-olvido { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 18px; }
   .barra-fija { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, rgba(243,242,238,0)); z-index: 20; }
   .barra-fija > * { max-width: 528px; margin: 0 auto; }
   body.oscuro .barra-fija { background: linear-gradient(to top, var(--ink) 70%, rgba(20,22,27,0)); }
@@ -370,6 +380,9 @@
 
     <!-- HISTORIAL -->
     <section class="vista" id="v-historial"></section>
+
+    <!-- ANOTAR CLASE PASADA -->
+    <section class="vista sin-tab" id="v-anotar"></section>
   </div>
 
   <nav id="tabbar" aria-label="Secciones">
@@ -392,6 +405,7 @@ const PROFESOR_KEY = 'kmalumnos_profesor';   // perfil de profesor activo
 const FLUJO_KEY = 'km_flujo';                // práctica en marcha (sobrevive a recargas)
 const VEHICULO_KEY = 'km_vehiculo';          // último vehículo usado
 const NCLASES_KEY = 'km_n_clases';          // nº de clases elegido la última vez
+const DIAS_ANOTAR = 30;                      // una clase olvidada se puede anotar hasta 30 días después (límite de la API)
 
 // Zonas recorridas: las configura el escritorio (Ajustes → Zonas de prácticas)
 // y llegan en S.zonas desde /api/config. Sin zonas no se muestra el bloque.
@@ -560,7 +574,7 @@ function go(vista, opciones = {}) {
   document.querySelectorAll('#tabbar button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === vista));
   setTema(vista === 'curso');
   window.scrollTo(0, 0);
-  const render = { hoy: renderHoy, iniciar: renderIniciar, curso: renderCurso, kmfinal: renderKmFinal, firma: renderFirma, alumnos: renderAlumnos, ficha: renderFicha, nuevo: renderNuevo, historial: renderHistorial }[vista];
+  const render = { hoy: renderHoy, iniciar: renderIniciar, curso: renderCurso, kmfinal: renderKmFinal, firma: renderFirma, alumnos: renderAlumnos, ficha: renderFicha, nuevo: renderNuevo, historial: renderHistorial, anotar: renderAnotar }[vista];
   if (render) render(opciones);
   // Alumnos: si los datos tienen más de 30 s se recargan en segundo plano
   // (altas o asignaciones hechas en el escritorio mientras la web estaba abierta).
@@ -800,6 +814,8 @@ function renderHoy() {
         ${p.firmada ? `<span class="pill pill-ok">${ic('ok', 14, 'style="stroke-width:2.6"')} Firmada</span>` : '<span class="pill pill-warn">Sin firmar</span>'}</button>`).join('') + '</div>';
   }
   if (!r.total && !S.jornada.sin_cerrar.length && !esHoy) html += '<div class="vacio">Sin clases este día.</div>';
+  if (!esHoy && S.fecha < S.hoy && S.fecha >= sumaDias(S.hoy, -DIAS_ANOTAR)) html += `<button class="btn btn-sec" style="margin-top:14px" onclick="abrirAnotar({fecha:'${S.fecha}',volverA:'hoy'})">${ic('mas', 20)} Anotar una clase de este día</button>`;
+  else if (esHoy) html += `<button class="lnk lnk-suave lnk-olvido" onclick="abrirAnotar({volverA:'hoy'})">${ic('hist', 18)} ¿Se te olvidó anotar una clase? Anotar clase pasada</button>`;
   document.getElementById('v-hoy').innerHTML = html;
 }
 // Clases seguidas de una misma sesión (mismo alumno y coche, km encadenados y
@@ -838,7 +854,7 @@ function elegirVehiculo(despues) {
 }
 function fijarVehiculo(id) {
   S.vehId = id; localStorage.setItem(VEHICULO_KEY, String(id)); cerrarHoja();
-  if (S.vista === 'iniciar') { S.iniciar.vehiculo_id = id; S.iniciar.km = String(kmSugerido(id) || ''); renderIniciar(); } else if (S.vista === 'hoy') renderHoy();
+  if (S.vista === 'iniciar') { S.iniciar.vehiculo_id = id; S.iniciar.km = String(kmSugerido(id) || ''); renderIniciar(); } else if (S.vista === 'anotar' && S.anotar) { S.anotar.vehiculo_id = id; renderAnotar(); } else if (S.vista === 'hoy') renderHoy();
 }
 
 // ─── INICIAR PRÁCTICA ────────────────────────────────────────────────────────
@@ -897,7 +913,8 @@ function renderIniciar() {
     <div class="chips">${S.zonas.map((z, i) => `<button class="chip ${I.zonas.includes(z) ? 'on' : ''}" onclick="toggleZonaIniciar(${i})">${I.zonas.includes(z) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(z)}</button>`).join('')}</div>` : ''}
     <div class="etq">Clases <small>${durTxt(I.n_clases * durClase())} · termina a las ${esc(sumaMin(ahora, I.n_clases * durClase()))}</small></div>
     <div class="seg3 dos-lineas">${[...new Set([1, 2, 3, I.n_clases])].sort((a, b) => a - b).map(n => `<button class="${n === I.n_clases ? 'on' : ''}" onclick="S.iniciar.n_clases=${n};renderIniciar()">${clasesTxt(n)}<small>${durTxt(n * durClase())}</small></button>`).join('')}</div>
-    <div style="text-align:center;margin-top:18px"><button class="lnk lnk-suave" onclick="registrarSinCronometro()">Registrar sin cronómetro (rellenar los km después)</button></div>
+    <div style="text-align:center;margin-top:18px;display:flex;flex-direction:column;gap:14px;align-items:center"><button class="lnk lnk-suave" onclick="registrarSinCronometro()">Registrar sin cronómetro (rellenar los km después)</button>
+      <button class="lnk lnk-suave" onclick="abrirAnotar({alumno_id:S.iniciar.alumno_id,volverA:'hoy'})">¿Ya la diste otro día y se te olvidó? Anotar clase pasada</button></div>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-empezar" onclick="empezarPractica()" ${al && v && parseInt(I.km) > 0 ? '' : 'disabled'}>${ic('play', 18)} Empezar práctica</button></div>`;
 }
 function tecleaKmIni(inp) {
@@ -937,6 +954,11 @@ function filtrarHojaAlumnos(q) {
 }
 function fijarAlumnoIniciar(id) {
   const al = alumno(id); cerrarHoja();
+  if (S.vista === 'anotar' && S.anotar) {
+    S.anotar.alumno_id = id;
+    if (al && al.vehiculo_id && vehiculo(al.vehiculo_id)) S.anotar.vehiculo_id = al.vehiculo_id;
+    renderAnotar(); return;
+  }
   S.iniciar.alumno_id = id;
   if (al && al.vehiculo_id && vehiculo(al.vehiculo_id) && S.iniciar.vehiculo_id !== al.vehiculo_id) { S.iniciar.vehiculo_id = al.vehiculo_id; S.iniciar.km = String(kmSugerido(al.vehiculo_id) || ''); }
   renderIniciar();
@@ -984,6 +1006,154 @@ async function registrarSinCronometro() {
     toast('Práctica registrada. Los km se rellenan desde la app.');
     await cargarJornada(); go('hoy');
   } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message); }
+}
+
+// ─── ANOTAR CLASE PASADA ─────────────────────────────────────────────────────
+// Para la clase que se dio y no se registró (el profesor se olvidó, no llevaba
+// el móvil...): día (hasta DIAS_ANOTAR atrás), hora, coche, nº de clases y, si
+// se saben, los km. Sin km queda «Km pendientes» y se rellenan desde la
+// oficina (Generar km); con km, el alumno puede firmarla en el momento.
+S.anotar = null;
+function abrirAnotar(op = {}) {
+  if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada) { toast('Termina primero la práctica en curso.'); go('curso'); return; }
+  actualizarHoy();
+  const al = op.alumno_id ? alumno(op.alumno_id) : null;
+  let vid = (al && al.vehiculo_id) || S.vehId;
+  if (!vehiculo(vid)) vid = S.vehiculos[0] ? S.vehiculos[0].id : null;
+  const minimo = sumaDias(S.hoy, -DIAS_ANOTAR);
+  const fecha = op.fecha && op.fecha <= S.hoy && op.fecha >= minimo ? op.fecha : sumaDias(S.hoy, -1);
+  S.anotar = {
+    alumno_id: al ? al.id : null, vehiculo_id: vid, fecha, hora: '', n_clases: nClasesGuardado(),
+    km_ini: '', km_fin: '', zonas: [], trabajado: [], obs: '', volverA: op.volverA || 'hoy'
+  };
+  go('anotar');
+}
+function estadoKmAnotar() {
+  const A = S.anotar;
+  const i = parseInt(A.km_ini) || 0, f = parseInt(A.km_fin) || 0;
+  if (!A.km_ini && !A.km_fin) return { ok: true, cls: 'msg-gris', txt: 'Sin km: la clase queda como «Km pendientes» y se rellenan desde la oficina. Para que el alumno la firme hacen falta los km.' };
+  if (!i || !f) return { ok: false, cls: 'msg-warn', txt: `Pon también el km ${i ? 'final' : 'inicial'}, o deja los dos en blanco.` };
+  if (f <= i) return { ok: false, cls: 'msg-err', txt: 'El km final tiene que ser mayor que el inicial.' };
+  if (f - i > 1000) return { ok: false, cls: 'msg-err', txt: 'Más de 1.000 km en una clase: revisa los números.' };
+  if (f - i < A.n_clases) return { ok: false, cls: 'msg-err', txt: `Con ${f - i} km no se pueden guardar ${A.n_clases} clases.` };
+  return { ok: true, cls: 'msg-ok', txt: `${miles(f - i)} km recorridos${A.n_clases > 1 ? ` en ${A.n_clases} clases` : ''}.` };
+}
+function renderAnotar() {
+  const A = S.anotar; if (!A) { go('hoy'); return; }
+  const al = alumno(A.alumno_id), v = vehiculo(A.vehiculo_id);
+  const dias = []; for (let i = 0; i <= 6; i++) dias.push(sumaDias(S.hoy, -i));
+  const otroDia = !dias.includes(A.fecha);
+  const nombreDia = d => d === S.hoy ? 'Hoy' : d === sumaDias(S.hoy, -1) ? 'Ayer' : cap(DIAS[partes(d).dow].slice(0, 3));
+  const k = estadoKmAnotar();
+  const fin = A.hora ? sumaMin(A.hora, A.n_clases * durClase()) : '';
+  document.getElementById('v-anotar').innerHTML = `
+    <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Anotar clase pasada</h1></div></div>
+    <div class="msg msg-gris" style="margin-top:0">${ic('hist', 20)}<span>Para una clase que ya se dio y no se registró. Hasta ${DIAS_ANOTAR} días atrás.</span></div>
+    <div class="card" style="margin-top:14px">
+      <div class="veh-card">${al ? `<span class="ini">${esc(iniciales(nombreAlumno(al)))}</span>` : `<span class="ini">${ic('persona', 22)}</span>`}
+        <div style="flex:1;min-width:0"><div class="fila-tit">${al ? esc(nombreAlumno(al)) : 'Elige un alumno'}</div><div class="fila-sub">${al ? `Permiso ${esc(al.permiso)}` : 'Obligatorio'}</div></div>
+        <button class="lnk" onclick="elegirAlumnoIniciar()">${al ? 'Cambiar' : 'Elegir'}</button></div>
+      <div class="veh-card" style="border-top:1px solid var(--soft)"><span class="veh-ic">${ic('coche', 22)}</span>
+        <div style="flex:1;min-width:0">${v ? `<div class="fila-tit" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.nombre)}</div><div style="margin-top:3px">${placa(v.matricula)}</div>` : '<span class="fila-tit">Elige el vehículo</span>'}</div>
+        <button class="lnk" onclick="elegirVehiculo()">Cambiar</button></div>
+    </div>
+    <div class="etq">Día <small>${esc(fechaLarga(A.fecha))}</small></div>
+    <div class="dias-fila">${dias.map(d => `<button class="chip ${d === A.fecha ? 'on' : ''}" onclick="S.anotar.fecha='${d}';renderAnotar()">${nombreDia(d)}<small>${partes(d).d} ${MESES_C[partes(d).m - 1]}</small></button>`).join('')}
+      <label class="chip ${otroDia ? 'on' : ''}">${otroDia ? esc(cap(DIAS[partes(A.fecha).dow].slice(0, 3))) : 'Otro día'}<small>${otroDia ? partes(A.fecha).d + ' ' + MESES_C[partes(A.fecha).m - 1] : 'Calendario'}</small>
+        <input type="date" aria-label="Otro día" min="${sumaDias(S.hoy, -DIAS_ANOTAR)}" max="${S.hoy}" value="${A.fecha}" onchange="if(this.value){S.anotar.fecha=this.value;renderAnotar()}"></label></div>
+    <div class="etq">Hora de inicio <small>Opcional</small></div>
+    <input class="campo" type="time" id="an-hora" value="${esc(A.hora)}" onchange="S.anotar.hora=this.value;renderAnotar()" style="font-family:var(--font-mono,monospace);font-size:20px;font-weight:600">
+    <div class="etq">Clases <small>${durTxt(A.n_clases * durClase())}${fin ? ' · de ' + esc(A.hora) + ' a ' + esc(fin) : ''}</small></div>
+    <div class="seg3 dos-lineas">${[1, 2, 3].map(n => `<button class="${n === A.n_clases ? 'on' : ''}" onclick="S.anotar.n_clases=${n};renderAnotar()">${clasesTxt(n)}<small>${durTxt(n * durClase())}</small></button>`).join('')}</div>
+    <div class="etq">Kilómetros <small>Si no los sabes, déjalos en blanco</small></div>
+    <div class="card card-pad">
+      <div class="km-par">
+        <div><div class="etq2" style="margin-bottom:6px">Inicial</div><input class="campo" id="an-km-ini" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="off" value="${esc(A.km_ini)}" oninput="tecleaKmAnotar(this,'km_ini')"></div>
+        <div><div class="etq2" style="margin-bottom:6px">Final</div><input class="campo" id="an-km-fin" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="off" value="${esc(A.km_fin)}" oninput="tecleaKmAnotar(this,'km_fin')"></div>
+      </div>
+      <div class="msg ${k.cls}" id="an-km-msg"><span>${k.txt}</span></div>
+    </div>
+    ${S.zonas.length ? `<div class="etq">Zonas recorridas <small>Opcional</small></div>
+    <div class="chips">${S.zonas.map((z, i) => `<button class="chip ${A.zonas.includes(z) ? 'on' : ''}" onclick="toggleListaAnotar('zonas', S.zonas[${i}])">${A.zonas.includes(z) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(z)}</button>`).join('')}</div>` : ''}
+    <div class="etq">Qué se trabajó <small>Opcional</small></div>
+    <div class="chips">${TRABAJADO.map((t, i) => `<button class="chip ${A.trabajado.includes(t) ? 'on' : ''}" onclick="toggleListaAnotar('trabajado', TRABAJADO[${i}])">${A.trabajado.includes(t) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(t)}</button>`).join('')}</div>
+    <div class="etq">Observación <small>Opcional</small></div>
+    <textarea class="campo" id="an-obs" maxlength="500" placeholder="Qué ha ido bien, qué repasar…" oninput="S.anotar.obs=this.value">${esc(A.obs)}</textarea>
+    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-anotar" onclick="enviarAnotar()" ${al && v && k.ok ? '' : 'disabled'}>${ic('ok', 20, 'style="stroke-width:2.6"')} ${A.n_clases > 1 ? `Anotar ${A.n_clases} clases` : 'Anotar clase'}</button></div>`;
+}
+function tecleaKmAnotar(inp, campo) {
+  inp.value = inp.value.replace(/\D/g, '').slice(0, 7);
+  S.anotar[campo] = inp.value;
+  const k = estadoKmAnotar();
+  const m = document.getElementById('an-km-msg'); m.className = 'msg ' + k.cls; m.innerHTML = `<span>${k.txt}</span>`;
+  document.getElementById('btn-anotar').disabled = !(alumno(S.anotar.alumno_id) && vehiculo(S.anotar.vehiculo_id) && k.ok);
+}
+function toggleListaAnotar(campo, valor) {
+  const l = S.anotar[campo]; const i = l.indexOf(valor);
+  if (i >= 0) l.splice(i, 1); else l.push(valor);
+  renderAnotar();
+}
+async function enviarAnotar(forzar = false) {
+  const A = S.anotar; if (!A || A.enviando) return;
+  const btn = document.getElementById('btn-anotar');
+  A.enviando = true; btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    const res = await postJSON('/api/anotar-practica', {
+      alumno_id: A.alumno_id, vehiculo_id: A.vehiculo_id, fecha: A.fecha, hoy: S.hoy,
+      hora_inicio: A.hora || null, hora_fin: A.hora ? sumaMin(A.hora, A.n_clases * durClase()) : null, n_clases: A.n_clases,
+      km_inicial: A.km_ini || null, km_final: A.km_fin || null, zonas: A.zonas, trabajado: A.trabajado, observacion: A.obs,
+      profesor_id: S.perfil ? S.perfil.id : null, forzar
+    });
+    const data = await res.json();
+    if (res.status === 409 && data.duplicada && !forzar) {
+      A.enviando = false;
+      if (confirm(`${data.error}\n\n¿Es otra clase distinta? Pulsa Aceptar para anotarla igualmente.`)) return enviarAnotar(true);
+      renderAnotar(); return;
+    }
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo anotar la clase');
+    const al = alumno(A.alumno_id);
+    S.anotar = null;
+    if (S.cal) S.cal.cache = {};
+    await cargarBase();
+    if (data.con_km) {
+      abrirHoja(`<div class="hoja-tit"><h3>${data.clases > 1 ? data.clases + ' clases anotadas' : 'Clase anotada'}</h3><button class="cab-atras" onclick="cerrarHoja();volverDeAnotar('${A.volverA}','${A.fecha}',${A.alumno_id})" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+        <div class="msg msg-ok" style="margin-top:0">${ic('ok', 20)}<span>${esc(data.mensaje || 'Guardada')}.</span></div>
+        <p class="fila-sub" style="font-size:16px;margin:14px 2px">¿Está ${esc(al ? nombreAlumno(al).split(' ')[0] : 'el alumno')} contigo? Puede firmarla ahora.</p>
+        <button class="btn btn-pri btn-lg" onclick="firmarAnotada(${data.practica_ids[0]},'${A.volverA}')">${ic('lapiz', 18)} Que firme ahora</button>
+        <button class="btn btn-sec" onclick="cerrarHoja();volverDeAnotar('${A.volverA}','${A.fecha}',${A.alumno_id})">Más tarde</button>`);
+    } else {
+      toast(`${data.mensaje || 'Clase anotada'}. Los km se rellenan desde la oficina.`, 3600);
+      volverDeAnotar(A.volverA, A.fecha, A.alumno_id);
+    }
+  } catch (e) {
+    if (S.anotar) S.anotar.enviando = false;
+    if (e.message !== 'Sesión expirada') { toast(e.message, 4200); if (S.vista === 'anotar') renderAnotar(); }
+  }
+}
+// Vuelve a donde se abrió, enseñando el día de la clase anotada.
+async function volverDeAnotar(volverA, fecha, alumnoId) {
+  if (volverA === 'ficha' && alumnoId) { abrirFicha(alumnoId); return; }
+  if (volverA === 'historial') {
+    if (!S.cal) S.cal = { mes: mesDe(fecha), dia: fecha, filtro: (S.perfil && S.perfil.id) ? 'mias' : 'todas', cache: {} };
+    S.cal.mes = mesDe(fecha); S.cal.dia = fecha; S.cal.autoDia = false; S.cal.cache = {};
+    go('historial'); return;
+  }
+  S.fecha = fecha;
+  await cargarJornada(); go('hoy');
+}
+// Firma en el momento: el mismo flujo que «Firmar ahora» del detalle de la clase
+// (agrupa las clases de la sesión si se anotaron varias).
+async function firmarAnotada(id, volverA) {
+  try {
+    const res = await apiFetch('/api/practica-detalle?id=' + id);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo abrir la clase');
+    S.detalle = data.practica;
+    firmarDesdeDetalle();
+    if (S.flujo) { S.flujo.volverA = volverA || 'hoy'; guardarFlujo(); }
+    if (!volverA || volverA === 'hoy') S.fecha = data.practica.fecha; // al terminar, Hoy enseña el día de la clase
+    if (volverA === 'historial' && S.cal) { S.cal.mes = mesDe(data.practica.fecha); S.cal.dia = data.practica.fecha; S.cal.autoDia = false; }
+  } catch (e) { if (e.message !== 'Sesión expirada') { cerrarHoja(); toast(e.message); } }
 }
 
 // ─── EN CURSO ────────────────────────────────────────────────────────────────
@@ -1155,8 +1325,8 @@ function renderFirma() {
     <div class="grande" style="font-size:40px;margin:6px 0 14px">${esc(nombre)}, revisa y firma</div>
     <div class="card rev-grid">
       <div><div class="etq2">Fecha</div><div class="val">${esc(fechaCorta(F.fecha || S.hoy))} ${partes(F.fecha || S.hoy).y}</div></div>
-      <div><div class="etq2">Horario</div><div class="val mono">${esc(F.hora_inicio)} - ${esc(F.hora_fin || hhmm())}</div></div>
-      <div><div class="etq2">${(F.n_clases || 1) > 1 ? 'Clases' : 'Clase'}</div><div class="val">Nº ${(F.n_clases || 1) > 1 ? F.clase_n + '–' + (F.clase_n + F.n_clases - 1) : F.clase_n} · ${Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio))))} min</div></div>
+      <div><div class="etq2">Horario</div><div class="val mono">${F.hora_inicio ? `${esc(F.hora_inicio)} - ${esc(F.hora_fin || hhmm())}` : '—'}</div></div>
+      <div><div class="etq2">${(F.n_clases || 1) > 1 ? 'Clases' : 'Clase'}</div><div class="val">Nº ${(F.n_clases || 1) > 1 ? F.clase_n + '–' + (F.clase_n + F.n_clases - 1) : F.clase_n} · ${F.hora_inicio ? Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio)))) : (F.n_clases || 1) * durClase()} min</div></div>
       <div><div class="etq2">Profesor</div><div class="val">${esc(F.profesor_nombre || (S.perfil && S.perfil.nombre !== 'Sin profesor' ? S.perfil.nombre : '—'))}</div></div>
       <div><div class="etq2">Km ${F.matricula ? '(' + esc(F.matricula) + ')' : ''}</div><div class="val mono">${miles(F.km_inicial)} → ${miles(F.km_final)}</div></div>
       <div><div class="etq2">Recorridos</div><div class="val mono" style="font-size:24px">${F.km_final - F.km_inicial} km</div></div>
@@ -1331,6 +1501,7 @@ function renderFicha() {
     ${proximas ? `<div class="grupo-tit"><span>Próximas clases</span></div><div class="card">${proximas}</div>` : ''}
     <div class="grupo-tit"><span>Últimas prácticas</span><span style="font-size:14px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink)">${d.total > 6 ? 'Las 6 últimas de ' + d.total : ''}</span></div>
     <div class="card">${filas || '<div class="vacio">Todavía no tiene prácticas.</div>'}</div>
+    <button class="lnk lnk-suave lnk-olvido" onclick="abrirAnotar({alumno_id:${a.id},volverA:'ficha'})">${ic('hist', 18)} Anotar una clase pasada de ${esc((a.nombre || '').split(' ')[0])}</button>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" onclick="abrirIniciar({alumno_id:${a.id},vehiculo_id:${a.vehiculo_id || 'null'}})">${ic('play', 18)} Iniciar práctica con ${esc((a.nombre || '').split(' ')[0])}</button></div>`;
 }
 function mesFicha(n) { const [y, m] = S.fichaMes.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); S.fichaMes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; renderFicha(); }
@@ -1355,11 +1526,11 @@ async function crearAlumno() {
   try {
     const res = await postJSON('/api/crear-alumno', {
       nombre, permiso: document.getElementById('n-permiso').value, vehiculo_id: document.getElementById('n-vehiculo').value || null,
-      profesor_id: document.getElementById('n-mio').checked && S.perfil ? S.perfil.id : null
+      profesor_id: document.getElementById('n-mio').checked && S.perfil ? S.perfil.id : null, hoy: fechaLocal()
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo crear el alumno');
-    toast('Alumno creado'); await cargarBase(); go('alumnos');
+    toast(data.cobros_error ? 'Alumno creado. La matrícula la anotará la oficina.' : 'Alumno creado', 3200); await cargarBase(); go('alumnos');
   } catch (e) { if (e.message !== 'Sesión expirada') { err.textContent = e.message; btn.disabled = false; } }
 }
 
@@ -1427,7 +1598,8 @@ function pintarHistorial() {
     </div>
     ${C.error ? `<div class="msg msg-err">${ic('aviso', 18)}<span>${esc(C.error)} <button class="lnk" onclick="S.cal.cache={};cargarCalendario()">Reintentar</button></span></div>` : ''}
     <div class="grupo-tit"><span>${esc(C.dia === S.hoy ? 'Hoy' : fechaLarga(C.dia))}</span><span style="font-size:14px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink)">${delDia.length ? `${delDia.length} ${delDia.length === 1 ? 'clase' : 'clases'} · ${miles(delDia.reduce((t, p) => t + p.km, 0))} km` : ''}</span></div>
-    <div class="card">${delDia.length ? delDia.map(filaHist).join('') : `<div class="vacio">${!cargado && !C.error ? 'Cargando…' : 'Sin clases este día.'}</div>`}</div>`;
+    <div class="card">${delDia.length ? delDia.map(filaHist).join('') : `<div class="vacio">${!cargado && !C.error ? 'Cargando…' : 'Sin clases este día.'}</div>`}</div>
+    ${C.dia <= S.hoy && C.dia >= sumaDias(S.hoy, -DIAS_ANOTAR) ? `<button class="btn btn-sec" style="margin-top:12px" onclick="abrirAnotar({fecha:'${C.dia}',volverA:'historial'})">${ic('mas', 20)} Anotar una clase olvidada este día</button>` : ''}`;
   activarSwipeHist();
 }
 function estadoPill(p) {
@@ -1483,7 +1655,7 @@ function pintarDetalle(p) {
     <div class="hoja-scroll">
       <div class="card rev-grid">
         ${fila('Alumno', esc(p.alumno_nombre) + (p.permiso ? ` <small class="fila-sub">· Permiso ${esc(p.permiso)}</small>` : ''), true)}
-        ${fila('Fecha', `${esc(fechaCorta(p.fecha))} ${partes(p.fecha).y}`)}
+        ${fila('Fecha', `${esc(fechaCorta(p.fecha))} ${partes(p.fecha).y}${p.tipo_detalle === 'anotada' ? ' <span class="pill" style="font-size:12px;height:22px">Anotada después</span>' : ''}`)}
         ${fila('Horario', `<span class="mono">${esc(p.hora_inicio || '--:--')}${p.hora_fin ? ' - ' + esc(p.hora_fin) : ''}</span>${dur ? ` <small class="fila-sub">(${dur} min)</small>` : ''}`)}
         ${fila('Profesor', esc(p.profesor_nombre || '—'))}
         ${fila('Vehículo', placa(p.matricula) || esc(p.vehiculo_nombre || '—'))}
@@ -1496,7 +1668,7 @@ function pintarDetalle(p) {
       <div class="etq" style="margin:10px 0 4px">Firma del alumno</div>
       ${p.firma && FIRMA_VALIDA.test(p.firma)
         ? `<div class="firma-vista"><img src="${p.firma}" alt="Firma de ${esc(p.alumno_nombre)}"></div>`
-        : `<div class="msg msg-warn" style="margin-top:0">${ic('aviso', 18)}<span>${p.km_final > 0 ? 'Esta clase todavía no está firmada.' : 'La clase no está cerrada: falta el km final.'}</span></div>`}
+        : `<div class="msg msg-warn" style="margin-top:0">${ic('aviso', 18)}<span>${p.km_final > 0 ? 'Esta clase todavía no está firmada.' : (p.km_inicial > 0 ? 'La clase no está cerrada: falta el km final.' : 'Faltan los km: se rellenan desde la oficina y después se puede firmar.')}</span></div>`}
     </div>
     ${firmable ? `<button class="btn btn-pri btn-lg" onclick="firmarDesdeDetalle()">${ic('lapiz', 18)} ${p.sesion ? `Firmar las ${p.sesion.n} clases` : 'Firmar ahora'}</button>` : ''}
     ${p.cancelable ? `<button class="btn btn-sec" style="color:var(--err)" onclick="cancelarPractica(${p.id})">Cancelar esta práctica</button>` : ''}`);

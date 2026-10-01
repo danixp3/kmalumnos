@@ -8,7 +8,7 @@ const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const TOKEN = `x.${b64({ sub: 'emp1' })}.y`;
 
 async function llamar(nombre, { method = 'POST', body, query } = {}) {
-  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
+  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
   let status = 200, json;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
   await mod.default({ method, headers: { authorization: 'Bearer ' + TOKEN }, body, query }, res);
@@ -285,4 +285,76 @@ test('firmar-practica con practica_ids: una firma para todas las clases de la se
   assert.equal(r.status, 200); assert.equal(r.json.firmadas, 2);
   assert.ok(fin.practica_ids.every(id => BD.tablas.practicas.find(x => x.id === id).firma === firma));
   assert.equal((await llamar('firmar-practica', { body: { practica_ids: [fin.practica_ids[0], 999], firma } })).status, 404);
+});
+
+// ─── Clases olvidadas (anotar-practica) ─────────────────────────────────────
+const haceDias = n => { const d = new Date(); d.setDate(d.getDate() - n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const anot = (extra = {}) => ({ alumno_id: 2, vehiculo_id: 1, fecha: haceDias(2), hoy: hoy(), hora_inicio: '10:00', hora_fin: '11:30', n_clases: 2, km_inicial: 1000, km_final: 1060, profesor_id: 1, ...extra });
+
+test('anotar-practica con km: guarda N clases repartidas, marcadas como anotadas, y sube el odómetro', async () => {
+  reiniciar(base());
+  const r = await llamar('anotar-practica', { body: anot({ zonas: ['Centro'], observacion: 'Se me olvidó anotarla' }) });
+  assert.equal(r.status, 200); assert.equal(r.json.clases, 2); assert.equal(r.json.con_km, true);
+  const [a, b] = r.json.practica_ids.map(id => BD.tablas.practicas.find(x => x.id === id));
+  assert.deepEqual([a.km_inicial, a.km_final, a.hora_inicio, a.hora_fin], [1000, 1030, '10:00', '10:45']);
+  assert.deepEqual([b.km_inicial, b.km_final, b.hora_inicio, b.hora_fin], [1030, 1060, '10:45', '11:30']);
+  assert.deepEqual([a.tipo_detalle, a.source, a.fecha, a.nota, a.profesor_id], ['anotada', 'web-remote', haceDias(2), 'Se me olvidó anotarla', 1]);
+  assert.deepEqual(a.zonas, ['Centro']);
+  assert.equal(BD.tablas.vehiculos[0].km_actual, 1060);
+});
+
+test('anotar-practica sin km: queda en blanco para rellenar desde el escritorio (no toca el odómetro)', async () => {
+  reiniciar(base());
+  const r = await llamar('anotar-practica', { body: anot({ km_inicial: '', km_final: '', n_clases: 2 }) });
+  assert.equal(r.status, 200); assert.equal(r.json.con_km, false);
+  const ps = r.json.practica_ids.map(id => BD.tablas.practicas.find(x => x.id === id));
+  assert.deepEqual(ps.map(p => [p.km_inicial, p.km_final, p.hora_inicio]), [[0, 0, '10:00'], [0, 0, '10:45']]);
+  assert.equal(BD.tablas.vehiculos[0].km_actual, 1000);
+});
+
+test('anotar-practica: rechaza el futuro, más de 30 días, un solo km, km al revés y alumno inexistente', async () => {
+  reiniciar(base());
+  const manana = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  assert.equal((await llamar('anotar-practica', { body: anot({ fecha: manana }) })).status, 400);
+  assert.equal((await llamar('anotar-practica', { body: anot({ fecha: haceDias(45) }) })).status, 400);
+  assert.equal((await llamar('anotar-practica', { body: anot({ km_final: '' }) })).status, 400);
+  assert.equal((await llamar('anotar-practica', { body: anot({ km_final: 990 }) })).status, 400);
+  assert.equal((await llamar('anotar-practica', { body: anot({ hora_inicio: '9h' }) })).status, 400);
+  assert.equal((await llamar('anotar-practica', { body: anot({ alumno_id: 99 }) })).status, 404);
+  assert.equal(BD.tablas.practicas.length, 1);
+});
+
+test('anotar-practica: avisa si ya estaba anotada (se puede forzar) y si los km pisan otra clase del coche', async () => {
+  reiniciar(base());
+  assert.equal((await llamar('anotar-practica', { body: anot({ n_clases: 1 }) })).status, 200);
+  const dup = await llamar('anotar-practica', { body: anot({ n_clases: 1, km_inicial: 1100, km_final: 1130 }) });
+  assert.equal(dup.status, 409); assert.equal(dup.json.duplicada, true); assert.match(dup.json.error, /ya tiene una clase/);
+  const forz = await llamar('anotar-practica', { body: anot({ n_clases: 1, km_inicial: 1100, km_final: 1130, forzar: true }) });
+  assert.equal(forz.status, 200);
+  // km 990-1010 se pisa con la práctica 1 (980-1000) del mismo coche
+  const sol = await llamar('anotar-practica', { body: anot({ fecha: haceDias(3), hora_inicio: '12:00', n_clases: 1, km_inicial: 990, km_final: 1010 }) });
+  assert.equal(sol.status, 409); assert.equal(sol.json.solape, true);
+});
+
+// ─── Cobros de alta al crear un alumno desde el móvil ─────────────────────────
+test('crear-alumno: carga los conceptos «al dar de alta» de Ajustes → Cobros; sin conceptos no carga nada', async () => {
+  reiniciar({ ...base(), ajustes_empresa: [{ empresa_id: 'emp1', clave: 'conceptos_cobro', valor: [
+    { id: 'matricula', nombre: 'Matrícula', tipo: 'matricula', importe: 150, alta: true },
+    { id: 'tasa', nombre: 'Tasa de tráfico (DGT)', tipo: 'tasa', importe: 94.05, alta: false },
+    { id: 'c1', nombre: 'Soporte informático', tipo: 'cargo', importe: 20, alta: true },
+    { id: 'c2', nombre: 'Sin importe', tipo: 'cargo', importe: 0, alta: true }
+  ] }], cargos: [] });
+  const r = await llamar('crear-alumno', { body: { nombre: 'Marta', permiso: 'B', hoy: hoy() } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json.cobros_alta, [{ concepto: 'Matrícula', importe: 150 }, { concepto: 'Soporte informático', importe: 20 }]);
+  const cargos = BD.tablas.cargos;
+  assert.deepEqual(cargos.map(c => [c.alumno_id, c.tipo, c.concepto, c.importe, c.fecha, c.empresa_id, c.deleted]), [
+    [r.json.alumno_id, 'matricula', 'Matrícula', 150, hoy(), 'emp1', false],
+    [r.json.alumno_id, 'cargo', 'Soporte informático', 20, hoy(), 'emp1', false]
+  ]);
+  assert.ok(cargos.every(c => c.id >= 1500000000 && c.id < 2100000000));
+
+  reiniciar(base());
+  const r2 = await llamar('crear-alumno', { body: { nombre: 'Iván', permiso: 'B' } });
+  assert.equal(r2.status, 200); assert.deepEqual(r2.json.cobros_alta, []);
 });

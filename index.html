@@ -745,7 +745,7 @@
             <div class="card-title-icon" style="background:var(--accent-light);color:var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
             Precio de las prácticas por permiso
           </div>
-          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Define el precio de una práctica de circulación y de pista para cada permiso. Los cambios se guardan al salir del campo.</p>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Define el precio de una práctica de circulación y de pista para cada permiso. Los cambios se guardan al salir del campo. También se editan en <a href="#" onclick="irAjustesCobros();return false">Ajustes → Cobros</a>, junto a la matrícula y los demás conceptos.</p>
           <div class="table-wrap">
             <table id="tabla-tarifas">
               <thead><tr><th>Permiso</th><th>Circulación (€)</th><th>Pista (€)</th></tr></thead>
@@ -809,6 +809,8 @@
             <button class="btn btn-primary" onclick="abrirNuevoAlumno()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>Nuevo alumno</button>
           </div>
         </div>
+
+        <div id="alumnos-alta-toast" class="hidden" style="margin-bottom:12px"></div>
 
         <div class="toolbar">
           <div class="seg seg-tabs" id="alumnos-tabs" role="group" aria-label="Grupo de alumnos">
@@ -1717,15 +1719,35 @@
           <div class="card-title-icon" style="background:var(--accent-light);color:var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 12h5"/><path d="M16 9.5a4 4 0 1 0 0 5.2"/></svg></div>
           Cobros
         </div>
-        <p class="aj-intro">Importes que se proponen al añadir cargos en la ficha económica del alumno y el IVA de los informes.</p>
-        <div class="form-group">
-          <label>Importe por defecto de matrícula (€)</label>
-          <input type="number" id="pref-matricula" min="0" step="0.01" style="width:110px" title="Importe que precarga el botón 'Añadir matrícula' en la ficha económica del alumno" onchange="guardarCargosPrefDesdeAjustes()">
+        <p class="aj-intro">Lo que la autoescuela cobra a sus alumnos. Se comparte con los demás equipos y con la web del móvil.</p>
+        <h4 class="cob-tit">Conceptos</h4>
+        <p class="cob-ayuda">Lo marcado en <b>«Al dar de alta»</b> se carga solo a cada alumno nuevo (también a los que se crean desde el móvil). El resto se añade a mano desde la ficha económica del alumno.</p>
+        <div class="table-wrap">
+          <table class="pm-tabla cob-tabla" id="tabla-conceptos-cobro">
+            <thead><tr><th>Concepto</th><th style="width:130px">Importe (€)</th><th style="width:150px;white-space:nowrap">Al dar de alta</th><th style="width:48px"></th></tr></thead>
+            <tbody></tbody>
+          </table>
         </div>
-        <div class="form-group">
-          <label>Importe por defecto de tasa (€)</label>
-          <input type="number" id="pref-tasa" min="0" step="0.01" style="width:110px" title="Importe que precarga el botón 'Añadir tasa' en la ficha económica del alumno" onchange="guardarCargosPrefDesdeAjustes()">
+        <div class="cob-acciones">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="anadirConceptoCobroUI()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Añadir concepto</button>
+          <span class="zonas-sugeridas" id="conceptos-sugeridos" style="margin-top:0"></span>
         </div>
+        <div id="conceptos-toast" class="hidden" style="margin-top:10px"></div>
+
+        <h4 class="cob-tit" style="margin-top:22px">Precio por clase</h4>
+        <p class="cob-ayuda">Lo que se cobra por cada clase según el permiso. Es lo mismo que Pagos → Tarifas y se usa al anotar un pago por número de clases.</p>
+        <div class="table-wrap">
+          <table class="pm-tabla cob-tabla" id="tabla-tarifas-ajustes">
+            <thead><tr><th>Permiso</th><th style="width:150px">Circulación (€)</th><th style="width:150px">Pista (€)</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="cob-acciones">
+          <select id="tarifa-nuevo-permiso" style="width:auto" onchange="anadirPermisoTarifaUI(this)"></select>
+        </div>
+        <div id="ajustes-tarifa-toast" class="hidden" style="margin-top:10px"></div>
+
+        <h4 class="cob-tit" style="margin-top:22px">IVA</h4>
         <div class="form-group">
           <label>% de IVA (libro de ventas)</label>
           <input type="number" id="pref-iva" min="0" step="0.1" style="width:100px" title="Tipo de IVA usado para desglosar el libro de ventas en Informes" onchange="guardarIvaPrefDesdeAjustes()">
@@ -2629,6 +2651,12 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
               </select>
             </div>
           </div>
+          <!-- Cobros de alta: conceptos de Ajustes → Cobros marcados «Al dar de alta»
+               (renderer/alumnos.js: pintarCobrosAlta / leerCobrosAlta). -->
+          <div class="cobros-alta-caja">
+            <div class="cobros-alta-tit">Se le cobra al darle de alta</div>
+            <div id="a-cobros-alta" class="cobros-alta-lista"></div>
+          </div>
           <div id="alumno-alert" class="hidden" style="margin-top:12px"></div>
         <div class="modal-actions">
           <button class="btn btn-gray" onclick="closeModal('modal-alumno-nuevo')">Cancelar</button>
@@ -3377,45 +3405,6 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
   </div>
 </div>
 
-<!-- ═══ MODAL ANOTAR PAGO ═══════════════════════════════ -->
-<div class="overlay" id="modal-pago">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
-      <h3 id="modal-pago-titulo">Anotar pago</h3>
-    </div>
-    <input type="hidden" id="edit-pago-alumno-id">
-    <input type="hidden" id="edit-pago-id">
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Cantidad (€)</label>
-      <input type="number" id="edit-pago-cantidad" min="0" step="0.01" style="width:100%">
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Fecha</label>
-      <input type="date" id="edit-pago-fecha" style="width:100%">
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Forma de pago (opcional)</label>
-      <select id="edit-pago-forma" style="width:100%">
-        <option value="">—</option>
-        <option value="efectivo">Efectivo</option>
-        <option value="tarjeta">Tarjeta</option>
-        <option value="transferencia">Transferencia</option>
-        <option value="bizum">Bizum</option>
-        <option value="otro">Otro</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Nota (opcional)</label>
-      <input type="text" id="edit-pago-nota" placeholder="Ej: pago en efectivo, transferencia..." style="width:100%">
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-gray" onclick="closeModal('modal-pago')">Cancelar</button>
-      <button class="btn btn-primary" onclick="savePago()">Guardar</button>
-    </div>
-  </div>
-</div>
-
 <!-- ═══ MODAL HISTORIAL DE PAGOS ═══════════════════════════════ -->
 <div class="overlay" id="modal-historial-pagos">
   <div class="modal" style="width:520px;max-height:80vh;display:flex;flex-direction:column">
@@ -3464,26 +3453,15 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
       <span id="economia-permiso" style="margin-left:8px"></span>
     </div>
     <div id="economia-aviso-sin-tarifa" class="hidden alert alert-warn" style="margin-bottom:14px">
-      Hay prácticas sin tarifa definida — el importe generado puede estar incompleto. Revisa Pagos → Tarifas.
+      Hay prácticas sin precio por clase — el importe generado puede estar incompleto. Ponlo en Ajustes → Cobros (o Pagos → Tarifas).
     </div>
     <div class="stats" id="economia-resumen" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px"></div>
 
     <div style="overflow-y:auto;flex:1">
       <h4 style="margin:0 0 8px">Pagos registrados</h4>
-      <div class="form-row" style="gap:8px;align-items:flex-end;margin-bottom:12px">
-        <div class="form-group" style="margin:0">
-          <label>Fecha</label>
-          <input type="date" id="economia-pago-fecha" style="width:140px">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label>Cantidad (€)</label>
-          <input type="number" id="economia-pago-cantidad" min="0" step="0.01" style="width:110px">
-        </div>
-        <div class="form-group" style="margin:0;flex:1">
-          <label>Nota (opcional)</label>
-          <input type="text" id="economia-pago-nota" placeholder="Ej: pago en efectivo, transferencia..." style="width:100%">
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="addPagoEconomia()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Añadir pago</button>
+      <div class="form-row" style="gap:8px;margin-bottom:12px">
+        <button class="btn btn-primary btn-sm" onclick="abrirPagoEconomia()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Anotar pago</button>
+        <span style="font-size:12px;color:var(--text-muted);align-self:center">Por número de clases o por importe.</span>
       </div>
       <div class="table-wrap" style="max-height:180px;overflow-y:auto">
         <table id="tabla-economia-pagos">
@@ -3502,8 +3480,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 
       <h4 style="margin:16px 0 8px">Cargos y descuentos</h4>
       <div class="form-row" style="gap:8px;margin-bottom:12px">
-        <button class="btn btn-gray btn-sm" onclick="addCargoRapido('matricula')">Añadir matrícula</button>
-        <button class="btn btn-gray btn-sm" onclick="addCargoRapido('tasa')">Añadir tasa</button>
+        <span id="economia-conceptos" style="display:contents"></span>
         <button class="btn btn-primary btn-sm" onclick="abrirModalCargo()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Añadir cargo/descuento</button>
       </div>
       <div class="table-wrap" style="max-height:180px;overflow-y:auto">
@@ -3557,6 +3534,91 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-cargo')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarCargo()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL ANOTAR PAGO (por clases o por importe) ═══════════
+     Va después de la ficha económica para quedar por encima cuando se abre
+     desde ella (renderer/pagos.js: abrirModalPago). -->
+<div class="overlay" id="modal-pago">
+  <div class="modal" style="width:440px">
+    <div class="modal-header">
+      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+      <h3 id="modal-pago-titulo">Anotar pago</h3>
+    </div>
+    <input type="hidden" id="edit-pago-alumno-id">
+    <input type="hidden" id="edit-pago-id">
+    <div class="pago-cab">
+      <div class="seg" id="pago-modo" role="group" aria-label="Cómo se anota el pago">
+        <button type="button" data-modo="clases" aria-pressed="true" onclick="cambiarModoPago('clases')">Por clases</button>
+        <button type="button" data-modo="importe" aria-pressed="false" onclick="cambiarModoPago('importe')">Importe</button>
+      </div>
+      <div class="pago-saldo" id="pago-saldo"></div>
+    </div>
+
+    <div id="pago-bloque-clases">
+      <div id="pago-sin-precio" class="alert alert-warn" hidden>
+        El permiso <b id="pago-sin-precio-permiso"></b> no tiene precio por clase.
+        <a href="#" onclick="closeModal('modal-pago');irAjustesCobros();return false">Ponlo en Ajustes → Cobros</a> o anota el importe.
+      </div>
+      <div id="pago-clases-campos">
+        <div class="form-group" style="margin-bottom:12px">
+          <label for="edit-pago-nclases">Número de clases</label>
+          <div class="pago-clases-fila">
+            <div class="pago-stepper">
+              <button type="button" onclick="pasoClasesPago(-1)" aria-label="Una clase menos">−</button>
+              <input type="number" id="edit-pago-nclases" min="1" max="200" step="1" value="1" oninput="recalcularPagoClases()">
+              <button type="button" onclick="pasoClasesPago(1)" aria-label="Una clase más">+</button>
+            </div>
+            <div class="seg pago-chips" id="pago-chips-clases">
+              <button type="button" data-n="5" onclick="fijarClasesPago(5)">5</button>
+              <button type="button" data-n="10" onclick="fijarClasesPago(10)">10</button>
+              <button type="button" data-n="15" onclick="fijarClasesPago(15)">15</button>
+              <button type="button" data-n="20" onclick="fijarClasesPago(20)">20</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-group" id="pago-tipo-wrap" style="margin-bottom:12px" hidden>
+          <label for="edit-pago-tipo-clase">Tipo de clase</label>
+          <select id="edit-pago-tipo-clase" style="width:100%" onchange="recalcularPagoClases()">
+            <option value="circulacion">Circulación</option>
+            <option value="pista">Pista</option>
+          </select>
+        </div>
+        <div class="pago-calculo" id="pago-calculo"></div>
+      </div>
+    </div>
+
+    <div id="pago-bloque-importe" class="form-group" style="margin-bottom:14px" hidden>
+      <label for="edit-pago-cantidad">Cantidad (€)</label>
+      <input type="number" id="edit-pago-cantidad" min="0" step="0.01" style="width:100%">
+    </div>
+
+    <div class="form-row" style="gap:12px;margin-bottom:14px">
+      <div class="form-group" style="flex:1;margin:0">
+        <label for="edit-pago-fecha">Fecha</label>
+        <input type="date" id="edit-pago-fecha" style="width:100%">
+      </div>
+      <div class="form-group" style="flex:1;margin:0">
+        <label for="edit-pago-forma">Forma de pago (opcional)</label>
+        <select id="edit-pago-forma" style="width:100%">
+          <option value="">—</option>
+          <option value="efectivo">Efectivo</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="bizum">Bizum</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="edit-pago-nota">Nota (opcional)</label>
+      <input type="text" id="edit-pago-nota" placeholder="Ej: pago en efectivo, transferencia..." style="width:100%">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('modal-pago')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePago()">Guardar</button>
     </div>
   </div>
 </div>

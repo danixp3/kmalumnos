@@ -415,6 +415,7 @@ ipcMain.handle('get-total-cargos-alumno', (_, alumnoId) => db.getTotalCargosAlum
 ipcMain.handle('add-cargo', (_, datos) => db.addCargo(datos));
 ipcMain.handle('update-cargo', (_, id, campos) => { db.updateCargo(id, campos); return true; });
 ipcMain.handle('delete-cargo', (_, id) => { db.deleteCargo(id); return true; });
+ipcMain.handle('add-cargos-alta', (_, alumnoId, conceptos, fecha, sucursalId) => db.addCargosAlta(alumnoId, conceptos, fecha, sucursalId));
 
 ipcMain.handle('get-tasas', (_, sucursalId) => db.getTasas(sucursalId));
 ipcMain.handle('get-tasas-alumno', (_, alumnoId) => db.getTasasAlumno(alumnoId));
@@ -436,6 +437,8 @@ ipcMain.handle('get-practica-detalle', (_, id) => db.getPracticaDetalle(id));
 ipcMain.handle('set-zonas-practica', (_, lista) => db.setZonasPractica(lista));
 ipcMain.handle('get-duracion-clase', () => db.getDuracionClase());
 ipcMain.handle('set-duracion-clase', (_, min) => db.setDuracionClase(min));
+ipcMain.handle('get-conceptos-cobro', () => db.getConceptosCobro());
+ipcMain.handle('set-conceptos-cobro', (_, lista) => db.setConceptosCobro(lista));
 // Puesta en marcha: datos reales de arranque y punto de partida de cada alumno
 ipcMain.handle('get-puesta-en-marcha', () => db.getPuestaEnMarcha());
 ipcMain.handle('guardar-puesta-en-marcha', (_, datos) => db.guardarPuestaEnMarcha(datos));

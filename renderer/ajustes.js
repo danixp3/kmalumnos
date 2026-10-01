@@ -146,39 +146,121 @@ function guardarCancelacionPrefDesdeAjustes() {
   setCancelDevolucion(devolucion);
 }
 
-// Importe por defecto de matrícula y tasa (tarea D2, cargos automáticos):
-// precargan el modal de "Añadir cargo/descuento" cuando se pulsan los
-// botones rápidos "Añadir matrícula"/"Añadir tasa" en la ficha económica del
-// alumno (renderer/alumnos.js). Mismo patrón localStorage que
-// DURACION_CLASE_KEY.
+// ─── COBROS: CONCEPTOS Y PRECIO POR CLASE ────────────────────────────────────
+// Los conceptos (matrícula, tasa, soporte informático...) viven en la nube
+// (ajustes_empresa 'conceptos_cobro', db/ajustes-empresa.js) y se comparten
+// entre equipos y con la web. Antes solo existían los importes de matrícula y
+// tasa en el localStorage de cada PC: se leen para proponer la lista inicial
+// (conceptosCobroPorDefecto) y se guardan en cuanto alguno tiene importe.
 const MATRICULA_IMPORTE_KEY = 'km_matricula_importe';
 const TASA_IMPORTE_KEY = 'km_tasa_importe';
+const CONCEPTOS_SUGERIDOS = ['Soporte informático', 'Material didáctico', 'Certificado médico', 'Gestión de expediente', 'Renovación de matrícula'];
+let conceptosCobroCache = [];
 
-function getMatriculaImporte() {
+function _importeLocal(clave) {
   try {
-    const raw = localStorage.getItem(MATRICULA_IMPORTE_KEY);
-    const n = parseFloat(raw);
+    const n = parseFloat(localStorage.getItem(clave));
     if (!isNaN(n) && n >= 0) return n;
   } catch (e) {}
   return 0;
 }
 
-function getTasaImporte() {
-  try {
-    const raw = localStorage.getItem(TASA_IMPORTE_KEY);
-    const n = parseFloat(raw);
-    if (!isNaN(n) && n >= 0) return n;
-  } catch (e) {}
-  return 0;
+function conceptosCobroPorDefecto() {
+  const tasa = _importeLocal(TASA_IMPORTE_KEY);
+  return [
+    { id: 'matricula', nombre: 'Matrícula', tipo: 'matricula', importe: _importeLocal(MATRICULA_IMPORTE_KEY), alta: true },
+    { id: 'tasa', nombre: 'Tasa de tráfico (DGT)', tipo: 'tasa', importe: tasa, alta: tasa > 0 }
+  ];
 }
 
-function guardarCargosPrefDesdeAjustes() {
-  const matricula = parseFloat(document.getElementById('pref-matricula').value);
-  const tasa = parseFloat(document.getElementById('pref-tasa').value);
-  try {
-    if (!isNaN(matricula) && matricula >= 0) localStorage.setItem(MATRICULA_IMPORTE_KEY, String(matricula));
-    if (!isNaN(tasa) && tasa >= 0) localStorage.setItem(TASA_IMPORTE_KEY, String(tasa));
-  } catch (e) {}
+// Lista vigente; la primera vez, con importes heredados de este PC, la guarda.
+async function getConceptosCobroUI() {
+  const guardados = await window.api.getConceptosCobro();
+  if (Array.isArray(guardados)) return guardados;
+  const def = conceptosCobroPorDefecto();
+  return def.some(c => c.importe > 0) ? window.api.setConceptosCobro(def) : def;
+}
+
+const fmtEur = n => Number(n || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
+async function renderCobrosUI() {
+  conceptosCobroCache = await getConceptosCobroUI();
+  const tbody = document.querySelector('#tabla-conceptos-cobro tbody');
+  if (tbody) {
+    tbody.innerHTML = conceptosCobroCache.length ? conceptosCobroCache.map((c, i) => `<tr>
+      <td><input type="text" value="${esc(c.nombre)}" maxlength="60" onchange="editarConceptoCobroUI(${i}, 'nombre', this.value)" placeholder="Nombre del concepto"></td>
+      <td class="col-num"><input type="number" min="0" step="0.01" value="${c.importe}" style="width:110px" onchange="editarConceptoCobroUI(${i}, 'importe', this.value)"></td>
+      <td><label class="interruptor" title="Cargarlo solo a cada alumno nuevo"><input type="checkbox" ${c.alta ? 'checked' : ''} onchange="editarConceptoCobroUI(${i}, 'alta', this.checked)"><i></i></label></td>
+      <td><button type="button" class="btn btn-ghost btn-sm" title="Quitar ${esc(c.nombre)}" onclick="quitarConceptoCobroUI(${i})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button></td>
+    </tr>`).join('') : '<tr><td colspan="4" class="empty">Sin conceptos. Añade al menos la matrícula.</td></tr>';
+  }
+  const sug = document.getElementById('conceptos-sugeridos');
+  const faltan = CONCEPTOS_SUGERIDOS.filter(n => !conceptosCobroCache.some(c => c.nombre.toLowerCase() === n.toLowerCase()));
+  if (sug) sug.innerHTML = faltan.length ? `<span>Ideas:</span>${faltan.map(n => `<button type="button" class="btn btn-sm btn-outline" onclick="anadirConceptoCobroUI(this.dataset.nombre)" data-nombre="${esc(n)}">+ ${esc(n)}</button>`).join('')}` : '';
+  await pintarTarifas('#tabla-tarifas-ajustes tbody', 'aj-tarifa', 'ajustes-tarifa-toast');
+  pintarSelectNuevoPermiso();
+}
+
+async function guardarConceptosCobroUI(lista, msg) {
+  conceptosCobroCache = await window.api.setConceptosCobro(lista);
+  await renderCobrosUI();
+  if (msg) showToast('conceptos-toast', msg, 'ok');
+}
+
+function editarConceptoCobroUI(i, campo, valor) {
+  const lista = conceptosCobroCache.map(c => ({ ...c }));
+  if (!lista[i]) return;
+  if (campo === 'importe') {
+    const n = parseFloat(valor);
+    if (isNaN(n) || n < 0) { showToast('conceptos-toast', 'Introduce un importe válido (0 o más).', 'err'); renderCobrosUI(); return; }
+    lista[i].importe = n;
+  } else if (campo === 'nombre') {
+    const t = String(valor || '').trim();
+    if (!t) { showToast('conceptos-toast', 'El concepto necesita un nombre.', 'err'); renderCobrosUI(); return; }
+    if (lista.some((c, j) => j !== i && c.nombre.toLowerCase() === t.toLowerCase())) { showToast('conceptos-toast', `Ya hay un concepto llamado «${t}».`, 'err'); renderCobrosUI(); return; }
+    lista[i].nombre = t;
+  } else if (campo === 'alta') {
+    lista[i].alta = !!valor;
+  }
+  guardarConceptosCobroUI(lista, 'Guardado. Llega a los demás equipos y al móvil en la próxima sincronización.');
+}
+
+async function anadirConceptoCobroUI(nombre) {
+  let t = typeof nombre === 'string' ? nombre : await pedirTexto('¿Cómo se llama? Luego pones su importe en la tabla.', { titulo: 'Nuevo concepto de cobro', placeholder: 'Ej. Soporte informático', textoAceptar: 'Añadir' });
+  t = String(t || '').trim();
+  if (!t) return;
+  if (conceptosCobroCache.some(c => c.nombre.toLowerCase() === t.toLowerCase())) { showToast('conceptos-toast', `«${t}» ya está en la lista.`, 'err'); return; }
+  const lista = [...conceptosCobroCache, { id: 'c' + Date.now().toString(36), nombre: t, tipo: 'cargo', importe: 0, alta: true }];
+  await guardarConceptosCobroUI(lista, `Añadido «${t}». Pon su importe.`);
+  const inputs = document.querySelectorAll('#tabla-conceptos-cobro tbody input[type=number]');
+  const ultimo = inputs[inputs.length - 1];
+  if (ultimo) { ultimo.focus(); ultimo.select(); }
+}
+
+async function quitarConceptoCobroUI(i) {
+  const c = conceptosCobroCache[i];
+  if (!c) return;
+  if (!await confirmar(`¿Quitar «${c.nombre}» de los conceptos de cobro? Los cargos ya anotados a los alumnos no se tocan.`, { textoAceptar: 'Quitar' })) return;
+  guardarConceptosCobroUI(conceptosCobroCache.filter((_, j) => j !== i), `Quitado «${c.nombre}».`);
+}
+
+// Permisos habituales que aún no tienen fila en la tabla de precio por clase.
+const PERMISOS_HABITUALES = ['AM', 'A1', 'A2', 'A', 'B', 'BE', 'C1', 'C', 'CE', 'D1', 'D', 'DE'];
+function pintarSelectNuevoPermiso() {
+  const sel = document.getElementById('tarifa-nuevo-permiso');
+  if (!sel) return;
+  const yaEstan = new Set([...document.querySelectorAll('#tabla-tarifas-ajustes tbody tr[data-permiso]')].map(tr => tr.dataset.permiso));
+  const libres = PERMISOS_HABITUALES.filter(p => !yaEstan.has(p));
+  sel.hidden = !libres.length;
+  sel.innerHTML = '<option value="">+ Precio de otro permiso…</option>' + libres.map(p => `<option value="${p}">${p}</option>`).join('');
+}
+async function anadirPermisoTarifaUI(sel) {
+  const permiso = sel.value;
+  if (!permiso) return;
+  const extra = [...document.querySelectorAll('#tabla-tarifas-ajustes tbody tr[data-permiso]')].map(tr => tr.dataset.permiso);
+  await pintarTarifas('#tabla-tarifas-ajustes tbody', 'aj-tarifa', 'ajustes-tarifa-toast', [...extra, permiso]);
+  pintarSelectNuevoPermiso();
+  document.getElementById(`aj-tarifa-${permiso}-circulacion`)?.focus();
 }
 
 // % de IVA para el libro de ventas (tarea D5, exportación contable): usado
@@ -298,10 +380,6 @@ async function loadAjustes() {
   if (elCancelPlazo) elCancelPlazo.value = getCancelPlazoHoras();
   const elCancelDevolucion = document.getElementById('pref-cancel-devolucion');
   if (elCancelDevolucion) elCancelDevolucion.checked = getCancelDevolucion();
-  const elMatricula = document.getElementById('pref-matricula');
-  if (elMatricula) elMatricula.value = getMatriculaImporte();
-  const elTasa = document.getElementById('pref-tasa');
-  if (elTasa) elTasa.value = getTasaImporte();
   const elIva = document.getElementById('pref-iva');
   if (elIva) elIva.value = getIvaPorcentaje();
   const centroDatos = getCentroDatos();
@@ -368,7 +446,7 @@ const AJ_SECCIONES = [
   { id: 'zonas', titulo: 'Zonas de prácticas', desc: 'Lo que el profesor marca en el móvil como zonas recorridas' },
   { id: 'menu', titulo: 'Menú lateral', desc: 'Elige qué funciones se ven en el menú' },
   { id: 'panel', titulo: 'Panel principal', desc: 'Tarjetas y gráficos del Panel' },
-  { id: 'cobros', titulo: 'Cobros', desc: 'Importes de matrícula y tasa, IVA' },
+  { id: 'cobros', titulo: 'Cobros', desc: 'Matrícula y otros conceptos, precio por clase, IVA' },
   { id: 'vehiculos', titulo: 'Combustible', desc: 'Precio y consumo para estimar costes' },
   { id: 'centro', titulo: 'Datos del centro (DGT)', desc: 'Cabecera de la ficha oficial de prácticas' },
   { id: 'copias', titulo: 'Copias de seguridad', desc: 'Guardar y restaurar todos los datos' },
@@ -382,7 +460,7 @@ async function estadoCuadroAjustes(id) {
     if (id === 'zonas') { const z = await window.api.getZonasPractica(); return z.length ? `${z.length} ${z.length === 1 ? 'zona' : 'zonas'}: ${z.slice(0, 3).join(', ')}${z.length > 3 ? '…' : ''}` : 'Sin zonas (la web no las pide)'; }
     if (id === 'menu') { const n = getMenuOculto().length; return n ? `${n} ${n === 1 ? 'función oculta' : 'funciones ocultas'}` : 'Se ve todo'; }
     if (id === 'panel') { const p = getDashboardPref(); const n = Object.values(p).filter(Boolean).length; return `${n} elementos visibles`; }
-    if (id === 'cobros') return `Matrícula ${Number(getMatriculaImporte()).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € · IVA ${getIvaPorcentaje()} %`;
+    if (id === 'cobros') { const l = await getConceptosCobroUI(); const alta = l.filter(c => c.alta && c.importe > 0); return alta.length ? 'Al alta: ' + alta.map(c => `${c.nombre} ${fmtEur(c.importe)}`).join(' · ') : 'Nada se cobra al dar de alta'; }
     if (id === 'vehiculos') return `${Number(getPrecioCombustible()).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 3 })} €/L · ${fmtDec(getConsumoMedio())} L/100 km`;
     if (id === 'centro') { const c = getCentroDatos(); return c.denominacion || c.numero ? (c.denominacion || 'Nº ' + c.numero) : 'Sin rellenar'; }
     if (id === 'actualizaciones') return 'Versión ' + (await window.api.getVersion());
@@ -424,8 +502,15 @@ function ajustesAbrir(id) {
   document.getElementById('aj-volver').classList.remove('hidden');
   if (id === 'zonas') renderZonasUI();
   if (id === 'menu') renderPersonalizarMenu();
+  if (id === 'cobros') renderCobrosUI();
   const cont = document.getElementById('content');
   if (cont) cont.scrollTop = 0;
+}
+
+// Atajo desde otras pantallas (pago sin precio por clase, alta sin matrícula...).
+function irAjustesCobros() {
+  navegarA('ajustes');
+  ajustesAbrir('cobros');
 }
 
 // El buscador global apunta a una tarjeta concreta: se abre su sección.
