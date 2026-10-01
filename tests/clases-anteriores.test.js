@@ -242,3 +242,90 @@ test('estrés con azar real: varios coches y profesores, alumnos anotados (con y
     expect(d.practicas.filter(p => p.tipo_detalle === 'anterior').every(p => p.km_final > p.km_inicial && p.km_inicial > 0)).toBe(true);
   }
 });
+
+// ─── Varias clases el mismo día e importar de archivo (2026-10-02) ──────────
+describe('clases anteriores: varias el mismo día en una fila', () => {
+  test('una fila de 2 clases guarda 2 prácticas seguidas con la hora y los km repartidos', () => {
+    const vid = db.addVehiculo('Ibiza', '1111AAA', 210000);
+    const aid = alumno('Ana', vid, null, 5);
+    const r = db.guardarClasesAnteriores(aid, [
+      { fecha: '08/09/2025', clases: 2, hora_inicio: '10:00', km_inicial: '207.900', km_final: '207.991' },
+      { fecha: '09/09/2025', clases: '3' },
+    ], { duracion: 45 });
+    expect(r).toMatchObject({ ok: true, anotadas: 5, pendientes: 0 });
+    const ant = db.getClasesAnteriores(aid).clases;
+    expect(ant.map(c => [c.fecha, c.hora_inicio, c.km_inicial, c.km_final])).toEqual([
+      ['2025-09-08', '10:00', 207900, 207946], ['2025-09-08', '10:45', 207946, 207991],
+      ['2025-09-09', '', 0, 0], ['2025-09-09', '', 0, 0], ['2025-09-09', '', 0, 0],
+    ]);
+  });
+
+  test('al volver a guardar reutiliza las clases ya anotadas (ids) y quita las que sobran', () => {
+    const vid = db.addVehiculo('Ibiza', '1111AAA', 210000);
+    const aid = alumno('Ana', vid, null, 3);
+    db.guardarClasesAnteriores(aid, [{ fecha: '08/09/2025', clases: 3, hora_inicio: '10:00' }], { duracion: 45 });
+    const ids = db.getClasesAnteriores(aid).clases.map(c => c.id);
+    const r = db.guardarClasesAnteriores(aid, [{ fecha: '08/09/2025', clases: 2, hora_inicio: '10:00', ids }], { duracion: 45 });
+    expect(r).toMatchObject({ ok: true, anotadas: 2, pendientes: 1 });
+    const despues = db.getClasesAnteriores(aid).clases;
+    expect(despues.map(c => c.id)).toEqual(ids.slice(0, 2));
+    expect(pend().deleted.practicas).toContain(ids[2]);
+  });
+
+  test('avisa de clases repetidas (misma fecha y hora), nº de clases fuera de rango y km que no llegan', () => {
+    const vid = db.addVehiculo('Ibiza', '1111AAA', 210000);
+    const aid = alumno('Ana', vid, null, 3);
+    let r = db.guardarClasesAnteriores(aid, [{ fecha: '08/09/2025', hora_inicio: '10:00' }, { fecha: '8/9/2025', hora_inicio: '10:00' }]);
+    expect(r.ok).toBe(false); expect(r.errores[0]).toMatch(/misma fecha y hora/);
+    r = db.guardarClasesAnteriores(aid, [{ fecha: '08/09/2025', clases: 7 }]);
+    expect(r.ok).toBe(false); expect(r.errores[0]).toMatch(/de 1 a 4/);
+    r = db.guardarClasesAnteriores(aid, [{ fecha: '08/09/2025', clases: 3, km_inicial: 1000, km_final: 1002 }]);
+    expect(r.ok).toBe(false); expect(r.errores[0]).toMatch(/no caben 3 clases/);
+    r = db.guardarClasesAnteriores(aid, [{ fecha: '08/09/2025', clases: 2, hora_inicio: '23:30' }], { duracion: 45 });
+    expect(r.ok).toBe(false); expect(r.errores[0]).toMatch(/medianoche/);
+  });
+});
+
+describe('leerArchivoClasesAnteriores (archivo de la IA, CSV de Excel o texto pegado)', () => {
+  test('con cabecera: fecha;hora;clases (la plantilla), marca las dudosas y avisa de lo ilegible', () => {
+    const r = db.leerArchivoClasesAnteriores('﻿```csv\nfecha;hora;clases\n08/09/2025;10:00;1\n10/09/2025;17:30;2\n12/09/2025?;;1\nhola;10:00;1\n```\n');
+    expect(r.filas).toEqual([
+      { fecha: '08/09/2025', hora_inicio: '10:00', clases: 1, revisar: false, km_inicial: '', km_final: '' },
+      { fecha: '10/09/2025', hora_inicio: '17:30', clases: 2, revisar: false, km_inicial: '', km_final: '' },
+      { fecha: '12/09/2025', hora_inicio: '', clases: 1, revisar: true, km_inicial: '', km_final: '' },
+    ]);
+    expect(r.errores).toEqual([
+      'Línea 5: la fecha 12/09/2025 venía marcada como dudosa («?»): revísala.',
+      'Línea 6: no se entiende la fecha «hola».',
+    ]);
+  });
+
+  test('cabeceras con otros nombres, columnas en otro orden y km', () => {
+    const r = db.leerArchivoClasesAnteriores('Hora inicio,Fecha,Nº clases,Km inicial,Km final\n9:30,01/02/2025,2,207.900,207.990');
+    expect(r.filas).toEqual([{ fecha: '01/02/2025', hora_inicio: '09:30', clases: 2, revisar: false, km_inicial: 207900, km_final: 207990 }]);
+  });
+
+  test('sin cabecera: reconoce cada casilla por su forma (tabuladores, espacios, fechas cortas)', () => {
+    const r = db.leerArchivoClasesAnteriores('Clases de Ana\n8/9/25\t10.00\t207900\t207945\n9-9-2025 17:00 2\n2025-09-10;2;9h15');
+    expect(r.filas.map(f => [f.fecha, f.hora_inicio, f.clases, f.km_inicial, f.km_final])).toEqual([
+      ['08/09/2025', '10:00', 1, 207900, 207945], ['09/09/2025', '17:00', 2, '', ''], ['10/09/2025', '09:15', 2, '', ''],
+    ]);
+    expect(r.errores).toEqual([]);
+  });
+
+  test('archivo vacío o sin clases', () => {
+    expect(db.leerArchivoClasesAnteriores('').errores).toEqual(['El archivo está vacío.']);
+    expect(db.leerArchivoClasesAnteriores('nada que ver').filas).toEqual([]);
+  });
+
+  test('lo leído se guarda tal cual con guardarClasesAnteriores', () => {
+    const vid = db.addVehiculo('Ibiza', '1111AAA', 210000);
+    const aid = alumno('Ana', vid, null, 0);
+    const { filas } = db.leerArchivoClasesAnteriores(db.PLANTILLA_CLASES_ANTERIORES);
+    const r = db.guardarClasesAnteriores(aid, filas, { duracion: 45 });
+    expect(r).toMatchObject({ ok: true, anotadas: 4 });
+    expect(db.getClasesAnteriores(aid).clases.map(c => [c.fecha, c.hora_inicio])).toEqual([
+      ['2025-09-08', '10:00'], ['2025-09-10', '17:30'], ['2025-09-10', '18:15'], ['2025-09-12', ''],
+    ]);
+  });
+});

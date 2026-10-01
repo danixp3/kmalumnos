@@ -2,7 +2,11 @@
  * db/clases-anteriores.js  –  clases que el alumno hizo ANTES de usar la app
  * (pantalla Puesta en marcha). Dos caminos que conviven sin pisarse:
  *
- *  1. Anotarlas a mano, desde el papel: fecha y, si se saben, hora y km.
+ *  1. Anotarlas a mano, desde el papel: fecha y, si se saben, hora y km. Una
+ *     fila puede ser de varias clases el mismo día (columna «Clases»): se
+ *     guardan seguidas, con la hora y los km repartidos. También se pueden
+ *     importar de un archivo (p. ej. el que saca una IA de un vídeo de la
+ *     ficha en papel): leerArchivoClasesAnteriores.
  *  2. Las que no se anoten se crean solas: se reparten hacia atrás en días
  *     laborables (como mucho 2 por alumno y día, 12 por profesor y día y 12 por
  *     coche y día, sin pisarse de horario) y se les ponen km encadenados en el
@@ -26,6 +30,7 @@
 const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO } = require('./core');
 
 const MARCA = 'anterior';
+const MAX_CLASES_FILA = 4;   // clases seguidas el mismo día en una fila
 const LIMITES = { porAlumnoDia: 2, porProfesorDia: 12, porVehiculoDia: 12, desde: 9 * 60, hasta: 21 * 60, diasAtras: 2000 };
 
 const esAnterior = p => !!p && !p.deleted && p.tipo_detalle === MARCA;
@@ -93,8 +98,9 @@ function getClasesAnteriores(alumno_id) {
  * contradigan (fecha anterior con más km) con otras clases del mismo coche.
  * No guarda nada si hay errores. Devuelve { ok, errores[], anotadas, pendientes }.
  */
-function guardarClasesAnteriores(alumno_id, filas = []) {
+function guardarClasesAnteriores(alumno_id, filas = [], opciones = {}) {
   const d = load();
+  const dur = Math.min(240, Math.max(10, Math.round(Number(opciones.duracion) || 45)));
   const a = d.alumnos.find(x => x.id === parseInt(alumno_id));
   if (!a) return { ok: false, errores: ['Alumno no encontrado.'] };
   const hoy = hoyLocalISO();
@@ -118,13 +124,33 @@ function guardarClasesAnteriores(alumno_id, filas = []) {
     else if (conKm && kf - ki > 1000) errores.push(`Fila ${n}: más de 1.000 km en una clase; revisa los km.`);
     const vehiculo_id = parseInt(f.vehiculo_id) || a.vehiculo_id || null;
     if (!vehiculo_id || !d.vehiculos.some(v => v.id === vehiculo_id)) { errores.push(`Fila ${n}: ${nombreDe(a)} no tiene coche asignado; asígnaselo en la tabla de alumnos.`); return; }
-    const id = parseInt(f.id);
-    limpias.push({
-      n, id: idsPrevias.has(id) ? id : null, fecha, hora_inicio: hora || null,
-      km_inicial: conKm ? ki : 0, km_final: conKm ? kf : 0, vehiculo_id,
-      profesor_id: parseInt(f.profesor_id) || a.profesor_id || null
-    });
+    // Varias clases el mismo día en una fila: seguidas, cada una de `dur` min,
+    // con los km repartidos a partes iguales (el resto, a las primeras).
+    const k = String(f.clases == null ? '' : f.clases).trim() === '' ? 1 : Number(f.clases);
+    if (!Number.isInteger(k) || k < 1 || k > MAX_CLASES_FILA) { errores.push(`Fila ${n}: el nº de clases debe ser de 1 a ${MAX_CLASES_FILA}.`); return; }
+    if (conKm && kf - ki < k) { errores.push(`Fila ${n}: con ${kf - ki} km no caben ${k} clases.`); return; }
+    if (hora && aMin(hora) + k * dur > 24 * 60) { errores.push(`Fila ${n}: ${k} clases desde las ${hora} pasan de medianoche.`); return; }
+    const ids = [...(Array.isArray(f.ids) ? f.ids : []), f.id].map(x => parseInt(x)).filter(x => idsPrevias.has(x));
+    const total = conKm ? kf - ki : 0, base = Math.floor(total / k), resto = total % k;
+    let km = ki;
+    for (let j = 0; j < k; j++) {
+      const tramo = conKm ? base + (j < resto ? 1 : 0) : 0;
+      limpias.push({
+        n, id: ids[j] || null, fecha, hora_inicio: hora ? aHHMM(aMin(hora) + j * dur) : null,
+        km_inicial: conKm ? km : 0, km_final: conKm ? km + tramo : 0, vehiculo_id,
+        profesor_id: parseInt(f.profesor_id) || a.profesor_id || null
+      });
+      km += tramo;
+    }
   });
+  // La misma clase dos veces (misma fecha y hora): seguramente repetida al copiar
+  const vistas = new Map();
+  for (const f of limpias) {
+    if (!f.hora_inicio) continue;
+    const clave = `${f.fecha}|${f.hora_inicio}`;
+    if (vistas.has(clave) && vistas.get(clave) !== f.n) errores.push(`Filas ${vistas.get(clave)} y ${f.n}: misma fecha y hora (${fmtF(f.fecha)} ${f.hora_inicio}); ¿está repetida?`);
+    else vistas.set(clave, f.n);
+  }
 
   // Coherencia con el resto de clases del mismo coche (las del propio alumno
   // que se van a sustituir no cuentan).
@@ -189,6 +215,93 @@ function guardarClasesAnteriores(alumno_id, filas = []) {
   }
   return { ok: true, errores: [], anotadas: limpias.length, pendientes: a.clases_previas };
 }
+
+/**
+ * Lee las clases anteriores de un archivo de texto (CSV/TXT: el que saca una IA
+ * de un vídeo de la ficha en papel, una hoja de cálculo guardada como CSV...) o
+ * de un texto pegado. Solo lectura: devuelve las filas para el editor
+ * «Anotar», que las enseña antes de guardar nada.
+ *   - Separador: tabulador, punto y coma o coma (lo que use el texto).
+ *   - Con cabecera (fecha, hora, clases, km inicial, km final), por nombre; sin
+ *     ella, por lo que parece cada casilla: fecha, hora (10:00), nº de clases
+ *     (1-4) y km (números grandes: inicial y final).
+ *   - Una fecha con «?» (la IA no estaba segura) se importa marcada para revisar.
+ * Devuelve { filas: [{ fecha: 'dd/mm/aaaa', hora_inicio, clases, km_inicial, km_final, revisar }],
+ *            errores: ['Línea 4: …'], lineas }.
+ */
+function leerArchivoClasesAnteriores(texto) {
+  // Cada línea con su nº real en el archivo (para los avisos)
+  const lineas = String(texto == null ? '' : texto).replace(/^\uFEFF/, '').replace(/\r/g, '').split('\n')
+    .map((l, k) => ({ t: l.trim(), n: k + 1 })).filter(l => l.t && !/^```/.test(l.t));
+  const filas = [], errores = [];
+  if (!lineas.length) return { filas, errores: ['El archivo está vacío.'], lineas: 0 };
+  const sep = lineas.some(l => l.t.includes('\t')) ? '\t' : lineas.some(l => l.t.includes(';')) ? ';' : ',';
+  // Una línea con otro separador, o solo con espacios («9/9/2025 17:00 2»), también vale
+  const partir = l => {
+    const otro = [sep, '\t', ';', ','].find(x => l.includes(x));
+    return (otro ? l.split(otro) : l.split(/\s+/)).map(c => c.trim().replace(/^"(.*)"$/, '$1').trim());
+  };
+  const norm = t => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
+  // ¿Cabecera? (primera línea sin ninguna fecha y con la palabra «fecha»)
+  let cols = null, desde = 0;
+  const primera = partir(lineas[0].t);
+  if (primera.some(c => norm(c) === 'fecha' || norm(c) === 'dia') && !primera.some(c => leerFecha(c.replace(/\?$/, '')))) {
+    cols = {};
+    primera.forEach((c, i) => {
+      const t = norm(c);
+      if (t === 'fecha' || t === 'dia') cols.fecha = i;
+      else if (t.startsWith('hora') || t === 'inicio') cols.hora = i;
+      else if (t.includes('clase') || t === 'n' || t === 'numero' || t === 'num') cols.clases = i;
+      else if (t.includes('km') && (t.includes('fin') || t.includes('final'))) cols.km_final = i;
+      else if (t.includes('km')) cols.km_inicial = i;
+    });
+    desde = 1;
+  }
+  for (let i = desde; i < lineas.length; i++) {
+    const celdas = partir(lineas[i].t);
+    const n = lineas[i].n;
+    let fechaTxt, horaTxt = '', clasesTxt = '', kms = [];
+    if (cols) {
+      fechaTxt = celdas[cols.fecha] || '';
+      if (cols.hora != null) horaTxt = celdas[cols.hora] || '';
+      if (cols.clases != null) clasesTxt = celdas[cols.clases] || '';
+      if (cols.km_inicial != null) kms[0] = celdas[cols.km_inicial] || '';
+      if (cols.km_final != null) kms[1] = celdas[cols.km_final] || '';
+    } else {
+      // Sin cabecera: la fecha es la primera casilla que lo parezca; el resto, por su forma
+      const iF = celdas.findIndex(c => leerFecha(c.replace(/\?$/, '')));
+      fechaTxt = iF >= 0 ? celdas[iF] : (celdas[0] || '');
+      for (const c of celdas.filter((_, k) => k !== iF)) {
+        if (!c) continue;
+        if (!horaTxt && /^\d{1,2}[:.h]\d{2}$/.test(c)) horaTxt = c;
+        else if (!clasesTxt && /^[1-9]$/.test(c)) clasesTxt = c;
+        else if (/^\d{1,3}(\.\d{3})+$|^\d{2,7}$/.test(c)) kms.push(c);
+      }
+    }
+    const revisar = /\?\s*$/.test(fechaTxt);
+    const fecha = leerFecha(fechaTxt.replace(/\?\s*$/, ''));
+    if (!fecha) {
+      if (i === 0 && !cols) continue; // una primera línea que no es una clase (título, cabecera rara)
+      errores.push(`Línea ${n}: no se entiende la fecha «${fechaTxt.slice(0, 30)}».`);
+      continue;
+    }
+    const hora = leerHora(horaTxt);
+    if (hora === null) errores.push(`Línea ${n}: la hora «${horaTxt}» no se entiende; se deja en blanco.`);
+    const clases = parseInt(clasesTxt) >= 1 && parseInt(clasesTxt) <= MAX_CLASES_FILA ? parseInt(clasesTxt) : 1;
+    if (clasesTxt && clases !== parseInt(clasesTxt)) errores.push(`Línea ${n}: «${clasesTxt}» clases no es válido (de 1 a ${MAX_CLASES_FILA}); se pone 1.`);
+    const [ki, kf] = [kmEntero(kms[0]), kmEntero(kms[1])];
+    filas.push({
+      fecha: fmtF(fecha), hora_inicio: hora || '', clases, revisar,
+      km_inicial: ki && kf ? ki : '', km_final: ki && kf ? kf : ''
+    });
+    if (revisar) errores.push(`Línea ${n}: la fecha ${fmtF(fecha)} venía marcada como dudosa («?»): revísala.`);
+  }
+  if (!filas.length && !errores.length) errores.push('No se ha encontrado ninguna clase con fecha en el archivo.');
+  return { filas, errores, lineas: lineas.length - desde };
+}
+
+// Plantilla para importar (la que se le pide a la IA)
+const PLANTILLA_CLASES_ANTERIORES = 'fecha;hora;clases\n08/09/2025;10:00;1\n10/09/2025;17:30;2\n12/09/2025;;1\n';
 
 // Reparte `total` km entre `n` clases: cada una al azar dentro del rango y, si
 // hay que encajarlas en un hueco concreto (`exacto`), escaladas para sumarlo justo.
@@ -483,5 +596,5 @@ function contarClasesAnteriores(d = load()) {
 
 module.exports = {
   getClasesAnteriores, guardarClasesAnteriores, planificarClasesAnteriores, aplicarClasesAnteriores,
-  contarClasesAnteriores, leerFechaClaseAnterior: leerFecha
+  contarClasesAnteriores, leerFechaClaseAnterior: leerFecha, leerArchivoClasesAnteriores, PLANTILLA_CLASES_ANTERIORES
 };

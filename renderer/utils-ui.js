@@ -41,6 +41,12 @@ document.querySelectorAll('.overlay').forEach(overlay => {
 // ─── HELPERS DEL REDISEÑO (fechas cortas, iniciales, miles) ─────────────────
 const DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+// Clases con fracciones (¼, ½, ¾ — las anota el móvil): 2.5 → «2 ½», 0.75 → «¾».
+function fmtClases(n) {
+  const v = Math.round((Number(n) || 0) * 4) / 4;
+  const ent = Math.floor(v), frac = ['', '¼', '½', '¾'][Math.round((v - ent) * 4)];
+  return ent && frac ? `${ent} ${frac}` : frac || String(ent);
+}
 const fmtMiles = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 const fmtDec = n => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(Number(n) || 0);
 const parteFecha = iso => { const [y, m, d] = iso.split('-').map(Number); return { y, m, d, dow: new Date(y, m - 1, d).getDay() }; };

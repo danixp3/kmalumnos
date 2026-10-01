@@ -3,7 +3,7 @@
 // La RLS de Supabase ya limita todo a la empresa del token.
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, withRetry, handleSupabaseError,
-  COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_LISTA, conFallbackColumnas, kmDePractica,
+  COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_LISTA, conFallbackColumnas, kmDePractica, clasesDe,
   esErrorColumnaInexistente, traerTodo, nombreCompleto
 } from '../../api/_utils.js';
 
@@ -92,9 +92,11 @@ export default async function handler(req, res) {
     if (handleSupabaseError(error, res, 'Error al obtener los alumnos')) return;
     alumnosPorId = Object.fromEntries((data || []).map(a => [a.id, a]));
     // Nº de clase: clases previas (antes de usar la app) + prácticas anteriores + 1
-    const { data: hist, error: errH } = await traerTodo(() => supabase
-      .from('practicas').select('id, alumno_id, fecha, hora_inicio')
+    const historial = cols => traerTodo(() => supabase
+      .from('practicas').select(cols)
       .in('alumno_id', alumnoIds).eq('deleted', false).eq('empresa_id', auth.empresaId).order('id'));
+    let { data: hist, error: errH } = await historial('id, alumno_id, fecha, hora_inicio, fraccion');
+    if (errH && esErrorColumnaInexistente(errH)) ({ data: hist, error: errH } = await historial('id, alumno_id, fecha, hora_inicio'));
     if (handleSupabaseError(errH, res, 'Error al contar las prácticas')) return;
     for (const h of hist || []) (totalesPorAlumno[h.alumno_id] ||= []).push(h);
   }
@@ -109,7 +111,9 @@ export default async function handler(req, res) {
       (a.fecha || '').localeCompare(b.fecha || '') || (a.hora_inicio || '').localeCompare(b.hora_inicio || '') || a.id - b.id);
     const i = lista.findIndex(x => x.id === p.id);
     const previas = (alumnosPorId[p.alumno_id] && alumnosPorId[p.alumno_id].clases_previas) || 0;
-    return previas + (i >= 0 ? i + 1 : lista.length + 1);
+    // Las fracciones (¼ ½ ¾) suman lo que valen: tras 1 + ½ la siguiente es la 3.ª
+    const hasta = i >= 0 ? lista.slice(0, i + 1) : [...lista, p];
+    return previas + Math.ceil(hasta.reduce((n, x) => n + clasesDe(x), 0) - 1e-9);
   };
   const forma = p => ({
     id: p.id, fecha: p.fecha, alumno_id: p.alumno_id,
@@ -124,7 +128,8 @@ export default async function handler(req, res) {
     zonas: Array.isArray(p.zonas) ? p.zonas : [],
     en_curso: p.km_inicial > 0 && !p.km_final && p.fecha === hoyCliente,
     sin_cerrar: p.km_inicial > 0 && !p.km_final && p.fecha < hoyCliente,
-    firmada: !!p.firmada, clase_n: claseN(p), source: p.source || null
+    firmada: !!p.firmada, clase_n: claseN(p), source: p.source || null,
+    fraccion: clasesDe(p) < 1 ? clasesDe(p) : null
   });
 
   return res.status(200).json({

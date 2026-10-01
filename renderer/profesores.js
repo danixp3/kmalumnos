@@ -6,13 +6,16 @@ async function loadProfesores() {
   profesoresCache = await window.api.getProfesores(getSucursalActual());
   const tbody = document.querySelector('#tabla-profesores tbody');
   if (!profesoresCache.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty">No hay profesores registrados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">No hay profesores registrados</td></tr>';
     return;
   }
   tbody.innerHTML = profesoresCache.map(p => `<tr>
       <td><strong>${esc(p.nombre)}</strong></td>
       <td>${esc(p.nota) || '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${p.num_practicas}</td>
+      <td>${p.tiene_firma
+        ? `<button type="button" class="pill pill-ok firma-pill" onclick="abrirFirmaProfesor(${p.id})" title="Ver o cambiar su firma">${fichaSvg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 12)} Guardada</button>`
+        : `<button type="button" class="pill pill-warn firma-pill" onclick="abrirFirmaProfesor(${p.id})" title="Dibujar su firma para la ficha DGT">Sin firma · Firmar</button>`}</td>
       <td>
         <button class="btn btn-warn btn-sm" onclick="openEditProfesor(${p.id},'${esc(p.nombre)}','${esc(p.nota || '')}','${esc(p.dni || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProfesor(${p.id},'${esc(p.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
@@ -55,6 +58,135 @@ async function saveProfesor() {
   await window.api.updateProfesor(id, nombre, nota, dni);
   closeModal('modal-profesor');
   loadProfesores();
+}
+
+// ─── FIRMA DEL PROFESOR ──────────────────────────────────────────────────────
+// Se dibuja una vez (aquí o en el móvil: Perfil → Mi firma) y la app la pone en
+// la casilla «Firma del profesor» de todas sus clases en la ficha DGT y en la
+// ficha de clases imprimible. abrirFirmaProfesor devuelve una promesa: true si
+// se guardó (o se quitó) la firma, false si se cerró sin cambios.
+let padFirma = null; // { id, nombre, cv, ctx, trazos, caja, ultimo, medio, resolver }
+
+async function abrirFirmaProfesor(id, opciones = {}) {
+  const prof = (await window.api.getProfesores()).find(x => x.id === id);
+  if (!prof) return false;
+  const actual = await window.api.getFirmaProfesor(id);
+  if (padFirma && padFirma.resolver) padFirma.resolver(false);
+  let modal = document.getElementById('modal-firma-profesor');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'overlay'; modal.id = 'modal-firma-profesor';
+    modal.innerHTML = '<div class="modal modal-firma" role="dialog" aria-modal="true" aria-labelledby="firma-pad-tit"></div>';
+    document.body.appendChild(modal);
+  }
+  modal.firstElementChild.innerHTML = `
+    <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <h3 id="firma-pad-tit" style="margin:0">Firma de ${esc(prof.nombre)}</h3>
+      <button class="btn btn-outline btn-sm" onclick="cerrarFirmaProfesor(false)">${opciones.textoCerrar || 'Cerrar'}</button>
+    </div>
+    ${opciones.motivo ? `<div class="alert alert-warn" style="margin:12px 0 0">${esc(opciones.motivo)}</div>` : ''}
+    <p class="aj-intro" style="margin:12px 0">Firma con el ratón, el lápiz o el dedo. Se guarda una sola vez y sale en la casilla «Firma del profesor» de todas sus clases en la ficha DGT. También se puede firmar desde el móvil (Perfil → Mi firma).</p>
+    ${actual ? `<div class="clase-firma-tit">Firma guardada</div><div class="clase-firma firma-pad-actual"><img src="${actual}" alt="Firma guardada de ${esc(prof.nombre)}"></div>
+      <div class="clase-firma-tit" style="margin-top:14px">Para cambiarla, firma de nuevo</div>` : ''}
+    <div class="firma-pad" id="firma-pad">
+      <canvas id="firma-pad-cv" aria-label="Recuadro para firmar"></canvas>
+      <span class="firma-pad-linea" aria-hidden="true"></span>
+      <span class="firma-pad-ayuda" id="firma-pad-ayuda">Firma aquí</span>
+    </div>
+    <div class="firma-pad-pie">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="borrarPadFirma()">Borrar y repetir</button>
+      ${actual ? '<button type="button" class="btn btn-ghost btn-sm firma-pad-quitar" onclick="quitarFirmaProfesor()">Quitar la firma guardada</button>' : ''}
+      <span style="flex:1"></span>
+      <button type="button" class="btn btn-primary" id="firma-pad-ok" disabled onclick="guardarPadFirma()">${opciones.textoGuardar || 'Guardar firma'}</button>
+    </div>
+    <div id="firma-pad-error" class="alert alert-err hidden" style="margin-top:10px"></div>`;
+  openModal('modal-firma-profesor');
+  return new Promise(resolver => {
+    padFirma = { id, nombre: prof.nombre, trazos: 0, caja: null, resolver };
+    requestAnimationFrame(iniciarPadFirma);
+  });
+}
+
+function iniciarPadFirma() {
+  const cv = document.getElementById('firma-pad-cv'); if (!cv || !padFirma) return;
+  const caja = document.getElementById('firma-pad');
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = caja.clientWidth * dpr; cv.height = caja.clientHeight * dpr;
+  const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+  ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = ctx.fillStyle = '#14161B';
+  Object.assign(padFirma, { cv, ctx, trazos: 0, caja: null });
+  let dibujando = false;
+  const punto = e => {
+    const r = cv.getBoundingClientRect(); const p = { x: e.clientX - r.left, y: e.clientY - r.top };
+    const c = padFirma.caja || (padFirma.caja = { x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+    c.x0 = Math.min(c.x0, p.x); c.y0 = Math.min(c.y0, p.y); c.x1 = Math.max(c.x1, p.x); c.y1 = Math.max(c.y1, p.y);
+    return p;
+  };
+  cv.onpointerdown = e => {
+    e.preventDefault(); cv.setPointerCapture(e.pointerId); dibujando = true;
+    padFirma.ultimo = padFirma.medio = punto(e);
+    ctx.beginPath(); ctx.arc(padFirma.ultimo.x, padFirma.ultimo.y, 1.1, 0, 6.3); ctx.fill();
+    document.getElementById('firma-pad-ayuda').hidden = true;
+  };
+  cv.onpointermove = e => {
+    if (!dibujando) return; e.preventDefault();
+    const p = punto(e), u = padFirma.ultimo, m = { x: (u.x + p.x) / 2, y: (u.y + p.y) / 2 };
+    // Curva suave: de la mitad anterior a la nueva, con el último punto de control
+    ctx.beginPath(); ctx.moveTo(padFirma.medio.x, padFirma.medio.y); ctx.quadraticCurveTo(u.x, u.y, m.x, m.y); ctx.stroke();
+    padFirma.medio = m; padFirma.ultimo = p;
+    if (++padFirma.trazos > 8) document.getElementById('firma-pad-ok').disabled = false;
+  };
+  cv.onpointerup = cv.onpointercancel = () => { dibujando = false; };
+}
+
+function borrarPadFirma() {
+  if (!padFirma || !padFirma.ctx) return;
+  padFirma.ctx.clearRect(0, 0, padFirma.cv.width, padFirma.cv.height);
+  padFirma.trazos = 0; padFirma.caja = null;
+  document.getElementById('firma-pad-ok').disabled = true;
+  document.getElementById('firma-pad-ayuda').hidden = false;
+}
+
+// PNG recortado al contorno de lo dibujado y reducido (suele quedar en 5-25 KB).
+function padFirmaComoPNG(anchoMax = 480) {
+  const cv = padFirma.cv, dpr = cv.width / (cv.clientWidth || cv.width) || 1;
+  const c = padFirma.caja, m = 10;
+  const x0 = Math.max(0, c.x0 - m), y0 = Math.max(0, c.y0 - m);
+  const w = Math.max(1, Math.min(cv.clientWidth, c.x1 + m) - x0), h = Math.max(1, Math.min(cv.clientHeight, c.y1 + m) - y0);
+  const escala = Math.min(1, anchoMax / w);
+  const tmp = document.createElement('canvas');
+  tmp.width = Math.max(1, Math.round(w * escala)); tmp.height = Math.max(1, Math.round(h * escala));
+  tmp.getContext('2d').drawImage(cv, x0 * dpr, y0 * dpr, w * dpr, h * dpr, 0, 0, tmp.width, tmp.height);
+  return tmp.toDataURL('image/png');
+}
+
+async function guardarPadFirma() {
+  if (!padFirma || !padFirma.caja) return;
+  let firma = padFirmaComoPNG();
+  if (firma.length > 150000) firma = padFirmaComoPNG(300); // firma muy densa: se reduce más
+  const res = await window.api.setFirmaProfesor(padFirma.id, firma);
+  if (!res || !res.ok) {
+    const err = document.getElementById('firma-pad-error');
+    err.textContent = (res && res.error) || 'No se pudo guardar la firma.'; err.classList.remove('hidden');
+    return;
+  }
+  cerrarFirmaProfesor(true);
+}
+
+async function quitarFirmaProfesor() {
+  if (!padFirma) return;
+  const { id, nombre } = padFirma;
+  if (!await confirmar(`¿Quitar la firma guardada de ${nombre}? Sus clases saldrán sin firma del profesor en la ficha DGT hasta que vuelva a firmar.`, { peligro: true, textoAceptar: 'Quitar' })) return;
+  await window.api.setFirmaProfesor(id, null);
+  cerrarFirmaProfesor(true);
+}
+
+function cerrarFirmaProfesor(cambiada) {
+  closeModal('modal-firma-profesor');
+  const r = padFirma && padFirma.resolver;
+  padFirma = null;
+  if (cambiada && document.getElementById('page-profesores')?.classList.contains('active')) loadProfesores();
+  if (r) r(!!cambiada);
 }
 
 // Rellena un <select> de profesores con un placeholder "Sin profesor" y,

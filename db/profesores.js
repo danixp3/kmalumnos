@@ -1,7 +1,7 @@
 // ─── PROFESORES ──────────────────────────────────────────────────────────────
 // CRUD de profesores; getProfesores añade el nº de prácticas impartidas.
 
-const { load, save, nextId, _sync, filtrarPorSucursal } = require('./core');
+const { load, save, nextId, _sync, filtrarPorSucursal, firmaValida, addLog } = require('./core');
 
 // sucursalId opcional: sin argumento devuelve todos los profesores (modo
 // clásico o "Todas las sucursales") — ver filtrarPorSucursal en core.js.
@@ -10,7 +10,8 @@ function getProfesores(sucursalId) {
   return filtrarPorSucursal(d.profesores, sucursalId)
     .slice()
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
-    .map(p => ({ ...p, num_practicas: d.practicas.filter(x => x.profesor_id === p.id).length }));
+    // La imagen de la firma no viaja en la lista (pesa): solo si la tiene.
+    .map(({ firma, firma_pendiente, ...p }) => ({ ...p, tiene_firma: firmaValida(firma), num_practicas: d.practicas.filter(x => x.profesor_id === p.id).length }));
 }
 
 // dni (tarea "Ficha alumno – formación práctica" DGT): string opcional,
@@ -45,6 +46,30 @@ function deleteProfesor(id) {
   const s = _sync(); if (s) s.markDeleted('profesores', id);
 }
 
+// ─── FIRMA DEL PROFESOR ──────────────────────────────────────────────────────
+// Se dibuja una vez (escritorio o móvil) y firma todas sus clases en la ficha
+// DGT. `firma` = PNG en data URL (null = sin firma). `firma_pendiente` marca que
+// se cambió en este PC: solo entonces la sube el sync (así editar el nombre del
+// profesor en otro PC nunca pisa una firma hecha en el móvil).
+function getFirmaProfesor(id) {
+  const p = load().profesores.find(x => x.id === parseInt(id));
+  return p && firmaValida(p.firma) ? p.firma : null;
+}
+
+function setFirmaProfesor(id, firma) {
+  const d = load();
+  const p = d.profesores.find(x => x.id === parseInt(id));
+  if (!p) return { ok: false, error: 'Profesor no encontrado.' };
+  if (firma && !firmaValida(firma)) return { ok: false, error: 'La firma no es una imagen válida o es demasiado grande.' };
+  p.firma = firma || null;
+  p.firma_pendiente = true;
+  addLog('profesor', `${firma ? 'Firma guardada' : 'Firma borrada'}: ${p.nombre}`, []);
+  save();
+  const s = _sync(); if (s) s.markDirty('profesores', p.id);
+  return { ok: true };
+}
+
 module.exports = {
   getProfesores, addProfesor, updateProfesor, deleteProfesor,
+  getFirmaProfesor, setFirmaProfesor,
 };
