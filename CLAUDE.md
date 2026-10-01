@@ -56,7 +56,7 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 | Desplegar web móvil | `cd web-remote && vercel --prod --yes` |
 | Tests | `npm test` (Jest; tests en `tests/`, mock de Electron en `tests/mocks/`) |
 | Tests de la API móvil | `npm run test:api` (Supabase falso en `web-remote/tests/`, sin red) |
-| Prueba de interfaz | `npm run smoke` (arranca la app real y recorre todas las secciones del menú) |
+| Prueba de interfaz | `npm run smoke` (arranca la app sobre una copia de los datos, sin nube, y recorre todas las secciones del menú) |
 | Barrido visual | `npm run barrido` (copia de datos, sin nube: textos que se pisan, cortes y desbordes a 920×620 y 1366×768) |
 
 ## Convenciones
@@ -68,7 +68,10 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-10-01 (tarde). El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-10-02. El detalle histórico completo está en HISTORIAL.md._
+
+- **Lote 2026-10-02 — firmas, fracciones y clases anteriores (web DESPLEGADA; escritorio PUBLICADO en v1.22.0):** ficha DGT con la firma del alumno (móvil) y la del profesor en sus columnas (pág. 1 y continuación; profesor = el de la clase → el del alumno → el único de la autoescuela); firma del profesor guardada una vez (Profesores en escritorio, Perfil → Mi firma en el móvil; `profesores.firma`). Móvil: clases de ¼ en ¼ o por minutos, el resto se acumula en `alumnos.minutos_sobrantes` y se anota al llegar a ¼; el escritorio cobra precio × `practicas.fraccion`. Puesta en marcha: columna «Clases» por día e importar fechas/horas de archivo (plantilla + instrucciones para la IA). Migración `2026-10-02_firma_profesor_fracciones.sql` APLICADA (datos intactos 30/293/8/9). Jest 451/51 + test:api 37 + smoke + barrido OK.
+- **`npm run smoke` ahora trabaja sobre una COPIA de los datos y sin nube** (como el barrido): antes pulsaba los − / + de Registro rápido sobre los datos reales y lo sincronizaba (borraba la última clase del día del alumno y creaba una vacía). Quedan restos de ejecuciones anteriores en los datos reales: ver HISTORIAL 2026-10-02.
 
 - **Lote 2026-10-01 (3) — cobros y clases olvidadas (web DESPLEGADA; escritorio PUBLICADO en v1.21.0, auto-update verificado):** Ajustes → Cobros con conceptos propios compartidos (`ajustes_empresa.conceptos_cobro`; los marcados «al dar de alta» se cargan solos al crear alumno en escritorio —`addCargosAlta`— y en el móvil —`crear-alumno`—) y precio por clase (misma rejilla que Pagos → Tarifas). «Anotar pago» por nº de clases × tarifa. Web: «Anotar clase pasada» (`/api/anotar-practica`, hasta 30 días, km opcionales, firma en el momento). Sin migraciones. Jest 428/49 + test:api 30 + smoke + barrido OK.
 - **Lote 2026-10-01 (2) — web DESPLEGADA; escritorio PUBLICADO en v1.20.0:** web: una sesión de N × «minutos por clase» se guarda como N clases (km y horario repartidos, firma única para todas; `finalizar-practica` con `n_clases`, `firmar-practica` con `practica_ids`; los minutos viajan del escritorio por `ajustes_empresa.duracion_clase_min`) y la web es instalable como app (PWA). Escritorio: ficha DGT con una fila por día («1 CLASE» / «2 CLASES»), Puesta en marcha con clases anteriores anotadas a mano + creadas por la app (`db/clases-anteriores.js`, previsualizar→crear, `tipo_detalle='anterior'`, cuentan en cobros), mapa de km con zoom, menús «⋯» flotantes y tablas con scroll propio (animaciones con `backwards`), ejes/horas que se adaptan al ancho. Jest 425/48 + test:api 25 + smoke + `npm run barrido` OK.
