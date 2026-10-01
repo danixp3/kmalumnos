@@ -135,37 +135,123 @@ function renderDeudasTabla() {
   }).join('');
 }
 
-function abrirModalPago(alumnoId, alumnoNombre) {
-  document.getElementById('edit-pago-id').value = '';
+// ─── ANOTAR PAGO (por número de clases o por importe) ──────────────────────
+// Lo más habitual es cobrar N clases: el importe sale solo de N × precio por
+// clase del permiso del alumno (Pagos → Tarifas / Ajustes → Cobros). El modal
+// se abre desde Pagos y desde la ficha económica del alumno.
+let pagoCtx = null; // { alumnoId, alumnoNombre, permiso, saldo, precios: { circulacion, pista }, modo, editando }
+
+async function abrirModalPago(alumnoId, alumnoNombre, opciones = {}) {
+  const [desglose, tarifas] = await Promise.all([window.api.getDesglosePagosAlumno(alumnoId), window.api.getTarifas()]);
+  const permiso = desglose ? desglose.permiso : null;
+  const precio = tipo => { const t = tarifas.find(x => x.permiso === permiso && x.tipo === tipo); return t && t.precio > 0 ? t.precio : 0; };
+  pagoCtx = {
+    alumnoId, alumnoNombre, permiso, saldo: desglose ? desglose.saldo : 0,
+    precios: { circulacion: precio('circulacion'), pista: precio('pista') },
+    editando: !!opciones.editando
+  };
+  document.getElementById('edit-pago-id').value = opciones.id || '';
   document.getElementById('edit-pago-alumno-id').value = alumnoId;
-  document.getElementById('edit-pago-cantidad').value = '';
-  document.getElementById('edit-pago-nota').value = '';
-  document.getElementById('edit-pago-forma').value = '';
-  document.getElementById('edit-pago-fecha').value = new Date().toISOString().split('T')[0];
-  document.getElementById('modal-pago-titulo').textContent = `Anotar pago — ${alumnoNombre}`;
+  document.getElementById('edit-pago-cantidad').value = opciones.cantidad != null ? opciones.cantidad : '';
+  document.getElementById('edit-pago-nota').value = opciones.nota || '';
+  document.getElementById('edit-pago-forma').value = opciones.forma || '';
+  document.getElementById('edit-pago-fecha').value = opciones.fecha || hoyISO();
+  document.getElementById('edit-pago-nclases').value = 1;
+  document.getElementById('edit-pago-tipo-clase').value = 'circulacion';
+  document.getElementById('modal-pago-titulo').textContent = `${opciones.editando ? 'Editar pago' : 'Anotar pago'} — ${alumnoNombre}`;
+  // Por clases salvo al editar (se respeta el importe guardado) o si el
+  // permiso aún no tiene precio por clase.
+  cambiarModoPago(!opciones.editando && pagoCtx.precios.circulacion + pagoCtx.precios.pista > 0 ? 'clases' : 'importe');
   openModal('modal-pago');
+  setTimeout(() => document.getElementById(pagoCtx.modo === 'clases' ? 'edit-pago-nclases' : 'edit-pago-cantidad')?.select(), 60);
 }
 
 function openEditPago(id, alumnoId, alumnoNombre, fecha, cantidad, nota, formaPago) {
-  document.getElementById('edit-pago-id').value = id;
-  document.getElementById('edit-pago-alumno-id').value = alumnoId;
-  document.getElementById('edit-pago-fecha').value = fecha;
-  document.getElementById('edit-pago-cantidad').value = cantidad;
-  document.getElementById('edit-pago-nota').value = nota || '';
-  document.getElementById('edit-pago-forma').value = formaPago || '';
-  document.getElementById('modal-pago-titulo').textContent = `Editar pago — ${alumnoNombre}`;
-  openModal('modal-pago');
+  abrirModalPago(alumnoId, alumnoNombre, { editando: true, id, fecha, cantidad, nota, forma: formaPago });
+}
+
+function cambiarModoPago(modo) {
+  if (!pagoCtx) return;
+  pagoCtx.modo = modo;
+  document.querySelectorAll('#pago-modo button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.modo === modo)));
+  document.getElementById('pago-bloque-clases').hidden = modo !== 'clases';
+  document.getElementById('pago-bloque-importe').hidden = modo !== 'importe';
+  const { circulacion, pista } = pagoCtx.precios;
+  const conPrecio = circulacion > 0 || pista > 0;
+  document.getElementById('pago-sin-precio').hidden = conPrecio;
+  document.getElementById('pago-clases-campos').hidden = !conPrecio;
+  document.getElementById('pago-sin-precio-permiso').textContent = pagoCtx.permiso || 'su permiso';
+  // Selector de tipo solo si hay precio de pista (la mayoría cobra solo circulación).
+  document.getElementById('pago-tipo-wrap').hidden = !(pista > 0 && circulacion > 0);
+  if (pista > 0 && !(circulacion > 0)) document.getElementById('edit-pago-tipo-clase').value = 'pista';
+  const saldo = pagoCtx.saldo;
+  const lin = document.getElementById('pago-saldo');
+  lin.innerHTML = saldo > 0
+    ? `Debe <b>${fmt(saldo)} €</b>${!pagoCtx.editando ? ` <button type="button" class="btn btn-gray btn-sm" onclick="cobrarSaldoPago()">Cobrar todo</button>` : ''}`
+    : (saldo < 0 ? `Tiene <b>${fmt(-saldo)} €</b> a su favor` : 'Está al día');
+  recalcularPagoClases();
+}
+
+function pasoClasesPago(delta) {
+  const inp = document.getElementById('edit-pago-nclases');
+  inp.value = Math.max(1, Math.min(200, (parseInt(inp.value) || 0) + delta));
+  recalcularPagoClases();
+}
+
+function fijarClasesPago(n) {
+  document.getElementById('edit-pago-nclases').value = n;
+  recalcularPagoClases();
+}
+
+// Precio por clase del tipo elegido y total (en céntimos para no arrastrar decimales).
+function calculoPagoClases() {
+  if (!pagoCtx) return null;
+  const n = parseInt(document.getElementById('edit-pago-nclases').value) || 0;
+  const tipo = document.getElementById('edit-pago-tipo-clase').value === 'pista' ? 'pista' : 'circulacion';
+  const precio = pagoCtx.precios[tipo] || 0;
+  return { n, tipo, precio, total: Math.round(n * precio * 100) / 100 };
+}
+
+function recalcularPagoClases() {
+  const c = calculoPagoClases();
+  if (!c) return;
+  document.querySelectorAll('#pago-chips-clases button').forEach(b => b.setAttribute('aria-pressed', String(parseInt(b.dataset.n) === c.n)));
+  const out = document.getElementById('pago-calculo');
+  if (!(c.precio > 0)) { out.innerHTML = ''; return; }
+  out.innerHTML = c.n > 0
+    ? `<span>${c.n} ${c.n === 1 ? 'clase' : 'clases'} × ${fmt(c.precio)} €</span><b>${fmt(c.total)} €</b>`
+    : '<span>Indica cuántas clases paga</span><b>—</b>';
+  const nota = document.getElementById('edit-pago-nota');
+  nota.placeholder = c.n > 0 ? `Si lo dejas vacío: «${notaPagoClases(c)}»` : 'Ej: pago en efectivo, transferencia...';
+}
+
+function notaPagoClases(c) {
+  return `${c.n} ${c.n === 1 ? 'clase' : 'clases'}${c.tipo === 'pista' ? ' de pista' : ''}`;
+}
+
+function cobrarSaldoPago() {
+  if (!pagoCtx || !(pagoCtx.saldo > 0)) return;
+  document.getElementById('edit-pago-cantidad').value = Math.round(pagoCtx.saldo * 100) / 100;
+  cambiarModoPago('importe');
+  document.getElementById('edit-pago-cantidad').focus();
 }
 
 async function savePago() {
   const id = document.getElementById('edit-pago-id').value;
   const alumnoId = parseInt(document.getElementById('edit-pago-alumno-id').value);
   const fecha = document.getElementById('edit-pago-fecha').value;
-  const cantidad = parseFloat(document.getElementById('edit-pago-cantidad').value);
-  const nota = document.getElementById('edit-pago-nota').value.trim();
+  let cantidad = parseFloat(document.getElementById('edit-pago-cantidad').value);
+  let nota = document.getElementById('edit-pago-nota').value.trim();
   const formaPago = document.getElementById('edit-pago-forma').value || null;
-  if (!fecha) { alert('Selecciona una fecha.'); return; }
-  if (isNaN(cantidad) || cantidad <= 0) { alert('Introduce una cantidad válida.'); return; }
+  if (!fecha) { await avisar('Selecciona una fecha.'); return; }
+  if (pagoCtx && pagoCtx.modo === 'clases') {
+    const c = calculoPagoClases();
+    if (!(c.precio > 0)) { await avisar(`El permiso ${pagoCtx.permiso || ''} no tiene precio por clase. Ponlo en Ajustes → Cobros o anota el importe.`); return; }
+    if (!(c.n > 0)) { await avisar('Indica cuántas clases paga.'); return; }
+    cantidad = c.total;
+    if (!nota) nota = notaPagoClases(c);
+  }
+  if (isNaN(cantidad) || cantidad <= 0) { await avisar('Introduce una cantidad válida.'); return; }
 
   if (id) {
     // Edición: no se toca el empleado original (undefined = updatePago no lo modifica).
@@ -175,12 +261,16 @@ async function savePago() {
     await window.api.addPago(alumnoId, fecha, cantidad, nota, getSucursalActual(), formaPago, empleado);
   }
   closeModal('modal-pago');
-  loadDeudas();
+  if (document.getElementById('page-pagos')?.classList.contains('active')) loadDeudas();
 
-  // Si el historial de este alumno está abierto, refrescarlo también
+  // Si el historial o la ficha económica de este alumno están abiertos, refrescarlos también
   const modalHist = document.getElementById('modal-historial-pagos');
   if (modalHist.classList.contains('open') && parseInt(modalHist.dataset.alumnoId) === alumnoId) {
     abrirHistorialPagos(alumnoId, modalHist.dataset.alumnoNombre);
+  }
+  const modalEco = document.getElementById('modal-economia-alumno');
+  if (modalEco && modalEco.classList.contains('open') && parseInt(modalEco.dataset.alumnoId) === alumnoId) {
+    renderEconomiaAlumno();
   }
 }
 
@@ -254,14 +344,24 @@ async function abrirDesglosePagos(alumnoId, alumnoNombre) {
   openModal('modal-desglose-pagos');
 }
 
-async function loadTarifas() {
+function loadTarifas() {
+  return pintarTarifas('#tabla-tarifas tbody', 'tarifa', 'pagos-tarifa-toast');
+}
+
+// Rejilla permiso × tipo de clase con un input por celda. La usan Pagos →
+// Tarifas y Ajustes → Cobros (mismos datos, distinto prefijo de ids para que
+// no choquen si las dos están en el DOM). `extra` = permisos que se quieren
+// ver aunque aún no tengan alumnos ni precio (Ajustes → «Precio de otro permiso»).
+async function pintarTarifas(tbodySel, prefijo, toastId, extra = []) {
   const [tarifas, alumnos] = await Promise.all([window.api.getTarifas(), window.api.getAlumnos()]);
   const permisos = Array.from(new Set([
     ...alumnos.map(a => a.permiso),
-    ...tarifas.map(t => t.permiso)
-  ])).sort();
+    ...tarifas.map(t => t.permiso),
+    ...extra
+  ].filter(Boolean))).sort();
 
-  const tbody = document.querySelector('#tabla-tarifas tbody');
+  const tbody = document.querySelector(tbodySel);
+  if (!tbody) return;
   if (!permisos.length) {
     tbody.innerHTML = '<tr><td colspan="3" class="empty">No hay permisos todavía — añade un alumno primero</td></tr>';
     return;
@@ -270,22 +370,21 @@ async function loadTarifas() {
   tbody.innerHTML = permisos.map(permiso => {
     const tCirc = tarifas.find(t => t.permiso === permiso && t.tipo === 'circulacion');
     const tPista = tarifas.find(t => t.permiso === permiso && t.tipo === 'pista');
-    const idCirc = `tarifa-${permiso}-circulacion`;
-    const idPista = `tarifa-${permiso}-pista`;
-    return `<tr>
+    const idCirc = `${prefijo}-${permiso}-circulacion`;
+    const idPista = `${prefijo}-${permiso}-pista`;
+    return `<tr data-permiso="${esc(permiso)}">
       <td>${tagPermiso(permiso)}</td>
-      <td><input type="number" id="${idCirc}" min="0" step="0.01" value="${tCirc ? tCirc.precio : 0}" style="width:100px" onchange="guardarTarifaUI('${permiso}','circulacion','${idCirc}')"></td>
-      <td><input type="number" id="${idPista}" min="0" step="0.01" value="${tPista ? tPista.precio : 0}" style="width:100px" onchange="guardarTarifaUI('${permiso}','pista','${idPista}')"></td>
+      <td><input type="number" id="${idCirc}" min="0" step="0.01" value="${tCirc ? tCirc.precio : ''}" placeholder="0,00" style="width:100px" onchange="guardarTarifaUI('${permiso}','circulacion','${idCirc}','${toastId}')"></td>
+      <td><input type="number" id="${idPista}" min="0" step="0.01" value="${tPista ? tPista.precio : ''}" placeholder="0,00" style="width:100px" onchange="guardarTarifaUI('${permiso}','pista','${idPista}','${toastId}')"></td>
     </tr>`;
   }).join('');
 }
 
-async function guardarTarifaUI(permiso, tipo, valorInputId) {
+async function guardarTarifaUI(permiso, tipo, valorInputId, toastId = 'pagos-tarifa-toast') {
   const input = document.getElementById(valorInputId);
   const valor = parseFloat(input.value);
-  if (isNaN(valor) || valor < 0) { alert('Introduce un precio válido.'); return; }
+  if (isNaN(valor) || valor < 0) { showToast(toastId, 'Introduce un precio válido (0 o más).', 'err'); return; }
   await window.api.setTarifa(permiso, tipo, valor);
   const tipoTxt = tipo === 'pista' ? 'Pista' : 'Circulación';
-  showToast('pagos-tarifa-toast', `Tarifa de ${permiso} (${tipoTxt}) guardada: ${fmt(valor)} €`, 'ok');
+  showToast(toastId, `Precio de ${permiso} (${tipoTxt}) guardado: ${fmt(valor)} €`, 'ok');
 }
-

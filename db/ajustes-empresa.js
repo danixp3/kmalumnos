@@ -66,4 +66,44 @@ function setDuracionClase(min) {
   return n;
 }
 
-module.exports = { getAjusteEmpresa, setAjusteEmpresa, getZonasPractica, setZonasPractica, getDuracionClase, setDuracionClase, MAX_ZONAS };
+// Conceptos de cobro de la empresa (Ajustes → Cobros): matrícula, tasa y lo
+// que cada autoescuela quiera añadir (soporte informático, certificado...).
+// Los marcados `alta` se cargan solos a cada alumno nuevo (escritorio y web).
+// null = la empresa aún no los ha guardado nunca (el escritorio propone los
+// importes antiguos de matrícula/tasa que vivían en localStorage).
+const MAX_CONCEPTOS = 30;
+const TIPOS_CONCEPTO = ['matricula', 'tasa', 'cargo'];
+
+function _normalizarConceptos(lista) {
+  const vistos = new Set();
+  const limpia = [];
+  for (const c of Array.isArray(lista) ? lista : []) {
+    if (!c || typeof c !== 'object') continue;
+    const nombre = String(c.nombre == null ? '' : c.nombre).replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (!nombre || vistos.has(nombre.toLowerCase())) continue;
+    const importe = Math.round(Math.max(0, Number(c.importe) || 0) * 100) / 100;
+    const tipo = TIPOS_CONCEPTO.includes(c.tipo) ? c.tipo : 'cargo';
+    const id = String(c.id || '').trim().slice(0, 40) || ('c' + Date.now().toString(36) + limpia.length);
+    vistos.add(nombre.toLowerCase());
+    limpia.push({ id, nombre, tipo, importe, alta: c.alta !== false });
+    if (limpia.length >= MAX_CONCEPTOS) break;
+  }
+  return limpia;
+}
+
+function getConceptosCobro() {
+  const v = getAjusteEmpresa('conceptos_cobro');
+  return Array.isArray(v) ? _normalizarConceptos(v) : null;
+}
+
+function setConceptosCobro(lista) {
+  const limpia = _normalizarConceptos(lista);
+  addLog('ajustes', `Conceptos de cobro: ${limpia.length ? limpia.map(c => `${c.nombre} ${c.importe} €${c.alta ? ' (alta)' : ''}`).join(', ') : 'ninguno'}`, []);
+  setAjusteEmpresa('conceptos_cobro', limpia);
+  return limpia;
+}
+
+module.exports = {
+  getAjusteEmpresa, setAjusteEmpresa, getZonasPractica, setZonasPractica, getDuracionClase, setDuracionClase, MAX_ZONAS,
+  getConceptosCobro, setConceptosCobro
+};

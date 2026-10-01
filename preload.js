@@ -93,6 +93,8 @@ contextBridge.exposeInMainWorld('api', {
   setZonasPractica:      (lista)                 => ipcRenderer.invoke('set-zonas-practica', lista),
   getDuracionClase:      ()                      => ipcRenderer.invoke('get-duracion-clase'),
   setDuracionClase:      (min)                   => ipcRenderer.invoke('set-duracion-clase', min),
+  getConceptosCobro:     ()                      => ipcRenderer.invoke('get-conceptos-cobro'),
+  setConceptosCobro:     (lista)                 => ipcRenderer.invoke('set-conceptos-cobro', lista),
   getPuestaEnMarcha:     ()                      => ipcRenderer.invoke('get-puesta-en-marcha'),
   guardarPuestaEnMarcha: (datos)                 => ipcRenderer.invoke('guardar-puesta-en-marcha', datos),
   vaciarDatosPrueba:     (opciones)              => ipcRenderer.invoke('vaciar-datos-prueba', opciones),
@@ -217,6 +219,7 @@ contextBridge.exposeInMainWorld('api', {
   addCargo:                     (datos)                      => ipcRenderer.invoke('add-cargo', datos),
   updateCargo:                  (id, campos)                 => ipcRenderer.invoke('update-cargo', id, campos),
   deleteCargo:                  (id)                         => ipcRenderer.invoke('delete-cargo', id),
+  addCargosAlta:                (alumnoId, conceptos, fecha, sucursalId) => ipcRenderer.invoke('add-cargos-alta', alumnoId, conceptos, fecha, sucursalId),
 
   addTasa:                      (datos)                      => ipcRenderer.invoke('add-tasa', datos),
   updateTasa:                   (id, campos)                 => ipcRenderer.invoke('update-tasa', id, campos),

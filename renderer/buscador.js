@@ -67,7 +67,7 @@ const BUSCADOR_DESTINOS = [
   { titulo: 'Buscar actualizaciones', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-actualizaciones', kw: 'actualizaciones actualizar version update buscar' },
   { titulo: 'Clases y kilómetros', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-clases', kw: 'preferencias rango km por defecto minutos clase duracion cancelacion plazo devolucion' },
   { titulo: 'Panel principal', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-panel', kw: 'tarjetas panel graficos personalizar dashboard inicio' },
-  { titulo: 'Cobros (matrícula, tasa, IVA)', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-cobros', kw: 'matricula tasa iva importe por defecto cobros' },
+  { titulo: 'Cobros (matrícula, conceptos, precio por clase, IVA)', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-cobros', kw: 'matricula tasa iva importe cobros conceptos alta soporte informatico tarifas precio clase permiso' },
   { titulo: 'Combustible', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-combustible', kw: 'combustible precio consumo litros coste gasolina diesel' },
   { titulo: 'Zonas de prácticas', sub: 'Ajustes · la web del móvil', page: 'ajustes', anchor: 'aj-zonas', kw: 'zonas recorridas practica web movil centro poligono autovia circuito' },
   { titulo: 'Personalizar menú', sub: 'Ajustes · qué funciones se ven', page: 'ajustes', anchor: 'aj-menu', kw: 'menu lateral ocultar mostrar funciones personalizar barra simplificar' },

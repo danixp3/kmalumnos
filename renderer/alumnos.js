@@ -394,7 +394,13 @@ async function addAlumno() {
   }
   hideToast('alumno-alert');
   const permisos = leerPermisosCheckboxes('a-permisos');
-  await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, getSucursalActual(), email || null, datos, libro, permisos);
+  const cobros = leerCobrosAlta();
+  const nuevoId = await window.api.addAlumno(nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, getSucursalActual(), email || null, datos, libro, permisos);
+  let cargados = [];
+  if (nuevoId && cobros.length) {
+    try { cargados = await window.api.addCargosAlta(nuevoId, cobros, datos.fecha_alta || hoyISO(), getSucursalActual()); }
+    catch (e) { await avisar('El alumno se ha creado, pero no se pudieron anotar los cobros de alta: ' + (e.message || e) + '. Añádelos desde su ficha económica.'); }
+  }
   document.getElementById('a-nombre').value = '';
   document.getElementById('a-primer-apellido').value = '';
   document.getElementById('a-segundo-apellido').value = '';
@@ -415,6 +421,26 @@ async function addAlumno() {
   marcarPermisosCheckboxes('a-permisos', []);
   closeModal('modal-alumno-nuevo');
   loadAlumnos();
+  if (cargados.length) showToast('alumnos-alta-toast', `${nombre} dado de alta. Anotado en su cuenta: ${cargados.map(c => `${c.concepto} ${fmtEur(c.importe)}`).join(' · ')}`, 'ok');
+}
+
+// Cobros de alta: los conceptos de Ajustes → Cobros marcados «Al dar de alta»
+// salen marcados en el modal; se pueden desmarcar para un alumno concreto
+// (p. ej. matrícula gratis por promoción). addAlumno() los carga con
+// addCargosAlta en cuanto el alumno existe.
+let cobrosAltaCache = [];
+async function pintarCobrosAlta() {
+  const cont = document.getElementById('a-cobros-alta');
+  if (!cont) return;
+  try { cobrosAltaCache = (await getConceptosCobroUI()).filter(c => c.alta && c.importe > 0); } catch (e) { cobrosAltaCache = []; }
+  cont.innerHTML = cobrosAltaCache.length
+    ? cobrosAltaCache.map((c, i) => `<label class="cobro-alta"><input type="checkbox" data-cobro-alta="${i}" checked> ${esc(c.nombre)} <b>${fmtEur(c.importe)}</b></label>`).join('')
+    : `<span class="cobro-alta-vacio">No hay nada que cobrar al dar de alta. <a href="#" onclick="closeModal('modal-alumno-nuevo');irAjustesCobros();return false">Configurar la matrícula</a></span>`;
+}
+
+function leerCobrosAlta() {
+  return [...document.querySelectorAll('#a-cobros-alta input[data-cobro-alta]:checked')]
+    .map(cb => cobrosAltaCache[parseInt(cb.dataset.cobroAlta)]).filter(Boolean);
 }
 
 // El alta vive en un modal (botón "Nuevo alumno" de la cabecera).
@@ -425,6 +451,7 @@ async function abrirNuevoAlumno() {
   const alta = document.getElementById('a-fecha-alta');
   if (alta && !alta.value) alta.value = hoyISO();
   document.getElementById('a-estado').value = 'matriculado';
+  await pintarCobrosAlta();
   openModal('modal-alumno-nuevo');
   setTimeout(() => document.getElementById('a-nombre')?.focus(), 60);
 }
@@ -655,9 +682,6 @@ async function abrirEconomiaAlumno(alumnoId, alumnoNombre) {
   const modal = document.getElementById('modal-economia-alumno');
   modal.dataset.alumnoId = alumnoId;
   modal.dataset.alumnoNombre = alumnoNombre;
-  document.getElementById('economia-pago-fecha').value = new Date().toISOString().split('T')[0];
-  document.getElementById('economia-pago-cantidad').value = '';
-  document.getElementById('economia-pago-nota').value = '';
   await renderEconomiaAlumno();
   openModal('modal-economia-alumno');
 }
@@ -734,6 +758,13 @@ async function renderEconomiaAlumno() {
     </tr>`).join('');
   }
 
+  const contConceptos = document.getElementById('economia-conceptos');
+  if (contConceptos) {
+    conceptosCobroCache = await getConceptosCobroUI();
+    contConceptos.innerHTML = conceptosCobroCache.map((c, i) =>
+      `<button class="btn btn-gray btn-sm" onclick="addCargoConcepto(${i})" title="${c.importe > 0 ? fmtEur(c.importe) : 'Sin importe fijo'}">+ ${esc(c.nombre)}</button>`).join('');
+  }
+
   const TIPO_CARGO_LABEL = { matricula: 'Matrícula', tasa: 'Tasa', cargo: 'Cargo', descuento: 'Descuento', promo: 'Promoción' };
   const tbodyCargos = document.querySelector('#tabla-economia-cargos tbody');
   const cargos = (desglose && desglose.cargos) || [];
@@ -752,9 +783,9 @@ async function renderEconomiaAlumno() {
 
 // ─── CARGOS Y DESCUENTOS DEL ALUMNO (modal, tarea D2) ──────────────────────
 // Vive dentro del modal de economía: abrirModalCargo()/guardarCargo() lo
-// rellenan y lo guardan, addCargoRapido() precarga tipo+importe con la
-// preferencia de Ajustes (getMatriculaImporte/getTasaImporte, renderer/
-// ajustes.js). Al guardar, refresca renderEconomiaAlumno() para que el
+// rellenan y lo guardan, addCargoConcepto() lo precarga con un concepto de
+// Ajustes → Cobros (conceptosCobroCache, renderer/ajustes.js). Al guardar,
+// refresca renderEconomiaAlumno() para que el
 // resumen (total_generado/saldo, ya recalculados en db/pagos.js) se
 // actualice al instante.
 function abrirModalCargo() {
@@ -766,14 +797,16 @@ function abrirModalCargo() {
   openModal('modal-cargo');
 }
 
-function addCargoRapido(tipo) {
-  const importe = tipo === 'matricula' ? getMatriculaImporte() : getTasaImporte();
-  document.getElementById('cargo-tipo').value = tipo;
-  document.getElementById('cargo-concepto').value = tipo === 'matricula' ? 'Matrícula' : 'Tasa';
-  document.getElementById('cargo-importe').value = importe;
-  document.getElementById('cargo-fecha').value = new Date().toISOString().split('T')[0];
+function addCargoConcepto(i) {
+  const c = conceptosCobroCache[i];
+  if (!c) return;
+  document.getElementById('cargo-tipo').value = c.tipo || 'cargo';
+  document.getElementById('cargo-concepto').value = c.nombre;
+  document.getElementById('cargo-importe').value = c.importe > 0 ? c.importe : '';
+  document.getElementById('cargo-fecha').value = hoyISO();
   document.getElementById('cargo-nota').value = '';
   openModal('modal-cargo');
+  if (!(c.importe > 0)) setTimeout(() => document.getElementById('cargo-importe')?.focus(), 60);
 }
 
 async function guardarCargo() {
@@ -797,19 +830,11 @@ async function deleteCargoEconomia(id) {
   await renderEconomiaAlumno();
 }
 
-async function addPagoEconomia() {
+// Mismo modal que Pagos → «Anotar pago» (por clases o importe); al guardar,
+// savePago() refresca esta ficha si sigue abierta.
+function abrirPagoEconomia() {
   const modal = document.getElementById('modal-economia-alumno');
-  const alumnoId = parseInt(modal.dataset.alumnoId);
-  const fecha = document.getElementById('economia-pago-fecha').value;
-  const cantidad = parseFloat(document.getElementById('economia-pago-cantidad').value);
-  const nota = document.getElementById('economia-pago-nota').value.trim();
-  if (!fecha) { alert('Selecciona una fecha.'); return; }
-  if (isNaN(cantidad) || cantidad <= 0) { alert('Introduce una cantidad válida.'); return; }
-  await window.api.addPago(alumnoId, fecha, cantidad, nota, getSucursalActual());
-  document.getElementById('economia-pago-fecha').value = new Date().toISOString().split('T')[0];
-  document.getElementById('economia-pago-cantidad').value = '';
-  document.getElementById('economia-pago-nota').value = '';
-  await renderEconomiaAlumno();
+  abrirModalPago(parseInt(modal.dataset.alumnoId), modal.dataset.alumnoNombre);
 }
 
 async function deletePagoEconomia(id) {

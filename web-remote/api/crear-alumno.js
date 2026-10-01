@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, validators, getSupabase, handleSupabaseError } from './_utils.js';
+import { setCorsHeaders, requireAuth, validators, getSupabase, handleSupabaseError, cargarCobrosAlta } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
   const supabase = getSupabase(auth.token);
 
-  const { nombre, permiso, vehiculo_id, profesor_id } = req.body || {};
+  const { nombre, permiso, vehiculo_id, profesor_id, hoy } = req.body || {};
 
   // Validar nombre
   const nombreVal = validators.nonEmptyString(nombre, 'Nombre', 100);
@@ -102,9 +102,18 @@ export default async function handler(req, res) {
 
   if (handleSupabaseError(errInsert, res, 'Error al crear el alumno')) return;
 
+  // Matrícula y demás conceptos «al dar de alta» (Ajustes → Cobros). Si no se
+  // pueden anotar, el alumno queda creado igual y se avisa.
+  const fechaHoy = validators.fecha(hoy).valid ? hoy : new Date().toISOString().slice(0, 10);
+  let cobros = { cargados: [] };
+  try { cobros = await cargarCobrosAlta(supabase, auth.empresaId, newAlumno.id, fechaHoy); }
+  catch (e) { cobros = { cargados: [], error: e.message }; }
+
   return res.status(200).json({
     ok: true,
     mensaje: `Alumno "${nombreVal.value}" creado correctamente`,
-    alumno_id: newAlumno.id
+    alumno_id: newAlumno.id,
+    cobros_alta: cobros.cargados,
+    ...(cobros.error ? { cobros_error: cobros.error } : {})
   });
 }

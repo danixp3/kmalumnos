@@ -33,6 +33,7 @@ Supabase (proyecto `dmwoqugdnwgkcqtixhyw`): tablas `vehiculos`, `alumnos`, `prac
 
 - **CRUD**: `getVehiculos/addVehiculo/updateVehiculoKm/deleteVehiculo`, `getAlumnos/addAlumno/updateAlumno/deleteAlumno` (borra también sus prácticas), `getPracticasByAlumno/getUltimaPractica/addPractica/updatePractica/deletePractica`.
 - **Km**: `rellenarKmMasivo(vid,min,max,inicio?,final?)`, `getPracticasSinKm`, `corregirSolapamientos`, `getSolapamientos`, `validarSolapamiento`, `getResumen`, `getTimelineVehiculo`.
+- **Cobros** (2026-10-01): conceptos en `ajustes_empresa.conceptos_cobro` (`getConceptosCobro/setConceptosCobro`, compartidos con la web) y `addCargosAlta` (matrícula y demás al dar de alta). Pago «por clases» = n × tarifa del permiso (solo UI, se guarda como un pago normal).
 - **Pagos**: `getTarifas/setTarifa/deleteTarifa`, `getPagosByAlumno/addPago/updatePago/deletePago`, `getDeudas` (deuda por alumno) y `getDesglosePagosAlumno(alumno_id)` (desglose práctica a práctica, FIFO en céntimos) — estas dos últimas **solo lectura, no marcan sync**.
 - **Dashboard**: `getStatsDashboard(hoy?)` — solo lectura, `{ practicasHoy, kmMes, totalAdeudado, alumnosConDeuda }` para las tarjetas opcionales del dashboard (dinero en euros con decimales, no céntimos).
 - **CSV**: `importarCSV(rows,min,max)`, `exportarCSV`, `compararCSVs`.
@@ -48,7 +49,7 @@ La ventana de escritorio es `frame: false` (sin marco nativo): la barra de títu
 
 ## web-remote/ (Vercel, ES modules — la app usa `require`)
 
-`index.html` (SPA móvil del profesor, rediseño 2026-09-29: Hoy → Iniciar → En curso → Km final → Firma; mapa fino en /cambiar-web) + `api/`: `_utils.js` (CORS, validación, `requireAuth` con JWT Bearer de Supabase Auth, `getSupabase(token)` → RLS por empresa, `conFallbackColumnas` para columnas de migraciones no aplicadas), `vehiculos`/`alumnos`/`hoy`/`historial`/`practicas-alumno`/`profesores`/`agenda-profesor` (GET), `practica` (POST clásico km=0,0), `iniciar-practica`/`finalizar-practica`/`firmar-practica` (POST, flujo en curso), `crear-alumno`, `cancelar-practica` (soft delete, solo `source='web-remote'`), `alumno-*` (portal del alumno). Envs en Vercel: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SYNC_EMAIL`, `SYNC_PASSWORD` (ya no hay PIN). Pruebas: `npm run test:api`. Tocar web-remote ⇒ desplegar con /desplegar-web.
+`index.html` (SPA móvil del profesor, rediseño 2026-09-29: Hoy → Iniciar → En curso → Km final → Firma; mapa fino en /cambiar-web) + `api/`: `_utils.js` (CORS, validación, `requireAuth` con JWT Bearer de Supabase Auth, `getSupabase(token)` → RLS por empresa, `conFallbackColumnas` para columnas de migraciones no aplicadas), `vehiculos`/`alumnos`/`hoy`/`historial`/`practicas-alumno`/`profesores`/`agenda-profesor` (GET), `practica` (POST clásico km=0,0), `iniciar-practica`/`finalizar-practica`/`firmar-practica` (POST, flujo en curso), `anotar-practica` (POST, clase olvidada hasta 30 días atrás), `crear-alumno` (carga los cobros de alta de `ajustes_empresa.conceptos_cobro`), `cancelar-practica` (soft delete, solo `source='web-remote'`), `alumno-*` (portal del alumno). Envs en Vercel: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SYNC_EMAIL`, `SYNC_PASSWORD` (ya no hay PIN). Pruebas: `npm run test:api`. Tocar web-remote ⇒ desplegar con /desplegar-web.
 
 ## Checklist de invariantes (repasar SIEMPRE antes de codificar)
 

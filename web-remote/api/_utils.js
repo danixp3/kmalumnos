@@ -315,3 +315,39 @@ export async function sesionDePractica(supabase, empresaId, p, columnas = 'id, k
 
 // Km de una práctica (0 si está en blanco o sin cerrar).
 export const kmDePractica = p => (p && p.km_final > 0 && p.km_inicial >= 0) ? Math.max(0, p.km_final - p.km_inicial) : 0;
+
+// ─── Cobros de alta (Ajustes → Cobros del escritorio) ───────────────────────
+// Al crear un alumno desde el móvil se le cargan los conceptos marcados «al
+// dar de alta» (matrícula, tasa, soporte...), igual que en el escritorio. La
+// lista viaja por ajustes_empresa (clave 'conceptos_cobro'). Los ids de
+// `cargos` los pone el cliente (no hay secuencia en la nube): la web usa un
+// número al azar en [1.500.000.000, 2.100.000.000), rango que el escritorio
+// nunca usa (sus ids van por debajo de 1e9 y el sync no avanza su contador
+// con ids >= 1e9); si choca (23505) se prueba otro. Sin la tabla, sin
+// conceptos o sin permiso (RLS de jefe) no se carga nada y el alta sigue.
+export async function cargarCobrosAlta(supabase, empresaId, alumnoId, fecha) {
+  const { data: aj, error: errAj } = await supabase.from('ajustes_empresa').select('valor')
+    .eq('empresa_id', empresaId).eq('clave', 'conceptos_cobro').maybeSingle();
+  if (errAj || !aj || !Array.isArray(aj.valor)) return { cargados: [] };
+  const conceptos = aj.valor
+    .filter(c => c && c.alta !== false && Number(c.importe) > 0 && String(c.nombre || '').trim())
+    .slice(0, 30);
+  const cargados = [];
+  for (const c of conceptos) {
+    const fila = {
+      alumno_id: alumnoId, concepto: String(c.nombre).trim().slice(0, 60),
+      tipo: ['matricula', 'tasa'].includes(c.tipo) ? c.tipo : 'cargo',
+      importe: Math.round(Number(c.importe) * 100) / 100, fecha, nota: 'Alta del alumno',
+      empresa_id: empresaId, deleted: false, updated_at: new Date().toISOString()
+    };
+    let error = null;
+    for (let intento = 0; intento < 3; intento++) {
+      fila.id = 1500000000 + Math.floor(Math.random() * 600000000);
+      ({ error } = await supabase.from('cargos').insert(fila));
+      if (!error || error.code !== '23505') break;
+    }
+    if (error) return { cargados, error: error.message || 'No se pudieron anotar los cobros de alta' };
+    cargados.push({ concepto: fila.concepto, importe: fila.importe });
+  }
+  return { cargados };
+}

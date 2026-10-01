@@ -2498,7 +2498,7 @@
   .menu-op-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .menu-op-txt b { font-size: 14px; }
   .menu-op-txt small { font-size: 12px; color: var(--text-muted); }
-  .interruptor { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+  .interruptor { position: relative; display: inline-block; vertical-align: middle; width: 38px; height: 22px; flex-shrink: 0; }
   .interruptor input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
   .interruptor i { position: absolute; inset: 0; border-radius: 999px; background: var(--border-strong); transition: background .15s ease; }
   .interruptor i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s ease; }
@@ -2508,6 +2508,35 @@
 
   .btn-ghost { background: transparent; border: none; color: var(--text-muted); box-shadow: none; }
   .btn-ghost:hover { color: var(--danger); background: var(--danger-light); }
+
+  /* ── COBROS: conceptos, precio por clase, pago por clases, alta ─────────── */
+  .cob-tit { font-family: var(--font-display, inherit); font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  .cob-ayuda { font-size: 12.5px; color: var(--text-muted); margin: 0 0 10px; line-height: 1.5; }
+  .cob-tabla th:last-child, .cob-tabla td:last-child { text-align: right; }
+  #tabla-tarifas-ajustes th:last-child, #tabla-tarifas-ajustes td:last-child { text-align: left; }
+  .cob-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 4px; }
+  .pago-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .pago-saldo { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+  .pago-saldo b { color: var(--text); }
+  .pago-clases-fila { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pago-stepper { display: inline-flex; align-items: stretch; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; background: var(--input-bg); }
+  .pago-stepper button { width: 36px; border: none; background: var(--btn-gray-bg); color: var(--text); font-size: 18px; font-weight: 700; cursor: pointer; }
+  .pago-stepper button:hover { background: var(--accent-light); }
+  .pago-stepper input { width: 64px; border: none; border-radius: 0; text-align: center; font-family: var(--font-mono, monospace); font-size: 16px; font-weight: 600; box-shadow: none; -moz-appearance: textfield; }
+  .pago-stepper input::-webkit-outer-spin-button, .pago-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .pago-chips button { min-width: 38px; }
+  .pago-calculo { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 14px; margin-bottom: 14px; border-radius: var(--radius-sm); background: var(--accent-light); color: var(--accent-text); font-size: 13.5px; }
+  .pago-calculo:empty { display: none; }
+  .pago-calculo b { font-family: var(--font-display, inherit); font-size: 24px; color: var(--text); }
+  .cobros-alta-caja { margin-top: 14px; padding: 12px 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); }
+  .cobros-alta-tit { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+  .cobros-alta-lista { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+  .cobro-alta { display: inline-flex !important; align-items: center; gap: 6px; font-weight: 500; font-size: 14px; cursor: pointer; white-space: nowrap; margin: 0; }
+  .cobro-alta input { accent-color: var(--accent-strong); width: 16px; height: 16px; margin: 0; }
+  .cobro-alta b { font-family: var(--font-mono, monospace); font-size: 13px; white-space: nowrap; }
+  #modal-pago [hidden], #tarifa-nuevo-permiso[hidden] { display: none !important; }
+  #pago-sin-precio { display: block; margin-bottom: 12px; line-height: 1.5; }
+  .cobro-alta-vacio { font-size: 13px; color: var(--text-muted); }
 
   /* ── PUESTA EN MARCHA (renderer/puesta-en-marcha.js) ─────────────────── */
   .pm-guia { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
