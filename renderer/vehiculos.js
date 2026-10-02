@@ -120,26 +120,48 @@ function pintarContinuidadVehiculos(panel) {
   // La hora de «ahora» solo se rotula en la primera fila (en las demás, la línea)
   const lineaSinHora = lineaAhora.replace(/<em>.*<\/em>/, '');
   const filas = panel.vehiculos.map((v, iv) => {
-    // Una práctica sin hora de fin se dibuja de 45 min; si la siguiente empezó
-    // antes, se acorta hasta ahí para que los bloques no se monten.
+    // Una clase sin hora de fin real (fin estimado: inicio + minutos por clase)
+    // se acorta hasta donde empezó la siguiente, para que no se monten.
     const conHora = v.bloques_hoy.filter(b => b.inicio).sort((x, y) => aMin(x.inicio) - aMin(y.inicio));
     const finDe = (b, i) => {
       const ini = aMin(b.inicio);
       let fin = b.fin ? aMin(b.fin) : ini + 45;
+      if (fin < ini) fin = Math.min(24 * 60, ini + 45); // pasa de medianoche
       const sig = b.tipo === 'hueco' ? null : conHora.slice(i + 1).find(x => x.tipo !== 'hueco');
-      if (!b.fin && sig && aMin(sig.inicio) < fin) fin = Math.max(ini + 5, aMin(sig.inicio));
+      if ((b.fin_estimado || !b.fin) && sig && aMin(sig.inicio) < fin) fin = Math.max(ini + 5, aMin(sig.inicio));
       return fin;
     };
-    const bl = conHora.map((b, i) => {
+    const huecos = [], clases = [];
+    conHora.forEach((b, i) => {
       const ini = aMin(b.inicio), fin = finDe(b, i);
       const l = pos(ini), w = Math.max(1.2, pos(fin) - l);
-      const primerNombre = (b.alumno || '').split(' ')[0];
-      if (b.tipo === 'hueco') return `<span class="bl-el bl-hueco-el" style="left:${l}%;width:${Math.max(w, 1.8)}%" title="${b.km} km sin asignar"><em>+${b.km} km</em></span>`;
-      const txt = b.tipo === 'hecha' ? `${b.km} km` : esc(primerNombre);
+      (b.tipo === 'hueco' ? huecos : clases).push({ b, l, w, ini, fin });
+    });
+    // Clases que aun así se pisan en la pantalla (clases de segundos, anotadas a
+    // la misma hora, horas que se solapan): un solo bloque «2 clases · 50 km»
+    const grupos = [];
+    for (const c of clases) {
+      const g = grupos[grupos.length - 1];
+      if (g && c.l < g.der - 0.05) { g.items.push(c); g.der = Math.max(g.der, c.l + c.w); } else grupos.push({ items: [c], izq: c.l, der: c.l + c.w });
+    }
+    const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const detalle = ({ b, ini, fin }) => `${b.alumno || '—'}${b.km ? ' · ' + b.km + ' km' : ''} · ${hhmm(ini)}–${hhmm(fin)}`;
+    const bl = grupos.map(g => {
+      const w = g.der - g.izq;
       // Si el bloque es más estrecho que su texto, el dato queda en el tooltip
-      const cabe = px(w) >= String(txt).length * 7.5 + 8;
-      return `<span class="bl-el bl-${b.tipo}-el" style="left:${l}%;width:${w}%" title="${esc(b.alumno)}${b.km ? ' · ' + b.km + ' km' : ''}${b.inicio ? ' · ' + b.inicio + (b.fin ? '–' + b.fin : '') : ''}">${cabe ? txt : ''}</span>`;
-    }).join('');
+      const cabe = t => px(w) >= String(t).length * 7.5 + 8;
+      if (g.items.length === 1) {
+        const { b } = g.items[0];
+        const txt = b.tipo === 'hecha' ? `${b.km} km` : esc((b.alumno || '').split(' ')[0]);
+        return `<span class="bl-el bl-${b.tipo}-el" style="left:${g.izq}%;width:${w}%" title="${esc(detalle(g.items[0]))}">${cabe(txt) ? txt : ''}</span>`;
+      }
+      const tipos = g.items.map(x => x.b.tipo);
+      const tipo = tipos.includes('curso') ? 'curso' : tipos.every(t => t === 'prog') ? 'prog' : 'hecha';
+      const km = g.items.reduce((s, x) => s + (x.b.tipo === 'hecha' ? x.b.km : 0), 0);
+      const n = g.items.length;
+      const txt = [km ? `${n} clases · ${km} km` : `${n} clases`, km ? `${km} km` : `${n}`].find(cabe) || '';
+      return `<span class="bl-el bl-${tipo}-el bl-grupo-el" style="left:${g.izq}%;width:${w}%" title="${esc(`${n} clases juntas:\n` + g.items.map(detalle).join('\n'))}">${txt}</span>`;
+    }).join('') + huecos.map(({ b, l, w }) => `<span class="bl-el bl-hueco-el" style="left:${l}%;width:${Math.max(w, 1.8)}%" title="${b.km} km sin asignar"><em>+${b.km} km</em></span>`).join('');
     const sub = `${v.profesor_habitual ? esc(v.profesor_habitual) + ' · ' : ''}${v.km_hoy} km hoy${v.hueco_hoy ? ' + ' + v.hueco_hoy : ''}`;
     return `<div class="cont-fila"><div class="cont-etq">${placaHTML(v.matricula) || esc(v.nombre)}<span>${sub}</span></div><div class="cont-pista" style="background-size:calc(100% / ${horas.length - 1}) 100%">${bl}${iv === 0 ? lineaAhora : lineaSinHora}</div></div>`;
   }).join('');

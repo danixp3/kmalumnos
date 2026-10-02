@@ -72,3 +72,16 @@ test('sin_km cuenta las prácticas en blanco del vehículo', () => {
   db.addPractica(aid, vid, '2026-09-01', 0, 0, pid);
   expect(db.getPanelVehiculos(HOY).vehiculos[0].sin_km).toBe(2);
 });
+
+test('línea de hoy: usa la hora de fin guardada y marca la estimada (clases a menos de 45 min no se montan)', () => {
+  const { vid, pid, aid, bid } = base();
+  db.addPractica(aid, vid, HOY, 980, 1005, pid, 'circulacion', null, '13:36');
+  db.addPractica(bid, vid, HOY, 1005, 1030, pid, 'circulacion', null, '13:50');
+  const d = JSON.parse(require('fs').readFileSync(require('path').join(require('./helpers').userDataDir, 'data.json'), 'utf-8'));
+  d.practicas[0].hora_fin = '13:50'; // la cerró el móvil
+  require('fs').writeFileSync(require('path').join(require('./helpers').userDataDir, 'data.json'), JSON.stringify(d));
+  db._clearCache();
+  const [a, b] = db.getPanelVehiculos(HOY, undefined, 45).vehiculos[0].bloques_hoy;
+  expect(a).toMatchObject({ inicio: '13:36', fin: '13:50', fin_estimado: false });
+  expect(b).toMatchObject({ inicio: '13:50', fin: '14:35', fin_estimado: true });
+});

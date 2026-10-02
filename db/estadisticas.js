@@ -727,20 +727,25 @@ function getPanelVehiculos(hoy, sucursalId, duracionMin) {
       itvInfo = { fecha: itv.fecha_vencimiento, dias, vencida: dias < 0 };
     }
 
-    // Línea de hoy
+    // Línea de hoy. Fin de cada clase: la hora de fin guardada (la pone el
+    // móvil al cerrarla) si no es anterior al inicio; si no la hay, inicio +
+    // minutos por clase, marcado `fin_estimado` para que la pantalla lo acorte
+    // si la siguiente clase del coche empezó antes (antes se usaba siempre la
+    // estimada y dos clases a menos de 45 min se dibujaban una encima de otra).
     const deHoy = propias.filter(p => p.fecha === hoy).sort((a, b) => (a.hora_inicio || '99').localeCompare(b.hora_inicio || '99') || a.id - b.id);
+    const finReal = p => (p.hora_inicio && p.hora_fin && p.hora_fin >= p.hora_inicio ? p.hora_fin : null);
+    const finDe = p => finReal(p) || _sumarMin(p.hora_inicio, dur);
     const bloques = [];
     let anterior = null;
     for (const p of deHoy) {
-      const fin = _sumarMin(p.hora_inicio, dur);
       if (anterior && conKm(anterior) && conKm(p) && p.km_inicial > anterior.km_final) {
-        bloques.push({ tipo: 'hueco', km: p.km_inicial - anterior.km_final, inicio: anterior.hora_inicio ? _sumarMin(anterior.hora_inicio, dur) : null, fin: p.hora_inicio || null });
+        bloques.push({ tipo: 'hueco', km: p.km_inicial - anterior.km_final, inicio: anterior.hora_inicio ? finDe(anterior) : null, fin: p.hora_inicio || null });
       } else if (anterior && conKm(anterior) && esPracticaEnCurso(p, hoy) && p.km_inicial > anterior.km_final) {
-        bloques.push({ tipo: 'hueco', km: p.km_inicial - anterior.km_final, inicio: anterior.hora_inicio ? _sumarMin(anterior.hora_inicio, dur) : null, fin: p.hora_inicio || null });
+        bloques.push({ tipo: 'hueco', km: p.km_inicial - anterior.km_final, inicio: anterior.hora_inicio ? finDe(anterior) : null, fin: p.hora_inicio || null });
       }
       bloques.push({
         tipo: esPracticaEnCurso(p, hoy) ? 'curso' : 'hecha', practica_id: p.id,
-        inicio: p.hora_inicio || null, fin,
+        inicio: p.hora_inicio || null, fin: finDe(p), fin_estimado: !!p.hora_inicio && !finReal(p),
         km: conKm(p) ? Math.max(0, p.km_final - p.km_inicial) : 0,
         alumno: nombreAlumno.get(p.alumno_id) || '—'
       });
@@ -749,7 +754,7 @@ function getPanelVehiculos(hoy, sucursalId, duracionMin) {
     // Programadas hoy (reservas vigentes de este coche que aún no tienen práctica de ese alumno)
     const yaHechos = new Set(deHoy.map(p => p.alumno_id));
     (d.reservas || []).filter(r => !r.deleted && r.fecha === hoy && r.vehiculo_id === v.id && ['solicitada', 'confirmada'].includes(r.estado) && !yaHechos.has(r.alumno_id))
-      .forEach(r => bloques.push({ tipo: 'prog', inicio: r.hora_inicio || null, fin: _sumarMin(r.hora_inicio, r.duracion_min || dur), km: 0, alumno: nombreAlumno.get(r.alumno_id) || '—' }));
+      .forEach(r => bloques.push({ tipo: 'prog', inicio: r.hora_inicio || null, fin: _sumarMin(r.hora_inicio, r.duracion_min || dur), fin_estimado: !r.duracion_min, km: 0, alumno: nombreAlumno.get(r.alumno_id) || '—' }));
     bloques.sort((a, b) => (a.inicio || '99').localeCompare(b.inicio || '99'));
 
     const enCurso = deHoy.find(p => esPracticaEnCurso(p, hoy));
