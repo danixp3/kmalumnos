@@ -51,6 +51,7 @@ async function comprobarBienvenida() {
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 aplicarTema(getTema());
+avisoCambioCuenta();
 document.getElementById('relleno-vehiculo')?.addEventListener('change', actualizarContadorSinKm);
 document.getElementById('rr-vehiculo')?.addEventListener('change', loadRegistroRapido);
 document.getElementById('rr-profesor')?.addEventListener('change', (e) => { rrProfesorActual = e.target.value || null; });

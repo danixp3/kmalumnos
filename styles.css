@@ -2711,3 +2711,9 @@
   .tb-cajon-acc button.pri:hover { filter: brightness(1.05); color: var(--accent-ink); }
   @media (max-width: 1150px) { .tb-cajon-dato { display: none; } }
   @media (prefers-reduced-motion: reduce) { .tb-cajon { transition: none; } }
+
+/* Inicio de sesión: cuentas con datos en este PC (un clic rellena el email) */
+.cuentas-pc-tit { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.cuentas-pc { display: flex; flex-wrap: wrap; gap: 6px; }
+.cuentas-pc .btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#conflicto-empresa-botones:not(.hidden) { display: flex; }

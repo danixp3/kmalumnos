@@ -1274,7 +1274,7 @@ describe('conflicto de datos locales con otra cuenta (local_empresa.json)', () =
     const res = await sync.sync();
 
     expect(res.ok).toBe(true); // el sync en sí no falla, solo se marca el conflicto
-    expect(sync.getEstadoCuenta().conflictoEmpresa).toEqual({ emailAnterior: 'prueba@empresa.com' });
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toEqual({ emailAnterior: 'prueba@empresa.com', empresaAnterior: 'empresa-prueba' });
     // El marcador NO se sobrescribe hasta que se resuelva el conflicto
     expect(JSON.parse(fs.readFileSync(localEmpresaFile, 'utf-8')).empresaId).toBe('empresa-prueba');
   });
@@ -1288,7 +1288,7 @@ describe('conflicto de datos locales con otra cuenta (local_empresa.json)', () =
 
     expect(res.ok).toBe(true);
     expect(res.estado).toBe('activa');
-    expect(sync.getEstadoCuenta().conflictoEmpresa).toEqual({ emailAnterior: 'prueba@empresa.com' });
+    expect(sync.getEstadoCuenta().conflictoEmpresa).toEqual({ emailAnterior: 'prueba@empresa.com', empresaAnterior: 'empresa-prueba' });
   });
 
   test('cerrar sesión (setCredentials(null,null)) limpia el conflicto detectado, no lo deja colgado', async () => {

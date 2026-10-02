@@ -101,6 +101,8 @@ contextBridge.exposeInMainWorld('api', {
   setDuracionClase:      (min)                   => ipcRenderer.invoke('set-duracion-clase', min),
   getRangoKm:            ()                      => ipcRenderer.invoke('get-rango-km'),
   setRangoKm:            (rango)                 => ipcRenderer.invoke('set-rango-km', rango),
+  getKmAutoMovil:        ()                      => ipcRenderer.invoke('get-km-auto-movil'),
+  setKmAutoMovil:        (rango)                 => ipcRenderer.invoke('set-km-auto-movil', rango),
   getConceptosCobro:     ()                      => ipcRenderer.invoke('get-conceptos-cobro'),
   setConceptosCobro:     (lista)                 => ipcRenderer.invoke('set-conceptos-cobro', lista),
   getPuestaEnMarcha:     ()                      => ipcRenderer.invoke('get-puesta-en-marcha'),
@@ -162,6 +164,9 @@ contextBridge.exposeInMainWorld('api', {
   clearSyncCreds:     ()                     => ipcRenderer.invoke('clear-sync-creds'),
   solicitarResetPassword: (email)            => ipcRenderer.invoke('solicitar-reset-password', email),
   resolverConflictoEmpresa: ()                => ipcRenderer.invoke('resolver-conflicto-empresa'),
+  cambiarDatosDeCuenta: (ajustesLocales)      => ipcRenderer.invoke('cambiar-datos-de-cuenta', ajustesLocales),
+  getCuentasGuardadas: ()                     => ipcRenderer.invoke('get-cuentas-guardadas'),
+  contarPendientes:   ()                      => ipcRenderer.invoke('contar-pendientes'),
 
   // Roles (jefe/empleado, fase 2 multi-empresa)
   getPerfilActual:    ()                          => ipcRenderer.invoke('get-perfil-actual'),

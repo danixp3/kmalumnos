@@ -17,7 +17,7 @@ import {
   hhmmValido, kmEntero, conFallbackColumnas, kmDePractica, limpiarZonas,
   partirEnClases, insertarPractica, sesionDePractica, cantidadClases, minutosValidos,
   clasesPorMinutos, leerDuracionClase, leerMinutosAlumno, guardarMinutosAlumno, clasesDe, fmtClases,
-  leerRangoKm, kmFinalAutomatico, topeKmSiguiente, MARCA_KM_AUTO
+  leerKmAuto, kmFinalAutomatico, topeKmSiguiente, MARCA_KM_AUTO
 } from '../../api/_utils.js';
 
 export default async function handler(req, res) {
@@ -88,7 +88,7 @@ export default async function handler(req, res) {
   if (kmAuto) {
     if (!(practica.km_inicial > 0)) return res.status(400).json({ error: 'Esta práctica no tiene km inicial: escribe el km final.' });
     const [rango, sig] = await Promise.all([
-      leerRangoKm(supabase, auth.empresaId),
+      leerKmAuto(supabase, auth.empresaId),
       topeKmSiguiente(supabase, auth.empresaId, practica.vehiculo_id, practica.km_inicial, practica.id)
     ]);
     if (handleSupabaseError(sig.error, res, 'Error al calcular los km')) return;

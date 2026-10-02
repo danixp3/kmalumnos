@@ -1,9 +1,9 @@
 // Ajustes de la empresa que la web necesita: las zonas de prácticas, los
-// minutos que dura una clase y el rango de km por clase (para los km
-// automáticos); todo se configura en el escritorio. Solo lectura. Sin la tabla ajustes_empresa
+// minutos que dura una clase y los km automáticos (km por cada 2 clases);
+// todo se configura en el escritorio. Solo lectura. Sin la tabla ajustes_empresa
 // (migración 2026-10-01 sin aplicar) responde con la lista vacía y la web
 // simplemente no muestra "Zonas recorridas".
-import { setCorsHeaders, requireAuth, getSupabase, withRetry, limpiarZonas, duracionClaseValida, rangoKmValido } from '../../api/_utils.js';
+import { setCorsHeaders, requireAuth, getSupabase, withRetry, limpiarZonas, duracionClaseValida, kmAutoValido } from '../../api/_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -20,11 +20,11 @@ export default async function handler(req, res) {
   const ajustes = error ? [] : (data || []);
   const zonas = ajustes.find(a => a.clave === 'zonas');
   const duracion = ajustes.find(a => a.clave === 'duracion_clase_min');
-  const rango = ajustes.find(a => a.clave === 'rango_km');
+  const kmAuto = ajustes.find(a => a.clave === 'km_auto_movil');
 
   return res.status(200).json({
     ok: true, zonas: limpiarZonas(zonas ? zonas.valor : []),
     duracion_clase_min: duracionClaseValida(duracion ? duracion.valor : 45),
-    rango_km: rangoKmValido(rango ? rango.valor : null)
+    km_auto: kmAutoValido(kmAuto ? kmAuto.valor : null)
   });
 }

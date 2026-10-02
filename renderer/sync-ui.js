@@ -173,9 +173,9 @@ function mostrarAppPorGate() {
 // crearCuentaEmpresa, el reintento en segundo plano de iniciarReintentoLogin):
 // antes de dejar pasar a la app hay que comprobar si los datos locales de
 // este PC pertenecen a otra cuenta (ver getEstadoCuenta().conflictoEmpresa,
-// sección CONFLICTO DE DATOS LOCALES). Si hay conflicto, interpone ese modal
-// en vez de mostrar la app. Devuelve true si no hubo conflicto (para que el
-// caller decida si toca mostrar su propio toast de éxito).
+// sección VARIAS CUENTAS EN ESTE PC). Si es así, se cambian a los de esta
+// cuenta (y la app se recarga). Devuelve true si no hubo cambio de cuenta
+// (para que el caller decida si toca mostrar su propio toast de éxito).
 async function finalizarLoginConCuenta() {
   refrescarEstadoCuenta();
   aplicarPermisosPorRol();
@@ -200,7 +200,27 @@ async function abrirCredsSync() {
   document.getElementById('sync-creds-password').value = '';
   resetVerPassword('sync-creds-password');
   hideToast('sync-creds-alert');
+  pintarCuentasGuardadas();
   openModal('modal-sync-creds');
+}
+
+// Cuentas que ya tienen datos en este PC: un clic rellena el email.
+async function pintarCuentasGuardadas() {
+  const cont = document.getElementById('sync-creds-cuentas');
+  if (!cont) return;
+  let lista = [];
+  try { lista = (await window.api.getCuentasGuardadas()) || []; } catch (e) {}
+  lista = lista.filter(c => c && c.email);
+  cont.classList.toggle('hidden', !lista.length);
+  cont.innerHTML = lista.length
+    ? `<div class="cuentas-pc-tit">Cuentas con datos en este PC</div><div class="cuentas-pc">${lista.map(c =>
+        `<button type="button" class="btn btn-outline btn-sm" data-email="${esc(c.email)}" onclick="elegirCuentaGuardada(this.dataset.email)">${esc(c.email)}</button>`).join('')}</div>`
+    : '';
+}
+
+function elegirCuentaGuardada(email) {
+  document.getElementById('sync-creds-email').value = email || '';
+  document.getElementById('sync-creds-password').focus();
 }
 
 async function guardarCredsSync() {
@@ -373,57 +393,119 @@ function cancelarCrearEmpresa() {
   comprobarBienvenida();
 }
 
-async function cerrarSesionEmpresa() {
-  if (!await confirmar('¿Cerrar sesión de la cuenta de empresa? Necesitarás iniciar sesión o crear una cuenta para seguir usando la aplicación.')) return;
+// Cerrar sesión (o «Cambiar de cuenta», despues = 'otra'): antes se sube a la
+// nube lo pendiente. Los datos de esta cuenta se quedan en el PC y vuelven
+// al entrar otra vez con ella; con otra cuenta se cambian solos.
+async function cerrarSesionEmpresa(despues) {
+  const estado = await window.api.getEstadoCuenta();
+  const email = (estado && estado.email) || 'esta cuenta';
+  const pregunta = despues === 'otra'
+    ? `¿Salir de ${email} para entrar con otra cuenta? Sus datos se quedan guardados en este PC y vuelven en cuanto entres otra vez con ella.`
+    : `¿Cerrar la sesión de ${email}? Sus datos se quedan guardados en este PC y vuelven en cuanto entres otra vez con ella.`;
+  if (!await confirmar(pregunta, { titulo: despues === 'otra' ? 'Cambiar de cuenta' : 'Cerrar sesión' })) return;
+  const botones = ['btn-cerrar-sesion-empresa', 'btn-cambiar-cuenta-empresa'].map(id => document.getElementById(id)).filter(Boolean);
+  botones.forEach(b => { b.disabled = true; });
+  let pendientes = 0;
+  try {
+    showToast('cuenta-empresa-toast', 'Subiendo a la nube los últimos cambios…', 'ok');
+    await window.api.syncNow();
+    pendientes = await window.api.contarPendientes();
+  } catch (e) {}
+  botones.forEach(b => { b.disabled = false; });
+  hideToast('cuenta-empresa-toast');
+  if (pendientes > 0 && !await confirmar(`Hay ${pendientes} cambio(s) que no se han podido subir a la nube (¿sin conexión?). No se pierden: se quedan en este PC y se subirán cuando vuelvas a entrar con ${email}. ¿Salir igualmente?`, { titulo: 'Cambios sin subir' })) return;
   await window.api.clearSyncCreds();
   refrescarEstadoCuenta();
   aplicarPermisosPorRol();
-  comprobarBienvenida();
+  if (despues === 'otra') { ocultarAppPorGate(); abrirCredsSync(); } else comprobarBienvenida();
 }
 
-// ─── CONFLICTO DE DATOS LOCALES (otra cuenta ya usó este PC) ───────────────────
-// Bug real que motivó esto: el dueño creó una cuenta de empresa de prueba en
-// este PC (con alumnos/profesores de prueba) y luego, en el mismo PC, una
-// segunda cuenta real — que veía los datos de prueba, porque data.json no
-// está vinculado a ninguna cuenta (ver sync.js, sección "PROPIETARIO DE LOS
-// DATOS LOCALES"). Este modal, bloqueante como el resto del gate (excluido
-// del cierre por click-fuera, ver renderer/utils-ui.js), se interpone entre
-// el login y la app cuando getEstadoCuenta().conflictoEmpresa no es null.
+// ─── VARIAS CUENTAS EN ESTE PC ─────────────────────────────────────────────────
+// Cada cuenta que entra en este PC tiene sus propios datos (sync.js, «DATOS
+// LOCALES POR CUENTA»). Al entrar con una cuenta distinta de la dueña de los
+// datos actuales, se cambian solos: los de la anterior quedan guardados y
+// vuelven al entrar otra vez con ella. Antes había que «Vaciar datos locales
+// y empezar limpio» y se perdía lo que no estaba en la nube (cambios sin
+// subir, jornadas, vencimientos, exámenes…). Con la cuenta viajan también
+// estos ajustes del PC que son de la autoescuela y viven en localStorage.
+const CLAVES_LOCALES_DE_CUENTA = [
+  'km_centro_datos', 'km_ficha_firmar_pie', 'km_cancel_plazo_horas', 'km_cancel_devolucion',
+  'km_consumo_medio', 'km_precio_combustible', 'km_iva_porcentaje', 'km_matricula_importe', 'km_tasa_importe',
+  'km_secciones_ocultas_empleado', 'kmalumnos_sucursal_actual', 'kmalumnos_rango_km', 'km_duracion_clase_min'
+];
+const AVISO_CAMBIO_CUENTA_KEY = 'km_aviso_cambio_cuenta';
+
+function leerAjustesLocalesDeCuenta() {
+  const r = {};
+  for (const k of CLAVES_LOCALES_DE_CUENTA) {
+    try { const v = localStorage.getItem(k); if (v !== null) r[k] = v; } catch (e) {}
+  }
+  return r;
+}
+
+// Los que tenía guardados la cuenta que entra. Si nunca había entrado en este
+// PC (null) se quedan los actuales: lo normal es que la cuenta de prueba y la
+// real sean de la misma autoescuela.
+function aplicarAjustesLocalesDeCuenta(guardados) {
+  if (!guardados || typeof guardados !== 'object') return;
+  for (const k of CLAVES_LOCALES_DE_CUENTA) {
+    try { if (k in guardados) localStorage.setItem(k, guardados[k]); else localStorage.removeItem(k); } catch (e) {}
+  }
+}
+
+// Lo llaman finalizarLoginConCuenta() y comprobarBienvenida() (arranque.js)
+// cuando getEstadoCuenta().conflictoEmpresa no es null. Modal bloqueante como
+// el resto del gate mientras se cambian los datos; al terminar, la app se
+// recarga ya con los de la cuenta nueva.
 function abrirConflictoEmpresa(conflicto, emailActual) {
+  cambiarACuenta(conflicto, emailActual);
+}
+
+async function cambiarACuenta(conflicto, emailActual) {
   ocultarAppPorGate();
+  const titulo = document.getElementById('conflicto-empresa-titulo');
   const msgEl = document.getElementById('conflicto-empresa-msg');
-  if (msgEl) {
-    msgEl.textContent = `Los datos de este ordenador pertenecen a otra cuenta (${(conflicto && conflicto.emailAnterior) || 'desconocida'}). Para usar la cuenta ${emailActual || ''} aquí, hay que empezar de cero con datos limpios.`;
-  }
-  hideToast('conflicto-empresa-toast');
+  const error = document.getElementById('conflicto-empresa-toast');
+  const botones = document.getElementById('conflicto-empresa-botones');
+  if (titulo) titulo.textContent = 'Cambiando de cuenta…';
+  if (msgEl) msgEl.textContent = `Se guardan en este PC los datos de ${(conflicto && conflicto.emailAnterior) || 'la cuenta anterior'} (vuelven al entrar con ella) y se preparan los de ${emailActual || 'esta cuenta'}. La primera vez se descargan de la nube y puede tardar un poco.`;
+  if (error) error.classList.add('hidden');
+  if (botones) botones.classList.add('hidden');
   openModal('modal-conflicto-empresa');
-}
-
-// "Vaciar datos locales y empezar limpio": vacía data.json/pending_sync.json,
-// adopta esta cuenta como dueña de los datos locales y descarga de la nube
-// los datos reales de esta cuenta (sync.resolverConflictoEmpresa(), NUNCA
-// pushAll — no hay que re-subir nada de la cuenta anterior). Tras esto, deja
-// pasar a la app con normalidad.
-async function vaciarYEmpezarLimpio() {
-  const btn = document.getElementById('conflicto-empresa-vaciar-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Vaciando...'; }
-  const res = await window.api.resolverConflictoEmpresa();
-  if (btn) { btn.disabled = false; btn.textContent = 'Vaciar datos locales y empezar limpio'; }
-  if (res && res.ok) {
-    closeModal('modal-conflicto-empresa');
-    mostrarAppPorGate();
-    refrescarEstadoCuenta();
-    aplicarPermisosPorRol();
-    loadDashboard();
-  } else {
-    showToast('conflicto-empresa-toast', 'No se pudo limpiar y sincronizar (' + (res?.reason || 'sin conexión') + '). Inténtalo de nuevo.', 'err');
+  let res = null;
+  try { res = await window.api.cambiarDatosDeCuenta(leerAjustesLocalesDeCuenta()); } catch (e) { res = { ok: false, reason: e.message }; }
+  if (!res || !res.ok) {
+    if (titulo) titulo.textContent = 'No se pudo cambiar de cuenta';
+    if (error) { error.className = 'alert alert-err'; error.textContent = (res && res.reason) || 'Error inesperado.'; }
+    if (botones) botones.classList.remove('hidden');
+    return;
   }
+  aplicarAjustesLocalesDeCuenta(res.ajustesLocales);
+  try { sessionStorage.setItem(AVISO_CAMBIO_CUENTA_KEY, JSON.stringify({ email: res.email, anterior: res.emailAnterior, nueva: res.nueva, sync: res.sync })); } catch (e) {}
+  location.reload();
 }
 
-// "Cancelar y volver a la otra cuenta": cierra esta sesión (igual que
-// cerrarSesionEmpresa(), sin el confirm() adicional — el usuario ya está
-// decidiendo esto de forma explícita en este modal) y vuelve al gate de
-// login/registro para poder entrar con la cuenta correcta.
+async function reintentarCambioCuenta() {
+  const estado = await window.api.getEstadoCuenta();
+  if (estado && estado.conectado && estado.conflictoEmpresa) cambiarACuenta(estado.conflictoEmpresa, estado.email);
+  else { closeModal('modal-conflicto-empresa'); comprobarBienvenida(); }
+}
+
+// Tras recargar: qué ha pasado con cada cuenta.
+function avisoCambioCuenta() {
+  let a = null;
+  try { a = JSON.parse(sessionStorage.getItem(AVISO_CAMBIO_CUENTA_KEY) || 'null'); sessionStorage.removeItem(AVISO_CAMBIO_CUENTA_KEY); } catch (e) {}
+  if (!a) return;
+  const partes = [`Ahora trabajas con ${a.email || 'la nueva cuenta'}.`];
+  if (a.anterior) partes.push(`Los datos de ${a.anterior} siguen guardados en este PC y vuelven en cuanto entres otra vez con esa cuenta.`);
+  if (a.sync && !a.sync.ok) partes.push(`${a.nueva ? 'Sus datos de la nube aún no se han podido descargar' : 'La sincronización no ha terminado'} (${a.sync.reason || 'sin conexión'}): se reintentará sola.`);
+  avisar(partes.join(' '), { titulo: 'Cuenta cambiada' });
+}
+
+// «Volver a la otra cuenta»: cierra esta sesión (igual que
+// cerrarSesionEmpresa(), sin preguntar — el usuario ya está decidiendo esto
+// de forma explícita en este modal) y vuelve al gate de login/registro para
+// poder entrar con la cuenta correcta.
 async function cancelarConflictoEmpresa() {
   await window.api.clearSyncCreds();
   closeModal('modal-conflicto-empresa');

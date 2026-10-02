@@ -478,6 +478,8 @@ ipcMain.handle('get-duracion-clase', () => db.getDuracionClase());
 ipcMain.handle('set-duracion-clase', (_, min) => db.setDuracionClase(min));
 ipcMain.handle('get-rango-km', () => db.getRangoKm());
 ipcMain.handle('set-rango-km', (_, rango) => db.setRangoKm(rango));
+ipcMain.handle('get-km-auto-movil', () => db.getKmAutoMovil());
+ipcMain.handle('set-km-auto-movil', (_, rango) => db.setKmAutoMovil(rango));
 ipcMain.handle('get-conceptos-cobro', () => db.getConceptosCobro());
 ipcMain.handle('set-conceptos-cobro', (_, lista) => db.setConceptosCobro(lista));
 // Puesta en marcha: datos reales de arranque y punto de partida de cada alumno
@@ -897,6 +899,11 @@ ipcMain.handle('solicitar-reset-password', async (_, email) => sync.solicitarRes
 // pending_sync.json, adopta la cuenta actual y sincroniza para bajar sus
 // datos reales.
 ipcMain.handle('resolver-conflicto-empresa', async () => sync.resolverConflictoEmpresa());
+// Varias cuentas en el mismo PC: al entrar con otra, sus datos locales se
+// cambian por los de esa cuenta (los de la anterior quedan guardados aparte).
+ipcMain.handle('cambiar-datos-de-cuenta', async (_, ajustesLocales) => sync.cambiarDatosDeCuenta(ajustesLocales));
+ipcMain.handle('get-cuentas-guardadas', () => sync.getCuentasGuardadas());
+ipcMain.handle('contar-pendientes', () => sync.contarPendientes());
 ipcMain.handle('clear-sync-creds', () => {
   try {
     const p = getCredsPath();
