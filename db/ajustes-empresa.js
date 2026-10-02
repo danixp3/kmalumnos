@@ -87,6 +87,24 @@ function setRangoKm(rango) {
   return r;
 }
 
+// Km que pone el móvil cuando el profesor cierra una clase sin escribirlos:
+// «entre min y max por cada 2 clases» (una sesión normal de 90 min; cada
+// clase, la mitad). Distinto del rango de arriba, que es por práctica y lo
+// usa el escritorio al generar km. Sin configurar, 40–50 (lo mismo en la web).
+const KM_AUTO_MOVIL_DEFECTO = { min: 40, max: 50 };
+function getKmAutoMovil() {
+  return rangoKmLimpio(getAjusteEmpresa('km_auto_movil')) || { ...KM_AUTO_MOVIL_DEFECTO };
+}
+function setKmAutoMovil(rango) {
+  const r = rangoKmLimpio(rango);
+  if (!r) return getKmAutoMovil();
+  const actual = rangoKmLimpio(getAjusteEmpresa('km_auto_movil'));
+  if (actual && actual.min === r.min && actual.max === r.max) return r;
+  addLog('ajustes', `Km automáticos del móvil: ${r.min}–${r.max} km cada 2 clases`, []);
+  setAjusteEmpresa('km_auto_movil', r);
+  return r;
+}
+
 // Conceptos de cobro de la empresa (Ajustes → Cobros): matrícula, tasa y lo
 // que cada autoescuela quiera añadir (soporte informático, certificado...).
 // Los marcados `alta` se cargan solos a cada alumno nuevo (escritorio y web).
@@ -198,7 +216,7 @@ function setFirmaDirector(firma) {
 
 module.exports = {
   getAjusteEmpresa, setAjusteEmpresa, getZonasPractica, setZonasPractica, getDuracionClase, setDuracionClase, MAX_ZONAS,
-  getRangoKm, setRangoKm,
+  getRangoKm, setRangoKm, getKmAutoMovil, setKmAutoMovil,
   getConceptosCobro, setConceptosCobro,
   directorResuelto, getDirector, getFirmaDirector, setDirector, setFirmaDirector,
 };

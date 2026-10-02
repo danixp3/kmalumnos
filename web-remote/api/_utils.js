@@ -377,31 +377,36 @@ export function partirEnClases(kmIni, kmFin, horaIni, horaFin, cantidad) {
 // Rango de km por clase: Ajustes → «Clases y kilómetros» del escritorio, que
 // viaja por ajustes_empresa (clave 'rango_km'). Sin configurar → 40–45, el
 // mismo valor por defecto que el escritorio.
-export const RANGO_KM_DEFECTO = { min: 40, max: 45 };
-export function rangoKmValido(v) {
+// Km automáticos del móvil: «entre min y max km por cada 2 clases» (lo que se
+// recorre en una sesión normal de 90 min), configurable en el escritorio
+// (Ajustes → Clases y kilómetros, clave 'km_auto_movil'); 40–50 si no hay.
+// Antes se aplicaba a CADA clase el rango «por práctica» del escritorio
+// (40–45) y una sesión de 2 clases salía con unos 85 km.
+export const KM_AUTO_DEFECTO = { min: 40, max: 50 };
+export function kmAutoValido(v) {
   const min = Math.round(Number(v && v.min)), max = Math.round(Number(v && v.max));
-  return Number.isFinite(min) && Number.isFinite(max) && min >= 1 && max >= min && max <= 999 ? { min, max } : { ...RANGO_KM_DEFECTO };
+  return Number.isFinite(min) && Number.isFinite(max) && min >= 1 && max >= min && max <= 999 ? { min, max } : { ...KM_AUTO_DEFECTO };
 }
-export async function leerRangoKm(supabase, empresaId) {
+export async function leerKmAuto(supabase, empresaId) {
   const { data, error } = await supabase.from('ajustes_empresa').select('valor')
-    .eq('empresa_id', empresaId).eq('clave', 'rango_km').maybeSingle();
-  return rangoKmValido(!error && data ? data.valor : null);
+    .eq('empresa_id', empresaId).eq('clave', 'km_auto_movil').maybeSingle();
+  return kmAutoValido(!error && data ? data.valor : null);
 }
 // Marca de las prácticas cuyo km final puso la app (tipo_detalle).
 export const MARCA_KM_AUTO = 'km_auto';
 
-// Km final que pone la app, con el mismo criterio que el relleno de km del
-// escritorio: cada clase recorre al azar entre min y max km (una fracción, su
-// parte) a partir del km inicial. Nunca pasa de `tope` (el km en que empieza
-// la siguiente práctica conocida del mismo coche): si no llega para el rango,
-// se queda en el tope. null si ni así caben las clases (1 km cada una).
-export function kmFinalAutomatico(kmIni, cantidad, rango, tope = null, azar = Math.random) {
+// Km final que pone la app: cada clase recorre al azar la mitad del rango «por
+// cada 2 clases» (40–50 → 20–25 km; una fracción, su parte) a partir del km
+// inicial; 2 clases suman entre min y max. Nunca pasa de `tope` (el km en que
+// empieza la siguiente práctica conocida del mismo coche): si no llega para el
+// rango, se queda en el tope. null si ni así caben las clases (1 km cada una).
+export function kmFinalAutomatico(kmIni, cantidad, rango2Clases, tope = null, azar = Math.random) {
   const c = Math.round(Number(cantidad) * 4) / 4;
   if (!(c >= 0.25)) return null;
-  const { min, max } = rangoKmValido(rango);
+  const { min, max } = kmAutoValido(rango2Clases);
   const pesos = Array(Math.floor(c)).fill(1);
   if (c % 1) pesos.push(c % 1);
-  let total = Math.max(pesos.length, Math.round(pesos.reduce((s, w) => s + w * (min + azar() * (max - min)), 0)));
+  let total = Math.max(pesos.length, Math.round(pesos.reduce((s, w) => s + w * (min + azar() * (max - min)) / 2, 0)));
   if (tope != null && tope > 0) {
     if (tope - kmIni < pesos.length) return null;
     total = Math.min(total, tope - kmIni);

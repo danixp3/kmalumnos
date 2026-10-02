@@ -455,8 +455,8 @@ test('firma-profesor: guarda, lee y quita la firma; valida la imagen; sin la col
   assert.equal((await llamar('firma-profesor', { method: 'GET', query: { profesor_id: '1' } })).json.disponible, false);
 });
 
-test('finalizar-practica con km_auto: pone el km final dentro del rango de Ajustes y marca la práctica', async () => {
-  reiniciar({ ...base(), ajustes_empresa: [{ empresa_id: 'emp1', clave: 'rango_km', valor: { min: 20, max: 25 } }] });
+test('finalizar-practica con km_auto: una clase recorre la mitad del rango «por cada 2 clases» de Ajustes y se marca', async () => {
+  reiniciar({ ...base(), ajustes_empresa: [{ empresa_id: 'emp1', clave: 'km_auto_movil', valor: { min: 40, max: 50 } }, { empresa_id: 'emp1', clave: 'rango_km', valor: { min: 40, max: 45 } }] });
   const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini() });
   const r = await llamar('finalizar-practica', { body: { practica_id, km_auto: true, hora_fin: '10:48' } });
   assert.equal(r.status, 200); assert.equal(r.json.km_auto, true);
@@ -470,14 +470,15 @@ test('finalizar-practica con km_auto: pone el km final dentro del rango de Ajust
   assert.equal(BD.tablas.practicas.find(x => x.id === practica_id).km_final, p.km_final);
 });
 
-test('finalizar-practica con km_auto: sin rango configurado usa 40–45 por clase y reparte varias clases', async () => {
+test('finalizar-practica con km_auto: sin configurar, 2 clases suman 40–50 km repartidos entre las dos', async () => {
   reiniciar(base());
   const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini() });
   const r = await llamar('finalizar-practica', { body: { practica_id, km_auto: true, hora_fin: '11:30', n_clases: 2 } });
   assert.equal(r.status, 200); assert.equal(r.json.practica_ids.length, 2);
   const [a, b] = r.json.practica_ids.map(id => BD.tablas.practicas.find(x => x.id === id));
   assert.equal(a.km_inicial, 1000); assert.equal(a.km_final, b.km_inicial);
-  assert.ok(b.km_final >= 1080 && b.km_final <= 1090, `km final ${b.km_final}`);
+  assert.ok(b.km_final >= 1040 && b.km_final <= 1050, `km final ${b.km_final}`);
+  assert.ok(a.km_final - a.km_inicial >= 15 && a.km_final - a.km_inicial <= 30, `primera clase ${a.km_final - a.km_inicial} km`);
   assert.deepEqual([a.tipo_detalle, b.tipo_detalle], ['km_auto', 'km_auto']);
 });
 
@@ -498,11 +499,22 @@ test('finalizar-practica con km_auto: nunca pisa la siguiente práctica del coch
   assert.equal(BD.tablas.practicas.find(x => x.id === otra).km_final, 0); // sigue en curso
 });
 
-test('config: devuelve el rango de km por clase (40–45 si no está configurado o no es válido)', async () => {
+test('config: devuelve los km automáticos por cada 2 clases (40–50 si no están configurados o no son válidos)', async () => {
   reiniciar(base());
-  assert.deepEqual((await llamar('config', { method: 'GET' })).json.rango_km, { min: 40, max: 45 });
-  reiniciar({ ...base(), ajustes_empresa: [{ empresa_id: 'emp1', clave: 'rango_km', valor: { min: 15, max: 30 } }] });
-  assert.deepEqual((await llamar('config', { method: 'GET' })).json.rango_km, { min: 15, max: 30 });
-  reiniciar({ ...base(), ajustes_empresa: [{ empresa_id: 'emp1', clave: 'rango_km', valor: { min: 50, max: 10 } }] });
-  assert.deepEqual((await llamar('config', { method: 'GET' })).json.rango_km, { min: 40, max: 45 });
+  assert.deepEqual((await llamar('config', { method: 'GET' })).json.km_auto, { min: 40, max: 50 });
+  reiniciar({ ...base(), ajustes_empresa: [{ empresa_id: 'emp1', clave: 'km_auto_movil', valor: { min: 30, max: 60 } }] });
+  assert.deepEqual((await llamar('config', { method: 'GET' })).json.km_auto, { min: 30, max: 60 });
+  reiniciar({ ...base(), ajustes_empresa: [{ empresa_id: 'emp1', clave: 'km_auto_movil', valor: { min: 50, max: 10 } }] });
+  assert.deepEqual((await llamar('config', { method: 'GET' })).json.km_auto, { min: 40, max: 50 });
+});
+
+test('kmFinalAutomatico: 2 clases siempre entre min y max; ½ clase, la cuarta parte', async () => {
+  const { kmFinalAutomatico } = await import('../api/_utils.js');
+  for (const azar of [() => 0, () => 0.5, () => 0.999]) {
+    const k = kmFinalAutomatico(1000, 2, { min: 40, max: 50 }, null, azar) - 1000;
+    assert.ok(k >= 40 && k <= 50, `2 clases: ${k} km`);
+  }
+  assert.equal(kmFinalAutomatico(1000, 1, { min: 40, max: 50 }, null, () => 0), 1020);
+  assert.equal(kmFinalAutomatico(1000, 0.5, { min: 40, max: 50 }, null, () => 0), 1010);
+  assert.equal(kmFinalAutomatico(1000, 3, { min: 40, max: 50 }, null, () => 0.999), 1075);
 });

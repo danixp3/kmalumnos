@@ -43,6 +43,25 @@ function aplicarRangoPref(idMin, idMax) {
   if (elMax) elMax.value = pref.max;
 }
 
+// Km automáticos del móvil (por cada 2 clases): ajuste compartido con la web
+// (ajustes_empresa 'km_auto_movil'), sin copia en localStorage.
+async function cargarKmAutoMovil() {
+  try {
+    const r = await window.api.getKmAutoMovil();
+    const a = document.getElementById('pref-kmauto-min'), b = document.getElementById('pref-kmauto-max');
+    if (a && r) a.value = r.min;
+    if (b && r) b.value = r.max;
+  } catch (e) {}
+}
+
+async function guardarKmAutoMovilDesdeAjustes() {
+  const min = Math.round(parseFloat(document.getElementById('pref-kmauto-min').value));
+  const max = Math.round(parseFloat(document.getElementById('pref-kmauto-max').value));
+  if (!(min >= 1) || !(max >= min) || max > 999) { await cargarKmAutoMovil(); return; }
+  try { await window.api.setKmAutoMovil({ min, max }); } catch (e) {}
+  cargarKmAutoMovil();
+}
+
 function guardarRangoPrefDesdeAjustes() {
   const min = parseFloat(document.getElementById('pref-km-min').value) || 40;
   const max = parseFloat(document.getElementById('pref-km-max').value) || 45;
@@ -386,6 +405,7 @@ async function loadAjustes() {
   ajustesInicio(); // siempre se entra por los cuadros (el buscador abre luego la sección)
   aplicarRangoPref('pref-km-min', 'pref-km-max');
   sincronizarRangoKm().then(() => aplicarRangoPref('pref-km-min', 'pref-km-max')).catch(() => {});
+  cargarKmAutoMovil();
   const elDuracionClase = document.getElementById('pref-duracion-clase');
   if (elDuracionClase) elDuracionClase.value = await sincronizarDuracionClase();
   const elPrecioCombustible = document.getElementById('pref-precio-combustible');
@@ -472,7 +492,11 @@ const AJ_SECCIONES = [
 async function estadoCuadroAjustes(id) {
   try {
     if (id === 'cuenta') { const e = await window.api.getEstadoCuenta(); return e && e.conectado ? (e.email ? 'Conectada · ' + e.email : 'Conectada') : 'Sin iniciar sesión'; }
-    if (id === 'clases') { const r = getRangoPref(); return `${r.min}–${r.max} km por práctica · ${getDuracionClaseMin()} min por clase`; }
+    if (id === 'clases') {
+      const r = getRangoPref();
+      let m = null; try { m = await window.api.getKmAutoMovil(); } catch (e) {}
+      return `${r.min}–${r.max} km por práctica${m ? ` · móvil ${m.min}–${m.max} km cada 2 clases` : ''} · ${getDuracionClaseMin()} min por clase`;
+    }
     if (id === 'zonas') { const z = await window.api.getZonasPractica(); return z.length ? `${z.length} ${z.length === 1 ? 'zona' : 'zonas'}: ${z.slice(0, 3).join(', ')}${z.length > 3 ? '…' : ''}` : 'Sin zonas (la web no las pide)'; }
     if (id === 'menu') { const n = getMenuOculto().length; return n ? `${n} ${n === 1 ? 'función oculta' : 'funciones ocultas'}` : 'Se ve todo'; }
     if (id === 'panel') { const p = getDashboardPref(); const n = Object.values(p).filter(Boolean).length; return `${n} elementos visibles`; }

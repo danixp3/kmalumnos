@@ -9,6 +9,8 @@
 <meta property="og:title" content="AulaMovil">
 <meta property="og:description" content="Prácticas de autoescuela desde el móvil">
 <meta name="theme-color" content="#F3F2EE" id="meta-theme">
+<script>/* Tema antes de pintar (Perfil → Apariencia; «Automático» sigue al teléfono) */
+try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscuro' && t !== 'negro') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro'; if (t !== 'claro') document.documentElement.dataset.tema = t; } catch (e) {}</script>
 <link rel="icon" href="/logo.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -33,21 +35,49 @@
   @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:600;font-display:swap;src:url('fonts/ibm-plex-mono-600-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
   @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:600;font-display:swap;src:url('fonts/ibm-plex-mono-600-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
 
-  /* ── TOKENS (mismo sistema visual que la app de escritorio) ── */
+  /* ── TOKENS (mismo sistema visual que la app de escritorio) ──
+     --ink: texto y marcas de contraste (en los temas oscuros pasa a claro);
+     --on-ink: texto sobre un fondo --ink; --oscura: tarjetas que son oscuras
+     en todos los temas («Ahora», avatar); --campo/--boton/--resalte/--barra:
+     superficies que en el tema claro son blancas. */
   :root {
-    --ink: #14161B; --bg: #F3F2EE; --card: #FFFFFF; --line: #E3E1DB; --line-2: #D6D3CC; --soft: #EEECE7;
+    --ink: #14161B; --on-ink: #FFFFFF; --oscura: #14161B; --curso-bg: #14161B; --sobre-ambar: #14161B;
+    --bg: #F3F2EE; --hoja: #F3F2EE; --card: #FFFFFF; --campo: #FFFFFF; --boton: #FFFFFF; --resalte: #FFFFFF; --barra: #FFFFFF;
+    --line: #E3E1DB; --line-2: #D6D3CC; --soft: #EEECE7;
     --muted: #5E6068; --muted-2: #3A3D45; --faint: #6B6E76;
     --amber: #FFB81C; --amber-strong: #E09A00; --amber-ink: #8A5800; --amber-soft: #FFF3D1;
     --ok: #1D6B4F; --ok-soft: #E2F1E9; --err: #B42318; --err-soft: #FDECEA; --info: #1E4FB8; --info-soft: #E7EDFB;
+    color-scheme: light;
     --font: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
     --tab-h: 68px;
   }
+  /* Temas oscuros (como en el escritorio). La hoja que se abre sobre «En curso»
+     (pantalla siempre oscura) usa también estos colores: antes heredaba el texto
+     claro de la pantalla sobre su fondo claro y no se leía. */
+  :root[data-tema="oscuro"], body.oscuro .hoja {
+    --ink: #F3F2EE; --on-ink: #14161B; --oscura: #22252C; --curso-bg: #14161B;
+    --bg: #14161B; --hoja: #1A1D23; --card: #1E2027; --campo: #171A20; --boton: #1E2027; --resalte: #3F434D; --barra: #1B1E25;
+    --line: #2F323B; --line-2: #3F434D; --soft: #2A2D35;
+    --muted: #A3A6AE; --muted-2: #C9CBD1; --faint: #8C8F97;
+    --amber-ink: #FFCF5C; --amber-soft: #33290F;
+    --ok: #6EE7B7; --ok-soft: #10301F; --err: #FCA5A5; --err-soft: #3A1518; --info: #B7C8F5; --info-soft: #1A2444;
+    color-scheme: dark;
+  }
+  :root[data-tema="negro"], :root[data-tema="negro"] body.oscuro .hoja {
+    --ink: #F5F5F5; --on-ink: #000000; --oscura: #141414; --curso-bg: #000000;
+    --bg: #000000; --hoja: #0B0B0B; --card: #0D0D0D; --campo: #0A0A0A; --boton: #0D0D0D; --resalte: #2E2E2E; --barra: #0A0A0A;
+    --line: #262626; --line-2: #333333; --soft: #1C1C1C;
+    --muted: #A3A3A3; --muted-2: #D4D4D4; --faint: #8A8A8A;
+    --amber-ink: #FFCF5C; --amber-soft: #241C08;
+    --ok: #4ADE80; --ok-soft: #0A2318; --err: #F87171; --err-soft: #2A0F12; --info: #A5BAF0; --info-soft: #10172E;
+    color-scheme: dark;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html { background: var(--bg); }
   body { font-family: var(--font); background: var(--bg); color: var(--ink); min-height: 100dvh; -webkit-font-smoothing: antialiased; overscroll-behavior-y: none; font-size: 16px; line-height: 1.35; }
-  body.oscuro { background: var(--ink); color: #F3F2EE; }
+  body.oscuro { background: var(--curso-bg); color: #F3F2EE; }
   button { font-family: inherit; color: inherit; cursor: pointer; }
   input, select, textarea { font-family: inherit; font-size: 16px; color: var(--ink); }
   [hidden] { display: none !important; }
@@ -63,7 +93,7 @@
   .acceso h2 { font-family: var(--font-display); font-size: 30px; font-weight: 700; }
   .acceso-sub { color: var(--muted); font-size: 16px; text-align: center; }
   .acceso-card { width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-  .campo { width: 100%; height: 52px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: 12px; background: #fff; outline: none; }
+  .campo { width: 100%; height: 52px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--campo); outline: none; }
   .campo:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(20,22,27,.12); }
   textarea.campo { height: auto; min-height: 92px; padding: 12px 14px; resize: vertical; }
   .err-txt { color: var(--err); font-size: 14px; min-height: 18px; font-weight: 600; }
@@ -73,11 +103,11 @@
 
   /* ── BOTONES ── */
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 52px; padding: 0 20px; border-radius: 14px; border: 1px solid transparent; font-size: 17px; font-weight: 700; width: 100%; }
-  .btn-pri { background: var(--amber); color: var(--ink); }
+  .btn-pri { background: var(--amber); color: var(--sobre-ambar); }
   .btn-pri:active { background: var(--amber-strong); }
   .btn-pri[disabled] { background: var(--soft); color: #8C8F97; cursor: default; }
-  .btn-sec { background: #fff; border-color: var(--line-2); color: var(--ink); }
-  .btn-osc { background: var(--ink); color: #fff; }
+  .btn-sec { background: var(--boton); border-color: var(--line-2); color: var(--ink); }
+  .btn-osc { background: var(--ink); color: var(--on-ink); }
   .btn-peq { height: 40px; width: auto; padding: 0 14px; font-size: 15px; border-radius: 10px; }
   .btn-lg { height: 60px; font-size: 19px; border-radius: 16px; }
   .lnk { background: none; border: none; text-decoration: underline; text-underline-offset: 3px; font-weight: 600; font-size: 15px; padding: 6px 2px; }
@@ -97,9 +127,9 @@
   .fecha-lin { font-size: 15px; color: var(--muted); font-weight: 500; display: flex; align-items: center; gap: 4px; }
   .fecha-lin button { background: none; border: none; color: var(--muted); padding: 2px 4px; display: inline-flex; }
   .grande { font-family: var(--font-display); font-size: 44px; font-weight: 700; line-height: 1; }
-  .avatar { width: 44px; height: 44px; border-radius: 999px; background: var(--ink); color: var(--amber); border: none; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 19px; font-weight: 700; flex-shrink: 0; }
+  .avatar { width: 44px; height: 44px; border-radius: 999px; background: var(--oscura); color: var(--amber); border: none; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 19px; font-weight: 700; flex-shrink: 0; }
   .ini { width: 44px; height: 44px; border-radius: 999px; background: var(--soft); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 18px; font-weight: 700; flex-shrink: 0; }
-  .ini-lg { width: 62px; height: 62px; background: var(--amber); font-size: 26px; }
+  .ini-lg { width: 62px; height: 62px; background: var(--amber); color: var(--sobre-ambar); font-size: 26px; }
 
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; }
   .card-pad { padding: 14px 16px; }
@@ -113,7 +143,7 @@
   .grupo-tit a, .grupo-tit button { background: none; border: none; font-size: 14px; font-weight: 600; text-transform: none; letter-spacing: 0; text-decoration: underline; text-underline-offset: 3px; color: var(--ink); }
 
   /* placa */
-  .placa { display: inline-flex; align-items: stretch; height: 24px; border: 1.5px solid var(--ink); border-radius: 4px; overflow: hidden; background: #fff; color: var(--ink); flex-shrink: 0; vertical-align: middle; }
+  .placa { display: inline-flex; align-items: stretch; height: 24px; border: 1.5px solid #14161B; border-radius: 4px; overflow: hidden; background: #fff; color: #14161B; flex-shrink: 0; vertical-align: middle; }
   .placa-e { width: 11px; padding-bottom: 2px; background: #1D3F9E; color: #fff; font-size: 7px; font-weight: 700; display: flex; align-items: flex-end; justify-content: center; }
   .placa-n { padding: 0 7px; display: flex; align-items: center; font-family: var(--font-mono); font-size: 13px; font-weight: 600; letter-spacing: .04em; white-space: nowrap; }
 
@@ -123,7 +153,7 @@
   .pill-warn { background: var(--amber-soft); color: var(--amber-ink); }
   .pill-err { background: var(--err-soft); color: var(--err); }
   .pill-info { background: var(--info-soft); color: var(--info); }
-  .pill-dark { background: var(--ink); color: #fff; }
+  .pill-dark { background: var(--ink); color: var(--on-ink); }
   .pill-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--amber); }
 
   /* barra de progreso segmentada */
@@ -135,7 +165,7 @@
   .prog-lin b { font-family: var(--font-mono); font-weight: 600; }
 
   /* tarjeta AHORA */
-  .ahora { background: var(--ink); color: #F3F2EE; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .ahora { background: var(--oscura); color: #F3F2EE; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
   .ahora-cab { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 15px; color: #C9CBD1; }
   .ahora-et { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font); font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--amber); }
   .ahora-quien { display: flex; align-items: center; gap: 12px; }
@@ -161,13 +191,13 @@
   .msg-err { background: var(--err-soft); color: var(--err); }
   .msg-gris { background: var(--soft); color: var(--muted-2); }
   .chips { display: flex; flex-wrap: wrap; gap: 10px; }
-  .chip { height: 48px; padding: 0 18px; border-radius: 999px; border: 1.5px solid var(--line-2); background: #fff; font-size: 16.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
-  .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .chip { height: 48px; padding: 0 18px; border-radius: 999px; border: 1.5px solid var(--line-2); background: var(--boton); font-size: 16.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+  .chip.on { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
   .chips-osc .chip { background: transparent; border-color: #4A4E58; color: #F3F2EE; }
-  .chips-osc .chip.on { background: var(--amber); color: var(--ink); border-color: var(--amber); }
+  .chips-osc .chip.on { background: var(--amber); color: var(--sobre-ambar); border-color: var(--amber); }
   .seg3 { display: flex; padding: 4px; background: var(--soft); border-radius: 14px; gap: 2px; }
   .seg3 button { flex: 1; height: 44px; border: none; border-radius: 10px; background: transparent; font-size: 16.5px; font-weight: 600; color: var(--muted-2); }
-  .seg3 button.on { background: #fff; color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(20,22,27,.16); }
+  .seg3 button.on { background: var(--resalte); color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(20,22,27,.16); }
   .seg3.dos-lineas button { height: 56px; line-height: 1.15; }
   .instalar-card { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 12px 14px; }
   .instalar-card img { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; }
@@ -184,7 +214,7 @@
   .cant-min .campo { flex: 1; font-family: var(--font-mono, monospace); font-size: 28px; font-weight: 600; text-align: right; }
   .cant-min span { font-size: 18px; font-weight: 600; color: var(--muted); }
   .paso-n { display: flex; align-items: center; gap: 4px; background: var(--soft); border-radius: 14px; padding: 4px; flex-shrink: 0; }
-  .paso-n button { width: 42px; height: 42px; border: none; border-radius: 10px; background: #fff; font-size: 24px; font-weight: 600; color: var(--ink); box-shadow: 0 1px 2px rgba(20,22,27,.14); }
+  .paso-n button { width: 42px; height: 42px; border: none; border-radius: 10px; background: var(--resalte); font-size: 24px; font-weight: 600; color: var(--ink); box-shadow: 0 1px 2px rgba(20,22,27,.14); }
   .paso-n button:disabled { opacity: .35; box-shadow: none; }
   .paso-n b { min-width: 30px; text-align: center; font-size: 22px; font-family: var(--font-mono, monospace); }
   .etq { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 2px 8px; display: flex; justify-content: space-between; align-items: baseline; }
@@ -199,9 +229,9 @@
   .km-par .campo { font-family: var(--font-mono, monospace); font-size: 20px; font-weight: 600; }
   .km-par .etq2 { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
   .lnk-olvido { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 18px; }
-  .barra-fija { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, rgba(243,242,238,0)); z-index: 20; }
+  .barra-fija { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, transparent); z-index: 20; }
   .barra-fija > * { max-width: 528px; margin: 0 auto; }
-  body.oscuro .barra-fija { background: linear-gradient(to top, var(--ink) 70%, rgba(20,22,27,0)); }
+  body.oscuro .barra-fija { background: linear-gradient(to top, var(--curso-bg) 70%, transparent); }
 
   /* ── EN CURSO (oscura) ── */
   .curso-et { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 999px; background: #2B2417; color: var(--amber); font-size: 13px; font-weight: 700; letter-spacing: .08em; }
@@ -221,12 +251,12 @@
 
   /* ── TECLADO KM FINAL ── */
   .teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
-  .teclado button { height: 58px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-size: 26px; font-weight: 600; font-family: var(--font); }
+  .teclado button { height: 58px; border-radius: 12px; border: 1px solid var(--line); background: var(--boton); font-size: 26px; font-weight: 600; font-family: var(--font); }
   .teclado button.f { background: var(--soft); font-size: 16px; }
   .teclado button:active { background: var(--soft); }
   .dos-col { display: grid; grid-template-columns: 1fr 1.05fr; gap: 10px; margin-top: 12px; }
   .stat-box { background: var(--soft); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
-  .stat-box.osc { background: var(--ink); color: #fff; }
+  .stat-box.osc { background: var(--oscura); color: #fff; }
   .stat-box .etq2 { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
   .stat-box.osc .etq2 { color: #A3A6AE; }
   .stat-box .val { font-family: var(--font-mono); font-size: 24px; font-weight: 600; }
@@ -264,7 +294,7 @@
   .cal-sem, .cal-dias { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-top: 8px; row-gap: 6px; }
   .cal-sem span { font-size: 13px; font-weight: 700; color: var(--muted); }
   .cal-dias span { width: 34px; height: 34px; line-height: 34px; margin: 0 auto; border-radius: 999px; font-size: 15px; color: var(--muted-2); }
-  .cal-dias span.hecha { background: var(--ink); color: #fff; font-weight: 700; }
+  .cal-dias span.hecha { background: var(--ink); color: var(--on-ink); font-weight: 700; }
   .cal-dias span.hoy { box-shadow: 0 0 0 2px var(--amber); }
   .cal-dias span.prox { box-shadow: inset 0 0 0 1.5px var(--ink); font-weight: 700; color: var(--ink); }
   .leyenda { display: flex; gap: 14px; font-size: 13.5px; color: var(--muted); margin-top: 10px; align-items: center; }
@@ -272,13 +302,15 @@
 
   /* ── HOJAS / TOAST ── */
   .fondo { position: fixed; inset: 0; background: rgba(20,22,27,.5); z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
-  .hoja { width: 100%; max-width: 560px; max-height: 84dvh; background: var(--bg); border-radius: 22px 22px 0 0; padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; animation: sube .22s ease; }
+  .hoja { width: 100%; max-width: 560px; max-height: 84dvh; background: var(--hoja); color: var(--ink); border-radius: 22px 22px 0 0; padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; animation: sube .22s ease; }
+  :root[data-tema] .fondo, body.oscuro .fondo { background: rgba(0,0,0,.62); }
+  :root[data-tema] .hoja, body.oscuro .hoja { box-shadow: 0 -1px 0 var(--line-2); }
   @keyframes sube { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
   .hoja-tit { display: flex; align-items: center; justify-content: space-between; }
   .hoja-tit h3 { font-family: var(--font-display); font-size: 26px; font-weight: 700; }
   .hoja-lista { overflow-y: auto; border-radius: 16px; }
-  #toast { position: fixed; left: 50%; bottom: calc(var(--tab-h) + 22px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 999px; font-size: 15.5px; font-weight: 600; z-index: 80; max-width: 90vw; text-align: center; box-shadow: 0 8px 24px rgba(20,22,27,.3); }
-  body.oscuro #toast { bottom: 96px; background: #F3F2EE; color: var(--ink); }
+  #toast { position: fixed; left: 50%; bottom: calc(var(--tab-h) + 22px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--on-ink); padding: 12px 18px; border-radius: 999px; font-size: 15.5px; font-weight: 600; z-index: 80; max-width: 90vw; text-align: center; box-shadow: 0 8px 24px rgba(20,22,27,.3); }
+  body.oscuro #toast { bottom: 96px; background: #F3F2EE; color: #14161B; }
   .vacio { text-align: center; color: var(--muted); padding: 26px 14px; font-size: 16px; }
   .vacio small { display: block; margin-top: 4px; color: var(--faint); font-size: 14px; }
   .cargando { text-align: center; color: var(--muted); padding: 24px; }
@@ -289,29 +321,29 @@
   .cal-hist .cal-dias button.dia b { font-weight: 600; line-height: 1; }
   .cal-hist .cal-dias button.dia.con { color: var(--ink); background: var(--soft); }
   .cal-hist .cal-dias button.dia.con b { font-weight: 800; }
-  .cal-hist .cal-dias button.dia i { font-style: normal; font-size: 11px; font-weight: 700; min-width: 18px; height: 16px; line-height: 16px; border-radius: 999px; background: var(--ink); color: #fff; padding: 0 5px; }
-  .cal-hist .cal-dias button.dia i.pend { background: var(--amber); color: var(--ink); }
+  .cal-hist .cal-dias button.dia i { font-style: normal; font-size: 11px; font-weight: 700; min-width: 18px; height: 16px; line-height: 16px; border-radius: 999px; background: var(--ink); color: var(--on-ink); padding: 0 5px; }
+  .cal-hist .cal-dias button.dia i.pend { background: var(--amber); color: var(--sobre-ambar); }
   .cal-hist .cal-dias button.dia.hoy { box-shadow: inset 0 0 0 2px var(--amber); }
-  .cal-hist .cal-dias button.dia.sel { background: var(--ink); color: #fff; }
-  .cal-hist .cal-dias button.dia.sel i { background: #fff; color: var(--ink); }
-  .cal-hist .cal-dias button.dia.sel i.pend { background: var(--amber); color: var(--ink); }
+  .cal-hist .cal-dias button.dia.sel { background: var(--ink); color: var(--on-ink); }
+  .cal-hist .cal-dias button.dia.sel i { background: var(--on-ink); color: var(--ink); }
+  .cal-hist .cal-dias button.dia.sel i.pend { background: var(--amber); color: var(--sobre-ambar); }
   .firma-vista { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 10px; display: flex; justify-content: center; }
   .firma-vista img { max-width: 100%; max-height: 180px; }
   .hoja-scroll { overflow-y: auto; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
 
   /* ── BARRA INFERIOR ── */
-  #tabbar { position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--tab-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: #fff; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr 1.2fr 1fr 1fr; z-index: 30; }
+  #tabbar { position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--tab-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: var(--barra); border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr 1.2fr 1fr 1fr; z-index: 30; }
   #tabbar button { background: none; border: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 13px; font-weight: 600; color: var(--muted); }
   #tabbar button.on { color: var(--ink); font-weight: 700; }
   #tabbar .mas { position: relative; }
-  #tabbar .mas .circ { width: 60px; height: 60px; border-radius: 999px; background: var(--amber); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; margin-top: -30px; box-shadow: 0 6px 16px rgba(224,154,0,.4), 0 0 0 5px #fff; }
+  #tabbar .mas .circ { width: 60px; height: 60px; border-radius: 999px; background: var(--amber); color: var(--sobre-ambar); display: inline-flex; align-items: center; justify-content: center; margin-top: -30px; box-shadow: 0 6px 16px rgba(224,154,0,.4), 0 0 0 5px var(--barra); }
   #tabbar .mas span.tx { color: var(--ink); font-weight: 700; }
 
   /* ── TABLET (≥ 900px): jornada a la izquierda, trabajo a la derecha ── */
   #riel { display: none; }
   @media (min-width: 900px) {
     #app.on-app { display: grid; grid-template-columns: 340px minmax(0, 1fr); }
-    #riel { display: flex; flex-direction: column; background: #fff; border-right: 1px solid var(--line); height: 100dvh; position: sticky; top: 0; overflow-y: auto; }
+    #riel { display: flex; flex-direction: column; background: var(--barra); border-right: 1px solid var(--line); height: 100dvh; position: sticky; top: 0; overflow-y: auto; }
     #riel .riel-cab { padding: 22px 20px 12px; }
     #riel .riel-lista { flex: 1; }
     #riel .riel-pie { padding: 14px 20px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; font-size: 15px; color: var(--muted); }
@@ -339,7 +371,7 @@
     <input class="campo" type="email" id="login-email" placeholder="Email" autocomplete="username" autocapitalize="off">
     <input class="campo" type="password" id="login-password" placeholder="Contraseña" autocomplete="current-password">
     <div class="err-txt" id="login-error" role="alert"></div>
-    <button class="btn btn-pri" onclick="iniciarSesion()">Entrar</button>
+    <button class="btn btn-pri" id="login-btn" onclick="iniciarSesion()">Entrar</button>
     <p class="acceso-sub" style="font-size:14px">¿Sin cuenta? Créala en la aplicación de escritorio.</p>
   </div>
   <button class="lnk instalar-lnk" style="margin-top:18px;font-size:15px" onclick="instalarApp()" hidden>Instalar AulaMovil en este móvil</button>
@@ -411,7 +443,11 @@
 'use strict';
 const SUPABASE_URL = 'https://dmwoqugdnwgkcqtixhyw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtd29xdWdkbndna2NxdGl4aHl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjA5NjYsImV4cCI6MjA5OTU5Njk2Nn0.8XhWdS0ohrCbZcKpHWKsJz22rY8ASA4IkgpbtE_pHkc';
-const PROFESOR_KEY = 'kmalumnos_profesor';   // perfil de profesor activo
+const PROFESOR_KEY = 'kmalumnos_profesor';   // perfil de profesor elegido, uno por cuenta: PROFESOR_KEY + ':' + id de la cuenta
+const SESION_KEY = 'km_sesion';              // sesión de Supabase Auth (se renueva sola)
+const ULTIMO_EMAIL_KEY = 'km_ultimo_email';  // para no tener que reescribirlo
+const ULTIMA_CUENTA_KEY = 'km_ultima_cuenta'; // id de la última cuenta que entró en este teléfono
+const TEMA_KEY = 'km_tema';                  // apariencia: auto | claro | oscuro | negro
 const FLUJO_KEY = 'km_flujo';                // práctica en marcha (sobrevive a recargas)
 const VEHICULO_KEY = 'km_vehiculo';          // último vehículo usado
 const NCLASES_KEY = 'km_n_clases';          // nº de clases elegido la última vez
@@ -443,7 +479,9 @@ const miles = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\
 // Las clases van de ¼ en ¼: 1 ½ = una práctica entera y otra de ½ (fraccion).
 const MAX_CLASES = 6;
 const durClase = () => S.duracionClase || 45;
-const rangoKm = () => S.rangoKm || { min: 40, max: 45 };
+// Km automáticos: «entre min y max km por cada 2 clases» (Ajustes del escritorio
+// → Clases y kilómetros; 40–50 si no se ha configurado).
+const kmAuto = () => S.kmAuto || { min: 40, max: 50 };
 const aCuartos = n => Math.round(Number(n) * 4) / 4;
 const nClasesGuardado = () => { const n = aCuartos(localStorage.getItem(NCLASES_KEY)); return n >= 0.25 && n <= 3 ? n : 1; };
 const nDeReserva = rv => rv && rv.duracion_min ? Math.min(MAX_CLASES, Math.max(0.25, aCuartos(rv.duracion_min / durClase()))) : 0;
@@ -485,49 +523,158 @@ const IC = {
   hist: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>', salir: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
   persona: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-3.6 3.3-6 7-6s6.4 2.4 7 6"/>', cerrar: '<path d="M6 6l12 12M18 6L6 18"/>',
   compartir: '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11v9h12v-9"/>',
-  firma: '<path d="M3 17c2.5-4 4-9 6-9s-1 8 1.5 8 2.5-4 4-4 1 3 2.5 3H21"/><path d="M3 21h18"/>'
+  firma: '<path d="M3 17c2.5-4 4-9 6-9s-1 8 1.5 8 2.5-4 4-4 1 3 2.5 3H21"/><path d="M3 21h18"/>',
+  temaAuto: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
+  sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+  luna: '<path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/>',
+  lunaLlena: '<path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z" fill="currentColor"/>'
 };
 const ic = (k, w = 20, extra = '') => `<svg class="ic" width="${w}" height="${w}" viewBox="0 0 24 24" ${extra} aria-hidden="true">${IC[k]}</svg>`;
 const placa = m => m ? `<span class="placa"><span class="placa-e">E</span><span class="placa-n">${esc(m)}</span></span>` : '';
 
-// ─── SUPABASE / AUTENTICACIÓN ────────────────────────────────────────────────
-let supabaseClient = null;
-async function initSupabase() {
-  if (supabaseClient) return supabaseClient;
-  const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
-  supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  return supabaseClient;
+// ─── SESIÓN (Supabase Auth por su API, sin librería) ─────────────────────────
+// El profesor entra una vez y la sesión queda guardada en el teléfono: se
+// renueva sola con el refresh token aunque cierre la app, pasen días o se
+// quede sin cobertura. Solo vuelve a pedir el login si Supabase rechaza la
+// renovación (contraseña cambiada, sesión revocada) o si pulsa «Cerrar sesión».
+// Antes: supabase-js desde un CDN (si al abrir la app la red tardaba, la carga
+// o la renovación fallaban y salía el login), cualquier 401 cerraba la sesión
+// y olvidaba el profesor, y «Cerrar sesión» la cerraba en TODOS los teléfonos
+// de la cuenta (signOut global): un profesor que salía echaba a los demás.
+class SesionCaducada extends Error {}
+function sesionCruda() { try { return JSON.parse(localStorage.getItem(SESION_KEY) || 'null'); } catch { return null; } }
+function uidDeToken(t) {
+  try { return JSON.parse(atob(String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub || null; } catch { return null; }
+}
+function guardarSesion(r) {
+  const previa = sesionCruda();
+  const u = r.user || (previa && previa.user) || {};
+  const s = {
+    access_token: r.access_token, refresh_token: r.refresh_token,
+    expires_at: Number(r.expires_at) || Math.floor(Date.now() / 1000) + (Number(r.expires_in) || 3600),
+    user: { id: u.id || uidDeToken(r.access_token), email: u.email || null }
+  };
+  try { localStorage.setItem(SESION_KEY, JSON.stringify(s)); if (s.user.email) localStorage.setItem(ULTIMO_EMAIL_KEY, s.user.email); } catch {}
+  return s;
+}
+function leerSesion() {
+  let s = sesionCruda();
+  if (!s) {
+    // Sesión abierta con la versión anterior de la web (supabase-js): se adopta
+    // para que nadie tenga que volver a entrar tras la actualización.
+    try {
+      const clave = 'sb-' + new URL(SUPABASE_URL).hostname.split('.')[0] + '-auth-token';
+      const v = JSON.parse(localStorage.getItem(clave) || 'null');
+      const vieja = v && (v.currentSession || v);
+      if (vieja && vieja.refresh_token) { s = guardarSesion(vieja); localStorage.removeItem(clave); }
+    } catch {}
+  }
+  return s && s.refresh_token ? s : null;
+}
+function borrarSesion() { try { localStorage.removeItem(SESION_KEY); } catch {} }
+const cuentaActual = () => { const s = leerSesion(); return s && s.user ? s.user.id : null; };
+
+async function authPost(ruta, cuerpo, token) {
+  const headers = { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = 'Bearer ' + token;
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/${ruta}`, { method: 'POST', headers, body: JSON.stringify(cuerpo || {}) });
+  let datos = null; try { datos = await res.json(); } catch {}
+  return { ok: res.ok, status: res.status, datos };
+}
+// Una sola renovación a la vez (el refresh token solo vale una vez).
+let _renovando = null;
+function renovarSesion() {
+  if (_renovando) return _renovando;
+  _renovando = (async () => {
+    const s = leerSesion(); if (!s) throw new SesionCaducada();
+    let r;
+    try { r = await authPost('token?grant_type=refresh_token', { refresh_token: s.refresh_token }); } catch { throw new Error('Sin conexión'); }
+    if (r.ok && r.datos && r.datos.access_token) return guardarSesion(r.datos);
+    // Otra pestaña la renovó justo antes: ya hay otro refresh token guardado.
+    const ahora = leerSesion();
+    if (ahora && ahora.refresh_token !== s.refresh_token) return ahora;
+    if (r.status >= 500 || r.status === 429) throw new Error('Sin conexión'); // fallo pasajero: se reintenta luego
+    throw new SesionCaducada();
+  })().finally(() => { _renovando = null; });
+  return _renovando;
+}
+async function tokenAcceso() {
+  let s = leerSesion(); if (!s) throw new SesionCaducada();
+  if (!s.access_token || s.expires_at * 1000 - Date.now() < 90000) {
+    try { s = await renovarSesion(); } catch (e) { if (e instanceof SesionCaducada) throw e; /* sin red: se prueba con el que hay */ }
+  }
+  return s.access_token;
 }
 
-async function apiFetch(url, options = {}) {
-  await initSupabase();
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  const headers = { ...(options.headers || {}) };
-  if (session?.access_token) headers['Authorization'] = 'Bearer ' + session.access_token;
-  const res = await fetch(url, { ...options, headers });
-  if (res.status === 401) { cerrarSesion(); throw new Error('Sesión expirada'); }
+async function apiFetch(url, options = {}, reintento = false) {
+  let token;
+  try { token = await tokenAcceso(); } catch (e) { if (e instanceof SesionCaducada) sesionCaducada(); throw new Error('Sesión expirada'); }
+  const res = await fetch(url, { ...options, headers: { ...(options.headers || {}), Authorization: 'Bearer ' + token } });
+  if (res.status === 401) {
+    if (!reintento) {
+      try { await renovarSesion(); } catch (e) { if (e instanceof SesionCaducada) { sesionCaducada(); throw new Error('Sesión expirada'); } throw new Error('Sin conexión'); }
+      return apiFetch(url, options, true);
+    }
+    sesionCaducada(); throw new Error('Sesión expirada');
+  }
   return res;
 }
 const postJSON = (url, cuerpo) => apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
 
+// Perfil de profesor elegido: se recuerda por cuenta y no se vuelve a preguntar
+// (se cambia en Perfil → Cambiar de perfil).
+function perfilGuardado(uid) {
+  try {
+    let r = uid ? localStorage.getItem(PROFESOR_KEY + ':' + uid) : null;
+    const viejo = localStorage.getItem(PROFESOR_KEY); // versión anterior: una sola clave para el teléfono
+    if (!r && viejo && uid) { r = viejo; localStorage.setItem(PROFESOR_KEY + ':' + uid, viejo); }
+    if (viejo) localStorage.removeItem(PROFESOR_KEY);
+    const p = r ? JSON.parse(r) : null;
+    return p && typeof p === 'object' && 'id' in p ? p : null;
+  } catch { return null; }
+}
+function guardarPerfil(p) { const uid = cuentaActual(); try { if (uid) localStorage.setItem(PROFESOR_KEY + ':' + uid, JSON.stringify(p)); } catch {} }
+
+// Al abrir la web: con sesión guardada se entra directamente, sin esperar a
+// la red (los datos se cargan después y, sin cobertura, se reintentan).
 async function checkSession() {
-  await initSupabase();
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  if (!session) { mostrarLogin(); return; }
-  const guardado = localStorage.getItem(PROFESOR_KEY);
-  if (guardado) {
-    try { S.perfil = JSON.parse(guardado); entrarApp(); return; } catch { /* JSON inválido: pedimos perfil */ }
-  }
+  const s = leerSesion();
+  if (!s) { mostrarLogin(); return; }
+  try { if (s.user && s.user.id && !localStorage.getItem(ULTIMA_CUENTA_KEY)) localStorage.setItem(ULTIMA_CUENTA_KEY, s.user.id); } catch {}
+  const perfil = perfilGuardado(s.user && s.user.id);
+  if (perfil) { S.perfil = perfil; entrarApp(); revisarPerfil(); return; }
   mostrarPerfiles();
+}
+// El profesor recordado puede haberse borrado o renombrado en el escritorio.
+async function revisarPerfil() {
+  if (!S.perfil || !S.perfil.id) return;
+  try {
+    const res = await apiFetch('/api/profesores'); if (!res.ok) return;
+    const lista = await res.json(); if (!Array.isArray(lista)) return;
+    S.profesores = lista;
+    const p = lista.find(x => x.id === S.perfil.id);
+    if (!p) { if (!(S.flujo && S.flujo.practica_id && !S.flujo.cerrada)) { toast('Tu perfil de profesor ya no existe: elige otro.'); mostrarPerfiles(); } return; }
+    if (p.nombre !== S.perfil.nombre) { S.perfil = { id: p.id, nombre: p.nombre }; guardarPerfil(S.perfil); if (S.vista === 'hoy') renderHoy(); }
+  } catch {}
 }
 
 function ocultarAcceso() { document.getElementById('login-screen').hidden = true; document.getElementById('profile-screen').hidden = true; }
-function mostrarLogin() {
+function mostrarLogin(aviso) {
   document.getElementById('app').hidden = true; document.getElementById('profile-screen').hidden = true;
   document.getElementById('login-screen').hidden = false;
   document.getElementById('login-password').value = '';
+  const email = document.getElementById('login-email');
+  if (!email.value) email.value = localStorage.getItem(ULTIMO_EMAIL_KEY) || '';
+  document.getElementById('login-error').textContent = aviso || '';
   setTema(false);
   pintarInstalar();
+}
+// La renovación fue rechazada: hay que volver a entrar. Se conservan el email,
+// el profesor elegido y la práctica en marcha (siguen ahí al entrar).
+function sesionCaducada() {
+  if (!document.getElementById('login-screen').hidden) return;
+  borrarSesion(); pararTimer(); cerrarHoja();
+  mostrarLogin('Tu sesión ha caducado: vuelve a entrar.');
 }
 
 async function mostrarPerfiles() {
@@ -545,6 +692,7 @@ async function mostrarPerfiles() {
   if (error) html += '<div class="msg msg-warn">No se pudo cargar la lista de profesores. Puedes continuar sin perfil.</div>';
   else if (!S.profesores.length) html += '<div class="vacio">Esta autoescuela aún no tiene profesores dados de alta.</div>';
   else html += S.profesores.map(p => `<button class="perfil-op" data-id="${p.id}"><span class="ini">${esc(iniciales(p.nombre))}</span>${esc(p.nombre)}<span class="chev">${ic('chev', 22)}</span></button>`).join('');
+  if (!error) html += '<p class="acceso-sub" style="font-size:14px">Solo se pregunta una vez en este teléfono. Se cambia en Perfil → Cambiar de perfil.</p>';
   html += `<button class="perfil-op" id="perfil-sin"><span class="ini">${ic('persona', 22)}</span>Sin profesor<span class="chev">${ic('chev', 22)}</span></button>`;
   lista.innerHTML = html;
   lista.querySelectorAll('.perfil-op[data-id]').forEach(b => b.addEventListener('click', () => {
@@ -553,7 +701,7 @@ async function mostrarPerfiles() {
   }));
   document.getElementById('perfil-sin').addEventListener('click', () => elegirPerfil(null, 'Sin profesor'));
 }
-function elegirPerfil(id, nombre) { S.perfil = { id, nombre }; localStorage.setItem(PROFESOR_KEY, JSON.stringify(S.perfil)); entrarApp(); }
+function elegirPerfil(id, nombre) { S.perfil = { id, nombre }; guardarPerfil(S.perfil); entrarApp(); }
 
 async function iniciarSesion() {
   const email = document.getElementById('login-email').value.trim();
@@ -561,29 +709,70 @@ async function iniciarSesion() {
   const err = document.getElementById('login-error');
   if (!email || !password) { err.textContent = 'Introduce tu email y contraseña.'; return; }
   err.textContent = '';
+  const btn = document.getElementById('login-btn'); if (btn) btn.disabled = true;
   try {
-    await initSupabase();
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) { err.textContent = /invalid|credentials|password|email/i.test(error.message || '') ? 'Email o contraseña incorrectos' : error.message; return; }
-    localStorage.removeItem(PROFESOR_KEY); S.perfil = null;
-    await mostrarPerfiles();
-  } catch { err.textContent = 'Error de conexión'; }
+    let r;
+    try { r = await authPost('token?grant_type=password', { email, password }); } catch { err.textContent = 'Sin conexión. Revisa la cobertura e inténtalo otra vez.'; return; }
+    if (!r.ok || !r.datos || !r.datos.access_token) {
+      const d = r.datos || {}, m = String(d.error_description || d.msg || d.message || d.error || '');
+      err.textContent = /not.confirmed/i.test(m + d.error_code) ? 'Falta confirmar este email (revisa tu correo).'
+        : (r.status === 400 || /invalid|credentials/i.test(m)) ? 'Email o contraseña incorrectos' : (r.status === 429 ? 'Demasiados intentos: espera un minuto.' : 'No se pudo entrar. Inténtalo otra vez.');
+      return;
+    }
+    const s = guardarSesion(r.datos);
+    try {
+      localStorage.setItem(ULTIMO_EMAIL_KEY, email);
+      // Otra cuenta en este teléfono: la práctica en marcha y el coche eran de la anterior.
+      if (localStorage.getItem(ULTIMA_CUENTA_KEY) !== s.user.id) { localStorage.removeItem(FLUJO_KEY); localStorage.removeItem(VEHICULO_KEY); localStorage.setItem(ULTIMA_CUENTA_KEY, s.user.id); }
+    } catch {}
+    document.getElementById('login-password').value = '';
+    const perfil = perfilGuardado(s.user.id);
+    if (perfil) { S.perfil = perfil; entrarApp(); revisarPerfil(); } else await mostrarPerfiles();
+  } finally { if (btn) btn.disabled = false; }
 }
 document.getElementById('login-email').addEventListener('keypress', e => { if (e.key === 'Enter') iniciarSesion(); });
 document.getElementById('login-password').addEventListener('keypress', e => { if (e.key === 'Enter') iniciarSesion(); });
 
+// «Cerrar sesión» solo en ESTE teléfono (scope=local): los demás profesores de
+// la cuenta siguen dentro. El profesor elegido se recuerda para la próxima vez.
 async function cerrarSesion() {
+  if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada && !confirm('Tienes una práctica en marcha: seguirá abierta y podrás terminarla al volver a entrar. ¿Cerrar sesión?')) return;
   pararTimer();
-  try { await supabaseClient?.auth.signOut(); } catch {}
-  localStorage.removeItem(PROFESOR_KEY); localStorage.removeItem(FLUJO_KEY);
+  const s = sesionCruda();
+  if (s && s.access_token) authPost('logout?scope=local', {}, s.access_token).catch(() => {});
+  borrarSesion();
   S.perfil = null; S.flujo = null;
-  document.getElementById('login-email').value = ''; document.getElementById('login-error').textContent = '';
   cerrarHoja(); mostrarLogin();
 }
 
+// ─── APARIENCIA (claro / oscuro / negro, como en el escritorio) ─────────────
+// «Automático» (por defecto) sigue el modo del teléfono y cambia con él.
+// La pantalla «En curso» es oscura en todos los temas (body.oscuro).
+const TEMAS = [['auto', 'Automático', 'Como el teléfono', 'temaAuto'], ['claro', 'Claro', '', 'sol'], ['oscuro', 'Oscuro', '', 'luna'], ['negro', 'Negro', 'Negro puro: gasta menos batería en pantallas OLED', 'lunaLlena']];
+const oscuroSistema = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : { matches: false };
+function temaElegido() { try { const t = localStorage.getItem(TEMA_KEY); return TEMAS.some(x => x[0] === t) ? t : 'auto'; } catch { return 'auto'; } }
+function temaEfectivo() { const t = temaElegido(); return t === 'auto' ? (oscuroSistema.matches ? 'oscuro' : 'claro') : t; }
+function aplicarTema() {
+  const t = temaEfectivo();
+  if (t === 'claro') delete document.documentElement.dataset.tema; else document.documentElement.dataset.tema = t;
+  pintarColorBarra();
+}
+function pintarColorBarra() {
+  const t = temaEfectivo(), curso = document.body.classList.contains('oscuro');
+  document.getElementById('meta-theme').setAttribute('content', t === 'negro' ? '#000000' : (curso || t === 'oscuro') ? '#14161B' : '#F3F2EE');
+}
+if (oscuroSistema.addEventListener) oscuroSistema.addEventListener('change', () => { if (temaElegido() === 'auto') aplicarTema(); });
+function menuTema() {
+  const t = temaElegido();
+  abrirHoja(`<div class="hoja-tit"><h3>Apariencia</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+    <div class="card" role="radiogroup" aria-label="Apariencia">${TEMAS.map(([k, n, sub, icono]) => `<button class="fila" role="radio" aria-checked="${k === t}" onclick="elegirTema('${k}')"><span class="veh-ic">${ic(icono, 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">${n}</div>${sub ? `<div class="fila-sub">${sub}</div>` : ''}</div>${k === t ? ic('ok', 22) : ''}</button>`).join('')}</div>`);
+}
+function elegirTema(k) { try { localStorage.setItem(TEMA_KEY, k); } catch {} aplicarTema(); menuTema(); }
+
+// Pantalla «En curso»: oscura siempre.
 function setTema(oscuro) {
   document.body.classList.toggle('oscuro', !!oscuro);
-  document.getElementById('meta-theme').setAttribute('content', oscuro ? '#14161B' : '#F3F2EE');
+  pintarColorBarra();
 }
 
 // ─── NAVEGACIÓN ──────────────────────────────────────────────────────────────
@@ -607,6 +796,7 @@ function go(vista, opciones = {}) {
   renderRiel();
 }
 window.addEventListener('popstate', e => {
+  if (document.querySelector('#capa .fondo')) { cerrarHoja(); history.pushState({ vista: S.vista }, ''); return; }
   const v = e.state && e.state.vista;
   if (!v) return;
   // Durante una práctica en marcha «atrás» no debe sacar al profesor de la práctica.
@@ -630,7 +820,7 @@ async function cargarBase() {
     if (!rv.ok) throw new Error('Error cargando vehículos');
     if (!ra.ok) throw new Error('Error cargando alumnos');
     S.vehiculos = await rv.json(); S.alumnos = await ra.json();
-    if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; S.duracionClase = parseInt(c.duracion_clase_min) || 45; if (c.rango_km && c.rango_km.min > 0) S.rangoKm = c.rango_km; }
+    if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; S.duracionClase = parseInt(c.duracion_clase_min) || 45; if (c.km_auto && c.km_auto.min > 0) S.kmAuto = c.km_auto; }
     S.ultimaCarga = Date.now();
   } catch (e) { if (e.message !== 'Sesión expirada') toast('No se pudieron cargar los datos. Reintenta.'); }
   const guardado = parseInt(localStorage.getItem(VEHICULO_KEY));
@@ -873,9 +1063,11 @@ function menuPerfil() {
     <div class="card"><button class="fila" onclick="cerrarHoja();refrescar({ silencioso: false })"><span class="veh-ic">${ic('deshacer', 22)}</span><div class="fila-tit" style="flex:1">Actualizar datos</div></button>
     ${puedeInstalar() ? `<button class="fila" onclick="cerrarHoja();instalarApp()"><span class="veh-ic">${ic('tel', 22)}</span><div class="fila-tit" style="flex:1">Instalar como app</div>${ic('chev', 20)}</button>` : ''}
     ${S.perfil && S.perfil.id ? `<button class="fila" onclick="cerrarHoja();go('mifirma')"><span class="veh-ic">${ic('firma', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Mi firma</div><div class="fila-sub">Sale en tus clases de la ficha DGT</div></div>${S.miFirma === false ? '<span class="pill pill-warn">Falta</span>' : (S.miFirma ? '<span class="pill pill-ok">Guardada</span>' : '')}${ic('chev', 20)}</button>` : ''}
+    <button class="fila" onclick="menuTema()"><span class="veh-ic">${ic(TEMAS.find(x => x[0] === temaElegido())[3], 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Apariencia</div><div class="fila-sub">${TEMAS.find(x => x[0] === temaElegido())[1]}</div></div>${ic('chev', 20)}</button>
     <button class="fila" onclick="cerrarHoja();cambiarPerfil()"><span class="veh-ic">${ic('persona', 22)}</span><div class="fila-tit" style="flex:1">Cambiar de perfil</div>${ic('chev', 20)}</button>
-    <button class="fila" onclick="cerrarSesion()"><span class="veh-ic">${ic('salir', 22)}</span><div class="fila-tit" style="flex:1">Cerrar sesión</div></button></div>`);
+    <button class="fila" onclick="cerrarSesion()"><span class="veh-ic">${ic('salir', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Cerrar sesión</div>${cuentaEmail() ? `<div class="fila-sub">${esc(cuentaEmail())}</div>` : ''}</div></button></div>`);
 }
+const cuentaEmail = () => { const s = leerSesion(); return s && s.user ? s.user.email : ''; };
 function cambiarPerfil() { if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada) { toast('Termina primero la práctica en curso.'); return; } mostrarPerfiles(); }
 
 function elegirVehiculo(despues) {
@@ -901,6 +1093,9 @@ function abrirIniciar(op = {}) {
     zonas: [], n_clases: Math.min(MAX_CLASES, op.n_clases || nClasesGuardado())
   };
   go('iniciar');
+  // Sin alumno elegido (no viene de una reserva o de su ficha), la lista sale
+  // ya abierta: es lo primero que hay que hacer y así no se olvida.
+  if (!S.iniciar.alumno_id && S.alumnos.length) elegirAlumnoIniciar();
 }
 function digitos(valor, largo = 6) {
   const s = String(valor || '').replace(/\D/g, '').slice(0, 7).padStart(largo, '0');
@@ -1375,7 +1570,7 @@ function tecleaMinutos(inp, quien) {
 const MODO_KM_KEY = 'km_modo_km';
 const modoKmGuardado = () => localStorage.getItem(MODO_KM_KEY) === 'auto' ? 'auto' : 'manual';
 // Km que pondrá la app para n clases: [mínimo, máximo]
-const kmAutoPrevistos = n => { const r = rangoKm(); return [Math.max(1, Math.round(n * r.min)), Math.max(1, Math.round(n * r.max))]; };
+const kmAutoPrevistos = n => { const r = kmAuto(); return [Math.max(1, Math.round(n * r.min / 2)), Math.max(1, Math.round(n * r.max / 2))]; };
 const kmAutoTxt = n => { const [a, b] = kmAutoPrevistos(n); return a === b ? `${miles(a)} km` : `${miles(a)}–${miles(b)} km`; };
 function fijarModoKm(modo) {
   const F = S.flujo; if (!F) return;
@@ -1420,7 +1615,7 @@ function renderKmFinal() {
     ${bloqueCantidad(F, 'flujo', sugerencia)}
     <div class="card card-pad" style="margin-top:12px"><div class="etq" style="margin:0 0 10px">Km final <small>${auto ? 'Sin mirar el cuentakilómetros' : 'Lo que marca el coche ahora'}</small></div>
       <div class="seg3 km-modo" role="group" aria-label="Quién pone el km final"><button class="${auto ? '' : 'on'}" onclick="fijarModoKm('manual')">Los escribo</button><button class="${auto ? 'on' : ''}" onclick="fijarModoKm('auto')">Los pone la app</button></div>
-      ${auto ? `<div class="msg msg-gris">${ic('coche', 20)}<span>Se calculan solos, entre ${rangoKm().min} y ${rangoKm().max} km por clase, y nunca pisan la siguiente práctica del coche. El rango se cambia en el ordenador: Ajustes → Clases y kilómetros.</span></div>` : `<div class="odo" style="margin-top:14px">${digitos(S.kmFinal || '')}<span class="odo-km">km</span></div>`}
+      ${auto ? `<div class="msg msg-gris">${ic('coche', 20)}<span>Se calculan solos, entre ${kmAuto().min} y ${kmAuto().max} km por cada 2 clases, y nunca pisan la siguiente práctica del coche. El rango se cambia en el ordenador: Ajustes → Clases y kilómetros.</span></div>` : `<div class="odo" style="margin-top:14px">${digitos(S.kmFinal || '')}<span class="odo-km">km</span></div>`}
       <div class="dos-col"><div class="stat-box"><span class="etq2">Inicial</span><span class="val">${miles(F.km_inicial)}</span></div>
         <div class="stat-box osc"><span class="etq2">Recorridos</span><span class="val">${auto ? '≈ ' + kmAutoTxt(cantidadDe(F)) : kf ? (rec > 0 ? '+' + rec : rec) + ' km' : '—'}</span></div></div>
       <div id="km-aviso" class="fila-sub" style="margin-top:10px">${st.html}</div></div>
@@ -1640,7 +1835,7 @@ function renderAlumnos() {
   const visibles = (S.perfil && S.perfil.id) ? filtros : filtros.slice(1);
   document.getElementById('v-alumnos').innerHTML = `
     <div class="cab"><div><div class="fecha-lin">${S.perfil && S.perfil.id ? `Asignados a ti · ${mios.length}` : `${enCurso.length} alumnos`}</div><div class="grande" style="margin-top:4px">Alumnos</div></div>
-      <button class="avatar" style="background:#fff;color:var(--ink);border:1px solid var(--line-2)" onclick="go('nuevo')" aria-label="Nuevo alumno">${ic('usuarioMas', 24)}</button></div>
+      <button class="avatar" style="background:var(--boton);color:var(--ink);border:1px solid var(--line-2)" onclick="go('nuevo')" aria-label="Nuevo alumno">${ic('usuarioMas', 24)}</button></div>
     <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca" placeholder="Buscar por nombre" value="${esc(S.busqueda)}" oninput="S.busqueda=this.value;pintarListaAlumnos()" autocomplete="off"></div>
     <div class="chips" style="margin-bottom:12px">${visibles.map(([id, tx, n]) => `<button class="chip ${S.filtroAlumnos === id ? 'on' : ''}" style="height:42px;font-size:15.5px" onclick="S.filtroAlumnos='${id}';S.filtroElegido=true;renderAlumnos()">${tx} · ${n}</button>`).join('')}</div>
     <div class="card" id="lista-alumnos"></div>`;
@@ -1709,8 +1904,8 @@ function renderFicha() {
     <div style="display:flex;align-items:center;gap:14px;margin:4px 0 16px"><span class="ini ini-lg">${esc(iniciales(nombre))}</span>
       <div style="min-width:0"><div class="grande" style="font-size:34px">${esc(nombre)}</div><div class="fila-sub" style="font-size:15px">Permiso ${esc(a.permiso)}${a.profesor_nombre ? ' · Prof. ' + esc(a.profesor_nombre) : ''}</div></div></div>
     <div class="tres"><div class="stat-box osc"><span class="val">${fmtC(totalClases)}</span><span class="etq2">${totalClases > 0 && totalClases <= 1 ? 'clase hecha' : 'clases hechas'}</span></div>
-      <div class="stat-box" style="background:#fff;border:1px solid var(--line)"><span class="val">${miles(totalKm)}</span><span class="etq2">km recorridos</span></div>
-      <div class="stat-box" style="background:#fff;border:1px solid var(--line)"><span class="val">${horas}</span><span class="etq2">h al volante</span></div></div>
+      <div class="stat-box" style="background:var(--card);border:1px solid var(--line)"><span class="val">${miles(totalKm)}</span><span class="etq2">km recorridos</span></div>
+      <div class="stat-box" style="background:var(--card);border:1px solid var(--line)"><span class="val">${horas}</span><span class="etq2">h al volante</span></div></div>
     ${previas || kmPrevios ? `<div class="fila-sub" style="margin:8px 2px 0">Incluye ${previas} ${previas === 1 ? 'clase' : 'clases'} y ${miles(kmPrevios)} km hechos antes de usar la app.</div>` : ''}
     ${a.minutos_sobrantes > 0 ? `<div class="fila-sub" style="margin:8px 2px 0">Tiene <b>${minTxt(a.minutos_sobrantes)}</b> acumulados de clases por minutos: se anotan en cuanto lleguen a ¼ de clase (${minTxt(durClase() / 4)}).</div>` : ''}
     <div class="card cal" style="margin-top:14px"><div class="cal-cab"><button onclick="mesFicha(-1)" aria-label="Mes anterior">${ic('chevIzq', 20)}</button><div style="text-align:center"><b>${cap(MESES[m - 1])} ${y}</b><div class="fila-sub">${nDiasPractica} ${nDiasPractica === 1 ? 'día con práctica' : 'días con práctica'}</div></div><button onclick="mesFicha(1)" aria-label="Mes siguiente">${ic('chev', 20)}</button></div>
@@ -1940,6 +2135,7 @@ function renderRiel() {
 window.addEventListener('resize', renderRiel);
 
 // ─── ARRANQUE ────────────────────────────────────────────────────────────────
+aplicarTema();
 checkSession().catch(() => mostrarLogin());
 </script>
 </body>

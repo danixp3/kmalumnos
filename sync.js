@@ -200,6 +200,33 @@ function _avanzarSeq(data, k, id) {
   if (!data._seq[k] || id >= data._seq[k]) data._seq[k] = id + 1;
 }
 
+// La clave primaria de cada tabla de la nube es GLOBAL (todas las empresas),
+// pero cada PC numera por su cuenta y solo ve los ids de su empresa: dos
+// autoescuelas, o la cuenta de prueba y la real en el mismo PC, acababan
+// eligiendo el mismo id y la segunda no podía subirlo (RLS de la otra
+// empresa: se quedaba en la cola para siempre). ids_maximos() (función de la
+// migración 2026-10-03, sin exponer ninguna fila) da el mayor id de cada tabla
+// y el contador local se pone por encima. Sin la migración, no hace nada.
+const SEQ_POR_TABLA = { vehiculos: 'v', profesores: 'pf', alumnos: 'a', practicas: 'p', tarifas: 't', pagos: 'pg', sucursales: 'suc', reservas: 'r', cargos: 'cargo' };
+let _idsMaximosDisponible = null; // false = la función no existe todavía
+async function _avanzarSeqGlobal(sb, data) {
+  if (_idsMaximosDisponible === false || !_empresaId || !sb || typeof sb.rpc !== 'function') return false;
+  try {
+    const { data: maximos, error } = await sb.rpc('ids_maximos');
+    if (error) {
+      if (/ids_maximos|PGRST202|42883|could not find the function/i.test(`${error.message} ${error.code}`)) _idsMaximosDisponible = false;
+      return false;
+    }
+    _idsMaximosDisponible = true;
+    let cambio = false;
+    for (const [tabla, k] of Object.entries(SEQ_POR_TABLA)) {
+      const max = Number(maximos && maximos[tabla]);
+      if (Number.isFinite(max) && max > 0 && max < ID_WEB_MIN - 1 && !(data._seq[k] > max)) { data._seq[k] = max + 1; cambio = true; }
+    }
+    return cambio;
+  } catch { return false; }
+}
+
 // Escritura atómica (tmp + rename) para que un cierre brusco a mitad de
 // escritura no deje data.json corrupto.
 function saveData(data) {
@@ -231,6 +258,7 @@ function setCredentials(email, password) {
   _practicasMovilDisponibleCache = null; // idem: reconsultar si las columnas del flujo móvil (firma...) están disponibles
   _columnasCache = {};
   _modulosCache = null; // idem: reconsultar los módulos contratados de la nueva sesión
+  _idsMaximosDisponible = null; // idem: la migración pudo aplicarse mientras tanto
   // Entrada fresca de credenciales (login manual, registro, o logout): nunca
   // se da por buena hasta que un login real lo confirme. Distinto de
   // restaurarCredenciales(), pensada para el arranque de la app.
@@ -959,7 +987,11 @@ function _comprobarConflictoEmpresaLocal(empresaId, email) {
     _conflictoEmpresa = null;
     return;
   }
-  _conflictoEmpresa = (owner.empresaId === empresaId) ? null : { emailAnterior: owner.email || null };
+  // Un cambio de cuenta que se quedó a medias (cierre brusco) también se
+  // trata como conflicto: cambiarDatosDeCuenta() lo termina.
+  _conflictoEmpresa = (owner.empresaId === empresaId && !_leerMarcaCambio())
+    ? null
+    : { emailAnterior: owner.email || null, empresaAnterior: owner.empresaId };
 }
 
 // Resuelve un conflicto ya detectado ("Vaciar datos locales y empezar
@@ -992,6 +1024,146 @@ async function resolverConflictoEmpresa() {
   _conflictoEmpresa = null;
 
   return sync();
+}
+
+// ─── DATOS LOCALES POR CUENTA (varias cuentas en el mismo PC) ─────────────────
+// Cada cuenta que entra en este PC conserva sus propios datos locales. Los de
+// la cuenta activa siguen donde siempre (data.json + pending_sync.json, dueña
+// en local_empresa.json); al entrar con OTRA cuenta (conflicto detectado en
+// el login) se guardan en cuentas/<id>/ y se traen los de la nueva o, si es
+// la primera vez que entra aquí, se empieza vacío y se baja todo de la nube.
+// Así se puede ir y volver entre la cuenta de prueba y la de la autoescuela
+// sin perder nada: lo que no llegó a subirse (sin conexión) y lo que solo
+// vive en el PC (jornadas, vencimientos, exámenes, registro de cambios)
+// vuelve con su cuenta. Antes había que «vaciar los datos locales» cada vez.
+// cambio_cuenta.json marca un cambio a medias: si la app se cierra en mitad,
+// el siguiente intento lo termina sin volver a guardar encima de la copia.
+const ARCHIVOS_CUENTA = ['data.json', 'pending_sync.json'];
+
+function getCuentasDir() {
+  return path.join(app.getPath('userData'), 'cuentas');
+}
+function _dirCuenta(empresaId) {
+  return path.join(getCuentasDir(), String(empresaId).replace(/[^A-Za-z0-9_-]/g, '_'));
+}
+function _rutaMarcaCambio() {
+  return path.join(app.getPath('userData'), 'cambio_cuenta.json');
+}
+function _leerMarcaCambio() {
+  try { return JSON.parse(fs.readFileSync(_rutaMarcaCambio(), 'utf-8')); } catch { return null; }
+}
+function _copiarAtomico(origen, destino) {
+  const tmp = destino + '.tmp';
+  fs.copyFileSync(origen, tmp);
+  fs.renameSync(tmp, destino);
+}
+function _colaVacia() {
+  return {
+    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [],
+    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [] },
+    lastSync: '1970-01-01T00:00:00.000Z'
+  };
+}
+
+// Cuentas con datos en este PC (la activa la primera), para ofrecerlas al
+// iniciar sesión. Nunca incluye contraseñas.
+function getCuentasGuardadas() {
+  const lista = [];
+  const activa = getLocalEmpresaOwner();
+  if (activa && activa.empresaId) lista.push({ empresaId: activa.empresaId, email: activa.email || null, activa: true });
+  let nombres = [];
+  try { nombres = fs.readdirSync(getCuentasDir()); } catch { /* aún no hay ninguna guardada */ }
+  for (const n of nombres) {
+    try {
+      const c = JSON.parse(fs.readFileSync(path.join(getCuentasDir(), n, 'cuenta.json'), 'utf-8'));
+      if (c && c.empresaId && !lista.some(x => x.empresaId === c.empresaId)) {
+        lista.push({ empresaId: c.empresaId, email: c.email || null, activa: false, guardado: c.guardado || null });
+      }
+    } catch { /* carpeta sin datos de cuenta: se ignora */ }
+  }
+  return lista;
+}
+
+// Cambios de este PC que aún no están en la nube (cola de pending_sync.json).
+function contarPendientes() {
+  const p = loadPending();
+  let n = 0;
+  for (const [k, v] of Object.entries(p)) if (k !== 'deleted' && Array.isArray(v)) n += v.length;
+  for (const v of Object.values(p.deleted || {})) if (Array.isArray(v)) n += v.length;
+  return n;
+}
+
+// Resuelve el conflicto de cuenta cambiando de datos (en lugar de vaciarlos).
+// `ajustesLocales`: ajustes de este PC que son de la cuenta y viven en el
+// navegador (datos del centro para la ficha DGT, precios...): se guardan con
+// la cuenta anterior y se devuelven los que tuviera guardados la nueva (null
+// si nunca entró aquí: se quedan los actuales).
+async function cambiarDatosDeCuenta(ajustesLocales) {
+  if (!_empresaId || !_conflictoEmpresa) return { ok: false, reason: 'No hay ningún cambio de cuenta pendiente.' };
+  // Ninguna sincronización a medias (las de ahora no tocan nada, por el conflicto)
+  while (_syncPromesa) { try { await _syncPromesa; } catch { /* da igual cómo acabó */ } }
+  if (!_empresaId || !_conflictoEmpresa) return { ok: false, reason: 'La sesión cambió mientras tanto. Vuelve a intentarlo.' };
+
+  const userData = app.getPath('userData');
+  const anterior = getLocalEmpresaOwner() || {};
+  const nueva = { empresaId: _empresaId, email: _creds ? _creds.email : null };
+  try {
+    try { require('./db').crearBackup(); } catch { /* la copia es un extra */ }
+    const { data: actuales } = loadDataSafe();
+    const seqAnterior = { ...(actuales._seq || {}) };
+
+    // 1) Guardar los datos de la cuenta anterior (salvo si ya se guardaron en
+    //    un intento que se quedó a medias: lo activo podría ser ya de la nueva)
+    const marca = _leerMarcaCambio();
+    if (anterior.empresaId && !(marca && marca.de === anterior.empresaId)) {
+      const dir = _dirCuenta(anterior.empresaId);
+      fs.mkdirSync(dir, { recursive: true });
+      for (const f of ARCHIVOS_CUENTA) {
+        const origen = path.join(userData, f);
+        if (fs.existsSync(origen)) _copiarAtomico(origen, path.join(dir, f));
+      }
+      fs.writeFileSync(path.join(dir, 'ajustes_locales.json'), JSON.stringify(ajustesLocales && typeof ajustesLocales === 'object' ? ajustesLocales : {}), 'utf-8');
+      fs.writeFileSync(path.join(dir, 'cuenta.json'), JSON.stringify({ empresaId: anterior.empresaId, email: anterior.email || null, guardado: new Date().toISOString() }), 'utf-8');
+      fs.writeFileSync(_rutaMarcaCambio(), JSON.stringify({ de: anterior.empresaId, a: nueva.empresaId }), 'utf-8');
+    }
+
+    // 2) Traer los de la cuenta nueva, o empezar vacío y bajarlo todo
+    const dirNueva = _dirCuenta(nueva.empresaId);
+    const guardados = fs.existsSync(path.join(dirNueva, 'data.json'));
+    if (guardados) {
+      _copiarAtomico(path.join(dirNueva, 'data.json'), getDataPath());
+      if (fs.existsSync(path.join(dirNueva, 'pending_sync.json'))) _copiarAtomico(path.join(dirNueva, 'pending_sync.json'), getPendingPath());
+      else savePending(_colaVacia());
+    } else {
+      saveData({ vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [], logs: [], _seq: seqAnterior });
+      savePending(_colaVacia());
+    }
+    // 3) Este PC nunca repite un id entre sus cuentas: la clave primaria de la
+    //    nube es global y la segunda en subirlo no podría (RLS de la otra empresa).
+    const { data } = loadDataSafe();
+    for (const [k, v] of Object.entries(seqAnterior)) {
+      if (typeof v === 'number' && v < ID_WEB_MIN && !(data._seq[k] >= v)) data._seq[k] = v;
+    }
+    saveData(data);
+    let ajustesNueva = null;
+    try { ajustesNueva = JSON.parse(fs.readFileSync(path.join(dirNueva, 'ajustes_locales.json'), 'utf-8')); } catch { /* nunca entró aquí */ }
+
+    // 4) La nueva ya es la dueña de los datos activos
+    _guardarLocalEmpresaOwner(nueva.empresaId, nueva.email);
+    try { fs.unlinkSync(_rutaMarcaCambio()); } catch { /* no había marca */ }
+    _conflictoEmpresa = null;
+    try { require('./db')._clearCache(); } catch {}
+    try { require('./db').addLog('cuenta', `Cambio de cuenta en este PC: ${nueva.email || 'cuenta nueva'}${anterior.email ? ` (los datos de ${anterior.email} quedan guardados aquí)` : ''}`, []); } catch {}
+
+    // 5) Subir lo pendiente de esta cuenta y bajar lo nuevo de la nube
+    const res = await sync();
+    return {
+      ok: true, nueva: !guardados, email: nueva.email, emailAnterior: anterior.email || null,
+      ajustesLocales: ajustesNueva, sync: { ok: !!(res && res.ok), reason: (res && res.reason) || null }
+    };
+  } catch (e) {
+    return { ok: false, reason: 'No se pudieron cambiar los datos de cuenta: ' + e.message };
+  }
 }
 
 // ─── PENDING QUEUE ────────────────────────────────────────────────────────────
@@ -1557,6 +1729,10 @@ async function _syncInterno() {
       savePending(pending);
       try { require('./db')._clearCache(); } catch {}
     }
+
+    // Lo próximo que se cree en este PC, por encima del mayor id de la nube de
+    // todas las cuentas (ver _avanzarSeqGlobal).
+    if (await _avanzarSeqGlobal(sb, data)) marcasLocales = true;
 
     // Autorreparación: vuelve a encolar lo que exista en local y falte en la
     // nube (ver _verificarIntegridad). Se sube en este mismo sync.
@@ -2855,5 +3031,9 @@ module.exports = {
   quitarEmpleado,
   solicitarResetPassword,
   getLocalEmpresaOwner,
-  resolverConflictoEmpresa
+  resolverConflictoEmpresa,
+  // Varias cuentas en el mismo PC (cada una con sus datos locales)
+  cambiarDatosDeCuenta,
+  getCuentasGuardadas,
+  contarPendientes
 };
