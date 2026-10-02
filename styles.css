@@ -2591,6 +2591,51 @@
   @media (max-width: 1100px) { .pm-guia { grid-template-columns: 1fr; } }
   .aj-seccion[hidden], .aj-cuadros[hidden], .pm-barra[hidden] { display: none !important; }
 
+  /* ── TRAER DATOS DE OTRO PROGRAMA (renderer/migracion.js) ─────────────── */
+  .mg-tipo { display: inline-flex; margin-bottom: 14px; }
+  .mg-origen { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 16px; align-items: center; }
+  .mg-origen-archivo { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+  .mg-formatos { font-size: 12px; color: var(--text-muted); }
+  .mg-o { font-size: 14px; color: var(--text-muted); }
+  #mg-pegar { width: 100%; min-height: 64px; resize: vertical; font-family: var(--font-mono, monospace); font-size: 12.5px; padding: 10px 12px; border: 1.5px dashed var(--border-strong); border-radius: var(--radius-sm); background: var(--input-bg); color: var(--text); }
+  #mg-pegar:focus { border-style: solid; border-color: var(--accent); outline: none; }
+  .mg-fuente { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 12px; font-size: 13px; }
+  .mg-fuente label { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); }
+  .mg-fuente select { max-width: 420px; }
+  .mg-columnas td { vertical-align: middle; padding-top: 6px; padding-bottom: 6px; }
+  .mg-columnas td:first-child { white-space: nowrap; }
+  .mg-columnas small { color: var(--text-faint); font-weight: 400; }
+  .mg-columnas select { min-width: 230px; }
+  .mg-columnas select.mg-auto, .mg-auto-txt { background: var(--accent-light); color: var(--accent-text); font-weight: 600; }
+  .mg-auto-txt { padding: 0 3px; border-radius: 4px; }
+  .mg-col-off td { color: var(--text-faint); }
+  .mg-ej { display: flex; flex-wrap: wrap; gap: 4px; max-width: 520px; }
+  .mg-ej span { font-family: var(--font-mono, monospace); font-size: 12px; padding: 2px 7px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+  .mg-ej i { color: var(--text-faint); font-size: 12px; }
+  .mg-opciones { display: flex; flex-direction: column; gap: 9px; margin-top: 14px; padding: 14px 16px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13.5px; }
+  .mg-chk, .mg-sel { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; cursor: pointer; }
+  .mg-sel small, .mg-nota { color: var(--text-muted); font-size: 12.5px; }
+  #mg-filtro { margin: 0 0 10px; }
+  #mg-errores .alert { margin-bottom: 12px; }
+  .mg-prev-wrap { max-height: 58vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+  .mg-prev { margin: 0; }
+  .mg-prev thead th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+  .mg-prev td { vertical-align: top; padding-top: 7px; padding-bottom: 7px; }
+  .mg-prev .pill { white-space: nowrap; }
+  .mg-det { font-size: 12.5px; color: var(--text-muted); min-width: 220px; max-width: 460px; }
+  .mg-avisos { color: var(--accent-text); margin-top: 3px; }
+  .mg-vacio { text-align: center; color: var(--text-muted); padding: 16px !important; }
+  .mg-acciones { display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
+  .mg-acciones span { font-size: 12.5px; color: var(--text-muted); }
+  .mg-num-ok { background: var(--success); color: #fff; }
+  .mg-siguientes { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 14px 46px; }
+  .mg-basico { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-left: 46px; padding: 12px 14px; border-radius: 10px; border: 1px dashed var(--border-strong); font-size: 13px; color: var(--text-muted); }
+  .mg-basico > div { flex: 1; min-width: 260px; }
+  .mg-basico b { color: var(--text); }
+  .mg-banner-datos { margin-bottom: 16px; }
+  @media (max-width: 1100px) { .mg-origen { grid-template-columns: 1fr; } .mg-o { display: none; } .mg-siguientes, .mg-basico { margin-left: 0; } }
+  #mg-paso-columnas[hidden], #mg-paso-revisar[hidden], #mg-paso-hecho[hidden], #mg-historial-card[hidden] { display: none !important; }
+
   /* ── FIRMA DEL ALUMNO (renderer/practicas.js: celdaFirma / verClasePractica) ── */
   .pg-detalle { grid-template-columns: 1.1fr 1.4fr auto auto; }
   .firma-pill { border: none; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }

@@ -49,6 +49,9 @@ module.exports = function makeFakeSupabase(remote) {
     }
     if (state.op === 'upsert') {
       const list = Array.isArray(state.payload) ? state.payload : [state.payload];
+      // Peticiones de subida por tabla (para comprobar que se sube por lotes)
+      remote.peticionesUpsert = remote.peticionesUpsert || {};
+      remote.peticionesUpsert[state.table] = (remote.peticionesUpsert[state.table] || 0) + 1;
       // remote.upsertErrores = { tabla: [ids] } simula que la nube rechaza esas filas
       const rechazadas = (remote.upsertErrores || {})[state.table] || [];
       if (list.some(item => rechazadas.includes(item.id))) {

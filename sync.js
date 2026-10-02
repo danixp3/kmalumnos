@@ -94,6 +94,7 @@ let _syncPromesa = null; // sync en curso: una segunda llamada espera a esta
 // escritorio y web acabarían eligiendo el mismo id y uno pisaría al otro.
 const ID_WEB_MIN = 1000000000;
 const TAM_PAGINA = 1000; // filas máximas que devuelve PostgREST por consulta
+const TAM_LOTE_SUBIDA = 200; // filas por petición al subir alumnos/prácticas en bloque
 // Margen al fijar lastSync: filas escritas en la nube mientras corría el sync
 // (o con el reloj de otro equipo algo desfasado) se vuelven a mirar en el
 // siguiente. Re-bajar una fila ya aplicada no cambia nada.
@@ -1424,6 +1425,32 @@ async function _syncInterno() {
     const sb = await ensureClient();
     if (!sb) { _lastError = _authError || 'Credenciales de sincronización inválidas'; setStatus(STATUS.ERROR); return { ok: false, reason: _lastError }; }
 
+    // Subida por lotes de alumnos y prácticas: tras traer los datos de otro
+    // programa puede haber cientos o miles pendientes, y de uno en uno tardaban
+    // muchos minutos en llegar al móvil. Solo se juntan filas con exactamente
+    // las mismas columnas (en un upsert en lote, la columna que falta en una
+    // fila se pondría a NULL, y aquí «no venir» significa «no tocar», p. ej. la
+    // firma). Si un lote falla, se repite fila a fila: solo se queda en la cola
+    // la que da error, como antes.
+    const subirEnLotes = async (tabla, filas) => {
+      const grupos = new Map();
+      for (const f of filas) {
+        const k = Object.keys(f[1]).sort().join(',');
+        if (!grupos.has(k)) grupos.set(k, []);
+        grupos.get(k).push(f);
+      }
+      for (const grupo of grupos.values()) {
+        for (let i = 0; i < grupo.length; i += TAM_LOTE_SUBIDA) {
+          const trozo = grupo.slice(i, i + TAM_LOTE_SUBIDA);
+          if (trozo.length > 1) {
+            const r = await sb.from(tabla).upsert(trozo.map(f => f[1]), { onConflict: 'id' });
+            if (r && !r.error) { for (const [id] of trozo) hecho(tabla, id); continue; }
+          }
+          for (const [id, payload] of trozo) subidaOk(await sb.from(tabla).upsert(payload, { onConflict: 'id' }), tabla, id);
+        }
+      }
+    };
+
     // Sucursales (fase 2, ver comentario junto a _sucursalesDisponible): si la
     // migración no está aplicada, `sucursal_id` no se estampa en ningún
     // payload de subida (columna inexistente en el servidor) y la tabla
@@ -1617,8 +1644,9 @@ async function _syncInterno() {
       }
     }
 
-    // Alumnos dirty
+    // Alumnos dirty (se suben por lotes al final del bucle)
     try {
+      const loteAlumnos = [];
       for (const id of pending.alumnos) {
         const a = data.alumnos.find(x => x.id === id);
         if (!a) { hecho('alumnos', id); continue; }
@@ -1658,15 +1686,17 @@ async function _syncInterno() {
             payload.clases_previas = a.clases_previas > 0 ? Math.round(a.clases_previas) : null;
             payload.km_previos = a.km_previos > 0 ? Math.round(a.km_previos) : null;
           }
-          subidaOk(await sb.from('alumnos').upsert(payload, { onConflict: 'id' }), 'alumnos', id);
+          loteAlumnos.push([id, payload]);
         }
       }
+      await subirEnLotes('alumnos', loteAlumnos);
     } catch (e) {
       console.error('Sync: no se pudieron subir alumnos (error de red o del servidor):', e.message);
     }
 
-    // Prácticas dirty
+    // Prácticas dirty (se suben por lotes al final del bucle)
     try {
+      const lotePracticas = [];
       for (const id of pending.practicas) {
         const p = data.practicas.find(x => x.id === id);
         if (!p) { hecho('practicas', id); continue; }
@@ -1692,9 +1722,10 @@ async function _syncInterno() {
           }
           if (zonasOn && Array.isArray(p.zonas)) payload.zonas = p.zonas;
           if (fraccionOn) payload.fraccion = p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : null;
-          subidaOk(await sb.from('practicas').upsert(payload, { onConflict: 'id' }), 'practicas', id);
+          lotePracticas.push([id, payload]);
         }
       }
+      await subirEnLotes('practicas', lotePracticas);
     } catch (e) {
       console.error('Sync: no se pudieron subir prácticas (error de red o del servidor):', e.message);
     }

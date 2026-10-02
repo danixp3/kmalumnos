@@ -148,3 +148,33 @@ test('ajustes compartidos (zonas): se suben al guardarlos y se bajan si la nube 
   db._clearCache();
   expect(db.getZonasPractica()).toEqual(['Centro', 'Autovía']);
 });
+
+test('tras importar muchos datos, alumnos y prácticas suben por lotes (pocas peticiones) sin perder columnas', async () => {
+  const vid = db.addVehiculo('Coche 1', '', 0);
+  const filas = ['Nombre;Apellidos;DNI'];
+  for (let i = 0; i < 450; i++) filas.push(`Alumno${i};Prueba;`);
+  const h = db.leerTextoTabla(filas.join('\n'));
+  const det = db.detectarTablaMigracion(h, 'alumnos');
+  expect(db.aplicarImportacion({ tipo: 'alumnos', filas: h.filas, numFila: h.numFila, filaCabecera: det.filaCabecera, mapeo: det.mapeo, opciones: { hoy: '2026-10-02' } }).ok).toBe(true);
+  const ids = db.getAlumnos().map(a => a.id);
+  ids.forEach((aid, i) => {
+    db.addPractica(aid, vid, '2026-09-01', 1000 + i * 100, 1040 + i * 100);
+    db.addPractica(aid, vid, '2026-09-02', 0, 0);
+  });
+  // Una práctica con un dato que nace en el móvil: va en su propio grupo
+  const d = readData();
+  const conDetalle = d.practicas[0];
+  conDetalle.tipo_detalle = 'km_auto';
+  writeData(d);
+  mockRemote.peticionesUpsert = {};
+
+  const res = await sync.sync();
+  expect(res.ok).toBe(true);
+  expect(mockRemote.tables.alumnos).toHaveLength(450);
+  expect(mockRemote.tables.practicas).toHaveLength(900);
+  expect(mockRemote.peticionesUpsert.alumnos).toBeLessThanOrEqual(3);
+  expect(mockRemote.peticionesUpsert.practicas).toBeLessThanOrEqual(7);
+  expect(mockRemote.tables.practicas.find(p => p.id === conDetalle.id).tipo_detalle).toBe('km_auto');
+  expect(readPending().alumnos).toEqual([]);
+  expect(readPending().practicas).toEqual([]);
+});

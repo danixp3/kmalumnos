@@ -8,7 +8,7 @@
 
 const MENU_OCULTO_KEY = 'kmalumnos_menu_oculto';
 const MENU_FIJOS = ['dashboard', 'alumnos', 'ajustes']; // siempre visibles
-const MENU_BASICO = ['dashboard', 'practicas-global', 'alumnos', 'vehiculos', 'kilometros', 'registro-rapido', 'reservas', 'profesores', 'puesta-en-marcha', 'datos', 'ajustes'];
+const MENU_BASICO = ['dashboard', 'practicas-global', 'alumnos', 'vehiculos', 'kilometros', 'registro-rapido', 'reservas', 'profesores', 'puesta-en-marcha', 'migracion', 'datos', 'ajustes'];
 const MENU_DESCRIPCIONES = {
   'dashboard': 'Resumen del día, avisos y gráficos',
   'practicas-global': 'Todas las prácticas con filtros',
@@ -26,6 +26,7 @@ const MENU_DESCRIPCIONES = {
   'vencimientos': 'ITV, seguros, psicotécnicos, DNI…',
   'crm': 'Interesados y captación de alumnos',
   'puesta-en-marcha': 'Primeros pasos con los datos reales',
+  'migracion': 'Alumnos y clases desde el programa anterior',
   'informes': 'Informes en PDF/CSV y libro de ventas',
   'datos': 'Importar, exportar y comparar CSV',
   'logs': 'Operaciones automáticas y conflictos',

@@ -373,6 +373,52 @@ export function partirEnClases(kmIni, kmFin, horaIni, horaFin, cantidad) {
   return partes;
 }
 
+// ─── Km automáticos (cerrar la clase sin escribir el km final) ──────────────
+// Rango de km por clase: Ajustes → «Clases y kilómetros» del escritorio, que
+// viaja por ajustes_empresa (clave 'rango_km'). Sin configurar → 40–45, el
+// mismo valor por defecto que el escritorio.
+export const RANGO_KM_DEFECTO = { min: 40, max: 45 };
+export function rangoKmValido(v) {
+  const min = Math.round(Number(v && v.min)), max = Math.round(Number(v && v.max));
+  return Number.isFinite(min) && Number.isFinite(max) && min >= 1 && max >= min && max <= 999 ? { min, max } : { ...RANGO_KM_DEFECTO };
+}
+export async function leerRangoKm(supabase, empresaId) {
+  const { data, error } = await supabase.from('ajustes_empresa').select('valor')
+    .eq('empresa_id', empresaId).eq('clave', 'rango_km').maybeSingle();
+  return rangoKmValido(!error && data ? data.valor : null);
+}
+// Marca de las prácticas cuyo km final puso la app (tipo_detalle).
+export const MARCA_KM_AUTO = 'km_auto';
+
+// Km final que pone la app, con el mismo criterio que el relleno de km del
+// escritorio: cada clase recorre al azar entre min y max km (una fracción, su
+// parte) a partir del km inicial. Nunca pasa de `tope` (el km en que empieza
+// la siguiente práctica conocida del mismo coche): si no llega para el rango,
+// se queda en el tope. null si ni así caben las clases (1 km cada una).
+export function kmFinalAutomatico(kmIni, cantidad, rango, tope = null, azar = Math.random) {
+  const c = Math.round(Number(cantidad) * 4) / 4;
+  if (!(c >= 0.25)) return null;
+  const { min, max } = rangoKmValido(rango);
+  const pesos = Array(Math.floor(c)).fill(1);
+  if (c % 1) pesos.push(c % 1);
+  let total = Math.max(pesos.length, Math.round(pesos.reduce((s, w) => s + w * (min + azar() * (max - min)), 0)));
+  if (tope != null && tope > 0) {
+    if (tope - kmIni < pesos.length) return null;
+    total = Math.min(total, tope - kmIni);
+  }
+  return kmIni + total;
+}
+
+// Km en que empieza la siguiente práctica conocida del coche (por encima de
+// `kmIni`), o null si no hay ninguna. Las prácticas en blanco (0/0) no cuentan.
+export async function topeKmSiguiente(supabase, empresaId, vehiculoId, kmIni, excluirId) {
+  const { data, error } = await supabase.from('practicas').select('id, km_inicial')
+    .eq('vehiculo_id', vehiculoId).eq('deleted', false).eq('empresa_id', empresaId)
+    .gt('km_inicial', kmIni).neq('id', excluirId).order('km_inicial', { ascending: true }).limit(1);
+  if (error) return { error };
+  return { tope: data && data.length ? data[0].km_inicial : null };
+}
+
 // Clases de la misma sesión que `p`: mismo alumno, coche y día, cerradas y con
 // los km encadenados (la final de una = la inicial de la siguiente). Sirve para
 // firmar de una vez todas las clases de una sesión partida. Devuelve la lista

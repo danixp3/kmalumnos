@@ -13,10 +13,10 @@ Aplicación de escritorio (Windows) para una autoescuela: gestiona vehículos, a
 ```
 main.js       → proceso principal Electron: ventana, IPC handlers, auto-updater
 preload.js    → contextBridge, expone window.api al renderer
-index.html    → SPA (solo HTML), enlaza styles.css y los 37 <script> de renderer/
+index.html    → SPA (solo HTML), enlaza styles.css y los 38 <script> de renderer/
 styles.css    → CSS de la app de escritorio (sistema ámbar/tinta), temas [data-theme="oscuro"/"negro"], paleta de gráficos
 fonts/        → Barlow, Barlow Condensed, IBM Plex Mono (woff2 locales; también en web-remote/fonts/)
-renderer/     → UI (vanilla JS) dividida en 37 <script> clásicos (globales, no módulos ES),
+renderer/     → UI (vanilla JS) dividida en 38 <script> clásicos (globales, no módulos ES),
                 cargados en orden fijo desde index.html; arranque.js SIEMPRE el último
   estado.js, utils-ui.js → estado, modales, esc/fmt/fmtFecha/tagPermiso, TEMA, toasts
   dashboard.js, vehiculos.js, profesores.js, alumnos.js, practicas.js, pagos.js → CRUD
@@ -27,6 +27,7 @@ renderer/     → UI (vanilla JS) dividida en 37 <script> clásicos (globales, n
   practicas-global.js → todas las prácticas de todos los alumnos con filtros/búsqueda
   roles.js → funciones de gestión de roles jefe/empleado (modo clásico ↔ multi-empresa)
   sucursales.js → selector de sucursal en la barra, filtrado por sede
+  migracion.js → «Traer de otro programa»: asistente para importar alumnos/clases (vista previa, deshacer)
   arranque.js → bienvenida + código de arranque (siempre el último)
 db.js         → índice de 40 líneas que re-exporta db/ (misma superficie pública, 51 exports)
 db/           → CRUD + algoritmos de km, por módulo
@@ -38,6 +39,8 @@ db/           → CRUD + algoritmos de km, por módulo
   ajustes-empresa.js → ajustes compartidos con la web (zonas de prácticas)
   puesta-en-marcha.js → arranque con datos reales: km de coches, punto de partida del alumno, borrar datos de prueba
   clases-anteriores.js → clases previas a la app: anotarlas a mano y crear las que falten con fecha y km (sin solapes)
+  migracion.js → traer datos de otro programa: reconocer columnas, limpiar, emparejar sin duplicar, importar y deshacer
+  lector-tablas.js → leer Excel/ODS/DBF (SheetJS) y CSV/TXT/texto pegado con cualquier separador y codificación
 sync.js       → sincronización bidireccional con Supabase (auto-sync cada 2 min), resolución de colisiones
 migraciones/  → migraciones SQL de Supabase escritas pero NO APLICADAS (roles + sucursales)
 web-remote/   → web móvil + API serverless (deploy: cd web-remote && vercel --prod --yes); instalable como app (PWA: manifest.webmanifest, sw.js, icons/)
@@ -68,7 +71,9 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-10-02 (tarde). El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-10-02 (noche). El detalle histórico completo está en HISTORIAL.md._
+
+- **Lote 2026-10-02 (noche) — km automáticos y migración desde otro programa (código hecho y probado, SIN desplegar la web ni publicar escritorio):** web: «Finalizar práctica» con «Los escribo | Los pone la app» (`finalizar-practica` con `km_auto`, rango `ajustes_empresa.rango_km` = el de Ajustes del escritorio, nunca pisa la siguiente práctica del coche, `tipo_detalle='km_auto'`); el móvil oculta bajas/aprobados («Terminados»). Escritorio: página «Traer de otro programa» (`db/migracion.js` + `db/lector-tablas.js`, dependencia `xlsx` 0.20.3 del CDN oficial de SheetJS), importador CSV de prácticas tolerante (separador/codificación/fechas, alumno por DNI o nombre+apellidos) y sync de alumnos/prácticas por lotes de 200. Sin migraciones. Jest 476/52 + test:api 41 + smoke + barrido (1 aviso ajeno en Vehículos).
 
 - **v1.23.0 (2026-10-02, PUBLICADA) — pie de la ficha DGT firmado y actualizaciones propias:** «Firma del Director» y «Firma del profesor» del certificado del pie con sus firmas (`FIRMAS_PIE` en `fichas-dgt.js`; casilla «Firmar el certificado del pie» en el modal). Perfil del director en Profesores (otra persona o uno de los profesores con su misma firma; ajuste compartido `ajustes_empresa.director`, sin migración). Actualizaciones sin cuadros de Windows: «Hay una versión nueva» → pastilla de descarga → «¿Instalar ahora?» (`main.js`/`renderer/ajustes.js` → ACTUALIZACIONES). La propia 1.23.0 aún la anuncia el cuadro antiguo. Jest 455/51 + smoke + barrido OK.
 

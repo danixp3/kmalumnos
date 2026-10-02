@@ -195,6 +195,13 @@
           </span>
           Puesta en marcha
         </a>
+        <a data-page="migracion">
+          <span class="nav-icon">
+            <!-- flecha entrando en una bandeja -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+          </span>
+          Traer de otro programa
+        </a>
         <a data-page="informes">
           <span class="nav-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -1682,6 +1689,7 @@
             <span class="range-sep">—</span>
             <input type="number" id="pref-km-max" min="1" max="999" title="Máximo km por práctica" onchange="guardarRangoPrefDesdeAjustes()">
           </div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">También lo usa el móvil: si el profesor cierra una clase sin escribir el km final, la app pone unos km dentro de este rango.</div>
         </div>
         <div class="form-group">
           <label>Minutos por clase/práctica</label>
@@ -1995,6 +2003,7 @@
           apuntadas <b>las clases que ya ha hecho</b>. Esas clases anteriores pueden quedarse solo como número o convertirse en clases de
           verdad, con fecha y km (para la ficha DGT): las que tengas en papel se anotan a mano y <b>la app crea el resto</b> sin solapes.
           Cuando el profesor registre la siguiente clase desde el móvil, saldrá como <b>«Clase nº X»</b> y empezará en el km real del coche.
+          <br><span class="pm-consejo">¿Tienes los alumnos en otro programa? <a href="#" onclick="event.preventDefault();navegarA('migracion')">Tráelos de allí</a> en vez de escribirlos.</span>
         </div>
         <ol class="pm-pasos-lista">
           <li><b>Vehículos</b>: km actual de cada coche.</li>
@@ -2071,6 +2080,86 @@
       <div id="pm-toast" class="hidden" style="margin-top:12px"></div>
     </div>
 
+    <!-- ── TRAER DATOS DE OTRO PROGRAMA (renderer/migracion.js, db/migracion.js) ── -->
+    <div id="page-migracion" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Traer datos de otro programa</div>
+          <div class="page-subtitle">Tus alumnos y sus clases desde el programa que usabas, sin volver a escribirlos</div>
+        </div>
+      </div>
+
+      <div class="card pm-guia">
+        <div class="pm-guia-txt">
+          <b>Cámbiate sin teclear de nuevo.</b> Saca de tu programa anterior la lista de alumnos (y, si quieres, el historial de clases)
+          y tráela aquí: la app reconoce sola las columnas, arregla los nombres en mayúsculas, las fechas y los DNI, y <b>no duplica</b>
+          a los alumnos que ya tengas. Antes de guardar nada verás cómo queda, y cada importación se puede <b>deshacer</b>.
+          <br><span class="pm-consejo">¿Sigues usando el otro programa para la gestión? Repite esto cuando haya altas nuevas: solo entran los nuevos.</span>
+        </div>
+        <div>
+          <b style="font-size:13.5px">Cómo sacar los datos de tu programa</b>
+          <ol class="pm-pasos-lista">
+            <li>Busca <b>«Exportar»</b>, <b>«Excel»</b> o el icono de Excel en su lista de alumnos y guarda el archivo.</li>
+            <li>Si no tiene, abre la lista, selecciónala (<b>Ctrl+A</b>), cópiala (<b>Ctrl+C</b>) y pégala aquí.</li>
+            <li>Los programas antiguos que guardan en <b>.dbf</b> también sirven: elige ese archivo.</li>
+            <li>Basta con <b>nombre y apellidos</b>; con el <b>DNI</b> se evitan duplicados.</li>
+          </ol>
+        </div>
+      </div>
+
+      <section class="card pm-paso" id="mg-paso-origen">
+        <div class="pm-paso-cab"><span class="pm-num">1</span><div><h3>Qué traes y de dónde</h3>
+          <p>Primero los <b>alumnos</b>; después, si quieres que sus clases anteriores salgan en la ficha DGT, su <b>historial de clases</b>.</p></div></div>
+        <div class="seg seg-tabs mg-tipo" id="mg-tipo" role="group" aria-label="Qué vas a traer">
+          <button type="button" data-tipo="alumnos" aria-pressed="true" onclick="mgCambiarTipo('alumnos')">Alumnos</button>
+          <button type="button" data-tipo="clases" aria-pressed="false" onclick="mgCambiarTipo('clases')">Historial de clases</button>
+        </div>
+        <div class="mg-origen">
+          <div class="mg-origen-archivo">
+            <button class="btn btn-primary" onclick="mgAbrirArchivo()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> Elegir archivo…</button>
+            <span class="mg-formatos">Excel (.xlsx, .xls), CSV o TXT, LibreOffice (.ods), dBase (.dbf)</span>
+          </div>
+          <div class="mg-o"><span>o</span></div>
+          <textarea id="mg-pegar" rows="3" placeholder="Pega aquí (Ctrl+V) la tabla copiada de Excel o de la lista de tu programa" onpaste="mgPegado()"></textarea>
+        </div>
+        <div id="mg-origen-msg" class="hidden" style="margin-top:12px"></div>
+      </section>
+
+      <section class="card pm-paso" id="mg-paso-columnas" hidden>
+        <div class="pm-paso-cab"><span class="pm-num">2</span><div><h3>Comprueba las columnas</h3>
+          <p>La app ha reconocido lo que contiene cada columna (<span class="mg-auto-txt">resaltado</span>). Cambia lo que no esté bien; lo que pongas en «No importar» se ignora.</p></div></div>
+        <div id="mg-aviso-tipo"></div>
+        <div class="mg-fuente" id="mg-fuente"></div>
+        <div class="table-wrap"><table class="mg-columnas" id="mg-columnas">
+          <thead><tr><th>Columna del archivo</th><th>Ejemplos</th><th>Se guarda como</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <div class="mg-opciones" id="mg-opciones"></div>
+      </section>
+
+      <section class="card pm-paso" id="mg-paso-revisar" hidden>
+        <div class="pm-paso-cab"><span class="pm-num">3</span><div><h3>Revisa antes de importar</h3>
+          <p>Así quedará. <b>Todavía no se ha guardado nada</b>: cambia columnas u opciones arriba y esto se actualiza solo.</p></div></div>
+        <div class="pm-resumen" id="mg-resumen"></div>
+        <div id="mg-errores"></div>
+        <div class="seg seg-tabs" id="mg-filtro" role="group" aria-label="Qué filas ver"></div>
+        <div class="table-wrap mg-prev-wrap"><table class="mg-prev" id="mg-prev"></table></div>
+        <div class="mg-acciones">
+          <span id="mg-acciones-txt"></span>
+          <button class="btn btn-primary" id="mg-btn-importar" onclick="mgImportar()" disabled>Importar</button>
+        </div>
+      </section>
+
+      <section class="card pm-paso mg-hecho" id="mg-paso-hecho" hidden></section>
+
+      <section class="card" id="mg-historial-card" hidden>
+        <div class="card-title">Importaciones hechas</div>
+        <p class="aj-intro">«Deshacer» quita lo que entró en esa importación (los alumnos que ya tengan clases o pagos nuevos se conservan) y devuelve los datos que se completaron.</p>
+        <div id="mg-historial"></div>
+      </section>
+      <div id="mg-toast" class="hidden" style="margin-top:12px"></div>
+    </div>
+
     <!-- ── DATOS (IMPORTAR / EXPORTAR / COMPARAR) ── -->
     <div id="page-datos" class="page">
       <div class="page-header">
@@ -2088,17 +2177,21 @@
 
       <!-- IMPORTAR -->
       <div class="tab-content active" id="tab-datos-importar">
+        <div class="alert alert-info mg-banner-datos"><span>
+          <b>¿Vienes de otro programa de gestión?</b> Usa <a href="#" onclick="event.preventDefault();navegarA('migracion')">Traer de otro programa</a>:
+          lee Excel, CSV y .dbf con cualquier columna, trae alumnos con todos sus datos y su historial de clases, y se puede deshacer.
+        </span></div>
         <div class="card">
           <div class="card-title">
             <div class="card-title-icon" style="background:var(--accent-light);color:var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
             Formato requerido del CSV
           </div>
-          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px">La primera fila debe ser la cabecera. Columnas obligatorias: <code>alumno,vehiculo,fecha,km_inicial,km_final</code>. Opcionalmente puedes añadir <code>hora_inicio</code> y <code>profesor</code>:</p>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px">La primera fila debe ser la cabecera. Columnas obligatorias: <code>alumno,vehiculo,fecha,km_inicial,km_final</code>. Opcionalmente puedes añadir <code>hora_inicio</code>, <code>profesor</code> y <code>dni</code> (el alumno se reconoce por su DNI o por nombre y apellidos, en cualquier orden):</p>
           <pre>alumno,vehiculo,fecha,km_inicial,km_final,hora_inicio,profesor
 Juan García,Coche 1,2026-01-15,45230,45274,09:00,Luis Marín
 Ana López,Coche 1,2026-01-16,45274,45312,,
 Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
-          <p style="font-size:12px;color:var(--text-faint);margin-top:10px">• <code>fecha</code> en formato AAAA-MM-DD &nbsp;|&nbsp; <code>km_inicial</code> y <code>km_final</code> pueden dejarse <strong>vacíos</strong> para generarlos automáticamente &nbsp;|&nbsp; <code>hora_inicio</code> (HH:MM) y <code>profesor</code> son <strong>opcionales</strong>: se pueden omitir o dejar en blanco</p>
+          <p style="font-size:12px;color:var(--text-faint);margin-top:10px">• <code>fecha</code> como AAAA-MM-DD o dd/mm/aaaa &nbsp;|&nbsp; separado por comas, punto y coma o tabuladores &nbsp;|&nbsp; <code>km_inicial</code> y <code>km_final</code> pueden dejarse <strong>vacíos</strong> para generarlos automáticamente &nbsp;|&nbsp; <code>hora_inicio</code> (HH:MM) y <code>profesor</code> son <strong>opcionales</strong>: se pueden omitir o dejar en blanco</p>
         </div>
 
         <div class="card">
@@ -3690,6 +3783,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/generar-km.js"></script>
 <script src="renderer/menu.js"></script>
 <script src="renderer/puesta-en-marcha.js"></script>
+<script src="renderer/migracion.js"></script>
 <script src="renderer/arranque.js"></script>
 </body>
 </html>
