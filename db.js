@@ -40,6 +40,8 @@ module.exports = {
   ...require('./db/ajustes-empresa'),
   ...require('./db/puesta-en-marcha'),
   ...require('./db/clases-anteriores'),
+  ...require('./db/migracion'),
+  ...require('./db/lector-tablas'),
 
   getLogs: core.getLogs,
   clearLogs: core.clearLogs,

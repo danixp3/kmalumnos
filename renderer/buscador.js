@@ -77,6 +77,11 @@ const BUSCADOR_DESTINOS = [
   // Puesta en marcha
   { titulo: 'Puesta en marcha', sub: 'Empezar con los datos reales', page: 'puesta-en-marcha', kw: 'puesta marcha empezar inicio datos reales cuentakilometros odometro clases previas anteriores km iniciales punto partida borrar prueba' },
   { titulo: 'Clases y km anteriores del alumno', sub: 'Puesta en marcha', page: 'puesta-en-marcha', kw: 'clases previas km previos anteriores punto partida numero clase alumno ya empezado' },
+
+  // Traer datos de otro programa
+  { titulo: 'Traer datos de otro programa', sub: 'Importar alumnos y clases', page: 'migracion', kw: 'importar migrar migracion cambiar programa anterior gestion excel xls xlsx csv dbf pegar alumnos lista exportar traer otro software competencia' },
+  { titulo: 'Importar historial de clases', sub: 'Traer de otro programa', page: 'migracion', kw: 'historial clases anteriores importar programa anterior excel fechas ficha dgt' },
+  { titulo: 'Deshacer una importación', sub: 'Traer de otro programa', page: 'migracion', anchor: 'mg-historial-card', kw: 'deshacer importacion quitar alumnos importados error' },
 ];
 
 const ICONO_BUSCADOR_RES = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';

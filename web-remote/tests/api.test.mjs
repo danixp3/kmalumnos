@@ -454,3 +454,55 @@ test('firma-profesor: guarda, lee y quita la firma; valida la imagen; sin la col
   assert.equal((await llamar('firma-profesor', { body: { profesor_id: 1, firma: FIRMA } })).status, 501);
   assert.equal((await llamar('firma-profesor', { method: 'GET', query: { profesor_id: '1' } })).json.disponible, false);
 });
+
+test('finalizar-practica con km_auto: pone el km final dentro del rango de Ajustes y marca la práctica', async () => {
+  reiniciar({ ...base(), ajustes_empresa: [{ empresa_id: 'emp1', clave: 'rango_km', valor: { min: 20, max: 25 } }] });
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini() });
+  const r = await llamar('finalizar-practica', { body: { practica_id, km_auto: true, hora_fin: '10:48' } });
+  assert.equal(r.status, 200); assert.equal(r.json.km_auto, true);
+  const p = BD.tablas.practicas.find(x => x.id === practica_id);
+  assert.ok(p.km_final >= 1020 && p.km_final <= 1025, `km final ${p.km_final}`);
+  assert.equal(r.json.km_final, p.km_final); assert.equal(p.tipo_detalle, 'km_auto');
+  assert.equal(BD.tablas.vehiculos[0].km_actual, p.km_final);
+  // Reintento (no llegó la respuesta): no vuelve a sortear los km
+  const r2 = await llamar('finalizar-practica', { body: { practica_id, km_auto: true } });
+  assert.equal(r2.json.ya_cerrada, true); assert.equal(r2.json.km_final, p.km_final);
+  assert.equal(BD.tablas.practicas.find(x => x.id === practica_id).km_final, p.km_final);
+});
+
+test('finalizar-practica con km_auto: sin rango configurado usa 40–45 por clase y reparte varias clases', async () => {
+  reiniciar(base());
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini() });
+  const r = await llamar('finalizar-practica', { body: { practica_id, km_auto: true, hora_fin: '11:30', n_clases: 2 } });
+  assert.equal(r.status, 200); assert.equal(r.json.practica_ids.length, 2);
+  const [a, b] = r.json.practica_ids.map(id => BD.tablas.practicas.find(x => x.id === id));
+  assert.equal(a.km_inicial, 1000); assert.equal(a.km_final, b.km_inicial);
+  assert.ok(b.km_final >= 1080 && b.km_final <= 1090, `km final ${b.km_final}`);
+  assert.deepEqual([a.tipo_detalle, b.tipo_detalle], ['km_auto', 'km_auto']);
+});
+
+test('finalizar-practica con km_auto: nunca pisa la siguiente práctica del coche; si no caben → 409 km_no_caben', async () => {
+  const t = base();
+  t.practicas.push({ id: 50, alumno_id: 1, vehiculo_id: 1, fecha: '2026-09-29', km_inicial: 1012, km_final: 1050, deleted: false, empresa_id: 'emp1', source: 'desktop' });
+  reiniciar(t);
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini() });
+  const r = await llamar('finalizar-practica', { body: { practica_id, km_auto: true } });
+  assert.equal(r.status, 200); assert.equal(r.json.km_final, 1012);
+  // Otra que empieza justo donde hay otra práctica: no queda hueco
+  const t2 = base();
+  t2.practicas.push({ id: 51, alumno_id: 1, vehiculo_id: 1, fecha: '2026-09-29', km_inicial: 1001, km_final: 1050, deleted: false, empresa_id: 'emp1', source: 'desktop' });
+  reiniciar(t2);
+  const { json: { practica_id: otra } } = await llamar('iniciar-practica', { body: ini() });
+  const r2 = await llamar('finalizar-practica', { body: { practica_id: otra, km_auto: true, n_clases: 2 } });
+  assert.equal(r2.status, 409); assert.equal(r2.json.codigo, 'km_no_caben');
+  assert.equal(BD.tablas.practicas.find(x => x.id === otra).km_final, 0); // sigue en curso
+});
+
+test('config: devuelve el rango de km por clase (40–45 si no está configurado o no es válido)', async () => {
+  reiniciar(base());
+  assert.deepEqual((await llamar('config', { method: 'GET' })).json.rango_km, { min: 40, max: 45 });
+  reiniciar({ ...base(), ajustes_empresa: [{ empresa_id: 'emp1', clave: 'rango_km', valor: { min: 15, max: 30 } }] });
+  assert.deepEqual((await llamar('config', { method: 'GET' })).json.rango_km, { min: 15, max: 30 });
+  reiniciar({ ...base(), ajustes_empresa: [{ empresa_id: 'emp1', clave: 'rango_km', valor: { min: 50, max: 10 } }] });
+  assert.deepEqual((await llamar('config', { method: 'GET' })).json.rango_km, { min: 40, max: 45 });
+});

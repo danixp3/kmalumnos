@@ -476,6 +476,8 @@ ipcMain.handle('get-practica-detalle', (_, id) => db.getPracticaDetalle(id));
 ipcMain.handle('set-zonas-practica', (_, lista) => db.setZonasPractica(lista));
 ipcMain.handle('get-duracion-clase', () => db.getDuracionClase());
 ipcMain.handle('set-duracion-clase', (_, min) => db.setDuracionClase(min));
+ipcMain.handle('get-rango-km', () => db.getRangoKm());
+ipcMain.handle('set-rango-km', (_, rango) => db.setRangoKm(rango));
 ipcMain.handle('get-conceptos-cobro', () => db.getConceptosCobro());
 ipcMain.handle('set-conceptos-cobro', (_, lista) => db.setConceptosCobro(lista));
 // Puesta en marcha: datos reales de arranque y punto de partida de cada alumno
@@ -503,6 +505,33 @@ ipcMain.handle('guardar-plantilla-clases-anteriores', async () => {
 ipcMain.handle('planificar-clases-anteriores', (_, opciones) => db.planificarClasesAnteriores(opciones));
 ipcMain.handle('aplicar-clases-anteriores', (_, plan) => db.aplicarClasesAnteriores(plan));
 ipcMain.handle('set-punto-de-partida-alumno', (_, id, clases, km) => db.setPuntoDePartidaAlumno(id, clases, km));
+// Traer datos de otro programa (db/migracion.js + db/lector-tablas.js)
+ipcMain.handle('migracion-abrir-archivo', async () => {
+  const r = await dialog.showOpenDialog(mainWin, {
+    title: 'Elegir el archivo que ha sacado tu programa anterior',
+    filters: [
+      { name: 'Excel, CSV y listados', extensions: ['xlsx', 'xls', 'xlsm', 'ods', 'csv', 'txt', 'tsv', 'dbf', 'htm', 'html', 'xml'] },
+      { name: 'Todos los archivos', extensions: ['*'] }
+    ],
+    properties: ['openFile']
+  });
+  if (r.canceled || !r.filePaths.length) return { ok: false, canceled: true };
+  return db.leerArchivoTabla(r.filePaths[0]);
+});
+ipcMain.handle('migracion-leer-texto', (_, texto) => db.leerTextoTabla(texto));
+ipcMain.handle('migracion-detectar', (_, hoja, tipo, filaCabecera) => db.detectarTablaMigracion(hoja, tipo, filaCabecera));
+ipcMain.handle('migracion-analizar', (_, entrada) => db.analizarImportacion(entrada));
+ipcMain.handle('migracion-aplicar', (_, entrada) => {
+  const res = db.aplicarImportacion(entrada);
+  if (res && res.ok) sync.sync().catch(() => {}); // que lleguen cuanto antes al móvil
+  return res;
+});
+ipcMain.handle('migracion-historial', () => db.getImportaciones());
+ipcMain.handle('migracion-deshacer', (_, id) => {
+  const res = db.deshacerImportacion(id);
+  if (res && res.ok) sync.sync().catch(() => {});
+  return res;
+});
 ipcMain.handle('get-timeline-vehiculo', (_, vehiculo_id) => db.getTimelineVehiculo(vehiculo_id));
 
 // Registro rápido
@@ -549,21 +578,22 @@ ipcMain.handle('open-csv-dialog', async () => {
 
 ipcMain.handle('importar-csv', (_, filePath, kmMin, kmMax) => {
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const lines = content.split(/\r?\n/).filter(l => l.trim());
-    if (lines.length < 2) return { ok: false, msg: 'El archivo está vacío o solo tiene cabecera.' };
+    // Lector universal: separador , ; o tabulador, acentos de Windows, Excel...
+    const t = db.leerArchivoTabla(filePath);
+    if (!t.ok) return { ok: false, msg: t.error };
+    const filas = t.hojas[0].filas;
+    if (filas.length < 2) return { ok: false, msg: 'El archivo está vacío o solo tiene cabecera.' };
 
-    const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const header = filas[0].map(h => h.trim().toLowerCase());
     const required = ['alumno', 'vehiculo', 'fecha', 'km_inicial', 'km_final'];
     for (const r of required) {
       if (!header.includes(r)) return { ok: false, msg: `Falta la columna: ${r}` };
     }
 
     const rows = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',').map(c => c.trim());
+    for (let i = 1; i < filas.length; i++) {
       const row = {};
-      header.forEach((h, idx) => { row[h] = cols[idx] || ''; });
+      header.forEach((h, idx) => { row[h] = (filas[i][idx] || '').trim(); });
       if (row.alumno && row.vehiculo && row.fecha) rows.push(row);
     }
 

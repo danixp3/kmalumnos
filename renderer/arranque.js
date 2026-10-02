@@ -69,3 +69,4 @@ window.api.getVersion().then(v => {
 });
 window.api.ventanaEstaMaximizada().then(actualizarIconoMaximizar).catch(() => {});
 sincronizarDuracionClase();
+sincronizarRangoKm();

@@ -4,6 +4,11 @@
 
 const { load, save, nextId, _sync, addLog } = require('./core');
 
+// Emparejar el alumno por DNI o por nombre y apellidos (en cualquier orden) y
+// aceptar fechas en cualquier formato: el CSV puede venir de otro programa.
+// Carga perezosa: db/migracion.js depende de db/alumnos.js.
+const _mig = () => require('./migracion');
+
 function _randomKm(min, max) {
   // Incremento de km SIN decimales (la app trabaja con kilómetros enteros).
   return Math.round(Math.random() * (max - min) + min);
@@ -25,15 +30,16 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
     try {
       const alumno  = (row.alumno  || '').trim();
       const vehiculo = (row.vehiculo || '').trim();
-      const fecha   = (row.fecha   || '').trim();
+      const fechaTxt = (row.fecha   || '').trim();
 
       if (!alumno)   { erroresDetalle.push({ fila: idx + 2, motivo: 'Nombre de alumno vacío', datos: JSON.stringify(row) }); return; }
       if (!vehiculo) { erroresDetalle.push({ fila: idx + 2, motivo: 'Vehículo vacío', datos: JSON.stringify(row) }); return; }
-      if (!fecha)    { erroresDetalle.push({ fila: idx + 2, motivo: 'Fecha vacía', datos: JSON.stringify(row) }); return; }
+      if (!fechaTxt) { erroresDetalle.push({ fila: idx + 2, motivo: 'Fecha vacía', datos: JSON.stringify(row) }); return; }
 
-      // Validar formato fecha AAAA-MM-DD
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-        erroresDetalle.push({ fila: idx + 2, motivo: `Formato de fecha incorrecto: "${fecha}" (debe ser AAAA-MM-DD)`, datos: `${alumno} / ${fecha}` });
+      // Fecha: AAAA-MM-DD, dd/mm/aaaa, d-m-aa...
+      const fecha = _mig()._norm.leerFechaFlexible(fechaTxt);
+      if (!fecha) {
+        erroresDetalle.push({ fila: idx + 2, motivo: `Fecha no válida: "${fechaTxt}" (usa AAAA-MM-DD o dd/mm/aaaa)`, datos: `${alumno} / ${fechaTxt}` });
         return;
       }
 
@@ -46,11 +52,12 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
         const s = _sync(); if (s) s.markDirty('vehiculos', vid);
       }
 
-      // Alumno
-      let a = d.alumnos.find(x => x.nombre.toLowerCase() === alumno.toLowerCase());
+      // Alumno: por DNI (columna opcional) o por nombre y apellidos
+      let a = _mig().buscarAlumnoPorTexto(d, alumno, row.dni);
       if (!a) {
         const aid = nextId('a');
-        a = { id: aid, nombre: alumno, permiso: 'B', vehiculo_id: v.id };
+        const dni = _mig()._norm.limpiarDni(row.dni).valor;
+        a = { id: aid, nombre: alumno, permiso: 'B', vehiculo_id: v.id, ...(dni ? { dni } : {}) };
         d.alumnos.push(a);
         const s = _sync(); if (s) s.markDirty('alumnos', aid);
       }
@@ -148,22 +155,24 @@ function exportarCSV(opciones = {}) {
 
   practicas.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
 
-  // hora_inicio y profesor son columnas OPCIONALES (compatibles con importarCSV):
-  // se exportan siempre pero quedan en blanco cuando la práctica no tiene ese dato.
-  const lineas = ['alumno,vehiculo,fecha,km_inicial,km_final,hora_inicio,profesor'];
+  // hora_inicio, profesor y dni son columnas OPCIONALES (compatibles con importarCSV):
+  // se exportan siempre pero quedan en blanco cuando no hay ese dato. El alumno
+  // sale con sus apellidos y su DNI para poder cruzarlo con otro programa.
+  const lineas = ['alumno,vehiculo,fecha,km_inicial,km_final,hora_inicio,profesor,dni'];
   for (const p of practicas) {
     const alumno = d.alumnos.find(a => a.id === p.alumno_id);
     const vehiculo = d.vehiculos.find(v => v.id === p.vehiculo_id);
     const profesor = p.profesor_id ? d.profesores.find(pr => pr.id === p.profesor_id) : null;
     const escapar = s => String(s).includes(',') || String(s).includes('"') ? `"${String(s).replace(/"/g, '""')}"` : String(s);
     lineas.push([
-      escapar(alumno ? alumno.nombre : '?'),
+      escapar(alumno ? [alumno.nombre, alumno.primer_apellido, alumno.segundo_apellido].filter(Boolean).join(' ') : '?'),
       escapar(vehiculo ? vehiculo.nombre : '?'),
       p.fecha,
       p.km_inicial,
       p.km_final,
       escapar(p.hora_inicio || ''),
-      escapar(profesor ? profesor.nombre : '')
+      escapar(profesor ? profesor.nombre : ''),
+      escapar(alumno && alumno.dni ? alumno.dni : '')
     ].join(','));
   }
   return { csv: lineas.join('\n'), total: practicas.length };

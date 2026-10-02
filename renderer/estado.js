@@ -116,6 +116,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     if (page === 'registro-rapido') loadRegistroRapidoInit();
     if (page === 'ajustes') loadAjustes();
     if (page === 'puesta-en-marcha') loadPuestaEnMarcha();
+    if (page === 'migracion') loadMigracion();
     dashboardListo.then(() => comprobarTutorial(page));
   });
 });

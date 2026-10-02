@@ -16,8 +16,23 @@ function getRangoPref() {
   return { min: 40, max: 45 };
 }
 
+// El rango también viaja a la nube (ajustes_empresa 'rango_km'): la web del
+// móvil lo usa cuando el profesor cierra una clase sin escribir el km final.
 function guardarRangoPref(min, max) {
   try { localStorage.setItem(PREF_RANGO_KEY, JSON.stringify({ min, max })); } catch (e) {}
+  if (window.api.setRangoKm) window.api.setRangoKm({ min, max }).catch(() => {});
+}
+
+// Al arrancar y al abrir Ajustes: el de la nube manda (lo cambió otro PC); si
+// la nube aún no lo tiene, se sube el de este PC para que lo use el móvil.
+async function sincronizarRangoKm() {
+  try {
+    const remoto = await window.api.getRangoKm();
+    if (remoto) { localStorage.setItem(PREF_RANGO_KEY, JSON.stringify(remoto)); return remoto; }
+    const local = getRangoPref();
+    await window.api.setRangoKm({ min: Math.round(local.min), max: Math.round(local.max) });
+  } catch (e) {}
+  return getRangoPref();
 }
 
 function aplicarRangoPref(idMin, idMax) {
@@ -370,6 +385,7 @@ function guardarDashboardPrefDesdeAjustes() {
 async function loadAjustes() {
   ajustesInicio(); // siempre se entra por los cuadros (el buscador abre luego la sección)
   aplicarRangoPref('pref-km-min', 'pref-km-max');
+  sincronizarRangoKm().then(() => aplicarRangoPref('pref-km-min', 'pref-km-max')).catch(() => {});
   const elDuracionClase = document.getElementById('pref-duracion-clase');
   if (elDuracionClase) elDuracionClase.value = await sincronizarDuracionClase();
   const elPrecioCombustible = document.getElementById('pref-precio-combustible');

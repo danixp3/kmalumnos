@@ -443,6 +443,7 @@ const miles = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\
 // Las clases van de ¼ en ¼: 1 ½ = una práctica entera y otra de ½ (fraccion).
 const MAX_CLASES = 6;
 const durClase = () => S.duracionClase || 45;
+const rangoKm = () => S.rangoKm || { min: 40, max: 45 };
 const aCuartos = n => Math.round(Number(n) * 4) / 4;
 const nClasesGuardado = () => { const n = aCuartos(localStorage.getItem(NCLASES_KEY)); return n >= 0.25 && n <= 3 ? n : 1; };
 const nDeReserva = rv => rv && rv.duracion_min ? Math.min(MAX_CLASES, Math.max(0.25, aCuartos(rv.duracion_min / durClase()))) : 0;
@@ -629,7 +630,7 @@ async function cargarBase() {
     if (!rv.ok) throw new Error('Error cargando vehículos');
     if (!ra.ok) throw new Error('Error cargando alumnos');
     S.vehiculos = await rv.json(); S.alumnos = await ra.json();
-    if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; S.duracionClase = parseInt(c.duracion_clase_min) || 45; }
+    if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; S.duracionClase = parseInt(c.duracion_clase_min) || 45; if (c.rango_km && c.rango_km.min > 0) S.rangoKm = c.rango_km; }
     S.ultimaCarga = Date.now();
   } catch (e) { if (e.message !== 'Sesión expirada') toast('No se pudieron cargar los datos. Reintenta.'); }
   const guardado = parseInt(localStorage.getItem(VEHICULO_KEY));
@@ -977,7 +978,7 @@ function elegirAlumnoIniciar() {
 }
 function filtrarHojaAlumnos(q) {
   q = (q || '').toLowerCase().trim();
-  const lista = (elegirAlumnoIniciar._orden || []).filter(a => !q || nombreAlumno(a).toLowerCase().includes(q));
+  const lista = (elegirAlumnoIniciar._orden || []).filter(a => q ? nombreAlumno(a).toLowerCase().includes(q) : !alumnoTerminado(a));
   document.getElementById('hoja-alumnos').innerHTML = lista.length ? lista.map(a =>
     `<button class="fila-alumno" onclick="fijarAlumnoIniciar(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">Permiso ${esc(a.permiso)} · ${fmtC(clasesAlumno(a))} ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'}</div></div>${S.perfil && a.profesor_id === S.perfil.id ? '<span class="pill">Tuyo</span>' : ''}</button>`).join('')
     : '<div class="vacio">Ningún alumno coincide.</div>';
@@ -1367,16 +1368,33 @@ function tecleaMinutos(inp, quien) {
   if (quien === 'flujo') { guardarFlujo(); pintarAvisoKmFinal(); } else pintarEstadoAnotar();
 }
 
+// ─── KM FINAL: los escribe el profesor o los pone la app ────────────────────
+// «Que los ponga la app»: el servidor elige unos km lógicos (los de cada clase
+// al azar dentro del rango de Ajustes del escritorio, sin pisar la siguiente
+// práctica del coche). La elección se recuerda en este teléfono.
+const MODO_KM_KEY = 'km_modo_km';
+const modoKmGuardado = () => localStorage.getItem(MODO_KM_KEY) === 'auto' ? 'auto' : 'manual';
+// Km que pondrá la app para n clases: [mínimo, máximo]
+const kmAutoPrevistos = n => { const r = rangoKm(); return [Math.max(1, Math.round(n * r.min)), Math.max(1, Math.round(n * r.max))]; };
+const kmAutoTxt = n => { const [a, b] = kmAutoPrevistos(n); return a === b ? `${miles(a)} km` : `${miles(a)}–${miles(b)} km`; };
+function fijarModoKm(modo) {
+  const F = S.flujo; if (!F) return;
+  F.kmModo = modo === 'auto' ? 'auto' : 'manual'; localStorage.setItem(MODO_KM_KEY, F.kmModo);
+  guardarFlujo(); renderKmFinal();
+}
 function estadoKmFinal() {
   const F = S.flujo, kf = parseInt(S.kmFinal) || 0, rec = kf ? kf - F.km_inicial : 0;
   const al = alumno(F.alumno_id), n = cantidadDe(F);
   const err = t => ({ ok: false, html: `<span style="color:var(--err);font-weight:600">${t}</span>` });
-  if (kf && rec <= 0) return err(`El km final debe ser mayor que ${miles(F.km_inicial)}.`);
   if (n < 0.25) return { ok: false, html: 'Escribe los minutos de la clase (al menos ¼ de clase).' };
+  const antesN = F.clases_antes != null ? F.clases_antes : Math.max(0, (F.clase_n || 1) - 1);
+  if (F.kmModo === 'auto') {
+    return { ok: true, html: `La app pondrá unos <b>${kmAutoTxt(n)}</b> desde el km ${miles(F.km_inicial)}${al ? `; ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${clasesTxt(antesN + n)}</b>` : ''}.` };
+  }
+  if (kf && rec <= 0) return err(`El km final debe ser mayor que ${miles(F.km_inicial)}.`);
   if (kf && rec < Math.ceil(n - 1e-9)) return err(`Con ${rec} km no caben ${clasesTxt(n)}.`);
   if (!kf) return { ok: false, html: 'Escribe el km que marca el coche.' };
-  const antes = F.clases_antes != null ? F.clases_antes : Math.max(0, (F.clase_n || 1) - 1);
-  return { ok: true, html: al ? `Con ${n > 1 ? 'estas' : 'esta'}, ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${clasesTxt(antes + n)}</b> y <b>${miles(kmAlumno(al) + rec)} km</b>.` : '' };
+  return { ok: true, html: al ? `Con ${n > 1 ? 'estas' : 'esta'}, ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${clasesTxt(antesN + n)}</b> y <b>${miles(kmAlumno(al) + rec)} km</b>.` : '' };
 }
 function pintarAvisoKmFinal() {
   const st = estadoKmFinal();
@@ -1386,6 +1404,8 @@ function pintarAvisoKmFinal() {
 function renderKmFinal() {
   const F = S.flujo; if (!F) { go('hoy'); return; }
   if (!F.modo) F.modo = modoGuardado();
+  if (!F.kmModo) F.kmModo = modoKmGuardado();
+  const auto = F.kmModo === 'auto';
   const kf = parseInt(S.kmFinal) || 0;
   const rec = kf ? kf - F.km_inicial : 0;
   const minutos = Math.max(1, Math.round((Date.now() - F.inicio_ms) / 60000));
@@ -1398,13 +1418,14 @@ function renderKmFinal() {
     <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="go('curso')" aria-label="Volver">${ic('atras', 26)}</button><h1>Finalizar práctica</h1></div><span class="pill">Paso 1 de 2</span></div>
     <div class="card veh-card"><span class="ini">${esc(iniciales(F.alumno_nombre))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(F.alumno_nombre)}</div><div class="fila-sub mono">${esc(F.hora_inicio)} – ${esc(hhmm())} · ${minutos} min</div></div>${placa(F.matricula)}</div>
     ${bloqueCantidad(F, 'flujo', sugerencia)}
-    <div class="card card-pad" style="margin-top:12px"><div class="etq" style="margin:0 0 10px">Km final <small>Lo que marca el coche ahora</small></div>
-      <div class="odo">${digitos(S.kmFinal || '')}<span class="odo-km">km</span></div>
+    <div class="card card-pad" style="margin-top:12px"><div class="etq" style="margin:0 0 10px">Km final <small>${auto ? 'Sin mirar el cuentakilómetros' : 'Lo que marca el coche ahora'}</small></div>
+      <div class="seg3 km-modo" role="group" aria-label="Quién pone el km final"><button class="${auto ? '' : 'on'}" onclick="fijarModoKm('manual')">Los escribo</button><button class="${auto ? 'on' : ''}" onclick="fijarModoKm('auto')">Los pone la app</button></div>
+      ${auto ? `<div class="msg msg-gris">${ic('coche', 20)}<span>Se calculan solos, entre ${rangoKm().min} y ${rangoKm().max} km por clase, y nunca pisan la siguiente práctica del coche. El rango se cambia en el ordenador: Ajustes → Clases y kilómetros.</span></div>` : `<div class="odo" style="margin-top:14px">${digitos(S.kmFinal || '')}<span class="odo-km">km</span></div>`}
       <div class="dos-col"><div class="stat-box"><span class="etq2">Inicial</span><span class="val">${miles(F.km_inicial)}</span></div>
-        <div class="stat-box osc"><span class="etq2">Recorridos</span><span class="val">${kf ? (rec > 0 ? '+' + rec : rec) + ' km' : '—'}</span></div></div>
+        <div class="stat-box osc"><span class="etq2">Recorridos</span><span class="val">${auto ? '≈ ' + kmAutoTxt(cantidadDe(F)) : kf ? (rec > 0 ? '+' + rec : rec) + ' km' : '—'}</span></div></div>
       <div id="km-aviso" class="fila-sub" style="margin-top:10px">${st.html}</div></div>
-    <div class="teclado">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button onclick="tecla('${n}')">${n}</button>`).join('')}
-      <button class="f" onclick="tecla('C')">Borrar</button><button onclick="tecla('0')">0</button><button class="f" onclick="tecla('<')" aria-label="Borrar un dígito">${ic('borrar', 26)}</button></div>
+    ${auto ? '' : `<div class="teclado">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button onclick="tecla('${n}')">${n}</button>`).join('')}
+      <button class="f" onclick="tecla('C')">Borrar</button><button onclick="tecla('0')">0</button><button class="f" onclick="tecla('<')" aria-label="Borrar un dígito">${ic('borrar', 26)}</button></div>`}
     <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-firma" onclick="continuarFirma()" ${st.ok ? '' : 'disabled'}>Continuar a la firma ${ic('flecha', 20)}</button></div>`;
 }
 function tecla(k) {
@@ -1412,19 +1433,24 @@ function tecla(k) {
   renderKmFinal();
 }
 async function continuarFirma() {
-  const F = S.flujo; const kf = parseInt(S.kmFinal) || 0;
+  const F = S.flujo; let kf = parseInt(S.kmFinal) || 0;
   if (!estadoKmFinal().ok) return;
-  const porMinutos = F.modo === 'minutos';
-  if (kf - F.km_inicial > 300 && !confirm(`Son ${kf - F.km_inicial} km en una sola práctica. ¿Es correcto?`)) return;
+  const porMinutos = F.modo === 'minutos', auto = F.kmModo === 'auto';
+  if (!auto && kf - F.km_inicial > 300 && !confirm(`Son ${kf - F.km_inicial} km en una sola práctica. ¿Es correcto?`)) return;
   const btn = document.getElementById('btn-firma'); btn.disabled = true; btn.textContent = 'Guardando…';
   try {
     const res = await postJSON('/api/finalizar-practica', {
-      practica_id: F.practica_id, km_final: kf, trabajado: F.trabajado, observacion: F.observacion, hora_fin: hhmm(),
+      practica_id: F.practica_id, ...(auto ? { km_auto: true } : { km_final: kf }), trabajado: F.trabajado, observacion: F.observacion, hora_fin: hhmm(),
       zonas: F.zonas || [], ...(porMinutos ? { minutos: parseInt(F.minutos) } : { n_clases: F.n_clases || 1 })
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cerrar la práctica');
-    F.km_final = kf; F.hora_fin = hhmm(); F.cerrada = true; F.resumen = data.alumno; F.recorridos = data.recorridos; F.campos_guardados = data.campos_guardados;
+    if (!res.ok || !data.ok) {
+      // No caben los km automáticos (la siguiente práctica del coche empieza muy cerca): a escribirlos
+      if (data.codigo === 'km_no_caben') { F.kmModo = 'manual'; guardarFlujo(); renderKmFinal(); toast(data.error, 5000); return; }
+      throw new Error(data.error || 'No se pudo cerrar la práctica');
+    }
+    if (auto) kf = parseInt(data.km_final) || F.km_inicial;
+    F.km_final = kf; F.km_auto = auto; F.hora_fin = hhmm(); F.cerrada = true; F.resumen = data.alumno; F.recorridos = data.recorridos; F.campos_guardados = data.campos_guardados;
     F.practica_ids = Array.isArray(data.practica_ids) && data.practica_ids.length ? data.practica_ids : [F.practica_id];
     F.n_clases = data.clases || cantidadDe(F);
     guardarFlujo();
@@ -1453,7 +1479,7 @@ function renderFirma() {
       <div><div class="etq2">Horario</div><div class="val mono">${F.hora_inicio ? `${esc(F.hora_inicio)} - ${esc(F.hora_fin || hhmm())}` : '—'}</div></div>
       <div><div class="etq2">${(F.n_clases || 1) > 1 ? 'Clases' : 'Clase'}</div><div class="val">${esc(claseTxt(F).replace(/^Clases? /, 'Nº '))} · ${F.hora_inicio ? Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio)))) : Math.round((F.n_clases || 1) * durClase())} min</div></div>
       <div><div class="etq2">Profesor</div><div class="val">${esc(F.profesor_nombre || (S.perfil && S.perfil.nombre !== 'Sin profesor' ? S.perfil.nombre : '—'))}</div></div>
-      <div><div class="etq2">Km ${F.matricula ? '(' + esc(F.matricula) + ')' : ''}</div><div class="val mono">${miles(F.km_inicial)} → ${miles(F.km_final)}</div></div>
+      <div><div class="etq2">Km ${F.matricula ? '(' + esc(F.matricula) + ')' : ''}${F.km_auto ? ' · calculados' : ''}</div><div class="val mono">${miles(F.km_inicial)} → ${miles(F.km_final)}</div></div>
       <div><div class="etq2">Recorridos</div><div class="val mono" style="font-size:24px">${F.km_final - F.km_inicial} km</div></div>
       ${F.zonas && F.zonas.length ? `<div style="grid-column:1/-1"><div class="etq2">Zonas recorridas</div><div class="val" style="font-size:16px">${esc(zonasTxt(F.zonas))}</div></div>` : ''}
       ${F.trabajado && F.trabajado.length ? `<div style="grid-column:1/-1"><div class="etq2">Qué se ha trabajado</div><div class="val" style="font-size:16px">${esc(F.trabajado.join(' · '))}</div></div>` : ''}
@@ -1597,16 +1623,23 @@ async function terminarFlujo(msg) {
 }
 
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
+// Alumnos que ya terminaron (de baja o aprobados): no llenan las listas del
+// profesor (p. ej. tras traer el histórico de otro programa); se ven en el
+// filtro «Terminados» y el buscador del selector los sigue encontrando.
+const alumnoTerminado = a => ['baja', 'apto', 'aprobado'].includes(a && a.estado);
+const alumnosEnCurso = () => S.alumnos.filter(a => !alumnoTerminado(a));
 function renderAlumnos() {
-  const mios = S.perfil && S.perfil.id ? S.alumnos.filter(a => a.profesor_id === S.perfil.id) : [];
-  const nuevos = S.alumnos.filter(a => !(clasesAlumno(a) > 0));
-  const filtros = [['mios', 'Míos', mios.length], ['todos', 'Todos', S.alumnos.length], ['nuevos', 'Nuevos', nuevos.length]];
+  const enCurso = alumnosEnCurso(), terminados = S.alumnos.length - enCurso.length;
+  const mios = S.perfil && S.perfil.id ? enCurso.filter(a => a.profesor_id === S.perfil.id) : [];
+  const nuevos = enCurso.filter(a => !(clasesAlumno(a) > 0));
+  const filtros = [['mios', 'Míos', mios.length], ['todos', 'Todos', enCurso.length], ['nuevos', 'Nuevos', nuevos.length], ...(terminados ? [['terminados', 'Terminados', terminados]] : [])];
+  if (S.filtroAlumnos === 'terminados' && !terminados) S.filtroAlumnos = 'todos';
   if (!(S.perfil && S.perfil.id) && S.filtroAlumnos === 'mios') S.filtroAlumnos = 'todos';
   // Sin alumnos asignados todavía: se abre en «Todos» para no enseñar una lista vacía.
   if (S.filtroAlumnos === 'mios' && !mios.length && !S.filtroElegido) S.filtroAlumnos = 'todos';
   const visibles = (S.perfil && S.perfil.id) ? filtros : filtros.slice(1);
   document.getElementById('v-alumnos').innerHTML = `
-    <div class="cab"><div><div class="fecha-lin">${S.perfil && S.perfil.id ? `Asignados a ti · ${mios.length}` : `${S.alumnos.length} alumnos`}</div><div class="grande" style="margin-top:4px">Alumnos</div></div>
+    <div class="cab"><div><div class="fecha-lin">${S.perfil && S.perfil.id ? `Asignados a ti · ${mios.length}` : `${enCurso.length} alumnos`}</div><div class="grande" style="margin-top:4px">Alumnos</div></div>
       <button class="avatar" style="background:#fff;color:var(--ink);border:1px solid var(--line-2)" onclick="go('nuevo')" aria-label="Nuevo alumno">${ic('usuarioMas', 24)}</button></div>
     <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca" placeholder="Buscar por nombre" value="${esc(S.busqueda)}" oninput="S.busqueda=this.value;pintarListaAlumnos()" autocomplete="off"></div>
     <div class="chips" style="margin-bottom:12px">${visibles.map(([id, tx, n]) => `<button class="chip ${S.filtroAlumnos === id ? 'on' : ''}" style="height:42px;font-size:15.5px" onclick="S.filtroAlumnos='${id}';S.filtroElegido=true;renderAlumnos()">${tx} · ${n}</button>`).join('')}</div>
@@ -1616,6 +1649,7 @@ function renderAlumnos() {
 function pintarListaAlumnos() {
   const q = S.busqueda.toLowerCase().trim();
   let lista = S.alumnos.filter(a => {
+    if ((S.filtroAlumnos === 'terminados') !== alumnoTerminado(a)) return false;
     if (S.filtroAlumnos === 'mios' && !(S.perfil && a.profesor_id === S.perfil.id)) return false;
     if (S.filtroAlumnos === 'nuevos' && clasesAlumno(a) > 0) return false;
     return !q || nombreAlumno(a).toLowerCase().includes(q);
@@ -1844,7 +1878,7 @@ function pintarDetalle(p) {
         ${fila('Profesor', esc(p.profesor_nombre || '—'))}
         ${fila('Vehículo', placa(p.matricula) || esc(p.vehiculo_nombre || '—'))}
         ${fila('Km', `<span class="mono">${p.km_final > 0 ? miles(p.km_inicial) + ' → ' + miles(p.km_final) : (p.km_inicial > 0 ? miles(p.km_inicial) + ' → …' : '—')}</span>`)}
-        ${fila('Recorridos', `<span class="mono">${p.km} km</span>`)}
+        ${fila('Recorridos', `<span class="mono">${p.km} km</span>${p.tipo_detalle === 'km_auto' ? ' <span class="pill" style="font-size:12px;height:22px">Calculados por la app</span>' : ''}`)}
         ${p.zonas.length ? fila('Zonas recorridas', esc(zonasTxt(p.zonas)), true) : ''}
         ${p.trabajado.length ? fila('Qué se ha trabajado', esc(p.trabajado.join(' · ')), true) : ''}
         ${p.nota ? fila('Observación', esc(p.nota), true) : ''}

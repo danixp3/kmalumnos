@@ -66,6 +66,27 @@ function setDuracionClase(min) {
   return n;
 }
 
+// Rango de km por clase { min, max } (Ajustes → Clases y kilómetros). El
+// escritorio lo usa al generar km; la web del móvil, cuando el profesor cierra
+// una clase sin escribir el km final (los pone ella dentro de este rango).
+// null = aún no configurado en la nube (cada lado usa 40–45).
+function rangoKmLimpio(v) {
+  const min = Math.round(Number(v && v.min)), max = Math.round(Number(v && v.max));
+  return Number.isFinite(min) && Number.isFinite(max) && min >= 1 && max >= min && max <= 999 ? { min, max } : null;
+}
+function getRangoKm() {
+  return rangoKmLimpio(getAjusteEmpresa('rango_km'));
+}
+function setRangoKm(rango) {
+  const r = rangoKmLimpio(rango);
+  if (!r) return getRangoKm();
+  const actual = getRangoKm();
+  if (actual && actual.min === r.min && actual.max === r.max) return r;
+  addLog('ajustes', `Rango de km por clase: ${r.min}–${r.max} km`, []);
+  setAjusteEmpresa('rango_km', r);
+  return r;
+}
+
 // Conceptos de cobro de la empresa (Ajustes → Cobros): matrícula, tasa y lo
 // que cada autoescuela quiera añadir (soporte informático, certificado...).
 // Los marcados `alta` se cargan solos a cada alumno nuevo (escritorio y web).
@@ -177,6 +198,7 @@ function setFirmaDirector(firma) {
 
 module.exports = {
   getAjusteEmpresa, setAjusteEmpresa, getZonasPractica, setZonasPractica, getDuracionClase, setDuracionClase, MAX_ZONAS,
+  getRangoKm, setRangoKm,
   getConceptosCobro, setConceptosCobro,
   directorResuelto, getDirector, getFirmaDirector, setDirector, setFirmaDirector,
 };
