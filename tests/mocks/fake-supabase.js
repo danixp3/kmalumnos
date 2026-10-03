@@ -1,6 +1,7 @@
 // Simulador en memoria del cliente de Supabase para testear sync.js
 // sin tocar la base de datos real. Soporta las operaciones que usa sync.js:
-// select/gt/order/limit, upsert, update().eq(), delete().eq(), maybeSingle() y
+// select (todas o algunas columnas)/gt/in/order/limit, upsert, update().eq()/.in(),
+// delete().eq(), maybeSingle() y
 // rpc() (para los tests de roles: getPerfilActual/invitarEmpleado).
 module.exports = function makeFakeSupabase(remote) {
   // remote = { online: boolean, tables: { practicas: [], alumnos: [], vehiculos: [], meta: [] },
@@ -31,6 +32,11 @@ module.exports = function makeFakeSupabase(remote) {
     }
     if (!remote.tables[state.table]) remote.tables[state.table] = [];
     const rows = remote.tables[state.table];
+    // remote.registro = [] apunta cada petición (op, tabla, columnas, filas
+    // devueltas) para que los tests cuenten viajes a la nube.
+    const apuntar = (n) => {
+      if (Array.isArray(remote.registro)) remote.registro.push({ op: state.op, tabla: state.table, cols: state.cols, filas: n });
+    };
 
     if (state.op === 'select') {
       let out = rows.filter(r => state.filters.every(f => f(r)));
@@ -45,10 +51,17 @@ module.exports = function makeFakeSupabase(remote) {
       // remote.maxRows lo simula; range() pagina como el cliente real.
       if (state.range) out = out.slice(state.range[0], state.range[1] + 1);
       if (remote.maxRows) out = out.slice(0, remote.maxRows);
+      apuntar(out.length);
+      // Como PostgREST: select('a, b') devuelve solo esas columnas.
+      if (typeof state.cols === 'string' && state.cols.trim() !== '*') {
+        const cols = state.cols.split(',').map(c => c.trim());
+        return { data: out.map(r => Object.fromEntries(cols.filter(c => c in r).map(c => [c, r[c]]))), error: null };
+      }
       return { data: out.map(r => ({ ...r })), error: null };
     }
     if (state.op === 'upsert') {
       const list = Array.isArray(state.payload) ? state.payload : [state.payload];
+      apuntar(list.length);
       // Peticiones de subida por tabla (para comprobar que se sube por lotes)
       remote.peticionesUpsert = remote.peticionesUpsert || {};
       remote.peticionesUpsert[state.table] = (remote.peticionesUpsert[state.table] || 0) + 1;
@@ -70,6 +83,13 @@ module.exports = function makeFakeSupabase(remote) {
       return { data: null, error: null };
     }
     if (state.op === 'update') {
+      apuntar(0);
+      // remote.updateErrores = { tabla: [ids] } simula que la nube rechaza el
+      // borrado (o cambio) de esas filas: falla la petición entera que las toque.
+      const rechazadas = (remote.updateErrores || {})[state.table] || [];
+      if (rows.some(r => rechazadas.includes(r.id) && state.filters.every(f => f(r)))) {
+        return { data: null, error: { message: 'update rechazado (simulado)', code: 'XX000' } };
+      }
       rows.forEach((r, i) => {
         if (state.filters.every(f => f(r))) rows[i] = { ...r, ...state.payload };
       });

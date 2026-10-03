@@ -805,11 +805,11 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
   addLog('importacion', `Datos traídos de Ariauto (${registro.archivo}): ${registro.creados.alumnos.length} alumnos nuevos, ${actualizadosAlumnos} completados, ${registro.creados.presentaciones.length} exámenes, ${registro.creados.cargos.length} cargos y ${registro.creados.pagos.length} pagos`, []);
   save();
   if (s) {
-    for (const id of tocados) s.markDirty('alumnos', id);
-    for (const id of profTocados) s.markDirty('profesores', id);
-    for (const id of vehTocados) s.markDirty('vehiculos', id);
-    for (const id of registro.creados.cargos) s.markDirty('cargos', id);
-    for (const id of registro.creados.pagos) s.markDirty('pagos', id);
+    s.markDirtyVarios('alumnos', tocados);
+    s.markDirtyVarios('profesores', profTocados);
+    s.markDirtyVarios('vehiculos', vehTocados);
+    s.markDirtyVarios('cargos', registro.creados.cargos);
+    s.markDirtyVarios('pagos', registro.creados.pagos);
   }
   return { ok: true, id: registro.id, resumen: registro.resumen, centro: plan.centro, copia: copia && copia.ok ? copia.file : null };
 }

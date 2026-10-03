@@ -153,7 +153,7 @@ function addCargosAlta(alumnoId, conceptos, fecha, sucursal_id = null) {
   if (!creados.length) return [];
   addLog('cargo', `Cobros de alta de ${alumno.nombre}: ${creados.map(c => `${c.concepto} ${c.importe} €`).join(', ')}`, []);
   save();
-  const s = _sync(); if (s) creados.forEach(c => s.markDirty('cargos', c.id));
+  const s = _sync(); if (s) s.markDirtyVarios('cargos', creados.map(c => c.id));
   return creados;
 }
 

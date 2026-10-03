@@ -208,10 +208,10 @@ function guardarClasesAnteriores(alumno_id, filas = [], opciones = {}) {
   addLog('puesta_en_marcha', `Clases anteriores de ${nombreDe(a)}: ${limpias.length} anotadas (${limpias.filter(tiene).length} con km); faltan ${a.clases_previas} por crear`, []);
   save();
   if (s) {
-    for (const id of tocadas) s.markDirty('practicas', id);
-    for (const id of borradas) s.markDeleted('practicas', id);
+    s.markDirtyVarios('practicas', tocadas);
+    s.markDeletedVarios('practicas', borradas);
     s.markDirty('alumnos', a.id);
-    for (const vid of new Set(limpias.map(f => f.vehiculo_id))) s.markDirty('vehiculos', vid);
+    s.markDirtyVarios('vehiculos', new Set(limpias.map(f => f.vehiculo_id)));
   }
   return { ok: true, errores: [], anotadas: limpias.length, pendientes: a.clases_previas };
 }
@@ -579,10 +579,9 @@ function aplicarClasesAnteriores(plan) {
   save();
   const s = _sync();
   if (s) {
-    for (const id of nuevas) s.markDirty('practicas', id);
-    for (const k of plan.km) s.markDirty('practicas', k.id);
-    for (const aid of porAlumno.keys()) s.markDirty('alumnos', aid);
-    for (const vid of vehiculosTocados) s.markDirty('vehiculos', vid);
+    s.markDirtyVarios('practicas', [...nuevas, ...plan.km.map(k => k.id)]);
+    s.markDirtyVarios('alumnos', porAlumno.keys());
+    s.markDirtyVarios('vehiculos', vehiculosTocados);
   }
   return { ok: true, creadas: nuevas.length, km_rellenadas: plan.km.length, copia: copia.file };
 }

@@ -436,7 +436,7 @@ function corregirSolapamientos(vehiculo_id, kmMin = 40, kmMax = 45) {
   if (corregidas > 0) {
     // Marcar los cambios para que lleguen a la nube (antes solo quedaban en este PC)
     const s = _sync();
-    if (s) Object.keys(cambios).forEach(id => s.markDirty('practicas', Number(id)));
+    if (s) s.markDirtyVarios('practicas', Object.keys(cambios).map(Number));
 
     // Actualizar km_actual del vehículo
     const maxKm = Math.max(...d.practicas.filter(p => p.vehiculo_id === vid).map(p => p.km_final));
