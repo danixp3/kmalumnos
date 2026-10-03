@@ -2362,6 +2362,9 @@
   .ficha-linea { font-size: 15px; color: var(--btn-gray-fg); }
   .ficha-contacto { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--text-muted); }
   .ficha-dato { display: inline-flex; align-items: center; gap: 6px; }
+  .ficha-expedientes { margin-top: 8px; font-size: 13px; color: var(--text-muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .ficha-exp { cursor: pointer; font-family: inherit; }
+  .ficha-exp:hover { border-color: var(--text-muted); color: var(--text); }
   .ficha-metricas { margin: 0; display: flex; flex-shrink: 0; flex-wrap: wrap; }
   .ficha-metrica { padding: 0 22px; border-left: 1px solid var(--btn-gray-bg); display: flex; flex-direction: column-reverse; gap: 2px; }
   .ficha-metrica:last-child { padding-right: 0; }

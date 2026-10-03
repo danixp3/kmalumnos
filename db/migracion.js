@@ -510,34 +510,114 @@ function personaDe(v, opciones, titulos) {
 const nombreDe = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '';
 const clavePersona = a => claveNombre(a.nombre, a.primer_apellido, a.segundo_apellido);
 
-// Índices de lo que ya hay en la app
+// Índices de lo que ya hay en la app. Una persona puede tener VARIOS alumnos
+// (expedientes): uno por permiso o curso, cada uno con su nº de registro, como
+// en el programa anterior. Por eso porDni, porNombre y porRegistro son listas.
 function indices(d) {
   const alumnos = d.alumnos.filter(a => !a.deleted);
-  const porDni = new Map(), porNombre = new Map();
+  const porDni = new Map(), porNombre = new Map(), porRegistro = new Map();
+  const meter = (m, k, a) => { if (!m.has(k)) m.set(k, []); m.get(k).push(a); };
   for (const a of alumnos) {
     const dni = limpiarDni(a.dni).valor;
-    if (dni && !porDni.has(dni)) porDni.set(dni, a);
+    if (dni) meter(porDni, dni, a);
     const k = clavePersona(a);
-    if (k) porNombre.set(k, [...(porNombre.get(k) || []), a]);
+    if (k) meter(porNombre, k, a);
+    const reg = txt(a.n_registro);
+    if (reg) meter(porRegistro, reg, a);
   }
-  return { alumnos, porDni, porNombre };
+  return { alumnos, porDni, porNombre, porRegistro };
 }
 
-// Alumno de la app que es esta persona: por DNI y, si no, por nombre completo.
+// De varios expedientes de una misma persona, el que toca: el de su nº de
+// registro, el del mismo permiso o el único que sigue en curso. null si no
+// se puede saber.
+const TERMINADOS_APP = ['baja', 'apto', 'aprobado', 'inactivo'];
+function elegirExpediente(lista, p = {}) {
+  if (lista.length <= 1) return lista[0] || null;
+  const reg = txt(p.n_registro);
+  const conReg = reg ? lista.filter(a => txt(a.n_registro) === reg) : [];
+  if (conReg.length === 1) return conReg[0];
+  const mismoPermiso = p.permiso ? lista.filter(a => a.permiso === p.permiso) : [];
+  const base = mismoPermiso.length ? mismoPermiso : lista;
+  if (base.length === 1) return base[0];
+  const enCurso = base.filter(a => !TERMINADOS_APP.includes(a.estado));
+  return enCurso.length === 1 ? enCurso[0] : null;
+}
+
+// Alumno de la app que es esta persona: por su nº de registro, por DNI y, si
+// no, por nombre completo. p puede traer n_registro y permiso para elegir
+// entre sus expedientes. { alumno, varios? } | { ambiguo } | { mismoNombre } | {}
 function buscarAlumno(idx, p) {
   const dni = p.dni && p.dni.valor;
-  if (dni && idx.porDni.has(dni)) return { alumno: idx.porDni.get(dni) };
+  const mismaPersona = a => (dni && limpiarDni(a.dni).valor === dni) || clavePersona(a) === clavePersona(p);
+  const reg = txt(p.n_registro);
+  if (reg) {
+    const r = (idx.porRegistro.get(reg) || []).filter(mismaPersona);
+    if (r.length === 1) return { alumno: r[0] };
+  }
+  if (dni && idx.porDni.has(dni)) {
+    const l = idx.porDni.get(dni);
+    const a = elegirExpediente(l, p);
+    return a ? { alumno: a, ...(l.length > 1 ? { varios: l } : {}) } : { ambiguo: l.length, varios: l };
+  }
   const k = clavePersona(p);
   const cand = (k && idx.porNombre.get(k)) || [];
   if (!cand.length) return {};
   if (cand.length > 1) {
     const sinDni = cand.filter(a => !limpiarDni(a.dni).valor);
     if (dni && sinDni.length === 1) return { alumno: sinDni[0] };
+    // ¿Son todos la misma persona (mismo DNI o sin él)? Entonces son sus
+    // expedientes: el que toca. Con DNI distintos son personas distintas.
+    const dnis = new Set(cand.map(a => limpiarDni(a.dni).valor).filter(Boolean));
+    if (dnis.size <= 1 && !(dni && dnis.size === 1 && !dnis.has(dni))) {
+      const a = elegirExpediente(cand, p);
+      if (a) return { alumno: a, varios: cand };
+    }
     return { ambiguo: cand.length };
   }
   const otroDni = limpiarDni(cand[0].dni).valor;
   if (dni && otroDni && otroDni !== dni) return { mismoNombre: cand[0] };
   return { alumno: cand[0] };
+}
+
+// Alumnos de un archivo (una fila = un expediente) con los de la app: cada
+// alumno de la app, a UNA fila como mucho. Si una persona viene varias veces
+// (varios permisos o cursos, cada uno con su nº), su alumno de la app es para
+// la fila que más se le parece (mismo nº, mismo permiso, en curso como él) y
+// las demás entran como expedientes aparte. Devuelve, por cada persona de la
+// lista: { alumno } | { aparte: alumno } | { empate } | null (sin candidatos
+// exactos: se miran luego los parecidos).
+function asignarExpedientes(idx, personas) {
+  const candidatos = personas.map(p => {
+    if (!p || (!p.nombre && !p.primer_apellido && !(p.dni && p.dni.valor))) return [];
+    const dni = p.dni && p.dni.valor;
+    const c = new Set();
+    const reg = txt(p.n_registro);
+    const mismaPersona = a => (dni && limpiarDni(a.dni).valor === dni) || clavePersona(a) === clavePersona(p);
+    if (reg) for (const a of idx.porRegistro.get(reg) || []) if (mismaPersona(a)) c.add(a);
+    if (dni) for (const a of idx.porDni.get(dni) || []) c.add(a);
+    const porNombre = idx.porNombre.get(clavePersona(p)) || [];
+    const dnis = new Set(porNombre.map(a => limpiarDni(a.dni).valor).filter(Boolean));
+    // Sin DNI en la fila y varios DNI en la app con ese nombre: son personas
+    // distintas, no se sabe cuál (como antes: ambiguo)
+    if (dni || dnis.size <= 1) for (const a of porNombre) { const dv = limpiarDni(a.dni).valor; if (!(dni && dv && dv !== dni)) c.add(a); }
+    return [...c];
+  });
+  const puntos = (p, a) => (txt(p.n_registro) && txt(a.n_registro) === txt(p.n_registro) ? 1000 : 0) + (p.permiso && a.permiso === p.permiso ? 100 : 0) +
+    (p.terminado != null && TERMINADOS_APP.includes(a.estado) === p.terminado ? 10 : 0);
+  const pares = [];
+  personas.forEach((p, i) => candidatos[i].forEach(a => pares.push([puntos(p, a), i, a])));
+  pares.sort((x, y) => y[0] - x[0] || x[1] - y[1]);
+  const res = personas.map((p, i) => (candidatos[i].length ? {} : null));
+  const usados = new Set();
+  for (const [pt, i, a] of pares) {
+    const r = res[i];
+    if (r.alumno || r.empate || usados.has(a.id)) continue;
+    if (candidatos[i].some(x => x !== a && !usados.has(x.id) && puntos(personas[i], x) === pt)) { r.empate = candidatos[i].length; continue; }
+    r.alumno = a; usados.add(a.id);
+  }
+  res.forEach((r, i) => { if (r && !r.alumno && !r.empate) r.aparte = candidatos[i][0]; });
+  return res;
 }
 
 // ─── PARECIDOS (erratas) ────────────────────────────────────────────────────
@@ -624,8 +704,9 @@ function crearEmparejador(idx, personas) {
   return p => {
     const m = buscarAlumno(idx, p);
     if (m.alumno || m.ambiguo || m.mismoNombre) return m;
-    const k = (p.dni && p.dni.valor) || clavePersona(p);
-    if (!k) return m;
+    const kp = (p.dni && p.dni.valor) || clavePersona(p);
+    if (!kp) return m;
+    const k = `${kp}|${txt(p.n_registro)}|${p.permiso || ''}`;
     if (hechos.has(k)) return hechos.get(k);
     const cand = parecidos(p, exactos);
     let r = {};
@@ -690,10 +771,18 @@ function analizarAlumnos(d, entrada) {
   const saldoImportado = new Set((d.cargos || []).filter(c => !c.deleted && c.nota === NOTA_IMPORTADO).map(c => c.alumno_id));
   const vistos = new Map(); // clave/dni → nº de fila
   const filas = [];
-  const registros = registrosDe(entrada).map(r => ({ ...r, p: personaDe(r.v, opciones) }));
+  const registros = registrosDe(entrada).map(r => {
+    const p = personaDe(r.v, opciones);
+    // Pistas para saber cuál de sus expedientes es (si tiene varios)
+    p.n_registro = txt(r.v.n_registro).slice(0, 40);
+    if (r.v.permiso) p.permiso = leerPermiso(r.v.permiso).principal || undefined;
+    if (r.v.estado) { const e = leerEstado(r.v.estado); if (e) p.terminado = ESTADOS_TERMINADOS.includes(e); }
+    return { ...r, p };
+  });
   const emparejar = crearEmparejador(idx, registros.map(r => r.p));
+  const asignadas = asignarExpedientes(idx, registros.map(r => r.p));
 
-  for (const { n, v, p } of registros) {
+  for (const [iReg, { n, v, p }] of registros.entries()) {
     const avisos = [];
     const fila = { n, nombre: nombreDe(p), dni: p.dni.valor || '', avisos };
     if (!p.nombre && !p.primer_apellido) { filas.push({ ...fila, accion: 'error', motivo: 'Sin nombre' }); continue; }
@@ -743,13 +832,21 @@ function analizarAlumnos(d, entrada) {
     }
     // Repetido dentro del archivo
     const k = clavePersona(p);
+    // La misma persona con otro nº de registro o con otro permiso es otro
+    // expediente (otro permiso o curso), no una fila repetida; sin nº ni
+    // permiso no se puede saber: cuenta como repetida.
+    const yo = { n, reg: p.n_registro || '', permiso: datos.permiso || '' };
+    const mismoExpediente = x => (x.reg && yo.reg ? x.reg === yo.reg : (x.permiso && yo.permiso ? x.permiso === yo.permiso : true));
     const claves = [p.dni.valor && 'dni:' + p.dni.valor, k && 'n:' + k].filter(Boolean);
-    const antes = claves.map(c => vistos.get(c)).find(Boolean);
-    if (antes) { filas.push({ ...fila, accion: 'omitir', motivo: `Repetido (fila ${antes})` }); continue; }
-    claves.forEach(c => vistos.set(c, n));
+    const previa = claves.flatMap(c => vistos.get(c) || []).find(mismoExpediente);
+    if (previa) { filas.push({ ...fila, accion: 'omitir', motivo: `Repetido (fila ${previa.n})` }); continue; }
+    claves.forEach(c => vistos.set(c, [...(vistos.get(c) || []), yo]));
 
-    const m = emparejar(p);
-    if (m.ambiguo) { filas.push({ ...fila, accion: 'omitir', motivo: `Hay ${m.ambiguo} alumnos con este nombre en la app: añade el DNI para saber cuál es` }); continue; }
+    // Con candidatos exactos manda el reparto de expedientes; si no, los parecidos
+    const asig = asignadas[iReg];
+    const m = !asig ? emparejar(p) : asig.alumno ? { alumno: asig.alumno } : asig.empate ? { ambiguo: asig.empate } : {};
+    if (asig && asig.aparte) avisos.push(`Otro expediente de «${nombreDe(asig.aparte)}» (en la app con ${asig.aparte.n_registro ? 'el nº ' + asig.aparte.n_registro + ', ' : ''}permiso ${asig.aparte.permiso}): entra aparte.`);
+    if (m.ambiguo) { filas.push({ ...fila, accion: 'omitir', motivo: `Hay ${m.ambiguo} alumnos con este nombre en la app: añade el DNI o el nº de registro para saber cuál es` }); continue; }
     if (m.mismoNombre) avisos.push(`Ya hay un alumno con este nombre y otro DNI (${m.mismoNombre.dni}): se crea aparte.`);
     if (m.parecido) avisos.push(`En la app está como «${nombreDe(m.alumno)}» (nombre parecido): se completa ese alumno.`);
     if (m.parecidos) { filas.push({ ...fila, accion: 'omitir', motivo: `Se parece a ${m.parecidos.map(a => '«' + nombreDe(a) + '»').join(' y ')} de la app: corrige el nombre o añade el DNI para saber cuál es` }); continue; }
@@ -1183,7 +1280,7 @@ function deshacerImportacion(id) {
 function buscarAlumnoPorTexto(d, nombre, dni) {
   const idx = indices(d);
   const doc = limpiarDni(dni);
-  if (doc.valor && idx.porDni.has(doc.valor)) return idx.porDni.get(doc.valor);
+  if (doc.valor && idx.porDni.has(doc.valor)) return elegirExpediente(idx.porDni.get(doc.valor));
   const t = txt(nombre).toLowerCase();
   if (!t) return null;
   const literal = idx.alumnos.filter(a => (a.nombre || '').toLowerCase() === t);
@@ -1191,7 +1288,9 @@ function buscarAlumnoPorTexto(d, nombre, dni) {
   const p = partirNombreCompleto(nombre);
   const k = claveNombre(p.nombre, p.primer_apellido, p.segundo_apellido);
   const cand = idx.porNombre.get(k) || [];
-  return cand.length === 1 ? cand[0] : null;
+  if (cand.length === 1) return cand[0];
+  // Varios expedientes de la misma persona (mismo DNI o sin él): el que sigue en curso
+  return cand.length > 1 && new Set(cand.map(a => limpiarDni(a.dni).valor).filter(Boolean)).size <= 1 ? elegirExpediente(cand) : null;
 }
 
 module.exports = {
@@ -1200,7 +1299,7 @@ module.exports = {
   analizarImportacion, aplicarImportacion, getImportaciones, deshacerImportacion,
   buscarAlumnoPorTexto,
   // para db/ariauto.js (mismo emparejamiento, registro e historial)
-  _interno: { indices, buscarAlumno, nombreDe, limpiarMatricula, registrarImportacion, personaParecida, buscadorParecidos, crearEmparejador, palabraParecida },
+  _interno: { indices, buscarAlumno, nombreDe, limpiarMatricula, registrarImportacion, personaParecida, buscadorParecidos, crearEmparejador, palabraParecida, elegirExpediente, asignarExpedientes },
   // utilidades de normalización (también para pruebas)
   _norm: {
     normTexto, claveNombre, capitalizarNombre, partirApellidos, partirNombreCompleto, limpiarDni, limpiarTelefono, limpiarEmail,
