@@ -623,6 +623,10 @@
             <label>DNI/NIE (opcional)</label>
             <input type="text" id="pf-dni" placeholder="12345678A" style="width:130px">
           </div>
+          <div class="form-group">
+            <label for="pf-vehiculo" title="El coche que la web del móvil le propone al empezar o anotar sus clases">Coche habitual (opcional)</label>
+            <select id="pf-vehiculo" style="width:190px"></select>
+          </div>
           <button class="btn btn-primary" onclick="addProfesor()" style="align-self:flex-end">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Añadir profesor
@@ -632,7 +636,7 @@
 
       <div class="table-wrap">
         <table id="tabla-profesores">
-          <thead><tr><th>Nombre</th><th>Nota</th><th>Prácticas impartidas</th><th>Firma</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Nombre</th><th title="El coche que la web del móvil le propone al empezar o anotar sus clases">Coche habitual</th><th>Nota</th><th>Prácticas impartidas</th><th>Firma</th><th>Acciones</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -867,6 +871,7 @@
         <div class="table-wrap con-menus">
           <table id="tabla-alumnos" class="tabla-alumnos">
             <thead><tr>
+              <th class="col-num sortable col-reg" data-sort="registro" onclick="ordenarAlumnos('registro')" title="Nº de registro del alumno">Nº<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="nombre" onclick="ordenarAlumnos('nombre')">Alumno<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="profesor" onclick="ordenarAlumnos('profesor')">Profesor<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="practicas" onclick="ordenarAlumnos('practicas')">Clases<span class="sort-ind"></span></th>
@@ -2082,7 +2087,7 @@
         <div class="pm-paso-cab"><span class="pm-num">2</span><div><h3>Profesores</h3>
           <p>Cada profesor elige su nombre al entrar en la web del móvil; así cada clase queda firmada con su profesor y cada uno ve «sus» alumnos.</p></div></div>
         <div class="table-wrap"><table class="pm-tabla" id="pm-profesores">
-          <thead><tr><th>Nombre y apellidos</th><th></th></tr></thead>
+          <thead><tr><th>Nombre y apellidos</th><th title="El coche que la web del móvil le propone al empezar o anotar sus clases">Coche habitual</th><th></th></tr></thead>
           <tbody></tbody>
         </table></div>
         <button class="btn btn-outline btn-sm" onclick="pmAnadirFila('profesores')">+ Añadir profesor</button>
@@ -2093,10 +2098,11 @@
           <p><b>Clases ya hechas</b> = las que el alumno hizo antes de usar la app (con papel u otro programa). <b>Km ya hechos</b> es opcional: déjalo <b>vacío</b> y la app podrá crear esas clases con su fecha y sus km en el paso 4; si lo rellenas, las clases se quedan solo como número (la numeración y los totales continúan donde iban).
           <br><span class="pm-consejo">Consejo: puedes copiar varias filas de Excel (Nombre · 1er apellido · 2º apellido · Clases · Km) y pegarlas en la casilla «Nombre» de una fila vacía.</span></p></div></div>
         <div class="table-wrap"><table class="pm-tabla" id="pm-alumnos">
-          <thead><tr><th>Nombre</th><th>1er apellido</th><th>2º apellido</th><th>Permiso</th><th>Profesor</th><th>Vehículo</th><th class="col-num">Clases ya hechas</th><th class="col-num">Km ya hechos <small>(opcional)</small></th><th>Clases anteriores</th><th class="col-num">En la app</th><th></th></tr></thead>
+          <thead><tr><th title="Nº de registro del alumno (el de tu programa anterior). En las filas nuevas sale solo el siguiente.">Nº</th><th>Nombre</th><th>1er apellido</th><th>2º apellido</th><th>Permiso</th><th>Profesor</th><th>Vehículo</th><th class="col-num">Clases ya hechas</th><th class="col-num">Km ya hechos <small>(opcional)</small></th><th>Clases anteriores</th><th class="col-num">En la app</th><th></th></tr></thead>
           <tbody></tbody>
         </table></div>
         <button class="btn btn-outline btn-sm" onclick="pmAnadirFila('alumnos', 5)">+ Añadir 5 filas</button>
+        <p class="aj-intro" id="pm-terminados" hidden></p>
       </section>
 
       <section class="card pm-paso" id="pm-paso-anteriores">
@@ -2681,6 +2687,10 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
         </div>
           <div class="form-row">
             <div class="form-group">
+              <label for="a-n-registro" title="El número que identifica al alumno (como en tu programa anterior). Sale solo el siguiente; se puede cambiar.">Nº de registro</label>
+              <input type="text" id="a-n-registro" placeholder="Nº" style="width:100px" class="num-mono">
+            </div>
+            <div class="form-group">
               <label>Nombre completo</label>
               <input type="text" id="a-nombre" placeholder="Nombre del alumno" style="width:200px">
             </div>
@@ -2708,7 +2718,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
             </div>
             <div class="form-group">
               <label>Profesor</label>
-              <select id="a-profesor" style="width:165px"><option value="">— Sin profesor —</option></select>
+              <select id="a-profesor" style="width:165px" onchange="altaProfesorCambiado()"><option value="">— Sin profesor —</option></select>
             </div>
             <div class="form-group">
               <label>Email (para el portal del alumno)</label>
@@ -3374,6 +3384,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
     <div class="fd-form">
       <div class="form-group fd-campo-ancho"><label for="edit-pf-nombre">Nombre y apellidos</label><input type="text" id="edit-pf-nombre"></div>
       <div class="form-group"><label for="edit-pf-dni">DNI/NIE</label><input type="text" id="edit-pf-dni" placeholder="12345678A"></div>
+      <div class="form-group"><label for="edit-pf-vehiculo_id" title="El coche que la web del móvil le propone al empezar o anotar sus clases (se puede cambiar en cada clase)">Coche habitual</label><select id="edit-pf-vehiculo_id"></select></div>
       <div class="form-group"><label for="edit-pf-telefono">Teléfono</label><input type="tel" id="edit-pf-telefono"></div>
       <div class="form-group"><label for="edit-pf-email">Email</label><input type="email" id="edit-pf-email"></div>
       <div class="form-group fd-campo-ancho"><label for="edit-pf-direccion">Dirección</label><input type="text" id="edit-pf-direccion"></div>
@@ -3685,6 +3696,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/menu.js"></script>
 <script src="renderer/puesta-en-marcha.js"></script>
 <script src="renderer/migracion.js"></script>
+<script src="renderer/historial-pantallas.js"></script>
 <script src="renderer/arranque.js"></script>
 </body>
 </html>

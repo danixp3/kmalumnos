@@ -110,8 +110,8 @@ function createWindow() {
   mainWin.setMenuBarVisibility(false);
 
   // Los botones laterales del ratón (atrás/adelante) no deben navegar el
-  // historial de Electron: en Registro Rápido los captura el renderer para
-  // cambiar de fecha (ver 'mouseup' en renderer.js).
+  // historial de Electron: los captura el renderer para ir a la pantalla
+  // anterior / siguiente de la app (renderer/historial-pantallas.js).
   mainWin.on('app-command', (event, cmd) => {
     if (cmd === 'browser-backward' || cmd === 'browser-forward') event.preventDefault();
   });
@@ -345,6 +345,10 @@ ipcMain.handle('update-alumno', (_, id, nombre, permiso, vehiculo_id, profesor_i
 // Libro de registro de alumnos (RD 1295/2003 art. 39) — mismo patrón "columna
 // nueva sincronizada" que el resto de la ficha ampliada, ver db/alumnos.js.
 ipcMain.handle('get-libro-registro', (_, sucursalId) => db.getLibroRegistro(sucursalId));
+ipcMain.handle('get-siguiente-n-registro', () => db.getSiguienteNRegistro());
+ipcMain.handle('get-alumno-con-n-registro', (_, n, exceptoId) => db.getAlumnoConNRegistro(n, exceptoId));
+ipcMain.handle('get-vehiculo-de-profesor', (_, profesorId) => db.getVehiculoDeProfesor(profesorId));
+ipcMain.handle('set-coche-profesor', (_, profesorId, vehiculoId) => db.setCocheProfesor(profesorId, vehiculoId));
 ipcMain.handle('asignar-num-inscripcion', (_, id) => db.asignarNumInscripcion(id));
 ipcMain.handle('backfill-num-inscripcion', () => db.backfillNumInscripcion());
 

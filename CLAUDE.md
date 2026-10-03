@@ -13,10 +13,10 @@ Aplicación de escritorio (Windows) para una autoescuela: gestiona vehículos, a
 ```
 main.js       → proceso principal Electron: ventana, IPC handlers, auto-updater
 preload.js    → contextBridge, expone window.api al renderer
-index.html    → SPA (solo HTML), enlaza styles.css y los 38 <script> de renderer/
+index.html    → SPA (solo HTML), enlaza styles.css y los 39 <script> de renderer/
 styles.css    → CSS de la app de escritorio (sistema ámbar/tinta), temas [data-theme="oscuro"/"negro"], paleta de gráficos
 fonts/        → Barlow, Barlow Condensed, IBM Plex Mono (woff2 locales; también en web-remote/fonts/)
-renderer/     → UI (vanilla JS) dividida en 38 <script> clásicos (globales, no módulos ES),
+renderer/     → UI (vanilla JS) dividida en 39 <script> clásicos (globales, no módulos ES),
                 cargados en orden fijo desde index.html; arranque.js SIEMPRE el último
   estado.js, utils-ui.js → estado, modales, esc/fmt/fmtFecha/tagPermiso, TEMA, toasts
   dashboard.js, vehiculos.js, profesores.js, alumnos.js, practicas.js, pagos.js → CRUD
@@ -28,6 +28,7 @@ renderer/     → UI (vanilla JS) dividida en 38 <script> clásicos (globales, n
   roles.js → funciones de gestión de roles jefe/empleado (modo clásico ↔ multi-empresa)
   sucursales.js → selector de sucursal en la barra, filtrado por sede
   migracion.js → «Traer de otro programa»: asistente para importar alumnos/clases (vista previa, deshacer)
+  historial-pantallas.js → botones laterales del ratón / Alt+←→: pantalla anterior y siguiente
   arranque.js → bienvenida + código de arranque (siempre el último)
 db.js         → índice de 40 líneas que re-exporta db/ (misma superficie pública, 51 exports)
 db/           → CRUD + algoritmos de km, por módulo
@@ -41,7 +42,7 @@ db/           → CRUD + algoritmos de km, por módulo
   clases-anteriores.js → clases previas a la app: anotarlas a mano y crear las que falten con fecha y km (sin solapes)
   migracion.js → traer datos de otro programa: reconocer columnas, limpiar, emparejar sin duplicar, importar y deshacer
   ariauto.js → importar la base Access de Ariauto (alumnos con todos sus datos, exámenes, tasas, caducidades, coches, centro) y completar los ya traídos
-  campos-extra.js → campos ampliados de alumnos/profesores/vehículos (nº de registro, sexo, nacionalidad… y coche en uso/retirado)
+  campos-extra.js → campos ampliados de alumnos/profesores/vehículos (nº de registro y su siguiente número, sexo, nacionalidad…, coche habitual del profesor y coche en uso/retirado)
   exportar.js → alumnos (todos sus datos) y exámenes filtrados a CSV para Excel
   lector-tablas.js → leer Excel/ODS/DBF (SheetJS) y CSV/TXT/texto pegado con cualquier separador y codificación
 sync.js       → sincronización bidireccional con Supabase (auto-sync cada 2 min), resolución de colisiones
@@ -75,6 +76,10 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
 _Última actualización: 2026-10-03. El detalle histórico completo está en HISTORIAL.md._
+
+- **v1.27.0 (2026-10-03) — coche de cada profesor, nº de registro, importar sin chocar con la Puesta en marcha y botones laterales del ratón (web DESPLEGADA; escritorio PUBLICADO):** `profesores.vehiculo_id` = coche habitual (migración `2026-10-03_profesor_vehiculo.sql` APLICADA, datos intactos 36/317/8/9); se elige en el móvil (Perfil → Coche de cada profesor, `/api/coche-profesor`), en Profesores (con sugerencia) y en Puesta en marcha; la web lo propone al iniciar/anotar (antes que el del alumno). Nº de registro: el siguiente sale solo al dar de alta (escritorio, Puesta en marcha y móvil; `siguienteNRegistro`), columna Nº en Alumnos, búsqueda por nº en el móvil, aviso de repetidos.
+- **Importar de Ariauto/Excel tras la Puesta en marcha (v1.27.0):** empareja también por parecido (errata o apellido de menos; dudosos → no se tocan), nunca vuelve a contar las clases que el alumno ya tiene en la app (solo las de antes de su primera clase; bono de los 60 días previos = dudoso), trae las clases con su día (`anterior`, sin km), corrige alta y nombre (mayúsculas/errata), pone el coche habitual de cada profesor (app o exámenes) y deja la numeración lista (siguiente 4906). Simulado sobre la copia real: 16 → 198 alumnos sin repetidos, GASTON 14 clases (antes 24), deshacer deja todo igual. Puesta en marcha ya no lista terminados ni deja meter un alumno que ya está.
+- **Botones laterales del ratón (v1.27.0):** atrás/adelante entre pantallas (también la ficha del alumno) y Alt+←/→ (`renderer/historial-pantallas.js`); en Registro rápido ya no cambian de día. Jest 518/58 + test:api 50 + smoke (con prueba de los botones) + barrido OK.
 
 - **v1.26.1 (2026-10-03) — sync rápido con miles de registros (escritorio PUBLICADO):** borrados a la nube en bloques de 200 ids (deshacer 2.800 alumnos: ~4 min → ~2 s), cola marcada de una vez (`markDirtyVarios/markDeletedVarios`, antes 1 escritura de `pending_sync.json` por registro), subidas en paralelo, lo recién subido/borrado no se vuelve a descargar (`_traerCambios` en dos pasos + `updated_at` local igual al subido) y búsquedas por `Map`. Sin migraciones. Jest 507/56 (+8 `tests/sync-rendimiento.test.js`) + smoke igual que antes.
 

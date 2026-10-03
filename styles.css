@@ -2315,8 +2315,11 @@
   .tabla-alumnos { table-layout: auto; }
   .tabla-alumnos th, .tabla-alumnos td { padding-left: 10px; padding-right: 10px; }
   .tabla-alumnos th { white-space: nowrap; }
-  .tabla-alumnos td:nth-child(5), .tabla-alumnos td:nth-child(6) { min-width: 84px; }
-  .tabla-alumnos td:first-child { min-width: 190px; }
+  .tabla-alumnos td:nth-child(6), .tabla-alumnos td:nth-child(7) { min-width: 84px; }
+  .tabla-alumnos td:nth-child(2) { min-width: 190px; }
+  /* Nº de registro: estrecho, en cifras de ancho fijo */
+  .tabla-alumnos .col-reg { width: 1%; white-space: nowrap; font-family: var(--font-mono, 'IBM Plex Mono', monospace); font-size: 13.5px; font-weight: 600; color: var(--text-muted); }
+  .tabla-alumnos th.col-reg { font-family: inherit; }
   .menu-fila { display: inline-block; position: relative; vertical-align: middle; margin-left: 4px; }
   .menu-fila > summary { list-style: none; cursor: pointer; }
   .menu-fila > summary::-webkit-details-marker { display: none; }
@@ -2612,6 +2615,7 @@
   .pm-tabla td { padding-top: 6px; padding-bottom: 6px; vertical-align: middle; }
   .pm-tabla input[type=text], .pm-tabla input[type=number], .pm-tabla select { width: 100%; min-width: 90px; padding: 6px 8px; }
   .pm-tabla td.col-num input { width: auto; }
+  .pm-tabla input.pm-nreg { width: 64px; min-width: 64px; }
   #pm-alumnos td:nth-child(5) select, #pm-alumnos td:nth-child(6) select { min-width: 140px; }
   .pm-aviso { display: block; font-size: 11.5px; color: var(--accent-text); margin-top: 3px; }
   .pm-anotar { white-space: nowrap; }

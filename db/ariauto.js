@@ -42,11 +42,19 @@ const path = require('path');
 const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO } = require('./core');
 const mig = require('./migracion');
 const { normTexto, claveNombre, capitalizarNombre, limpiarDni, limpiarTelefono, limpiarEmail, limpiarCP } = mig._norm;
-const { indices, buscarAlumno, nombreDe, limpiarMatricula, registrarImportacion } = mig._interno;
+const { indices, buscarAlumno, nombreDe, limpiarMatricula, registrarImportacion, buscadorParecidos } = mig._interno;
 const { CAMPOS_EXTRA, extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
+const { sugerirCocheProfesor } = require('./profesores');
 
 const NOTA_ARIAUTO = 'Importado de Ariauto';
 const MAX_PREVIA = 400;
+// Clases traídas con su fecha: como las anotadas en Puesta en marcha
+// (db/clases-anteriores.js), sin km. Un apunte de más de 4 clases es un bono
+// cobrado de una vez: no dice qué días fueron y cuenta como «clases ya hechas».
+const MARCA_ANTERIOR = 'anterior';
+const NOTA_CLASE = 'Ariauto';
+const MAX_CLASES_APUNTE = 4;
+const MAX_CLASES_DIA = 6;
 
 // Columnas que se leen de cada tabla (el resto no se usa: la base pesa decenas de MB)
 const COLUMNAS = {
@@ -86,6 +94,49 @@ const num = v => { const n = Number(String(v == null ? '' : v).replace(',', '.')
 const euros = v => Math.round(num(v) * 100) / 100;
 const clave = (seccion, n) => `${seccion}|${txt(n)}`;
 const vacio = v => v == null || v === '' || (Array.isArray(v) && !v.length);
+const cuarto = n => Math.round(n * 4) / 4;
+
+// Clases de Ariauto (apuntes { fecha, n }) → con fecha, una o varias por día,
+// o sin fecha (bonos). hasta: solo las de antes de ese día (las demás ya están
+// en la app: el alumno las tiene anotadas). Un bono cobrado en los 60 días de
+// antes de su primera clase en la app puede ser el de esas mismas clases: no
+// se suma (bonoDudoso). { conFecha:[{fecha,n}], sinFecha, omitidas, bonoDudoso, total }
+const DIAS_BONO_DUDOSO = 60;
+function repartirClases(entradas, hasta = null) {
+  const porDia = new Map();
+  let sinFecha = 0, omitidas = 0, bonoDudoso = 0;
+  const desdeDudoso = hasta ? restarDias(hasta, DIAS_BONO_DUDOSO) : null;
+  for (const e of entradas || []) {
+    const n = cuarto(e.n);
+    if (!(n > 0)) continue;
+    if (hasta && e.fecha && e.fecha >= hasta) { omitidas += n; continue; }
+    const bono = n > MAX_CLASES_APUNTE || !e.fecha;
+    if (bono && hasta && (!e.fecha || e.fecha >= desdeDudoso)) { omitidas += n; bonoDudoso += n; continue; }
+    if (bono) { sinFecha += n; continue; }
+    porDia.set(e.fecha, (porDia.get(e.fecha) || 0) + n);
+  }
+  const conFecha = [];
+  for (const [fecha, n] of [...porDia.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const dia = Math.min(n, MAX_CLASES_DIA);
+    sinFecha += n - dia;
+    conFecha.push({ fecha, n: dia });
+  }
+  const conFechaN = conFecha.reduce((s, x) => s + x.n, 0);
+  return { conFecha, sinFecha: cuarto(sinFecha), omitidas: cuarto(omitidas), bonoDudoso: cuarto(bonoDudoso), total: cuarto(conFechaN + sinFecha) };
+}
+// 2,5 clases → [1, 1, 0.5] (lo que vale cada práctica: entera o ¼ ½ ¾)
+function trocearClases(n) {
+  const out = [];
+  let resto = cuarto(n);
+  while (resto >= 1) { out.push(1); resto = cuarto(resto - 1); }
+  if (resto > 0) out.push(resto);
+  return out;
+}
+function restarDias(iso, dias) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const f = new Date(Date.UTC(y, m - 1, d - dias));
+  return `${f.getUTCFullYear()}-${pad(f.getUTCMonth() + 1)}-${pad(f.getUTCDate())}`;
+}
 function restarMeses(iso, meses) {
   const [y, m, d] = iso.split('-').map(Number);
   const f = new Date(Date.UTC(y, m - 1 - meses, d));
@@ -373,12 +424,73 @@ function planAriauto(tablas, opciones = {}, d = load()) {
   };
   const examenesApp = porAlumno('presentaciones'), tasasApp = porAlumno('tasas'), pagosApp = porAlumno('pagos'), cargosApp = porAlumno('cargos');
   const dniVencido = new Set((d.vencimientos || []).filter(v => !v.deleted && v.entidad_tipo === 'alumno' && v.tipo === 'DNI').map(v => `${v.entidad_id}|${v.fecha_vencimiento}`));
+  // Primera clase de cada alumno en la app (anotada a mano en Puesta en
+  // marcha, del móvil…): lo que diga Ariauto desde ese día ya está en la app.
+  const primeraApp = new Map();
+  for (const p of d.practicas) {
+    if (p.deleted || !p.fecha) continue;
+    const f = primeraApp.get(p.alumno_id);
+    if (!f || p.fecha < f) primeraApp.set(p.alumno_id, p.fecha);
+  }
   const filas = [];
   const idsUsados = new Set();
   const vistos = new Set();
   const profUsados = new Set();
   let enCurso = 0, terminados = 0;
-  for (const a of tablas['ALUMNOS'] || []) {
+
+  // Una ficha de Ariauto que es un alumno que ya está en la app: qué se
+  // completa y qué no se repite (exámenes, tasas, cobros y CLASES: nunca se
+  // cuentan dos veces las que el alumno ya tiene anotadas).
+  const prepararActualizar = (fila, al, parecido) => {
+    fila.accion = 'actualizar'; fila.id = al.id;
+    fila.nombreApp = [al.nombre, al.primer_apellido, al.segundo_apellido].filter(Boolean).join(' ');
+    if (parecido) { fila.parecido = true; fila.avisos.push(`En la app está como «${fila.nombreApp}»: es el mismo (nombre parecido)`); }
+    // Clases: si ya tiene sus «clases ya hechas» puestas, ninguna; si tiene
+    // clases en la app, solo las de Ariauto de antes de la primera
+    const primera = primeraApp.get(al.id) || null;
+    fila.primeraApp = primera;
+    if (al.clases_previas > 0) fila.reparto = { conFecha: [], sinFecha: 0, omitidas: fila.clases, total: 0 };
+    else if (!fila.activo) fila.reparto = primera ? { conFecha: [], sinFecha: 0, omitidas: fila.clases, total: 0 } : { conFecha: [], sinFecha: fila.clases, omitidas: 0, total: fila.clases };
+    else fila.reparto = repartirClases(fila.entradasClase, primera);
+    if (fila.reparto.bonoDudoso) fila.avisos.push(`Ariauto le cobró un bono de ${String(fila.reparto.bonoDudoso).replace('.', ',')} clases poco antes de su primera clase en la app (${primera.split('-').reverse().join('/')}): no se suma, pueden ser las mismas. Si son otras, añádelas en Puesta en marcha.`);
+    fila.cambios = cambiosAlumno(al, fila);
+    if (fila.datos.n_registro && !vacio(al.n_registro) && String(al.n_registro).trim() !== String(fila.datos.n_registro)) {
+      fila.avisos.push(`En la app tiene el nº ${al.n_registro} y en Ariauto el ${fila.datos.n_registro}: se deja el de la app`);
+    }
+    const conCobros = (pagosApp.get(al.id) || []).length > 0 || (cargosApp.get(al.id) || []).length > 0;
+    if (conCobros && (fila.cargos.length || fila.pagos.length)) { fila.sinEconomia = true; fila.avisos.push('Ya tiene cobros en la app: no se traen los de Ariauto'); }
+    // Lo que ya está en la app no se repite
+    const exApp = examenesApp.get(al.id) || [];
+    fila.examenesCompletar = [];
+    const exUsados = new Set();
+    fila.presentaciones = fila.presentaciones.filter(e => {
+      const ya = exApp.find(x => !exUsados.has(x.id) && x.fecha === e.fecha && x.tipo === e.tipo);
+      if (!ya) return true;
+      exUsados.add(ya.id);
+      const c = {};
+      for (const campo of ['permiso', 'examinador', 'vehiculo', 'fallos', 'fallos_detalle', 'n_solicitud']) if (!vacio(e[campo]) && vacio(ya[campo])) c[campo] = e[campo];
+      if (Object.keys(c).length) fila.examenesCompletar.push({ id: ya.id, cambios: c });
+      return false;
+    });
+    const tasasDe = tasasApp.get(al.id) || [];
+    fila.tasasCompletar = [];
+    fila.tasas = fila.tasas.filter(t => {
+      const ya = tasasDe.find(x => x.concepto === t.concepto || (t.n_justificante && x.n_justificante === t.n_justificante));
+      if (!ya) return true;
+      const c = {};
+      if (t.n_justificante && vacio(ya.n_justificante)) c.n_justificante = t.n_justificante;
+      if (t.tipo_tasa && vacio(ya.tipo_tasa)) c.tipo_tasa = t.tipo_tasa;
+      if (Object.keys(c).length) fila.tasasCompletar.push({ id: ya.id, cambios: c });
+      return false;
+    });
+    if (fila.caducaDni && dniVencido.has(`${al.id}|${fila.caducaDni}`)) fila.caducaDni = null;
+  };
+
+  // Lo más reciente primero: si alguien se matriculó dos veces, vale su última
+  // ficha (la de antes queda como repetida)
+  const fichas = (tablas['ALUMNOS'] || []).map((a, orden) => ({ a, orden })).sort((x, y) =>
+    String(y.a['FECHA DE ALTA'] || y.a['FECHA DE INGRESO'] || '').localeCompare(String(x.a['FECHA DE ALTA'] || x.a['FECHA DE INGRESO'] || '')));
+  for (const { a, orden } of fichas) {
     if (!elegidas.has(a.SECCION)) continue;
     const k = clave(a.SECCION, a['Nº ALUMNO']);
     const movs = libro.get(k) || [], pracs = practicas.get(k) || [], exs = examenes.get(k) || [], tas = tasas.get(k) || [];
@@ -444,21 +556,29 @@ function planAriauto(tablas, opciones = {}, d = load()) {
     const prof = profPorCodigo.get(a.PROFESOR) || null;
     if (prof && prof.nuevo) profUsados.add(prof.nuevo);
 
-    // Clases ya hechas = las cargadas en su cuenta de Ariauto; y, si se pide,
-    // los cargos y pagos (solo de los alumnos en curso)
+    // Clases ya hechas = las cargadas en su cuenta de Ariauto, cada apunte con
+    // su fecha («2-CLASES» del 17/08 = 2 clases ese día), o las de PRACTICAS
+    // si son más (fichas antiguas); y, si se pide, los cargos y pagos (solo de
+    // los alumnos en curso)
     const cargos = [], pagos = [];
+    const deCobros = [];
     let clasesCobradas = 0;
     for (const m of activo ? movs : []) {
       const concepto = txt(m.CONCEPTO) || 'Apunte de Ariauto';
       const debe = euros(m.EURODEBE), haber = euros(m.EUROHABER);
       const fecha = m.FECHA || alta || hoy;
-      if (debe && RE_CLASE.test(concepto) && !RE_NO_CLASE.test(concepto)) clasesCobradas += num(m.CANTIDAD) || 0;
+      if (debe && RE_CLASE.test(concepto) && !RE_NO_CLASE.test(concepto)) {
+        const n = num(m.CANTIDAD) || 0;
+        if (n > 0) { clasesCobradas += n; deCobros.push({ fecha, n }); }
+      }
       if (!op.economia) continue;
       if (debe) cargos.push({ concepto: concepto.slice(0, 120), tipo: tipoCargo(concepto, debe), importe: debe, fecha });
       if (haber) pagos.push({ fecha, cantidad: haber, nota: concepto.slice(0, 120), forma_pago: formaPago(concepto) });
     }
-    const clasesFicha = pracs.reduce((n, p) => n + (num(p.CANTIDAD) || 1), 0);
+    const deFicha = pracs.map(p => ({ fecha: p.FECHA || alta || hoy, n: num(p.CANTIDAD) || 1 }));
+    const clasesFicha = deFicha.reduce((n, x) => n + x.n, 0);
     const clases = Math.round(Math.max(clasesCobradas, clasesFicha) * 4) / 4;
+    const entradasClase = clasesCobradas >= clasesFicha ? deCobros : deFicha;
     const saldo = Math.round((cargos.reduce((s, c) => s + c.importe, 0) - pagos.reduce((s, p) => s + p.cantidad, 0)) * 100) / 100;
 
     // Exámenes (de todos los alumnos que se traen: el historial sirve para
@@ -500,50 +620,52 @@ function planAriauto(tablas, opciones = {}, d = load()) {
       direccion, codigo_postal: limpiarCP(a['C-P DEL ALUMNO']), poblacion, permiso, permisos: otros, fecha_alta: alta,
       estado, observaciones, permisos_posee: posee.length ? [...new Set(posee)].join(', ') : null,
       resultado: estado === 'apto' ? 'apto' : estado === 'baja' ? 'baja' : null, fecha_fin: a['FECHA APROBADO'] || null,
-      clases_previas: clases, profesor: prof,
+      profesor: prof,
       ...extraerCamposExtra('alumnos', extra)
     };
     const fila = {
       clave: k, nombre: [datos.nombre, datos.primer_apellido, datos.segundo_apellido].filter(Boolean).join(' '), dni: dni.valor, permiso, estado, activo,
-      n_registro: datos.n_registro, clases, saldo, cargos, pagos, presentaciones, tasas: tasasAl, caducaDni, datos, estadoV125, avisos: []
+      n_registro: datos.n_registro, clases, saldo, cargos, pagos, presentaciones, tasas: tasasAl, caducaDni, datos, estadoV125, avisos: [],
+      persona, entradasClase, orden,
+      // Alumno nuevo: en curso, cada clase con su día; terminado, solo el número
+      reparto: activo ? repartirClases(entradasClase) : { conFecha: [], sinFecha: clases, omitidas: 0, total: clases }
     };
     if (dni.valor && !dni.valido) fila.avisos.push('DNI con letra que no cuadra');
-    if (enApp.alumno) {
-      const al = enApp.alumno;
-      fila.accion = 'actualizar'; fila.id = al.id;
-      fila.cambios = cambiosAlumno(al, fila);
-      const conCobros = (pagosApp.get(al.id) || []).length > 0 || (cargosApp.get(al.id) || []).length > 0;
-      if (conCobros && (cargos.length || pagos.length)) { fila.sinEconomia = true; fila.avisos.push('Ya tiene cobros en la app: no se traen los de Ariauto'); }
-      // Lo que ya está en la app no se repite
-      const exApp = examenesApp.get(al.id) || [];
-      fila.examenesCompletar = [];
-      const exUsados = new Set();
-      fila.presentaciones = presentaciones.filter(e => {
-        const ya = exApp.find(x => !exUsados.has(x.id) && x.fecha === e.fecha && x.tipo === e.tipo);
-        if (!ya) return true;
-        exUsados.add(ya.id);
-        const c = {};
-        for (const campo of ['permiso', 'examinador', 'vehiculo', 'fallos', 'fallos_detalle', 'n_solicitud']) if (!vacio(e[campo]) && vacio(ya[campo])) c[campo] = e[campo];
-        if (Object.keys(c).length) fila.examenesCompletar.push({ id: ya.id, cambios: c });
-        return false;
-      });
-      const tasasDe = tasasApp.get(al.id) || [];
-      fila.tasasCompletar = [];
-      fila.tasas = tasasAl.filter(t => {
-        const ya = tasasDe.find(x => x.concepto === t.concepto || (t.n_justificante && x.n_justificante === t.n_justificante));
-        if (!ya) return true;
-        const c = {};
-        if (t.n_justificante && vacio(ya.n_justificante)) c.n_justificante = t.n_justificante;
-        if (t.tipo_tasa && vacio(ya.tipo_tasa)) c.tipo_tasa = t.tipo_tasa;
-        if (Object.keys(c).length) fila.tasasCompletar.push({ id: ya.id, cambios: c });
-        return false;
-      });
-      if (caducaDni && dniVencido.has(`${al.id}|${caducaDni}`)) fila.caducaDni = null;
-    } else if (enApp.ambiguo || enApp.mismoNombre) {
+    if (enApp.alumno) prepararActualizar(fila, enApp.alumno, false);
+    else if (enApp.ambiguo || enApp.mismoNombre) {
       fila.accion = 'revisar'; fila.avisos.push(enApp.ambiguo ? 'Hay varios alumnos con este nombre en la app: no se toca' : 'En la app hay otro alumno con este nombre y otro DNI: no se toca');
     } else fila.accion = 'nuevo';
     filas.push(fila);
   }
+
+  filas.sort((x, y) => x.orden - y.orden); // en el orden de Ariauto
+  // Segunda vuelta: alumnos de la app sin pareja que se PARECEN a una ficha
+  // que iba a entrar como nueva (una errata: «Kole Bardechi» / «Kolë Bardheci»,
+  // o le falta un apellido). Si el parecido es de uno a uno, es el mismo; si
+  // hay varios posibles, no se toca ninguno (mejor que duplicar).
+  const nuevas = filas.filter(f => f.accion === 'nuevo');
+  if (nuevas.length) {
+    const parecidosA = buscadorParecidos(d.alumnos.filter(al => !al.deleted && !idsUsados.has(al.id)));
+    const porAlumno = new Map(); // id del alumno de la app → filas parecidas
+    const candidatos = new Map(); // fila → alumnos de la app parecidos
+    for (const f of nuevas) {
+      const c = parecidosA(f.persona);
+      if (!c.length) continue;
+      candidatos.set(f, c);
+      for (const al of c) { if (!porAlumno.has(al.id)) porAlumno.set(al.id, []); porAlumno.get(al.id).push(f); }
+    }
+    for (const [f, c] of candidatos) {
+      if (c.length === 1 && porAlumno.get(c[0].id).length === 1) {
+        idsUsados.add(c[0].id);
+        prepararActualizar(f, c[0], true);
+      } else {
+        f.accion = 'revisar';
+        f.avisos.push(`Se parece a ${c.map(al => '«' + [al.nombre, al.primer_apellido, al.segundo_apellido].filter(Boolean).join(' ') + '»').join(' y ')} de la app: no se toca (corrige el nombre en la app si es el mismo)`);
+      }
+    }
+  }
+  // «Clases ya hechas» sin fecha: en la nube es un número entero
+  for (const f of filas) f.datos.clases_previas = Math.round(f.reparto.sinFecha);
 
   // Coches de alta en Ariauto → los de la app (por matrícula) o nuevos, con
   // sus datos (marca, modelo, seguro, ITV) y los vencimientos de ITV y seguro
@@ -578,6 +700,44 @@ function planAriauto(tablas, opciones = {}, d = load()) {
   const profesores = op.profesores
     ? [...profPorCodigo.values()].filter((p, i, arr) => p.nuevo && (!p.deBaja || profUsados.has(p.nuevo)) && arr.findIndex(x => x.nuevo === p.nuevo) === i)
     : [];
+
+  // Coche habitual de cada profesor que aún no lo tiene (la web del móvil se lo
+  // propone al empezar sus clases): el que más usa en la app y, si aún no tiene
+  // clases en la app, el de sus exámenes de coche (permiso B) del último año.
+  const cochesProfesor = [];
+  const desdeExamenes = restarMeses(hoy, 12);
+  const usosExamen = new Map(); // código de profesor de Ariauto → Map(matrícula → nº)
+  for (const e of tablas['FECHA DE EXAMEN'] || []) {
+    if (!e['F EXAMEN'] || e['F EXAMEN'] < desdeExamenes || e.PROFESOR == null) continue;
+    if (letras(e['PERMISO EXAMEN']) !== 'B' || TIPO_EXAMEN[e['TIPO DE EXAMEN']] === 'teorico') continue;
+    const mat = matriculaVeh.get(e.VEHICULO);
+    if (!mat) continue;
+    if (!usosExamen.has(e.PROFESOR)) usosExamen.set(e.PROFESOR, new Map());
+    const m = usosExamen.get(e.PROFESOR);
+    m.set(mat, (m.get(mat) || 0) + 1);
+  }
+  const cocheApp = id => d.vehiculos.find(v => v.id === id && !v.deleted);
+  const yaVistos = new Set();
+  for (const [codigo, pr] of profPorCodigo) {
+    const clavePr = pr.id ? 'id:' + pr.id : pr.nuevo;
+    if (yaVistos.has(clavePr)) continue;
+    if (pr.nuevo && !profesores.some(x => x.nuevo === pr.nuevo)) continue; // no se crea
+    const existente = pr.id ? d.profesores.find(x => x.id === pr.id) : null;
+    if (existente && existente.vehiculo_id && cocheApp(existente.vehiculo_id)) continue; // ya tiene
+    let sugerencia = null;
+    const deApp = existente ? sugerirCocheProfesor(d, existente.id, new Date(hoy + 'T12:00:00')) : null;
+    if (deApp) { const v = cocheApp(deApp); sugerencia = { vehiculo_id: v.id, matricula: limpiarMatricula(v.matricula) || null, coche: v.nombre, fuente: 'app' }; }
+    else if (usosExamen.has(codigo)) {
+      const [mat] = [...usosExamen.get(codigo).entries()].sort((a, b) => b[1] - a[1])[0];
+      const enApp = d.vehiculos.find(v => !v.deleted && v.activo !== false && limpiarMatricula(v.matricula) === mat);
+      const enPlan = vehiculos.find(v => v.matricula === mat);
+      if (enApp) sugerencia = { vehiculo_id: enApp.id, matricula: mat, coche: enApp.nombre, fuente: 'examenes' };
+      else if (enPlan) sugerencia = { vehiculo_id: null, matricula: mat, coche: enPlan.nombre, fuente: 'examenes' };
+    }
+    if (!sugerencia) continue;
+    yaVistos.add(clavePr);
+    cochesProfesor.push({ profesor: pr.id ? { id: pr.id, nombre: pr.nombre } : { nuevo: pr.nuevo, nombre: pr.nombre }, ...sugerencia });
+  }
 
   // Datos del centro (los de la sección por defecto y los del titular)
   const c = (tablas['DATOS DE AUTOESCUELA'] || []).find(x => x['SECCION POR DEFECTO']) || (tablas['DATOS DE AUTOESCUELA'] || [])[0];
@@ -619,14 +779,23 @@ function planAriauto(tablas, opciones = {}, d = load()) {
     cargos: suma('cargos'), pagos: suma('pagos'),
     importeCargos: Math.round(filas.reduce((s, f) => s + (f.sinEconomia ? 0 : f.cargos.reduce((t, c) => t + c.importe, 0)), 0) * 100) / 100,
     importePagos: Math.round(filas.reduce((s, f) => s + (f.sinEconomia ? 0 : f.pagos.reduce((t, p) => t + p.cantidad, 0)), 0) * 100) / 100,
-    // Clases ya hechas que entran: las de los nuevos y las de los que aún no tenían
-    clases: filas.reduce((n, f) => n + (f.accion === 'nuevo' || (f.cambios && f.cambios.clases_previas) ? f.clases : 0), 0), examenes: suma('presentaciones'), tasas: suma('tasas'),
+    // Clases ya hechas que entran: con su fecha (como las anotadas en Puesta en
+    // marcha) o sin ella (bonos); y las que NO entran porque el alumno ya las
+    // tiene anotadas en la app
+    clases: filas.reduce((n, f) => n + (f.accion === 'nuevo' || f.accion === 'actualizar' ? f.reparto.conFecha.reduce((t, x) => t + x.n, 0) + (f.accion === 'nuevo' || (f.cambios && f.cambios.clases_previas) ? Math.round(f.reparto.sinFecha) : 0) : 0), 0),
+    clasesConFecha: filas.reduce((n, f) => n + (f.accion === 'nuevo' || f.accion === 'actualizar' ? f.reparto.conFecha.reduce((t, x) => t + x.n, 0) : 0), 0),
+    clasesYaEnApp: actualizar.reduce((n, f) => n + f.reparto.omitidas, 0),
+    parecidos: actualizar.filter(f => f.parecido).length,
+    nombresCorregidos: actualizar.filter(f => f.cambios.nombre || f.cambios.primer_apellido || f.cambios.segundo_apellido).length,
+    altasCorregidas: actualizar.filter(f => f.cambios.fecha_alta && f.cambios.fecha_alta.antes).length,
+    cochesProfesor: cochesProfesor.length,
+    examenes: suma('presentaciones'), tasas: suma('tasas'),
     examenesCompletar: filas.reduce((n, f) => n + (f.examenesCompletar ? f.examenesCompletar.length : 0), 0),
     vencimientos: filas.filter(f => f.caducaDni).length + vehiculos.reduce((n, v) => n + v.vencimientos.length, 0),
     profesoresNuevos: profesores.length, profesoresCompletar: profesCompletar.length,
     vehiculosNuevos: vehiculos.filter(v => !v.id).length, vehiculosCompletar: vehiculos.filter(v => v.id && Object.keys(v.cambios).length).length
   };
-  return { ok: true, tipo: 'ariauto', hoy, secciones: secs.map(s => ({ ...s, elegida: elegidas.has(s.seccion), yaTraida: seccionesYaTraidas.has(s.nombre) })), opciones: op, resumen, fiabilidadCobros, filas, profesores, profesCompletar, vehiculos, centro };
+  return { ok: true, tipo: 'ariauto', hoy, secciones: secs.map(s => ({ ...s, elegida: elegidas.has(s.seccion), yaTraida: seccionesYaTraidas.has(s.nombre) })), opciones: op, resumen, fiabilidadCobros, filas, profesores, profesCompletar, vehiculos, cochesProfesor, centro };
 }
 
 // Qué cambia en un alumno que ya está en la app: se completa lo que tiene
@@ -645,7 +814,25 @@ function cambiosAlumno(al, fila) {
     if (vacio(v) || !vacio(al[campo])) continue;
     poner(campo, v);
   }
-  if (!vacio(dt.clases_previas) && dt.clases_previas > 0 && !(al.clases_previas > 0)) poner('clases_previas', dt.clases_previas);
+  // Fecha de alta: la de Ariauto si es anterior (al meterlo a mano en la
+  // Puesta en marcha se le puso la de ese día, no la de su matrícula)
+  if (dt.fecha_alta && al.fecha_alta && dt.fecha_alta < al.fecha_alta) poner('fecha_alta', dt.fecha_alta);
+  // Nombre: el de Ariauto (el del DNI) si en la app está escrito todo en
+  // mayúsculas o minúsculas con las mismas palabras, o si es el mismo alumno
+  // con una errata (y Ariauto no tiene menos apellidos)
+  const textoApp = [al.nombre, al.primer_apellido, al.segundo_apellido].filter(Boolean).join(' ');
+  const mismas = claveNombre(al.nombre, al.primer_apellido, al.segundo_apellido) === claveNombre(dt.nombre, dt.primer_apellido, dt.segundo_apellido);
+  const enBloque = textoApp === textoApp.toUpperCase() || textoApp === textoApp.toLowerCase();
+  const palabras = x => normTexto(x).split(' ').filter(Boolean).length;
+  const errata = fila.parecido && palabras([dt.nombre, dt.primer_apellido, dt.segundo_apellido].join(' ')) >= palabras(textoApp);
+  if (dt.nombre && ((mismas && enBloque) || errata)) {
+    poner('nombre', dt.nombre);
+    poner('primer_apellido', dt.primer_apellido || null);
+    poner('segundo_apellido', dt.segundo_apellido || null);
+  }
+  // Clases ya hechas sin fecha (bonos de antes de su primera clase en la app)
+  const sinFecha = fila.reparto ? fila.reparto.sinFecha : 0;
+  if (sinFecha > 0 && !(al.clases_previas > 0)) poner('clases_previas', Math.round(sinFecha));
   if (deV125) {
     // Las observaciones vuelven a ser solo las suyas: fuera el bloque de la 1.25
     const limpias = (al.observaciones || '').replace(RE_BLOQUE_V125, '').replace(/^\n+|\n+$/g, '').trim();
@@ -659,17 +846,30 @@ function cambiosAlumno(al, fila) {
   return cambios;
 }
 
-// Lo que necesita la pantalla (sin los cargos/pagos de cada alumno)
+// Lo que necesita la pantalla (sin los cargos/pagos de cada alumno): primero
+// los que ya están en la app (lo que más interesa revisar), luego los dudosos
+// y al final los nuevos
+const ORDEN_PREVIA = { actualizar: 0, revisar: 1, nuevo: 2 };
 function previaAriauto(plan) {
   if (!plan.ok) return plan;
   const { filas, ...resto } = plan;
   return {
     ...resto,
-    filas: filas.slice(0, MAX_PREVIA).map(f => ({
-      nombre: f.nombre, dni: f.dni, n_registro: f.n_registro, permiso: f.permiso, estado: f.estado, activo: f.activo, accion: f.accion, clases: f.clases,
-      saldo: f.sinEconomia || !plan.opciones.economia ? null : f.saldo, cargos: f.cargos.length, pagos: f.pagos.length, examenes: f.presentaciones.length, avisos: f.avisos,
-      cambios: f.cambios ? Object.keys(f.cambios).length : 0
-    })),
+    filas: filas.slice().sort((a, b) => ORDEN_PREVIA[a.accion] - ORDEN_PREVIA[b.accion]).slice(0, MAX_PREVIA).map(f => {
+      const conFecha = f.reparto ? f.reparto.conFecha.reduce((t, x) => t + x.n, 0) : 0;
+      const sinFecha = f.reparto ? (f.accion === 'nuevo' || (f.cambios && f.cambios.clases_previas) ? Math.round(f.reparto.sinFecha) : 0) : 0;
+      return {
+        nombre: f.nombre, dni: f.dni, n_registro: f.n_registro, permiso: f.permiso, estado: f.estado, activo: f.activo, accion: f.accion,
+        clases: f.accion === 'revisar' ? f.clases : cuarto(conFecha + sinFecha), clasesConFecha: conFecha, clasesYaEnApp: f.reparto ? f.reparto.omitidas : 0,
+        primeraApp: f.primeraApp || null, nombreApp: f.nombreApp || null, parecido: !!f.parecido,
+        saldo: f.sinEconomia || !plan.opciones.economia ? null : f.saldo, cargos: f.cargos.length, pagos: f.pagos.length, examenes: f.presentaciones.length, avisos: f.avisos,
+        cambios: f.cambios ? Object.keys(f.cambios).length : 0,
+        // Lo que se le corrige a uno que ya está (para enseñarlo)
+        nombreNuevo: f.cambios && (f.cambios.nombre || f.cambios.primer_apellido || f.cambios.segundo_apellido) ? f.nombre : null,
+        altaNueva: f.cambios && f.cambios.fecha_alta && f.cambios.fecha_alta.antes ? f.cambios.fecha_alta.despues : null,
+        registroNuevo: f.cambios && f.cambios.n_registro ? f.cambios.n_registro.despues : null
+      };
+    }),
     masFilas: Math.max(0, filas.length - MAX_PREVIA)
   };
 }
@@ -713,6 +913,7 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
     if (p && completar('profesores', p, pc.cambios)) profTocados.add(p.id);
   }
   const profId = p => (!p ? null : p.id || idProf.get(p.nuevo) || null);
+  const idPorMatricula = new Map();
   for (const v of plan.vehiculos) {
     let vid = v.id;
     if (!vid) {
@@ -723,6 +924,7 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
       const coche = d.vehiculos.find(x => x.id === vid);
       if (coche && completar('vehiculos', coche, v.cambios)) vehTocados.add(vid);
     }
+    idPorMatricula.set(v.matricula, vid);
     for (const x of v.vencimientos) {
       const ya = d.vencimientos.some(y => !y.deleted && y.entidad_tipo === 'vehiculo' && y.entidad_id === vid && y.tipo === x.tipo && y.fecha_vencimiento === x.fecha);
       if (ya) continue;
@@ -731,6 +933,21 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
       registro.creados.vencimientos.push(id);
     }
   }
+
+  // Coche habitual de los profesores que no lo tenían (el que más usan en la
+  // app o el de sus exámenes en Ariauto)
+  for (const cp of plan.cochesProfesor || []) {
+    const vid = cp.vehiculo_id || idPorMatricula.get(cp.matricula);
+    const p = d.profesores.find(x => x.id === profId(cp.profesor));
+    if (!vid || !p || p.vehiculo_id) continue;
+    if (cp.profesor.nuevo) p.vehiculo_id = vid; // creado ahora: deshacer lo quita entero
+    else if (completar('profesores', p, { vehiculo_id: vid })) profTocados.add(p.id);
+  }
+  const cocheDe = pid => {
+    const p = pid ? d.profesores.find(x => x.id === pid) : null;
+    const v = p && p.vehiculo_id ? d.vehiculos.find(x => x.id === p.vehiculo_id && !x.deleted && x.activo !== false) : null;
+    return v ? v.id : null;
+  };
 
   // Alumnos
   const extrasAlumno = Object.keys(CAMPOS_EXTRA.alumnos);
@@ -741,7 +958,7 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
     if (f.accion === 'nuevo') {
       a = {
         id: nextId('a'), nombre: dt.nombre, primer_apellido: dt.primer_apellido, segundo_apellido: dt.segundo_apellido,
-        permiso: dt.permiso, vehiculo_id: null, profesor_id: profId(dt.profesor), sucursal_id: sucursal, email: dt.email, n_inscripcion: null,
+        permiso: dt.permiso, vehiculo_id: cocheDe(profId(dt.profesor)), profesor_id: profId(dt.profesor), sucursal_id: sucursal, email: dt.email, n_inscripcion: null,
         telefono: dt.telefono, dni: dt.dni, fecha_nacimiento: dt.fecha_nacimiento, direccion: dt.direccion, fecha_alta: dt.fecha_alta || hoy,
         observaciones: dt.observaciones, estado: dt.estado, codigo_postal: dt.codigo_postal, poblacion: dt.poblacion,
         permisos_posee: dt.permisos_posee, fecha_inicio: dt.fecha_alta, fecha_fin: dt.fecha_fin, resultado: dt.resultado, permisos: dt.permisos,
@@ -756,7 +973,21 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
       if (!a) continue;
       const cambios = Object.fromEntries(Object.entries(f.cambios || {}).map(([c, v]) => [c, v.despues]));
       if (vacio(a.profesor_id) && profId(dt.profesor)) cambios.profesor_id = profId(dt.profesor);
+      if (vacio(a.vehiculo_id) && cocheDe(cambios.profesor_id || a.profesor_id)) cambios.vehiculo_id = cocheDe(cambios.profesor_id || a.profesor_id);
       if (completar('alumnos', a, cambios)) tocados.add(a.id);
+    }
+    // Sus clases de Ariauto con su día (las que el alumno no tenga ya en la
+    // app), como las anotadas en Puesta en marcha: sin km ni hora
+    for (const { fecha, n } of f.reparto.conFecha) {
+      for (const valor of trocearClases(n)) {
+        const id = nextId('p');
+        d.practicas.push({
+          id, alumno_id: a.id, vehiculo_id: a.vehiculo_id || cocheDe(a.profesor_id) || null, fecha, km_inicial: 0, km_final: 0,
+          profesor_id: a.profesor_id || null, tipo: 'circulacion', sucursal_id: a.sucursal_id || null, nota: NOTA_CLASE,
+          hora_inicio: null, tipo_detalle: MARCA_ANTERIOR, ...(valor < 1 ? { fraccion: valor } : {}), updated_at: ahora
+        });
+        registro.creados.practicas.push(id);
+      }
     }
     if (!f.sinEconomia) {
       for (const c of f.cargos) {
@@ -802,11 +1033,12 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
   const actualizadosAlumnos = registro.actualizados.filter(x => !x.tabla).length;
   registro.resumen = { ...plan.resumen, creadosAlumnos: registro.creados.alumnos.length, actualizadosAlumnos };
   registrarImportacion(d, registro);
-  addLog('importacion', `Datos traídos de Ariauto (${registro.archivo}): ${registro.creados.alumnos.length} alumnos nuevos, ${actualizadosAlumnos} completados, ${registro.creados.presentaciones.length} exámenes, ${registro.creados.cargos.length} cargos y ${registro.creados.pagos.length} pagos`, []);
+  addLog('importacion', `Datos traídos de Ariauto (${registro.archivo}): ${registro.creados.alumnos.length} alumnos nuevos, ${actualizadosAlumnos} completados, ${registro.creados.practicas.length} clases con su fecha, ${registro.creados.presentaciones.length} exámenes, ${registro.creados.cargos.length} cargos y ${registro.creados.pagos.length} pagos`, []);
   save();
   if (s) {
     s.markDirtyVarios('alumnos', tocados);
-    s.markDirtyVarios('profesores', profTocados);
+    s.markDirtyVarios('practicas', registro.creados.practicas);
+    s.markDirtyVarios('profesores', [...profTocados, ...registro.creados.profesores]);
     s.markDirtyVarios('vehiculos', vehTocados);
     s.markDirtyVarios('cargos', registro.creados.cargos);
     s.markDirtyVarios('pagos', registro.creados.pagos);
@@ -814,4 +1046,4 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
   return { ok: true, id: registro.id, resumen: registro.resumen, centro: plan.centro, copia: copia && copia.ok ? copia.file : null };
 }
 
-module.exports = { leerAccess, esAriauto, planAriauto, previaAriauto, aplicarAriauto, _ariauto: { secciones, fechaDe, detalleFallos, paisDe, cambiosAlumno } };
+module.exports = { leerAccess, esAriauto, planAriauto, previaAriauto, aplicarAriauto, _ariauto: { secciones, fechaDe, detalleFallos, paisDe, cambiosAlumno, repartirClases, trocearClases } };

@@ -8,7 +8,7 @@ const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const TOKEN = `x.${b64({ sub: 'emp1' })}.y`;
 
 async function llamar(nombre, { method = 'POST', body, query } = {}) {
-  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','firma-profesor'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
+  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','firma-profesor','coche-profesor'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
   let status = 200, json;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
   await mod.default({ method, headers: { authorization: 'Bearer ' + TOKEN }, body, query }, res);
@@ -601,4 +601,58 @@ test('avisos-enviar: solo con el secreto; envía los vencidos y borra las suscri
   assert.deepEqual([r.status, r.json.enviados, r.json.caducadas], [200, 1, 1]);
   assert.equal(PUSH.enviados[0].datos.titulo, 'Quedan 5 min');
   assert.deepEqual(quitadas, ['https://push.example.com/viejo']);
+});
+
+test('coche-profesor: pone y quita el coche habitual; valida profesor y coche; sin la columna → 501', async () => {
+  reiniciar(base());
+  BD.tablas.vehiculos.push({ id: 2, nombre: 'Taigo', matricula: '6664NNM', km_actual: 50, deleted: false, empresa_id: 'emp1' });
+  BD.tablas.vehiculos.push({ id: 3, nombre: 'De otra', matricula: '1111AAA', km_actual: 50, deleted: false, empresa_id: 'emp2' });
+  let r = await llamar('coche-profesor', { body: { profesor_id: 1, vehiculo_id: 2 } });
+  assert.equal(r.status, 200); assert.equal(BD.tablas.profesores[0].vehiculo_id, 2); assert.ok(BD.tablas.profesores[0].updated_at);
+  assert.equal((await llamar('profesores', { method: 'GET' })).json[0].vehiculo_id, 2);
+  assert.equal((await llamar('coche-profesor', { body: { profesor_id: 1, vehiculo_id: 3 } })).status, 400); // de otra empresa
+  assert.equal((await llamar('coche-profesor', { body: { profesor_id: 1, vehiculo_id: 99 } })).status, 400);
+  assert.equal((await llamar('coche-profesor', { body: { profesor_id: 9, vehiculo_id: 2 } })).status, 404);
+  assert.equal((await llamar('coche-profesor', { body: { profesor_id: 'x', vehiculo_id: 2 } })).status, 400);
+  r = await llamar('coche-profesor', { body: { profesor_id: 1, vehiculo_id: null } });
+  assert.equal(r.status, 200); assert.equal(BD.tablas.profesores[0].vehiculo_id, null);
+  reiniciar(base(), { profesores: ['vehiculo_id'] });
+  assert.equal((await llamar('coche-profesor', { body: { profesor_id: 1, vehiculo_id: 1 } })).status, 501);
+  assert.equal((await llamar('profesores', { method: 'GET' })).json[0].vehiculo_id, null);
+});
+
+test('crear-alumno: le da el siguiente nº de registro y, sin coche elegido, el coche habitual de su profesor', async () => {
+  reiniciar(base());
+  BD.tablas.vehiculos.push({ id: 2, nombre: 'Taigo', matricula: '6664NNM', km_actual: 50, deleted: false, empresa_id: 'emp1' });
+  BD.tablas.profesores[0].vehiculo_id = 2;
+  // Sin numeración todavía: sin número
+  let r = await llamar('crear-alumno', { body: { nombre: 'Marta', permiso: 'B', profesor_id: 1, hoy: hoy() } });
+  assert.equal(r.status, 200); assert.equal(r.json.n_registro, null);
+  let a = BD.tablas.alumnos.find(x => x.id === r.json.alumno_id);
+  assert.equal(a.vehiculo_id, 2); assert.ok(!a.n_registro);
+  // Con la numeración de Ariauto (la del año delante no cuenta si hay correlativa)
+  BD.tablas.alumnos[0].n_registro = '4905'; BD.tablas.alumnos[1].n_registro = '2026082';
+  r = await llamar('crear-alumno', { body: { nombre: 'Iván', permiso: 'B', vehiculo_id: 1 } });
+  assert.equal(r.json.n_registro, '4906');
+  a = BD.tablas.alumnos.find(x => x.id === r.json.alumno_id);
+  assert.equal(a.n_registro, '4906'); assert.equal(a.vehiculo_id, 1); // el elegido manda
+  // La lista de alumnos lo trae (para buscar por nº en el móvil; en la nube
+  // «deleted» vale false por defecto, el simulador no pone valores por defecto)
+  a.deleted = false;
+  const lista = (await llamar('alumnos', { method: 'GET' })).json;
+  assert.equal(lista.find(x => x.id === r.json.alumno_id).n_registro, '4906');
+  // Sin la columna n_registro (migración sin aplicar) sigue dando de alta
+  reiniciar(base(), { alumnos: ['n_registro'] });
+  r = await llamar('crear-alumno', { body: { nombre: 'Lola', permiso: 'B' } });
+  assert.equal(r.status, 200); assert.equal(r.json.n_registro, null);
+  assert.equal((await llamar('alumnos', { method: 'GET' })).status, 200);
+});
+
+test('siguienteNRegistro (web): correlativa primero, la del año si es la única', async () => {
+  const { siguienteNRegistro } = await import('../api/_utils.js');
+  assert.equal(siguienteNRegistro([]), null);
+  assert.equal(siguienteNRegistro([{ n_registro: '4904' }, { n_registro: '4905' }, { n_registro: '2026082' }, { n_registro: '23/2012' }]), '4906');
+  assert.equal(siguienteNRegistro([{ n_registro: '2026081' }, { n_registro: '2026082' }], 2026), '2026083');
+  assert.equal(siguienteNRegistro([{ n_registro: '2025140' }], 2026), '2026001');
+  assert.equal(siguienteNRegistro([{ n_registro: '7', deleted: true }, { n_registro: '3' }]), '4');
 });

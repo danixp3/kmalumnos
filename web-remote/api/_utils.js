@@ -229,6 +229,27 @@ export async function traerTodo(construir, tam = 1000) {
 // Nombre completo del alumno (nombre + apellidos si los tiene).
 export const nombreCompleto = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '';
 
+// Siguiente nº de registro del alumno: la numeración correlativa que ya haya
+// (el mayor + 1); la que lleva el año delante (2026082, 200801) solo si es la
+// única. Sin ningún número todavía → null. Misma regla que el escritorio
+// (db/campos-extra.js → siguienteNRegistro).
+const RE_REGISTRO_ANIO = /^(199\d|20\d{2})\d{2,4}$/;
+export function siguienteNRegistro(alumnos, anioActual = new Date().getFullYear()) {
+  let maxCorrelativo = 0, maxAnio = 0;
+  for (const a of alumnos || []) {
+    if (!a || a.deleted) continue;
+    const t = String(a.n_registro == null ? '' : a.n_registro).trim();
+    if (!/^\d{1,9}$/.test(t)) continue;
+    const n = parseInt(t, 10);
+    if (RE_REGISTRO_ANIO.test(t)) { if (n > maxAnio) maxAnio = n; } else if (n > maxCorrelativo) maxCorrelativo = n;
+  }
+  if (maxCorrelativo) return String(maxCorrelativo + 1);
+  if (!maxAnio) return null;
+  const s = String(maxAnio), anio = s.slice(0, 4), cifras = s.length - 4;
+  if (Number(anio) === anioActual) return String(maxAnio + 1);
+  return String(anioActual) + '1'.padStart(cifras, '0');
+}
+
 // ¿El error de Supabase/PostgREST es "esa columna no existe"?
 export function esErrorColumnaInexistente(error) {
   if (!error) return false;

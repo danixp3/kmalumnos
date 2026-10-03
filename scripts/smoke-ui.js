@@ -274,6 +274,47 @@ async function principal() {
   await probarDialogos();
   await probarCalendario();
   await recorrerSecciones();
+  await probarHistorialPantallas();
+}
+
+// Botones laterales del ratón (renderer/historial-pantallas.js): atrás vuelve
+// a la pantalla anterior (también a la ficha del alumno) y adelante avanza.
+async function probarHistorialPantallas() {
+  const r = await ev(`(async function(){
+    const esperar = ms => new Promise(r => setTimeout(r, ms));
+    const ir = p => { document.querySelector('#sidebar nav a[data-page="' + p + '"]').click(); };
+    const boton = b => { document.dispatchEvent(new MouseEvent('mouseup', { button: b, bubbles: true })); };
+    const activa = () => document.querySelector('#sidebar nav a.active')?.dataset.page;
+    const ficha = () => document.getElementById('view-practicas').style.display === 'block';
+    document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open'));
+    ir('dashboard'); await esperar(300);
+    ir('alumnos'); await esperar(600);
+    if (ficha()) { volverAlumnos(); await esperar(400); } // venía con una ficha abierta de antes
+    const al = (typeof alumnosCache !== 'undefined' && alumnosCache[0]) || null;
+    if (al) { verPracticas(al.id, al.vehiculo_id || null, al.nombre); await esperar(500); }
+    ir('profesores'); await esperar(500);
+    boton(3); await esperar(600);
+    if (activa() !== 'alumnos') return 'atrás no vuelve a Alumnos (está en ' + activa() + ')';
+    if (al && !ficha()) return 'atrás no vuelve a la ficha del alumno';
+    boton(3); await esperar(600);
+    if (al && (activa() !== 'alumnos' || ficha())) return 'atrás no vuelve a la lista de alumnos';
+    // (si al entrar en Alumnos se veía una ficha anterior, también es un paso)
+    for (let i = 0; i < 3 && activa() === 'alumnos'; i++) { boton(3); await esperar(600); }
+    if (activa() !== 'dashboard') return 'atrás no vuelve al inicio (está en ' + activa() + ')';
+    boton(4); await esperar(600);
+    if (activa() !== 'alumnos') return 'adelante no va a Alumnos';
+    // Con una ventana abierta encima no se mueve
+    openModal('modal-alumno-nuevo'); boton(3); await esperar(300);
+    const quieto = activa() === 'alumnos';
+    closeModal('modal-alumno-nuevo');
+    if (!quieto) return 'se movió con una ventana abierta';
+    // Alt+← también
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, bubbles: true })); await esperar(600);
+    if (activa() !== 'dashboard') return 'Alt+← no vuelve atrás';
+    return 'ok' + (al ? '' : ' (sin alumnos: sin probar la ficha)');
+  })()`);
+  if (String(r).startsWith('ok')) info.push('botones laterales del ratón: ' + r);
+  else fallos.push('[historial] ' + r);
 }
 
 // Verifica que los diálogos PROPIOS (confirmar/avisar/pedirTexto) funcionan y

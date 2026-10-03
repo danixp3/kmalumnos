@@ -218,16 +218,7 @@ function cambiarFechaRR(delta) {
   loadRegistroRapido();
 }
 
-// Botones laterales del ratón (atrás/adelante) cambian la fecha del Registro
-// Rápido cuando esa página está activa. button 3 = lateral "atrás" (día -1),
-// button 4 = lateral "adelante" (día +1). preventDefault() evita que Electron
-// interprete el evento como navegación de historial (ver también 'app-command'
-// en main.js, que bloquea la navegación a nivel de ventana).
-document.addEventListener('mouseup', (e) => {
-  if (e.button !== 3 && e.button !== 4) return;
-  const pageRR = document.getElementById('page-registro-rapido');
-  if (!pageRR || !pageRR.classList.contains('active')) return;
-  e.preventDefault();
-  cambiarFechaRR(e.button === 3 ? -1 : 1);
-});
+// Los botones laterales del ratón ya no cambian aquí de día: en toda la app
+// van a la pantalla anterior / siguiente (renderer/historial-pantallas.js).
+// El día se cambia con las flechas de la propia pantalla.
 

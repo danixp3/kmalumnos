@@ -52,6 +52,10 @@ contextBridge.exposeInMainWorld('api', {
 
   // Libro de registro de alumnos (RD 1295/2003 art. 39)
   getLibroRegistro:      (sucursalId) => ipcRenderer.invoke('get-libro-registro', sucursalId),
+  getSiguienteNRegistro: ()            => ipcRenderer.invoke('get-siguiente-n-registro'),
+  getAlumnoConNRegistro: (n, exceptoId) => ipcRenderer.invoke('get-alumno-con-n-registro', n, exceptoId),
+  getVehiculoDeProfesor: (profesorId)  => ipcRenderer.invoke('get-vehiculo-de-profesor', profesorId),
+  setCocheProfesor:      (profesorId, vehiculoId) => ipcRenderer.invoke('set-coche-profesor', profesorId, vehiculoId),
   asignarNumInscripcion: (id)         => ipcRenderer.invoke('asignar-num-inscripcion', id),
   backfillNumInscripcion: ()          => ipcRenderer.invoke('backfill-num-inscripcion'),
 

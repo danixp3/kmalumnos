@@ -540,6 +540,102 @@ function buscarAlumno(idx, p) {
   return { alumno: cand[0] };
 }
 
+// ─── PARECIDOS (erratas) ────────────────────────────────────────────────────
+// Un alumno metido a mano en la app («Kole Bardechi», sin segundo apellido o
+// sin tildes) y el mismo en el programa anterior («Kolë Bardheci») no tienen
+// la misma clave de nombre: sin esto se importaba como alumno NUEVO y quedaba
+// duplicado (caso real de la Puesta en marcha). Parecidos = el mismo nombre de
+// pila (sin tildes: Kole = Kolë; con una errata NO, porque María y Mario
+// García López pueden ser hermanos), todas las palabras de quien tiene menos
+// casan con las del otro (los apellidos, con alguna errata) y como mucho
+// falta un apellido.
+
+// Distancia de edición con trasposiciones de letras vecinas («ei» ↔ «ie»)
+function distanciaEdicion(a, b) {
+  if (a === b) return 0;
+  const n = a.length, m = b.length;
+  if (!n || !m) return n || m;
+  let ant2 = null, ant = Array.from({ length: m + 1 }, (_, j) => j);
+  for (let i = 1; i <= n; i++) {
+    const fila = [i];
+    for (let j = 1; j <= m; j++) {
+      const coste = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(ant[j] + 1, fila[j - 1] + 1, ant[j - 1] + coste);
+      if (ant2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, ant2[j - 2] + 1);
+      fila.push(v);
+    }
+    ant2 = ant; ant = fila;
+  }
+  return ant[m];
+}
+// Una errata como mucho en palabras de 4 letras o más; dos en las de 8 o más
+function palabraParecida(x, y) {
+  if (x === y) return true;
+  const corta = Math.min(x.length, y.length);
+  const tope = corta >= 8 ? 2 : corta >= 4 ? 1 : 0;
+  return tope > 0 && Math.abs(x.length - y.length) <= tope && distanciaEdicion(x, y) <= tope;
+}
+const palabrasDe = (...partes) => normTexto(partes.filter(Boolean).join(' ')).split(' ').filter(w => w && !PARTICULAS.has(w));
+const primerNombre = x => palabrasDe(x.nombre)[0] || '';
+
+function personaParecida(a, p) {
+  const dniA = limpiarDni(a.dni).valor, dniP = p.dni && typeof p.dni === 'object' ? p.dni.valor : limpiarDni(p.dni).valor;
+  if (dniA && dniP && dniA !== dniP) return false;
+  const na = primerNombre(a), np = primerNombre(p);
+  if (!na || na !== np) return false;
+  const pa = palabrasDe(a.nombre, a.primer_apellido, a.segundo_apellido), pp = palabrasDe(p.nombre, p.primer_apellido, p.segundo_apellido);
+  const [corta, larga] = pa.length <= pp.length ? [pa, pp] : [pp, pa];
+  if (corta.length < 2 || larga.length - corta.length > 1) return false;
+  // Cada palabra de la corta, con una distinta de la larga (primero las iguales)
+  const libres = larga.slice();
+  const pendientes = [];
+  for (const w of corta) { const i = libres.indexOf(w); if (i >= 0) libres.splice(i, 1); else pendientes.push(w); }
+  for (const w of pendientes) {
+    const i = libres.findIndex(x => palabraParecida(w, x));
+    if (i < 0) return false;
+    libres.splice(i, 1);
+  }
+  return true;
+}
+
+// Alumnos de la app parecidos a una persona (agrupados por nombre de pila,
+// para no comparar miles contra miles). excluir: ids que ya tienen pareja.
+function buscadorParecidos(alumnos) {
+  const porNombre = new Map();
+  for (const a of alumnos) {
+    if (a.deleted) continue;
+    const k = primerNombre(a);
+    if (!k) continue;
+    if (!porNombre.has(k)) porNombre.set(k, []);
+    porNombre.get(k).push(a);
+  }
+  return (p, excluir) => (porNombre.get(primerNombre(p)) || []).filter(a => !(excluir && excluir.has(a.id)) && personaParecida(a, p));
+}
+
+// Emparejador para un archivo entero: por DNI o nombre exacto (buscarAlumno) y,
+// si no hay, por parecido — solo si es UNO y ese alumno de la app no casa
+// exacto con otra fila del archivo. Siempre la misma respuesta para la misma
+// persona (un historial de clases trae a cada alumno muchas veces).
+function crearEmparejador(idx, personas) {
+  const exactos = new Set();
+  for (const p of personas) { const m = buscarAlumno(idx, p); if (m.alumno) exactos.add(m.alumno.id); }
+  const parecidos = buscadorParecidos(idx.alumnos);
+  const hechos = new Map(), usados = new Map();
+  return p => {
+    const m = buscarAlumno(idx, p);
+    if (m.alumno || m.ambiguo || m.mismoNombre) return m;
+    const k = (p.dni && p.dni.valor) || clavePersona(p);
+    if (!k) return m;
+    if (hechos.has(k)) return hechos.get(k);
+    const cand = parecidos(p, exactos);
+    let r = {};
+    if (cand.length === 1 && (!usados.has(cand[0].id) || usados.get(cand[0].id) === k)) { r = { alumno: cand[0], parecido: true }; usados.set(cand[0].id, k); }
+    else if (cand.length) r = { parecidos: cand };
+    hechos.set(k, r);
+    return r;
+  };
+}
+
 // Profesores y coches: emparejar con los existentes o proponer crearlos
 function resolverRelacionados(d, opciones) {
   const profes = d.profesores.filter(p => !p.deleted);
@@ -594,10 +690,11 @@ function analizarAlumnos(d, entrada) {
   const saldoImportado = new Set((d.cargos || []).filter(c => !c.deleted && c.nota === NOTA_IMPORTADO).map(c => c.alumno_id));
   const vistos = new Map(); // clave/dni → nº de fila
   const filas = [];
+  const registros = registrosDe(entrada).map(r => ({ ...r, p: personaDe(r.v, opciones) }));
+  const emparejar = crearEmparejador(idx, registros.map(r => r.p));
 
-  for (const { n, v } of registrosDe(entrada)) {
+  for (const { n, v, p } of registros) {
     const avisos = [];
-    const p = personaDe(v, opciones);
     const fila = { n, nombre: nombreDe(p), dni: p.dni.valor || '', avisos };
     if (!p.nombre && !p.primer_apellido) { filas.push({ ...fila, accion: 'error', motivo: 'Sin nombre' }); continue; }
     if (!p.nombre) avisos.push('Falta el nombre (solo hay apellidos).');
@@ -651,9 +748,11 @@ function analizarAlumnos(d, entrada) {
     if (antes) { filas.push({ ...fila, accion: 'omitir', motivo: `Repetido (fila ${antes})` }); continue; }
     claves.forEach(c => vistos.set(c, n));
 
-    const m = buscarAlumno(idx, p);
+    const m = emparejar(p);
     if (m.ambiguo) { filas.push({ ...fila, accion: 'omitir', motivo: `Hay ${m.ambiguo} alumnos con este nombre en la app: añade el DNI para saber cuál es` }); continue; }
     if (m.mismoNombre) avisos.push(`Ya hay un alumno con este nombre y otro DNI (${m.mismoNombre.dni}): se crea aparte.`);
+    if (m.parecido) avisos.push(`En la app está como «${nombreDe(m.alumno)}» (nombre parecido): se completa ese alumno.`);
+    if (m.parecidos) { filas.push({ ...fila, accion: 'omitir', motivo: `Se parece a ${m.parecidos.map(a => '«' + nombreDe(a) + '»').join(' y ')} de la app: corrige el nombre o añade el DNI para saber cuál es` }); continue; }
     const ex = m.alumno;
     if (!ex) {
       filas.push({
@@ -715,12 +814,12 @@ function analizarClases(d, entrada) {
     const fecha = leerFechaFlexible(fechaTxt);
     let hora = leerHoraFlexible(r.v.hora);
     if (!r.v.hora && /\d[:.]\d{2}/.test(fechaTxt)) hora = leerHoraFlexible(fechaTxt.match(/\d{1,2}[:.]\d{2}/)[0]);
-    return { ...r, fecha, hora };
+    return { ...r, fecha, hora, p: personaDe(r.v, opciones) };
   }).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.hora || '99').localeCompare(b.hora || '99') || a.n - b.n);
+  const emparejar = crearEmparejador(idx, regs.map(r => r.p));
 
-  for (const { n, v, fecha, hora } of regs) {
+  for (const { n, v, fecha, hora, p } of regs) {
     const avisos = [];
-    const p = personaDe(v, opciones);
     const fila = { n, nombre: nombreDe(p) || p.dni.valor || '', fecha: fecha || '', hora: hora || '', avisos };
     if (!p.nombre && !p.primer_apellido && !p.dni.valor) { filas.push({ ...fila, accion: 'error', motivo: 'Sin alumno' }); continue; }
     if (!fecha) { filas.push({ ...fila, accion: 'error', motivo: v.fecha ? `Fecha «${v.fecha}» no se entiende` : 'Sin fecha' }); continue; }
@@ -728,10 +827,12 @@ function analizarClases(d, entrada) {
     if (hora === null) avisos.push(`Hora «${v.hora}» no se entiende: se deja en blanco.`);
 
     // Alumno
-    const m = buscarAlumno(idx, p);
+    const m = emparejar(p);
     let alumno = m.alumno, claveNuevo = null;
+    if (m.parecido) avisos.push(`En la app está como «${nombreDe(m.alumno)}» (nombre parecido).`);
     if (!alumno) {
       if (m.ambiguo) { filas.push({ ...fila, accion: 'omitir', motivo: `Hay ${m.ambiguo} alumnos con este nombre: añade el DNI` }); continue; }
+      if (m.parecidos) { filas.push({ ...fila, accion: 'omitir', motivo: `Se parece a ${m.parecidos.map(a => '«' + nombreDe(a) + '»').join(' y ')} de la app: corrige el nombre o añade el DNI` }); continue; }
       if (opciones.crearAlumnos === false) { filas.push({ ...fila, accion: 'omitir', motivo: 'El alumno no está en la app' }); continue; }
       if (!p.nombre && !p.primer_apellido) { filas.push({ ...fila, accion: 'omitir', motivo: `DNI ${p.dni.valor} no está en la app y no hay nombre` }); continue; }
       claveNuevo = (p.dni.valor && 'dni:' + p.dni.valor) || 'n:' + clavePersona(p);
@@ -1099,7 +1200,7 @@ module.exports = {
   analizarImportacion, aplicarImportacion, getImportaciones, deshacerImportacion,
   buscarAlumnoPorTexto,
   // para db/ariauto.js (mismo emparejamiento, registro e historial)
-  _interno: { indices, buscarAlumno, nombreDe, limpiarMatricula, registrarImportacion },
+  _interno: { indices, buscarAlumno, nombreDe, limpiarMatricula, registrarImportacion, personaParecida, buscadorParecidos, crearEmparejador, palabraParecida },
   // utilidades de normalización (también para pruebas)
   _norm: {
     normTexto, claveNombre, capitalizarNombre, partirApellidos, partirNombreCompleto, limpiarDni, limpiarTelefono, limpiarEmail,

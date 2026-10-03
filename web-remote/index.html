@@ -457,6 +457,7 @@ const ULTIMA_CUENTA_KEY = 'km_ultima_cuenta'; // id de la última cuenta que ent
 const TEMA_KEY = 'km_tema';                  // apariencia: auto | claro | oscuro | negro
 const FLUJO_KEY = 'km_flujo';                // práctica en marcha (sobrevive a recargas)
 const VEHICULO_KEY = 'km_vehiculo';          // último vehículo usado
+const VEHICULO_HOY_KEY = 'km_vehiculo_hoy';  // coche elegido HOY en este teléfono { id, fecha, perfil }
 const NCLASES_KEY = 'km_n_clases';          // nº de clases elegido la última vez
 const DIAS_ANOTAR = 30;                      // una clase olvidada se puede anotar hasta 30 días después (límite de la API)
 
@@ -661,6 +662,8 @@ async function revisarPerfil() {
     const res = await apiFetch('/api/profesores'); if (!res.ok) return;
     const lista = await res.json(); if (!Array.isArray(lista)) return;
     S.profesores = lista;
+    const antes = S.vehId; elegirCocheDelDia();
+    if (S.vehId !== antes && S.vista === 'hoy') renderHoy();
     const p = lista.find(x => x.id === S.perfil.id);
     if (!p) { if (!(S.flujo && S.flujo.practica_id && !S.flujo.cerrada)) { toast('Tu perfil de profesor ya no existe: elige otro.'); mostrarPerfiles(); } return; }
     if (p.nombre !== S.perfil.nombre) { S.perfil = { id: p.id, nombre: p.nombre }; guardarPerfil(S.perfil); if (S.vista === 'hoy') renderHoy(); }
@@ -962,15 +965,40 @@ function cerrarHoja() { document.getElementById('capa').innerHTML = ''; }
 // ─── DATOS ───────────────────────────────────────────────────────────────────
 async function cargarBase() {
   try {
-    const [rv, ra, rc] = await Promise.all([apiFetch('/api/vehiculos'), apiFetch('/api/alumnos?resumen=1'), apiFetch('/api/config').catch(() => null)]);
+    const [rv, ra, rc, rp] = await Promise.all([apiFetch('/api/vehiculos'), apiFetch('/api/alumnos?resumen=1'), apiFetch('/api/config').catch(() => null), apiFetch('/api/profesores').catch(() => null)]);
     if (!rv.ok) throw new Error('Error cargando vehículos');
     if (!ra.ok) throw new Error('Error cargando alumnos');
     S.vehiculos = await rv.json(); S.alumnos = await ra.json();
+    if (rp && rp.ok) { const l = await rp.json(); if (Array.isArray(l)) S.profesores = l; }
     if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; S.duracionClase = parseInt(c.duracion_clase_min) || 45; if (c.km_auto && c.km_auto.min > 0) S.kmAuto = c.km_auto; S.vapid = c.vapid_public || null; }
     S.ultimaCarga = Date.now();
   } catch (e) { if (e.message !== 'Sesión expirada') toast('No se pudieron cargar los datos. Reintenta.'); }
+  elegirCocheDelDia();
+}
+// ─── COCHE DEL PROFESOR ──────────────────────────────────────────────────────
+// Cada profesor suele dar sus clases en su coche (Perfil → Coche de cada
+// profesor, o Profesores en el escritorio). El coche con el que se empieza una
+// clase es: el elegido hoy en este teléfono → el coche habitual del profesor →
+// (si no tiene) el del alumno o el último usado, como antes.
+function cocheHabitual(pid = S.perfil && S.perfil.id) {
+  const p = pid ? S.profesores.find(x => x.id === pid) : null;
+  return p && p.vehiculo_id && vehiculo(p.vehiculo_id) ? p.vehiculo_id : null;
+}
+function cocheElegidoHoy() {
+  try {
+    const c = JSON.parse(localStorage.getItem(VEHICULO_HOY_KEY) || 'null');
+    if (c && c.fecha === fechaLocal() && c.perfil === (S.perfil ? S.perfil.id : null) && vehiculo(c.id)) return c.id;
+  } catch {}
+  return null;
+}
+function apuntarCocheHoy(id) {
+  try { localStorage.setItem(VEHICULO_HOY_KEY, JSON.stringify({ id, fecha: fechaLocal(), perfil: S.perfil ? S.perfil.id : null })); } catch {}
+}
+// ¿Se sabe en qué coche está el profesor? (el de hoy o su coche habitual)
+const cocheFijado = () => cocheElegidoHoy() || cocheHabitual();
+function elegirCocheDelDia() {
   const guardado = parseInt(localStorage.getItem(VEHICULO_KEY));
-  S.vehId = S.vehiculos.some(v => v.id === guardado) ? guardado : (S.vehiculos[0] ? S.vehiculos[0].id : null);
+  S.vehId = cocheFijado() || (vehiculo(guardado) ? guardado : (S.vehiculos[0] ? S.vehiculos[0].id : null));
 }
 // La fecha de «hoy» se recalcula siempre: una web abierta desde antes de
 // medianoche seguía pidiendo el día anterior y la jornada salía vacía.
@@ -1016,6 +1044,10 @@ function cargarFlujo() { try { const r = localStorage.getItem(FLUJO_KEY); S.fluj
 const vehiculo = id => S.vehiculos.find(v => v.id === id);
 const alumno = id => S.alumnos.find(a => a.id === id);
 const nombreAlumno = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '';
+// Búsqueda de alumnos: por nombre y apellidos (sin tildes, todas las palabras) o por su nº de registro
+const sinTildes = t => String(t == null ? '' : t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const coincideAlumno = (a, q) => { const texto = sinTildes(nombreAlumno(a) + ' ' + (a.n_registro || '')); return sinTildes(q).split(/\s+/).filter(Boolean).every(w => texto.includes(w)); };
+const nRegTxt = a => a && a.n_registro ? `<span class="mono">Nº ${esc(a.n_registro)}</span> · ` : '';
 // Clases y km TOTALES del alumno: las de la app + su punto de partida (lo que
 // hizo antes de usar la app, se configura en el escritorio).
 const clasesAlumno = a => a ? (a.clases || 0) + (a.clases_previas || 0) : 0;
@@ -1123,7 +1155,7 @@ function cardVehiculo(sel = true) {
   if (!v) return `<div class="card veh-card"><span class="veh-ic">${ic('coche', 24)}</span><div style="flex:1"><div class="fila-tit">Sin vehículo</div><div class="fila-sub">No hay vehículos registrados</div></div></div>`;
   const u = v.ultimo;
   return `<div class="card veh-card"><span class="veh-ic">${ic('coche', 24)}</span>
-    <div style="flex:1;min-width:0"><div class="fila-tit" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.nombre)}</div><div style="margin:3px 0">${placa(v.matricula)}</div>
+    <div style="flex:1;min-width:0"><div class="fila-tit" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.nombre)}${v.id === cocheHabitual() ? ' <span class="pill" style="vertical-align:middle">Tu coche</span>' : ''}</div><div style="margin:3px 0">${placa(v.matricula)}</div>
     <div class="fila-sub">Último km <b class="mono" style="color:var(--ink)">${miles(u ? u.km_final : v.km_actual)}</b>${u && u.hora ? ' · a las ' + esc(u.hora) : ''}</div></div>
     ${sel ? '<button class="btn btn-sec btn-peq" onclick="elegirVehiculo()">Cambiar</button>' : ''}</div>`;
 }
@@ -1214,12 +1246,56 @@ function menuPerfil() {
     <div class="card"><button class="fila" onclick="cerrarHoja();refrescar({ silencioso: false })"><span class="veh-ic">${ic('deshacer', 22)}</span><div class="fila-tit" style="flex:1">Actualizar datos</div></button>
     ${puedeInstalar() ? `<button class="fila" onclick="cerrarHoja();instalarApp()"><span class="veh-ic">${ic('tel', 22)}</span><div class="fila-tit" style="flex:1">Instalar como app</div>${ic('chev', 20)}</button>` : ''}
     ${S.perfil && S.perfil.id ? `<button class="fila" onclick="cerrarHoja();go('mifirma')"><span class="veh-ic">${ic('firma', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Mi firma</div><div class="fila-sub">Sale en tus clases de la ficha DGT</div></div>${S.miFirma === false ? '<span class="pill pill-warn">Falta</span>' : (S.miFirma ? '<span class="pill pill-ok">Guardada</span>' : '')}${ic('chev', 20)}</button>` : ''}
+    <button class="fila" onclick="menuCoches()"><span class="veh-ic">${ic('coche', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Coche de cada profesor</div><div class="fila-sub">${cocheHabitual() ? 'El tuyo: ' + esc(vehiculo(cocheHabitual()).nombre) : 'El que se propone al empezar una clase'}</div></div>${S.perfil && S.perfil.id && !cocheHabitual() ? '<span class="pill pill-warn">Elegir</span>' : ''}${ic('chev', 20)}</button>
     <button class="fila" onclick="menuAvisos()"><span class="veh-ic">${ic('campana', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Avisos de la práctica</div><div class="fila-sub">${avisosActivos() ? 'Activados en este teléfono' : 'Cuando va a acabar, al acabar…'}</div></div>${avisosActivos() ? '<span class="pill pill-ok">Sí</span>' : ''}${ic('chev', 20)}</button>
     <button class="fila" onclick="menuTema()"><span class="veh-ic">${ic(TEMAS.find(x => x[0] === temaElegido())[3], 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Apariencia</div><div class="fila-sub">${TEMAS.find(x => x[0] === temaElegido())[1]}</div></div>${ic('chev', 20)}</button>
     <button class="fila" onclick="cerrarHoja();cambiarPerfil()"><span class="veh-ic">${ic('persona', 22)}</span><div class="fila-tit" style="flex:1">Cambiar de perfil</div>${ic('chev', 20)}</button>
     <button class="fila" onclick="cerrarSesion()"><span class="veh-ic">${ic('salir', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Cerrar sesión</div>${cuentaEmail() ? `<div class="fila-sub">${esc(cuentaEmail())}</div>` : ''}</div></button></div>`);
 }
 const cuentaEmail = () => { const s = leerSesion(); return s && s.user ? s.user.email : ''; };
+
+// Perfil → Coche de cada profesor: el coche en el que cada uno da sus clases
+// normalmente. Al empezar o anotar una clase se propone ese; si un día usa
+// otro, se cambia en la propia clase (o en Hoy) y vale para ese día.
+async function menuCoches() {
+  abrirHoja(`<div class="hoja-tit"><h3>Coche de cada profesor</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div><div class="cargando">Cargando…</div>`);
+  try {
+    const res = await apiFetch('/api/profesores'); if (!res.ok) throw new Error();
+    const l = await res.json(); if (Array.isArray(l)) S.profesores = l;
+  } catch { if (!S.profesores.length) { toast('No se pudo cargar la lista de profesores.'); cerrarHoja(); return; } }
+  const yo = S.perfil && S.perfil.id;
+  const orden = S.profesores.slice().sort((a, b) => (b.id === yo) - (a.id === yo) || a.nombre.localeCompare(b.nombre, 'es'));
+  const filas = orden.map(p => {
+    const v = p.vehiculo_id ? vehiculo(p.vehiculo_id) : null;
+    return `<button class="fila" onclick="elegirCocheProfesor(${p.id})"><span class="ini">${esc(iniciales(p.nombre))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.nombre)}${p.id === yo ? ' <span class="pill">Tú</span>' : ''}</div>
+      ${v ? `<div style="margin:3px 0;display:flex;align-items:center;gap:8px">${placa(v.matricula)}<span class="fila-sub">${esc(v.nombre)}</span></div>` : '<div class="fila-sub">Sin coche fijo</div>'}</div>${ic('chev', 20)}</button>`;
+  }).join('');
+  abrirHoja(`<div class="hoja-tit"><h3>Coche de cada profesor</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+    <p class="fila-sub" style="margin:0 2px 12px;font-size:15px">Al empezar o anotar una clase se pone el coche de su profesor. Si un día usa otro, se cambia en la propia clase.</p>
+    <div class="hoja-lista card">${filas || '<div class="vacio">Esta autoescuela aún no tiene profesores.</div>'}</div>`);
+}
+function elegirCocheProfesor(pid) {
+  const p = S.profesores.find(x => x.id === pid); if (!p) return;
+  const filas = [{ id: null }, ...S.vehiculos].map(v => v.id == null
+    ? `<button class="fila" onclick="guardarCocheProfesor(${pid}, null)"><span class="veh-ic">${ic('cerrar', 22)}</span><div class="fila-tit" style="flex:1">Sin coche fijo</div>${!p.vehiculo_id ? ic('ok', 22) : ''}</button>`
+    : `<button class="fila" onclick="guardarCocheProfesor(${pid}, ${v.id})"><span class="veh-ic">${ic('coche', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(v.nombre)}</div><div style="margin:3px 0">${placa(v.matricula)}</div></div>${v.id === p.vehiculo_id ? ic('ok', 22) : ''}</button>`).join('');
+  abrirHoja(`<div class="hoja-tit"><button class="cab-atras" onclick="menuCoches()" aria-label="Volver">${ic('atras', 22)}</button><h3 style="flex:1">${esc(p.nombre)}</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div><div class="hoja-lista card">${filas}</div>`);
+}
+async function guardarCocheProfesor(pid, vid) {
+  try {
+    const res = await postJSON('/api/coche-profesor', { profesor_id: pid, vehiculo_id: vid });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo guardar el coche');
+    const p = S.profesores.find(x => x.id === pid); if (p) p.vehiculo_id = vid;
+    // El suyo: pasa a ser el coche de hoy (salvo que tenga una clase en marcha)
+    if (S.perfil && S.perfil.id === pid && vid && !(S.flujo && S.flujo.practica_id && !S.flujo.cerrada)) {
+      S.vehId = vid; localStorage.setItem(VEHICULO_KEY, String(vid)); apuntarCocheHoy(vid);
+      if (S.vista === 'hoy') renderHoy();
+    }
+    toast(vid ? 'Coche guardado' : 'Sin coche fijo');
+    menuCoches();
+  } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message); }
+}
 function cambiarPerfil() { if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada) { toast('Termina primero la práctica en curso.'); return; } mostrarPerfiles(); }
 
 function elegirVehiculo(despues) {
@@ -1228,7 +1304,7 @@ function elegirVehiculo(despues) {
   abrirHoja(`<div class="hoja-tit"><h3>Vehículo</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div><div class="hoja-lista card">${filas || '<div class="vacio">No hay vehículos.</div>'}</div>`);
 }
 function fijarVehiculo(id) {
-  S.vehId = id; localStorage.setItem(VEHICULO_KEY, String(id)); cerrarHoja();
+  S.vehId = id; localStorage.setItem(VEHICULO_KEY, String(id)); apuntarCocheHoy(id); cerrarHoja();
   if (S.vista === 'iniciar') { S.iniciar.vehiculo_id = id; S.iniciar.km = String(kmSugerido(id) || ''); renderIniciar(); } else if (S.vista === 'anotar' && S.anotar) { S.anotar.vehiculo_id = id; renderAnotar(); } else if (S.vista === 'hoy') renderHoy();
 }
 
@@ -1238,7 +1314,7 @@ function kmSugerido(vid) { const v = vehiculo(vid); return v ? (v.ultimo ? v.ult
 function abrirIniciar(op = {}) {
   if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada) { toast('Ya tienes una práctica en curso.'); go('curso'); return; }
   const al = op.alumno_id ? alumno(op.alumno_id) : null;
-  let vid = op.vehiculo_id || (al && al.vehiculo_id) || S.vehId;
+  let vid = op.vehiculo_id || cocheFijado() || (al && al.vehiculo_id) || S.vehId;
   if (!vehiculo(vid)) vid = S.vehId;
   S.iniciar = {
     alumno_id: al ? al.id : null, vehiculo_id: vid, km: String(kmSugerido(vid) || ''),
@@ -1319,26 +1395,27 @@ function elegirAlumnoIniciar() {
   });
   elegirAlumnoIniciar._orden = orden;
   abrirHoja(`<div class="hoja-tit"><h3>Alumno</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
-    <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca-al" placeholder="Buscar por nombre" oninput="filtrarHojaAlumnos(this.value)" autocomplete="off"></div>
+    <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca-al" placeholder="Buscar por nombre o nº" oninput="filtrarHojaAlumnos(this.value)" autocomplete="off"></div>
     <div class="hoja-lista card" id="hoja-alumnos"></div>`);
   filtrarHojaAlumnos('');
 }
 function filtrarHojaAlumnos(q) {
-  q = (q || '').toLowerCase().trim();
-  const lista = (elegirAlumnoIniciar._orden || []).filter(a => q ? nombreAlumno(a).toLowerCase().includes(q) : !alumnoTerminado(a));
+  q = (q || '').trim();
+  const lista = (elegirAlumnoIniciar._orden || []).filter(a => q ? coincideAlumno(a, q) : !alumnoTerminado(a));
   document.getElementById('hoja-alumnos').innerHTML = lista.length ? lista.map(a =>
-    `<button class="fila-alumno" onclick="fijarAlumnoIniciar(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">Permiso ${esc(a.permiso)} · ${fmtC(clasesAlumno(a))} ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'}</div></div>${S.perfil && a.profesor_id === S.perfil.id ? '<span class="pill">Tuyo</span>' : ''}</button>`).join('')
+    `<button class="fila-alumno" onclick="fijarAlumnoIniciar(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">${nRegTxt(a)}Permiso ${esc(a.permiso)} · ${fmtC(clasesAlumno(a))} ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'}</div></div>${S.perfil && a.profesor_id === S.perfil.id ? '<span class="pill">Tuyo</span>' : ''}</button>`).join('')
     : '<div class="vacio">Ningún alumno coincide.</div>';
 }
 function fijarAlumnoIniciar(id) {
   const al = alumno(id); cerrarHoja();
+  // El coche del alumno solo manda si el profesor no tiene el suyo
   if (S.vista === 'anotar' && S.anotar) {
     S.anotar.alumno_id = id;
-    if (al && al.vehiculo_id && vehiculo(al.vehiculo_id)) S.anotar.vehiculo_id = al.vehiculo_id;
+    if (!cocheHabitual() && al && al.vehiculo_id && vehiculo(al.vehiculo_id)) S.anotar.vehiculo_id = al.vehiculo_id;
     renderAnotar(); return;
   }
   S.iniciar.alumno_id = id;
-  if (al && al.vehiculo_id && vehiculo(al.vehiculo_id) && S.iniciar.vehiculo_id !== al.vehiculo_id) { S.iniciar.vehiculo_id = al.vehiculo_id; S.iniciar.km = String(kmSugerido(al.vehiculo_id) || ''); }
+  if (!cocheFijado() && al && al.vehiculo_id && vehiculo(al.vehiculo_id) && S.iniciar.vehiculo_id !== al.vehiculo_id) { S.iniciar.vehiculo_id = al.vehiculo_id; S.iniciar.km = String(kmSugerido(al.vehiculo_id) || ''); }
   renderIniciar();
 }
 
@@ -1361,7 +1438,7 @@ async function empezarPractica() {
       throw new Error(data.error || 'No se pudo empezar la práctica');
     }
     const al = alumno(I.alumno_id), v = vehiculo(I.vehiculo_id);
-    localStorage.setItem(VEHICULO_KEY, String(I.vehiculo_id)); S.vehId = I.vehiculo_id;
+    localStorage.setItem(VEHICULO_KEY, String(I.vehiculo_id)); S.vehId = I.vehiculo_id; apuntarCocheHoy(I.vehiculo_id);
     if (I.n_clases <= 3) localStorage.setItem(NCLASES_KEY, String(I.n_clases));
     S.flujo = {
       practica_id: data.practica_id, alumno_id: I.alumno_id, alumno_nombre: nombreAlumno(al), vehiculo_id: I.vehiculo_id, vehiculo_nombre: v ? v.nombre : '', matricula: v ? v.matricula : null,
@@ -1397,7 +1474,8 @@ function abrirAnotar(op = {}) {
   if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada) { toast('Termina primero la práctica en curso.'); go('curso'); return; }
   actualizarHoy();
   const al = op.alumno_id ? alumno(op.alumno_id) : null;
-  let vid = (al && al.vehiculo_id) || S.vehId;
+  // Una clase de otro día: su coche habitual (el de hoy puede ser otro)
+  let vid = cocheHabitual() || (al && al.vehiculo_id) || S.vehId;
   if (!vehiculo(vid)) vid = S.vehiculos[0] ? S.vehiculos[0].id : null;
   const minimo = sumaDias(S.hoy, -DIAS_ANOTAR);
   const fecha = op.fecha && op.fecha <= S.hoy && op.fecha >= minimo ? op.fecha : sumaDias(S.hoy, -1);
@@ -2019,22 +2097,22 @@ function renderAlumnos() {
   document.getElementById('v-alumnos').innerHTML = `
     <div class="cab"><div><div class="fecha-lin">${S.perfil && S.perfil.id ? `Asignados a ti · ${mios.length}` : `${enCurso.length} alumnos`}</div><div class="grande" style="margin-top:4px">Alumnos</div></div>
       <button class="avatar" style="background:var(--boton);color:var(--ink);border:1px solid var(--line-2)" onclick="go('nuevo')" aria-label="Nuevo alumno">${ic('usuarioMas', 24)}</button></div>
-    <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca" placeholder="Buscar por nombre" value="${esc(S.busqueda)}" oninput="S.busqueda=this.value;pintarListaAlumnos()" autocomplete="off"></div>
+    <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca" placeholder="Buscar por nombre o nº" value="${esc(S.busqueda)}" oninput="S.busqueda=this.value;pintarListaAlumnos()" autocomplete="off"></div>
     <div class="chips" style="margin-bottom:12px">${visibles.map(([id, tx, n]) => `<button class="chip ${S.filtroAlumnos === id ? 'on' : ''}" style="height:42px;font-size:15.5px" onclick="S.filtroAlumnos='${id}';S.filtroElegido=true;renderAlumnos()">${tx} · ${n}</button>`).join('')}</div>
     <div class="card" id="lista-alumnos"></div>`;
   pintarListaAlumnos();
 }
 function pintarListaAlumnos() {
-  const q = S.busqueda.toLowerCase().trim();
+  const q = S.busqueda.trim();
   let lista = S.alumnos.filter(a => {
     if ((S.filtroAlumnos === 'terminados') !== alumnoTerminado(a)) return false;
     if (S.filtroAlumnos === 'mios' && !(S.perfil && a.profesor_id === S.perfil.id)) return false;
     if (S.filtroAlumnos === 'nuevos' && clasesAlumno(a) > 0) return false;
-    return !q || nombreAlumno(a).toLowerCase().includes(q);
+    return !q || coincideAlumno(a, q);
   });
   document.getElementById('lista-alumnos').innerHTML = lista.length ? lista.map(a =>
     `<button class="fila-alumno" onclick="abrirFicha(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span>
-      <div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub"><b style="color:var(--ink)">${fmtC(clasesAlumno(a))}</b> ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'} · <span class="mono">${miles(kmAlumno(a))}</span> km</div></div>
+      <div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">${nRegTxt(a)}<b style="color:var(--ink)">${fmtC(clasesAlumno(a))}</b> ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'} · <span class="mono">${miles(kmAlumno(a))}</span> km</div></div>
       ${clasesAlumno(a) > 0 ? '' : '<span class="pill pill-info">Nuevo</span>'}${ic('chev', 20, 'style="color:var(--faint)"')}</button>`).join('')
     : (S.filtroAlumnos === 'mios' && !q
       ? `<div class="vacio">Todavía no tienes alumnos asignados.<small>Se asignan en la app de escritorio (ficha del alumno → Profesor).</small><button class="btn btn-sec btn-peq" style="margin-top:12px" onclick="S.filtroAlumnos='todos';S.filtroElegido=true;renderAlumnos()">Ver todos</button></div>`
@@ -2085,7 +2163,7 @@ function renderFicha() {
   const proximas = (d.proximas || []).map(r => `<div class="fila"><span class="fila-hora" style="width:auto">${esc(fechaCorta(r.fecha))}</span><div class="fila-tit" style="flex:1">${esc(r.hora_inicio || '')} ${r.nota ? '· ' + esc(r.nota) : ''}</div>${r.estado === 'solicitada' ? '<span class="pill pill-warn">Solicitada</span>' : ''}</div>`).join('');
   cont.innerHTML = cab + `
     <div style="display:flex;align-items:center;gap:14px;margin:4px 0 16px"><span class="ini ini-lg">${esc(iniciales(nombre))}</span>
-      <div style="min-width:0"><div class="grande" style="font-size:34px">${esc(nombre)}</div><div class="fila-sub" style="font-size:15px">Permiso ${esc(a.permiso)}${a.profesor_nombre ? ' · Prof. ' + esc(a.profesor_nombre) : ''}</div></div></div>
+      <div style="min-width:0"><div class="grande" style="font-size:34px">${esc(nombre)}</div><div class="fila-sub" style="font-size:15px">${nRegTxt(a.n_registro ? a : alumno(a.id))}Permiso ${esc(a.permiso)}${a.profesor_nombre ? ' · Prof. ' + esc(a.profesor_nombre) : ''}</div></div></div>
     <div class="tres"><div class="stat-box osc"><span class="val">${fmtC(totalClases)}</span><span class="etq2">${totalClases > 0 && totalClases <= 1 ? 'clase hecha' : 'clases hechas'}</span></div>
       <div class="stat-box" style="background:var(--card);border:1px solid var(--line)"><span class="val">${miles(totalKm)}</span><span class="etq2">km recorridos</span></div>
       <div class="stat-box" style="background:var(--card);border:1px solid var(--line)"><span class="val">${horas}</span><span class="etq2">h al volante</span></div></div>
@@ -2126,7 +2204,8 @@ async function crearAlumno() {
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo crear el alumno');
-    toast(data.cobros_error ? 'Alumno creado. La matrícula la anotará la oficina.' : 'Alumno creado', 3200); await cargarBase(); go('alumnos');
+    const conNum = data.n_registro ? ` con el nº ${data.n_registro}` : '';
+    toast(data.cobros_error ? `Alumno creado${conNum}. La matrícula la anotará la oficina.` : `Alumno creado${conNum}`, 3600); await cargarBase(); go('alumnos');
   } catch (e) { if (e.message !== 'Sesión expirada') { err.textContent = e.message; btn.disabled = false; } }
 }
 

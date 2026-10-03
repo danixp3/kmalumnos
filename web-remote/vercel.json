@@ -41,6 +41,10 @@
       "destination": "/api/movil?op=firma-profesor"
     },
     {
+      "source": "/api/coche-profesor",
+      "destination": "/api/movil?op=coche-profesor"
+    },
+    {
       "source": "/api/avisos",
       "destination": "/api/movil?op=avisos"
     },

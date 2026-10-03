@@ -291,7 +291,7 @@ function filaAlumnoHTML(a) {
   const otrosPermisos = (a.permisos || []).map(p => tagPermiso(p)).join(' ');
   const apellidos = [a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
   const nombreCompleto = apellidos ? `${a.nombre} ${apellidos}` : a.nombre;
-  const sub = [a.n_registro ? 'Nº ' + esc(a.n_registro) : '', a.telefono ? esc(a.telefono) : '', a.fecha_alta ? 'Alta el ' + diaMes(a.fecha_alta) : ''].filter(Boolean).join(' · ');
+  const sub = [a.telefono ? esc(a.telefono) : '', a.fecha_alta ? 'Alta el ' + diaMes(a.fecha_alta) : ''].filter(Boolean).join(' · ');
   const nombreArg = esc(a.nombre);
   const examen = a.proximo_examen
     ? `<div class="examen-fecha">${diaMes(a.proximo_examen.fecha)}</div>${pillSemaforo}`
@@ -300,6 +300,7 @@ function filaAlumnoHTML(a) {
     ? `${esc(fechaRelativa(a.proxima_clase.fecha, a.proxima_clase.hora_inicio))}`
     : guion;
   return `<tr>
+      <td class="col-num col-reg">${a.n_registro ? esc(a.n_registro) : guion}</td>
       <td>
         <div class="al-cell">
           <span class="avatar-ini">${esc(iniciales(nombreCompleto))}</span>
@@ -344,12 +345,12 @@ function renderAlumnosTabla() {
 
   if (!alumnosCache.length) {
     pintarPorTandas(tbody, [], () => '');
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">No hay alumnos registrados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">No hay alumnos registrados</td></tr>';
     return;
   }
   if (!filtrados.length) {
     pintarPorTandas(tbody, [], () => '');
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">Ningún alumno coincide con los filtros</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">Ningún alumno coincide con los filtros</td></tr>';
     return;
   }
   // Las primeras filas al momento; el resto según se baja (miles de alumnos)
@@ -398,7 +399,10 @@ async function addAlumno() {
   const vid = document.getElementById('a-vehiculo').value || null;
   const profId = document.getElementById('a-profesor')?.value || null;
   const email = document.getElementById('a-email')?.value.trim() || '';
+  const nRegistro = document.getElementById('a-n-registro')?.value.trim() || '';
   const datos = {
+    // Vacío a propósito = sin número (no se pone el siguiente solo)
+    n_registro: nRegistro,
     telefono: document.getElementById('a-telefono')?.value.trim() || '',
     dni: document.getElementById('a-dni')?.value.trim() || '',
     fecha_nacimiento: document.getElementById('a-fecha-nacimiento')?.value || '',
@@ -432,6 +436,13 @@ async function addAlumno() {
     document.getElementById('a-email').focus();
     return;
   }
+  if (nRegistro) {
+    const otro = await window.api.getAlumnoConNRegistro(nRegistro);
+    if (otro && !await confirmar(`El nº de registro ${nRegistro} ya lo tiene ${otro.nombre}. ¿Darlo de alta con el mismo número?`, { textoAceptar: 'Sí, repetirlo' })) {
+      document.getElementById('a-n-registro').focus();
+      return;
+    }
+  }
   hideToast('alumno-alert');
   const permisos = leerPermisosCheckboxes('a-permisos');
   const cobros = leerCobrosAlta();
@@ -442,6 +453,7 @@ async function addAlumno() {
     catch (e) { await avisar('El alumno se ha creado, pero no se pudieron anotar los cobros de alta: ' + (e.message || e) + '. Añádelos desde su ficha económica.'); }
   }
   document.getElementById('a-nombre').value = '';
+  document.getElementById('a-n-registro').value = '';
   document.getElementById('a-primer-apellido').value = '';
   document.getElementById('a-segundo-apellido').value = '';
   document.getElementById('a-email').value = '';
@@ -462,6 +474,16 @@ async function addAlumno() {
   closeModal('modal-alumno-nuevo');
   loadAlumnos();
   if (cargados.length) showToast('alumnos-alta-toast', `${nombre} dado de alta. Anotado en su cuenta: ${cargados.map(c => `${c.concepto} ${fmtEur(c.importe)}`).join(' · ')}`, 'ok');
+}
+
+// Al elegir el profesor, el coche asignado pasa a ser su coche habitual (si
+// aún no se había elegido otro).
+async function altaProfesorCambiado() {
+  const pid = document.getElementById('a-profesor')?.value;
+  const sel = document.getElementById('a-vehiculo');
+  if (!pid || !sel || sel.value) return;
+  const vid = await window.api.getVehiculoDeProfesor(parseInt(pid)).catch(() => null);
+  if (vid && [...sel.options].some(o => o.value === String(vid))) sel.value = String(vid);
 }
 
 // Cobros de alta: los conceptos de Ajustes → Cobros marcados «Al dar de alta»
@@ -490,6 +512,14 @@ async function abrirNuevoAlumno() {
   try { await llenarSelectProfesores('a-profesor'); } catch (e) {}
   const alta = document.getElementById('a-fecha-alta');
   if (alta && !alta.value) alta.value = hoyISO();
+  // El siguiente nº de registro (si ya hay numeración: tras traer los alumnos
+  // del programa anterior o con el primero escrito a mano)
+  const nReg = document.getElementById('a-n-registro');
+  if (nReg && !nReg.value) {
+    const sig = await window.api.getSiguienteNRegistro().catch(() => null);
+    nReg.value = sig || '';
+    nReg.placeholder = sig ? 'Nº' : 'Ej. 1';
+  }
   document.getElementById('a-estado').value = 'matriculado';
   await pintarCobrosAlta();
   openModal('modal-alumno-nuevo');
@@ -722,6 +752,13 @@ async function guardarDatosFicha() {
   if ('nombre' in cambios && !cambios.nombre) { showToast('fd-alerta', 'El nombre no puede quedar vacío.', 'err'); document.getElementById('fd-nombre')?.focus(); return; }
   if ('email' in cambios && !emailValido(cambios.email)) { showToast('fd-alerta', 'El email no tiene un formato válido.', 'err'); document.getElementById('fd-email')?.focus(); return; }
   if (!Object.keys(cambios).length && !previasCambiadas) { cancelarDatosFicha(); return; }
+  if (cambios.n_registro) {
+    const otro = await window.api.getAlumnoConNRegistro(cambios.n_registro, a.id);
+    if (otro && !await confirmar(`El nº de registro ${cambios.n_registro} ya lo tiene ${otro.nombre}. ¿Guardarlo igualmente?`, { textoAceptar: 'Sí, repetirlo' })) {
+      document.getElementById('fd-n_registro')?.focus();
+      return;
+    }
+  }
   if (Object.keys(cambios).length) {
     const r = await window.api.updateAlumnoCampos(a.id, cambios);
     if (!r || !r.ok) { showToast('fd-alerta', (r && r.error) || 'No se pudieron guardar los cambios.', 'err'); return; }
