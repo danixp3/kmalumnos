@@ -191,7 +191,7 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
     addLog('puesta_en_marcha', `Puesta en marcha: ${creados.alumnos} alumnos nuevos, ${actualizados.alumnos} actualizados; ${creados.vehiculos + actualizados.vehiculos} vehículos; ${creados.profesores} profesores nuevos`, []);
     save();
     const s = _sync();
-    if (s) for (const [tabla, ids] of Object.entries(dirty)) for (const id of ids) s.markDirty(tabla, id);
+    if (s) for (const [tabla, ids] of Object.entries(dirty)) s.markDirtyVarios(tabla, ids);
   }
   return { ok: true, errores: [], creados, actualizados };
 }
@@ -209,7 +209,7 @@ function vaciarDatosDePrueba({ vehiculos = false, profesores = false } = {}) {
   if (!copia || !copia.ok) return { ok: false, error: 'No se pudo hacer la copia de seguridad previa; no se ha borrado nada.' };
   const d = load();
   const s = _sync();
-  const marcar = (tabla, ids) => { if (s) for (const id of ids) s.markDeleted(tabla, id); };
+  const marcar = (tabla, ids) => { if (s) s.markDeletedVarios(tabla, ids); };
   const idsAl = new Set(d.alumnos.map(a => a.id));
   const cuenta = {};
   const quitar = (tabla, filtro, sincronizada) => {

@@ -303,7 +303,7 @@ function deleteAlumno(id) {
   save();
   const s = _sync();
   if (s) {
-    for (const pid of practicasDelAlumno) s.markDeleted('practicas', pid);
+    s.markDeletedVarios('practicas', practicasDelAlumno);
     s.markDeleted('alumnos', id);
   }
 }

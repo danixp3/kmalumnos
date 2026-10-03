@@ -602,7 +602,7 @@ function deletePracticasBulk(ids) {
   d.practicas = d.practicas.filter(p => !set.has(p.id));
   save();
   const s = _sync();
-  if (s) borradas.forEach(id => s.markDeleted('practicas', id));
+  if (s) s.markDeletedVarios('practicas', borradas);
   return borradas.length;
 }
 

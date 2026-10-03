@@ -96,6 +96,8 @@ let _syncPromesa = null; // sync en curso: una segunda llamada espera a esta
 const ID_WEB_MIN = 1000000000;
 const TAM_PAGINA = 1000; // filas máximas que devuelve PostgREST por consulta
 const TAM_LOTE_SUBIDA = 200; // filas por petición al subir alumnos/prácticas en bloque
+const TAM_LOTE_IDS = 200; // ids por petición en «where id in (...)» (van en la URL)
+const PETICIONES_A_LA_VEZ = 4; // subidas/borrados en bloque que viajan en paralelo
 // Margen al fijar lastSync: filas escritas en la nube mientras corría el sync
 // (o con el reloj de otro equipo algo desfasado) se vuelven a mirar en el
 // siguiente. Re-bajar una fila ya aplicada no cambia nada.
@@ -1218,30 +1220,48 @@ function savePending(pending) {
   fs.writeFileSync(getPendingPath(), JSON.stringify(pending, null, 2), 'utf-8');
 }
 
-function markDirty(table, id) {
+// Marcar muchos registros de una vez (importar, deshacer, borrar en bloque...):
+// una sola lectura y escritura de la cola. De uno en uno se reescribía
+// pending_sync.json entero por cada registro (y se avisaba a la ventana otras
+// tantas veces): con miles de filas la app se quedaba congelada.
+function markDirtyVarios(table, ids) {
+  const lista = [...(ids || [])];
+  if (!lista.length) return;
   const p = loadPending();
   // Defensa: un pending_sync.json de una versión anterior puede no traer la
   // clave de una tabla nueva (p.ej. "profesores" en instalaciones ya en uso).
   if (!p[table]) p[table] = [];
-  if (!p[table].includes(id)) p[table].push(id);
+  const ya = new Set(p[table]);
+  for (const id of lista) {
+    if (!ya.has(id)) { p[table].push(id); ya.add(id); }
+    if (_remarcados) _remarcados.add(table + ':' + id);
+  }
   savePending(p);
-  if (_remarcados) _remarcados.add(table + ':' + id);
   setStatus(STATUS.PENDING);
   programarSyncInmediato();
 }
 
-function markDeleted(table, id) {
+function markDeletedVarios(table, ids) {
+  const lista = [...(ids || [])];
+  if (!lista.length) return;
   const p = loadPending();
   if (!p.deleted) p.deleted = {};
   if (!p.deleted[table]) p.deleted[table] = [];
-  if (!p.deleted[table].includes(id)) p.deleted[table].push(id);
-  // Quitar de dirty si estaba
-  p[table] = (p[table] || []).filter(x => x !== id);
+  const ya = new Set(p.deleted[table]);
+  for (const id of lista) {
+    if (!ya.has(id)) { p.deleted[table].push(id); ya.add(id); }
+    if (_remarcados) _remarcados.add(table + ':' + id);
+  }
+  // Quitar de dirty si estaban
+  const borrados = new Set(lista);
+  p[table] = (p[table] || []).filter(x => !borrados.has(x));
   savePending(p);
-  if (_remarcados) _remarcados.add(table + ':' + id);
   setStatus(STATUS.PENDING);
   programarSyncInmediato();
 }
+
+function markDirty(table, id) { markDirtyVarios(table, [id]); }
+function markDeleted(table, id) { markDeletedVarios(table, [id]); }
 
 function setStatus(status) {
   currentStatus = status;
@@ -1503,6 +1523,80 @@ async function _traerTodo(construir) {
   }
 }
 
+// ─── PETICIONES EN BLOQUE ─────────────────────────────────────────────────────
+// Varias peticiones a la vez (como mucho `n`): con miles de filas, una detrás
+// de otra se sumaba la espera de cada viaje a la nube. Si una lanza (fallo de
+// red), no se empiezan más, se espera a las que ya iban y se relanza el error,
+// igual que hacía el bucle de una en una.
+async function _enParalelo(tareas, n = PETICIONES_A_LA_VEZ) {
+  let i = 0, fallo = null;
+  const trabajador = async () => {
+    while (i < tareas.length && !fallo) {
+      const tarea = tareas[i++];
+      try { await tarea(); } catch (e) { if (!fallo) fallo = e; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(n, tareas.length) }, trabajador));
+  if (fallo) throw fallo;
+}
+
+// Rechazo por permisos (RLS): repetirlo fila a fila daría lo mismo.
+const _esSinPermiso = error => !!error && (error.code === '42501' || /row-level security|permission denied/i.test(error.message || ''));
+
+// Borra en la nube (marca deleted, nunca DELETE) muchos ids: una petición por
+// cada TAM_LOTE_IDS ids, varias a la vez. Antes iba una petición por id: 2.800
+// alumnos de una importación deshecha tardaban unos 4 minutos. Si un bloque
+// falla por otra cosa que permisos, se repite id a id para que solo se quede
+// en la cola el que da error. `anotar(respuesta, id)` recibe el resultado.
+async function _marcarBorradosEnNube(sb, tabla, ids, anotar, cuando) {
+  const lista = [...new Set(ids || [])];
+  const tareas = [];
+  for (let i = 0; i < lista.length; i += TAM_LOTE_IDS) {
+    const trozo = lista.slice(i, i + TAM_LOTE_IDS);
+    tareas.push(async () => {
+      const marca = { deleted: true, updated_at: cuando || new Date().toISOString() };
+      if (trozo.length > 1) {
+        const r = await sb.from(tabla).update(marca).in('id', trozo);
+        if (!(r && r.error) || _esSinPermiso(r.error)) { for (const id of trozo) anotar(r, id); return; }
+      }
+      for (const id of trozo) anotar(await sb.from(tabla).update(marca).eq('id', id), id);
+    });
+  }
+  await _enParalelo(tareas);
+}
+
+// ─── BAJADA EN DOS PASOS (tablas grandes) ─────────────────────────────────────
+// Primero solo id/updated_at/deleted de lo cambiado (pocos bytes por fila) y
+// después la fila entera solo de lo que de verdad hay que aplicar aquí. Se
+// ahorra lo que este PC ya tiene igual o más nuevo (p. ej. lo que acaba de
+// subir él mismo) y los borrados (basta el id; si aquí no existe, nada que
+// hacer). Antes, tras importar o borrar miles de registros, cada sync de los
+// 10 minutos siguientes (margen de lastSync) volvía a bajarlos enteros. Si hay
+// que bajar mucho (PC nuevo, importación hecha en otro PC), se baja todo por
+// páginas como siempre. `localDe(id)` = registro de este PC o undefined.
+async function _traerCambios(sb, tabla, lastSync, localDe, ordenar = q => q.order('id', { ascending: true })) {
+  const completo = () => _traerTodo(() => ordenar(_conEmpresa(sb.from(tabla).select('*').gt('updated_at', lastSync))));
+  if (!lastSync || lastSync <= '1970-01-01T00:00:00.000Z') return completo();
+  const { data: ligeras, error } = await _traerTodo(() => _conEmpresa(sb.from(tabla).select('id, updated_at, deleted').gt('updated_at', lastSync)).order('id', { ascending: true }));
+  if (error || !ligeras) return completo();
+  const filas = [];
+  const faltan = [];
+  for (const r of ligeras) {
+    const local = localDe(r.id);
+    if (r.deleted) { if (local) filas.push(r); continue; }
+    if (local && String(r.updated_at || '') <= String(local.updated_at || '')) continue;
+    faltan.push(r.id);
+  }
+  // Mucho que bajar: por páginas sale en menos peticiones que id a id.
+  if (faltan.length > TAM_LOTE_IDS && faltan.length * 5 > ligeras.length) return completo();
+  for (let i = 0; i < faltan.length; i += TAM_LOTE_IDS) {
+    const { data, error: errFilas } = await _conEmpresa(sb.from(tabla).select('*').in('id', faltan.slice(i, i + TAM_LOTE_IDS)));
+    if (errFilas) return { data: null, error: errFilas };
+    filas.push(...(data || []));
+  }
+  return { data: filas, error: null };
+}
+
 // ─── VERIFICACIÓN DE INTEGRIDAD (autorreparación) ─────────────────────────────
 // Red de seguridad para registros locales que nunca llegaron a la nube (p. ej.
 // por el fallo, ya corregido, que vaciaba la cola aunque la subida hubiera
@@ -1521,10 +1615,11 @@ async function _verificarIntegridad(sb, data, pending, ahora = Date.now()) {
     if (error || !remotos) return reencolados; // sin respuesta fiable: no tocar nada
     const enNube = new Set(remotos.map(r => r.id));
     if (!pending[tabla]) pending[tabla] = [];
-    const borrados = (pending.deleted && pending.deleted[tabla]) || [];
+    const enCola = new Set([...pending[tabla], ...((pending.deleted && pending.deleted[tabla]) || [])]);
     for (const r of locales) {
-      if (enNube.has(r.id) || pending[tabla].includes(r.id) || borrados.includes(r.id)) continue;
+      if (enNube.has(r.id) || enCola.has(r.id)) continue;
       pending[tabla].push(r.id);
+      enCola.add(r.id);
       reencolados++;
     }
   }
@@ -1622,7 +1717,7 @@ async function _syncInterno() {
       if (res && res.error) {
         // Un empleado sin acceso a pagos/cargos (RLS de jefe): no se reintenta
         // (lo subirá el jefe), igual que antes.
-        const sinPermiso = (t === 'pagos' || t === 'cargos') && (res.error.code === '42501' || /row-level security|permission denied/i.test(res.error.message || ''));
+        const sinPermiso = (t === 'pagos' || t === 'cargos') && _esSinPermiso(res.error);
         if (!sinPermiso) { erroresSubida.push(`${t} ${id}: ${res.error.message || res.error.code || 'error'}`); return false; }
       }
       if (del) (hechosDel[t] || (hechosDel[t] = new Set())).add(id); else hecho(t, id);
@@ -1637,25 +1732,41 @@ async function _syncInterno() {
     // las mismas columnas (en un upsert en lote, la columna que falta en una
     // fila se pondría a NULL, y aquí «no venir» significa «no tocar», p. ej. la
     // firma). Si un lote falla, se repite fila a fila: solo se queda en la cola
-    // la que da error, como antes.
+    // la que da error, como antes. Varios lotes viajan a la vez.
+    // Cada fila es [id, payload, registroLocal]: al confirmarse la subida, el
+    // registro local se queda con el mismo updated_at que la nube, y la bajada
+    // lo reconoce como propio en vez de volver a descargarlo y reescribirlo.
     const subirEnLotes = async (tabla, filas) => {
+      const confirmar = ([id, payload, local]) => {
+        hecho(tabla, id);
+        if (local) { local.updated_at = payload.updated_at; marcasLocales = true; }
+      };
       const grupos = new Map();
       for (const f of filas) {
         const k = Object.keys(f[1]).sort().join(',');
         if (!grupos.has(k)) grupos.set(k, []);
         grupos.get(k).push(f);
       }
+      const tareas = [];
       for (const grupo of grupos.values()) {
         for (let i = 0; i < grupo.length; i += TAM_LOTE_SUBIDA) {
           const trozo = grupo.slice(i, i + TAM_LOTE_SUBIDA);
-          if (trozo.length > 1) {
-            const r = await sb.from(tabla).upsert(trozo.map(f => f[1]), { onConflict: 'id' });
-            if (r && !r.error) { for (const [id] of trozo) hecho(tabla, id); continue; }
-          }
-          for (const [id, payload] of trozo) subidaOk(await sb.from(tabla).upsert(payload, { onConflict: 'id' }), tabla, id);
+          tareas.push(async () => {
+            if (trozo.length > 1) {
+              const r = await sb.from(tabla).upsert(trozo.map(f => f[1]), { onConflict: 'id' });
+              if (r && !r.error) { trozo.forEach(confirmar); return; }
+            }
+            for (const f of trozo) {
+              const r = await sb.from(tabla).upsert(f[1], { onConflict: 'id' });
+              if (subidaOk(r, tabla, f[0]) && !(r && r.error)) confirmar(f);
+            }
+          });
         }
       }
+      await _enParalelo(tareas);
     };
+    // Borrados en bloque (ver _marcarBorradosEnNube).
+    const borrarEnNube = (tabla, ids) => _marcarBorradosEnNube(sb, tabla, ids, (r, id) => subidaOk(r, tabla, id, true));
 
     // Sucursales (fase 2, ver comentario junto a _sucursalesDisponible): si la
     // migración no está aplicada, `sucursal_id` no se estampa en ningún
@@ -1857,11 +1968,16 @@ async function _syncInterno() {
       }
     }
 
+    // Búsqueda por id sin recorrer la lista entera por cada pendiente (con miles
+    // de registros pendientes eran millones de comparaciones con la app parada).
+    const porId = tabla => new Map((data[tabla] || []).map(r => [r.id, r]));
+
     // Alumnos dirty (se suben por lotes al final del bucle)
     try {
       const loteAlumnos = [];
+      const alumnosPorId = porId('alumnos');
       for (const id of pending.alumnos) {
-        const a = data.alumnos.find(x => x.id === id);
+        const a = alumnosPorId.get(id);
         if (!a) { hecho('alumnos', id); continue; }
         if (a) {
           const payload = {
@@ -1900,7 +2016,7 @@ async function _syncInterno() {
             payload.km_previos = a.km_previos > 0 ? Math.round(a.km_previos) : null;
           }
           if (extraOn.alumnos) _ponerExtra('alumnos', payload, a);
-          loteAlumnos.push([id, payload]);
+          loteAlumnos.push([id, payload, a]);
         }
       }
       await subirEnLotes('alumnos', loteAlumnos);
@@ -1911,8 +2027,9 @@ async function _syncInterno() {
     // Prácticas dirty (se suben por lotes al final del bucle)
     try {
       const lotePracticas = [];
+      const practicasPorId = porId('practicas');
       for (const id of pending.practicas) {
-        const p = data.practicas.find(x => x.id === id);
+        const p = practicasPorId.get(id);
         if (!p) { hecho('practicas', id); continue; }
         if (p) {
           const payload = {
@@ -1936,7 +2053,7 @@ async function _syncInterno() {
           }
           if (zonasOn && Array.isArray(p.zonas)) payload.zonas = p.zonas;
           if (fraccionOn) payload.fraccion = p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : null;
-          lotePracticas.push([id, payload]);
+          lotePracticas.push([id, payload, p]);
         }
       }
       await subirEnLotes('practicas', lotePracticas);
@@ -1954,8 +2071,9 @@ async function _syncInterno() {
     // Por lotes, como alumnos y prácticas (una importación puede traer miles).
     try {
       const lotePagos = [];
+      const pagosPorId = porId('pagos');
       for (const id of (pending.pagos || [])) {
-        const pg = data.pagos.find(x => x.id === id);
+        const pg = pagosPorId.get(id);
         if (!pg) { hecho('pagos', id); continue; }
         const payload = {
           id: pg.id, alumno_id: pg.alumno_id, fecha: pg.fecha,
@@ -1965,7 +2083,7 @@ async function _syncInterno() {
         if (_empresaId) payload.empresa_id = _empresaId;
         if (sucursalesOn) payload.sucursal_id = pg.sucursal_id != null ? pg.sucursal_id : null;
         if (pagosCamposOn) { payload.forma_pago = pg.forma_pago || null; payload.empleado = pg.empleado || null; }
-        lotePagos.push([id, payload]);
+        lotePagos.push([id, payload, pg]);
       }
       await subirEnLotes('pagos', lotePagos);
     } catch (e) {
@@ -2027,8 +2145,9 @@ async function _syncInterno() {
     // antes que el alumno al que pertenece.
     if (cargosOn) {
       const loteCargos = [];
+      const cargosPorId = porId('cargos');
       for (const id of (pending.cargos || [])) {
-        const c = data.cargos.find(x => x.id === id);
+        const c = cargosPorId.get(id);
         if (!c) { hecho('cargos', id); continue; }
         const payload = {
           id: c.id, alumno_id: c.alumno_id || null, concepto: c.concepto || '',
@@ -2037,7 +2156,7 @@ async function _syncInterno() {
         };
         if (_empresaId) payload.empresa_id = _empresaId;
         if (sucursalesOn) payload.sucursal_id = c.sucursal_id != null ? c.sucursal_id : null;
-        loteCargos.push([id, payload]);
+        loteCargos.push([id, payload, c]);
       }
       await subirEnLotes('cargos', loteCargos);
     }
@@ -2057,43 +2176,20 @@ async function _syncInterno() {
     // Eliminaciones — todas por soft delete (marca deleted). Borrar de verdad
     // un alumno falla en Supabase si tiene prácticas (clave foránea) y además
     // sin la marca los otros dispositivos nunca se enteran del borrado.
-    for (const id of (pending.deleted.practicas || [])) {
-      subidaOk(await sb.from('practicas').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id), 'practicas', id, true);
-    }
-    for (const id of (pending.deleted.alumnos || [])) {
-      subidaOk(await sb.from('alumnos').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id), 'alumnos', id, true);
-    }
-    for (const id of (pending.deleted.vehiculos || [])) {
-      subidaOk(await sb.from('vehiculos').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id), 'vehiculos', id, true);
-    }
-    for (const id of (pending.deleted.profesores || [])) {
-      subidaOk(await sb.from('profesores').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id), 'profesores', id, true);
-    }
-    for (const id of (pending.deleted.tarifas || [])) {
-      subidaOk(await sb.from('tarifas').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id), 'tarifas', id, true);
-    }
+    // En bloques de ids (ver _marcarBorradosEnNube), prácticas antes que alumnos.
+    await borrarEnNube('practicas', pending.deleted.practicas);
+    await borrarEnNube('alumnos', pending.deleted.alumnos);
+    await borrarEnNube('vehiculos', pending.deleted.vehiculos);
+    await borrarEnNube('profesores', pending.deleted.profesores);
+    await borrarEnNube('tarifas', pending.deleted.tarifas);
     try {
-      for (const id of (pending.deleted.pagos || [])) {
-        subidaOk(await sb.from('pagos').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id), 'pagos', id, true);
-      }
+      await borrarEnNube('pagos', pending.deleted.pagos);
     } catch (e) {
       console.error('Sync: no se pudo borrar pagos en la nube (permiso denegado o error de red):', e.message);
     }
-    if (sucursalesOn) {
-      for (const id of (pending.deleted.sucursales || [])) {
-        subidaOk(await sb.from('sucursales').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id), 'sucursales', id, true);
-      }
-    }
-    if (reservasOn) {
-      for (const id of (pending.deleted.reservas || [])) {
-        subidaOk(await sb.from('reservas').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id), 'reservas', id, true);
-      }
-    }
-    if (cargosOn) {
-      for (const id of (pending.deleted.cargos || [])) {
-        subidaOk(await sb.from('cargos').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', id), 'cargos', id, true);
-      }
-    }
+    if (sucursalesOn) await borrarEnNube('sucursales', pending.deleted.sucursales);
+    if (reservasOn) await borrarEnNube('reservas', pending.deleted.reservas);
+    if (cargosOn) await borrarEnNube('cargos', pending.deleted.cargos);
 
     // ── 2. BAJAR CAMBIOS REMOTOS (del móvil / del otro PC) ───────────────────
     // Orden importante: vehiculos → profesores → tarifas → alumnos → practicas → pagos,
@@ -2242,21 +2338,24 @@ async function _syncInterno() {
       }
     }
 
+    // Posición de cada registro local por id: buscar con findIndex por cada fila
+    // que llega eran millones de comparaciones tras una importación grande.
+    const posiciones = lista => new Map(lista.map((r, i) => [r.id, i]));
+
     // Alumnos nuevos o modificados desde el móvil / otro PC
-    const { data: remoteAlumnos, error: errA } = await _traerTodo(() => conEmpresa(sb
-      .from('alumnos')
-      .select('*')
-      .gt('updated_at', lastSync))
-      .order('id', { ascending: true }));
+    const posAlumnos = posiciones(data.alumnos);
+    const { data: remoteAlumnos, error: errA } = await _traerCambios(sb, 'alumnos', lastSync,
+      id => data.alumnos[posAlumnos.get(id)]);
 
     if (!errA && remoteAlumnos) {
+      const alumnosFuera = new Set();
       for (const ra of remoteAlumnos) {
-        const idx = data.alumnos.findIndex(x => x.id === ra.id);
+        const idx = posAlumnos.has(ra.id) ? posAlumnos.get(ra.id) : -1;
         if (ra.deleted) {
           // Borrado en otro dispositivo: quitar el alumno y sus prácticas aquí
+          // (de una vez al final del bucle).
           if (idx !== -1) {
-            data.alumnos.splice(idx, 1);
-            data.practicas = data.practicas.filter(p => p.alumno_id !== ra.id);
+            alumnosFuera.add(ra.id);
             dataChanged = true;
           }
           continue;
@@ -2319,73 +2418,77 @@ async function _syncInterno() {
           }
           // Si local es más reciente, no sobrescribir (el usuario editó localmente)
         } else {
-          data.alumnos.push(alumno);
+          posAlumnos.set(ra.id, data.alumnos.push(alumno) - 1);
           _avanzarSeq(data, 'a', ra.id);
           dataChanged = true;
           pulled++;
         }
       }
+      if (alumnosFuera.size) {
+        data.alumnos = data.alumnos.filter(a => !alumnosFuera.has(a.id));
+        data.practicas = data.practicas.filter(p => !alumnosFuera.has(p.alumno_id));
+      }
     }
 
     // Nuevas prácticas desde el móvil
-    const { data: remotePracticas, error: errP } = await _traerTodo(() => conEmpresa(sb
-      .from('practicas')
-      .select('*')
-      .gt('updated_at', lastSync))
-      .order('updated_at', { ascending: true })
-      .order('id', { ascending: true }));
+    const posPracticas = posiciones(data.practicas);
+    const { data: remotePracticas, error: errP } = await _traerCambios(sb, 'practicas', lastSync,
+      id => data.practicas[posPracticas.get(id)],
+      q => q.order('updated_at', { ascending: true }).order('id', { ascending: true }));
 
     if (!errP && remotePracticas) {
+          const alumnosAqui = new Set(data.alumnos.map(a => a.id));
+          const vehiculosAqui = new Set(data.vehiculos.map(v => v.id));
+          const practicasFuera = new Set();
           for (const rp of remotePracticas) {
-            // Verificar que alumno y vehículo existan localmente
-            const alumnoExiste  = data.alumnos.find(a => a.id === rp.alumno_id);
-            const vehiculoExiste = data.vehiculos.find(v => v.id === rp.vehiculo_id);
-            if (!alumnoExiste || !vehiculoExiste) continue;
-
-            const idx = data.practicas.findIndex(x => x.id === rp.id);
+            const idx = posPracticas.has(rp.id) ? posPracticas.get(rp.id) : -1;
+            // Borrada en otro dispositivo: fuera de aquí también (de una vez al final).
             if (rp.deleted) {
-              if (idx !== -1) { data.practicas.splice(idx, 1); dataChanged = true; }
-            } else {
-              const practica = {
-                id: rp.id, alumno_id: rp.alumno_id, vehiculo_id: rp.vehiculo_id,
-                fecha: rp.fecha, km_inicial: parseFloat(rp.km_inicial), km_final: parseFloat(rp.km_final),
-                nota: rp.nota || '', profesor_id: rp.profesor_id != null ? rp.profesor_id : null,
-                tipo: rp.tipo != null ? rp.tipo : null,
-                sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null,
-                hora_inicio: rp.hora_inicio != null ? rp.hora_inicio : null,
-                firma: rp.firma != null ? rp.firma : null,
-                trabajado: rp.trabajado != null ? rp.trabajado : null,
-                tipo_detalle: rp.tipo_detalle != null ? rp.tipo_detalle : null,
-                hora_fin: rp.hora_fin != null ? rp.hora_fin : null,
-                zonas: Array.isArray(rp.zonas) ? rp.zonas : null,
-                fraccion: Number(rp.fraccion) > 0 && Number(rp.fraccion) < 1 ? Number(rp.fraccion) : null,
-                source: rp.source != null ? rp.source : null,
-                updated_at: rp.updated_at
-              };
-              if (idx !== -1) {
-                // Comparar timestamps: solo sobrescribir si el remoto es más reciente
-                const local = data.practicas[idx];
-                const localUpdated = local.updated_at || '1970-01-01T00:00:00.000Z';
-                const remoteUpdated = rp.updated_at || '1970-01-01T00:00:00.000Z';
+              if (idx !== -1) { practicasFuera.add(rp.id); dataChanged = true; }
+              continue;
+            }
+            // Verificar que alumno y vehículo existan localmente
+            if (!alumnosAqui.has(rp.alumno_id) || !vehiculosAqui.has(rp.vehiculo_id)) continue;
+            const practica = {
+              id: rp.id, alumno_id: rp.alumno_id, vehiculo_id: rp.vehiculo_id,
+              fecha: rp.fecha, km_inicial: parseFloat(rp.km_inicial), km_final: parseFloat(rp.km_final),
+              nota: rp.nota || '', profesor_id: rp.profesor_id != null ? rp.profesor_id : null,
+              tipo: rp.tipo != null ? rp.tipo : null,
+              sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null,
+              hora_inicio: rp.hora_inicio != null ? rp.hora_inicio : null,
+              firma: rp.firma != null ? rp.firma : null,
+              trabajado: rp.trabajado != null ? rp.trabajado : null,
+              tipo_detalle: rp.tipo_detalle != null ? rp.tipo_detalle : null,
+              hora_fin: rp.hora_fin != null ? rp.hora_fin : null,
+              zonas: Array.isArray(rp.zonas) ? rp.zonas : null,
+              fraccion: Number(rp.fraccion) > 0 && Number(rp.fraccion) < 1 ? Number(rp.fraccion) : null,
+              source: rp.source != null ? rp.source : null,
+              updated_at: rp.updated_at
+            };
+            if (idx !== -1) {
+              // Comparar timestamps: solo sobrescribir si el remoto es más reciente
+              const local = data.practicas[idx];
+              const localUpdated = local.updated_at || '1970-01-01T00:00:00.000Z';
+              const remoteUpdated = rp.updated_at || '1970-01-01T00:00:00.000Z';
 
-                if (remoteUpdated > localUpdated) {
-                  _detectarYRegistrarConflicto(data, 'practicas', pending.practicas, rp.id,
-                    ['alumno_id', 'vehiculo_id', 'fecha', 'km_inicial', 'km_final', 'nota', 'profesor_id', 'tipo', 'hora_inicio'],
-                    local, practica, conflictos);
-                  data.practicas[idx] = practica;
-                  dataChanged = true;
-                  pulled++;
-                }
-                // Si local es más reciente, no sobrescribir (el usuario editó localmente)
-              } else {
-                data.practicas.push(practica);
-                // Actualizar seq si hace falta
-                _avanzarSeq(data, 'p', rp.id);
+              if (remoteUpdated > localUpdated) {
+                _detectarYRegistrarConflicto(data, 'practicas', pending.practicas, rp.id,
+                  ['alumno_id', 'vehiculo_id', 'fecha', 'km_inicial', 'km_final', 'nota', 'profesor_id', 'tipo', 'hora_inicio'],
+                  local, practica, conflictos);
+                data.practicas[idx] = practica;
                 dataChanged = true;
                 pulled++;
               }
+              // Si local es más reciente, no sobrescribir (el usuario editó localmente)
+            } else {
+              posPracticas.set(rp.id, data.practicas.push(practica) - 1);
+              // Actualizar seq si hace falta
+              _avanzarSeq(data, 'p', rp.id);
+              dataChanged = true;
+              pulled++;
             }
           }
+          if (practicasFuera.size) data.practicas = data.practicas.filter(p => !practicasFuera.has(p.id));
         }
 
     // Pagos nuevos o modificados. Igual que en la subida: un empleado sin
@@ -2394,23 +2497,23 @@ async function _syncInterno() {
     // por esto), así que la consulta va envuelta en try/catch además del
     // chequeo normal de `error`.
     try {
-      const { data: remotePagos, error: errPg } = await _traerTodo(() => conEmpresa(sb
-        .from('pagos')
-        .select('*')
-        .gt('updated_at', lastSync))
-        .order('id', { ascending: true }));
+      const posPagos = posiciones(data.pagos);
+      const { data: remotePagos, error: errPg } = await _traerCambios(sb, 'pagos', lastSync,
+        id => data.pagos[posPagos.get(id)]);
 
       if (!errPg && remotePagos) {
+        const pagosFuera = new Set();
         for (const rpg of remotePagos) {
-          const idx = data.pagos.findIndex(x => x.id === rpg.id);
+          const idx = posPagos.has(rpg.id) ? posPagos.get(rpg.id) : -1;
           if (rpg.deleted) {
             if (idx !== -1) {
-              data.pagos.splice(idx, 1);
+              pagosFuera.add(rpg.id);
               dataChanged = true;
             }
             continue;
           }
           if (idx === -1) {
+            posPagos.set(rpg.id, data.pagos.length);
             data.pagos.push({
               id: rpg.id, alumno_id: rpg.alumno_id, fecha: rpg.fecha,
               cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || '',
@@ -2441,6 +2544,7 @@ async function _syncInterno() {
             }
           }
         }
+        if (pagosFuera.size) data.pagos = data.pagos.filter(p => !pagosFuera.has(p.id));
       }
     } catch (e) {
       console.error('Sync: no se pudo leer pagos (permiso denegado o error de red):', e.message);
@@ -2563,8 +2667,9 @@ async function _syncInterno() {
           .order('id', { ascending: true }));
 
         if (!errC && remoteCargos) {
+          const posCargos = posiciones(data.cargos);
           for (const rc of remoteCargos) {
-            const idx = data.cargos.findIndex(x => x.id === rc.id);
+            const idx = posCargos.has(rc.id) ? posCargos.get(rc.id) : -1;
             const cargo = {
               id: rc.id, alumno_id: rc.alumno_id != null ? rc.alumno_id : null,
               concepto: rc.concepto || '', tipo: rc.tipo, importe: parseFloat(rc.importe) || 0,
@@ -2574,7 +2679,7 @@ async function _syncInterno() {
               updated_at: rc.updated_at
             };
             if (idx === -1) {
-              data.cargos.push(cargo);
+              posCargos.set(rc.id, data.cargos.push(cargo) - 1);
               _avanzarSeq(data, 'cargo', rc.id);
               dataChanged = true;
               pulled++;
@@ -2643,9 +2748,10 @@ async function _syncInterno() {
     for (const tabla of [..._TABLAS_SYNC, 'ajustes_empresa']) {
       // Un id sin registro en local (p. ej. renumerado por la reconciliación
       // de vehículos) ya no tiene nada que subir.
+      const idsAqui = tabla === 'ajustes_empresa' ? null : new Set((data[tabla] || []).map(r => r.id));
       const existe = tabla === 'ajustes_empresa'
         ? (k => !!(data.ajustes_empresa && data.ajustes_empresa[k]))
-        : (id => (data[tabla] || []).some(r => r.id === id));
+        : (id => idsAqui.has(id));
       pending[tabla] = quedan(pending[tabla], enDisco[tabla], hechos[tabla], tabla, existe);
       if (tabla === 'ajustes_empresa') continue;
       if (!pending.deleted) pending.deleted = {};
@@ -2882,67 +2988,69 @@ async function pushAll() {
       }
       return res;
     };
+    // En trozos de TAM_LOTE_SUBIDA filas, varios a la vez: una sola petición
+    // con miles de filas (tras importar de otro programa) podía pasarse del
+    // tiempo máximo de la nube y no subir nada.
+    const subirTodo = async (tabla, filas, que, toleraSinPermiso = false) => {
+      const tareas = [];
+      for (let i = 0; i < filas.length; i += TAM_LOTE_SUBIDA) {
+        const trozo = filas.slice(i, i + TAM_LOTE_SUBIDA);
+        tareas.push(async () => { comprobar(await sb.from(tabla).upsert(trozo, { onConflict: 'id' }), que, toleraSinPermiso); });
+      }
+      await _enParalelo(tareas);
+    };
 
     // Subir en orden: vehiculos → profesores → tarifas → alumnos → practicas → pagos
     if (data.vehiculos.length) {
-      comprobar(await sb.from('vehiculos').upsert(
+      await subirTodo('vehiculos',
         data.vehiculos.map(v => _quitarExtra('vehiculos', quitarSucursal({ ...v, ...conEmpresaTag, deleted: false, updated_at: now }), extraOn.vehiculos)),
-        { onConflict: 'id' }
-      ), 'subida completa');
+        'subida completa');
     }
     if (data.profesores.length) {
-      comprobar(await sb.from('profesores').upsert(
+      await subirTodo('profesores',
         data.profesores.map(p => _quitarExtra('profesores', quitarDniProfesor(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })), extraOn.profesores)),
-        { onConflict: 'id' }
-      ), 'subida completa');
+        'subida completa');
     }
     if (data.tarifas.length) {
-      comprobar(await sb.from('tarifas').upsert(
+      await subirTodo('tarifas',
         data.tarifas.map(t => ({ ...t, ...conEmpresaTag, deleted: false, updated_at: now })),
-        { onConflict: 'id' }
-      ), 'subida completa');
+        'subida completa');
     }
     if (data.alumnos.length) {
-      comprobar(await sb.from('alumnos').upsert(
+      await subirTodo('alumnos',
         data.alumnos.map(a => _quitarExtra('alumnos', quitarPrevias(quitarFichaDgt(quitarPermisos(quitarLibro(quitarDatos(quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now }))))))), extraOn.alumnos)),
-        { onConflict: 'id' }
-      ), 'subida completa');
+        'subida completa');
     }
     if (data.practicas.length) {
-      comprobar(await sb.from('practicas').upsert(
+      await subirTodo('practicas',
         data.practicas.map(p => quitarMovil(quitarHoraInicio(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })))),
-        { onConflict: 'id' }
-      ), 'subida completa');
+        'subida completa');
     }
     // Sucursales: solo si la migración está aplicada (si no, ni la tabla existe).
     if (sucursalesOn && data.sucursales.length) {
-      comprobar(await sb.from('sucursales').upsert(
+      await subirTodo('sucursales',
         data.sucursales.map(s => ({ ...s, ...conEmpresaTag, deleted: false, updated_at: now })),
-        { onConflict: 'id' }
-      ), 'subida completa');
+        'subida completa');
     }
     // Reservas: solo si la migración está aplicada (si no, ni la tabla existe).
     if (reservasOn && data.reservas.length) {
-      comprobar(await sb.from('reservas').upsert(
+      await subirTodo('reservas',
         data.reservas.map(r => quitarSucursal({ ...r, ...conEmpresaTag, deleted: false, updated_at: now })),
-        { onConflict: 'id' }
-      ), 'subida completa');
+        'subida completa');
     }
     // Cargos: solo si la migración está aplicada (si no, ni la tabla existe).
     if (cargosOn && data.cargos.length) {
-      comprobar(await sb.from('cargos').upsert(
+      await subirTodo('cargos',
         data.cargos.map(c => quitarSucursal({ ...c, ...conEmpresaTag, updated_at: now })),
-        { onConflict: 'id' }
-      ), 'subida completa');
+        'subida completa');
     }
     // Pagos: igual tolerancia que en sync() — un empleado sin acceso a la
     // tabla por RLS no debe abortar la subida completa de las demás tablas.
     try {
       if (data.pagos.length) {
-        comprobar(await sb.from('pagos').upsert(
+        await subirTodo('pagos',
           data.pagos.map(pg => quitarPagosCampos(quitarSucursal({ ...pg, ...conEmpresaTag, deleted: false, updated_at: now }))),
-          { onConflict: 'id' }
-        ), 'pagos', true);
+          'pagos', true);
       }
     } catch (e) {
       console.error('Sync (subir todo): no se pudo subir pagos (permiso denegado o error de red):', e.message);
@@ -2950,44 +3058,22 @@ async function pushAll() {
 
     // Ejecutar los borrados pendientes antes de vaciar la cola: antes se
     // descartaban sin subir y los registros borrados quedaban vivos en la nube.
+    // En bloques de ids, como en sync() (ver _marcarBorradosEnNube).
     const pending = loadPending();
-    for (const id of (pending.deleted.practicas || [])) {
-      await sb.from('practicas').update({ deleted: true, updated_at: now }).eq('id', id);
-    }
-    for (const id of (pending.deleted.alumnos || [])) {
-      await sb.from('alumnos').update({ deleted: true, updated_at: now }).eq('id', id);
-    }
-    for (const id of (pending.deleted.vehiculos || [])) {
-      await sb.from('vehiculos').update({ deleted: true, updated_at: now }).eq('id', id);
-    }
-    for (const id of (pending.deleted.profesores || [])) {
-      await sb.from('profesores').update({ deleted: true, updated_at: now }).eq('id', id);
-    }
-    for (const id of (pending.deleted.tarifas || [])) {
-      await sb.from('tarifas').update({ deleted: true, updated_at: now }).eq('id', id);
-    }
+    const borrar = (tabla) => _marcarBorradosEnNube(sb, tabla, pending.deleted[tabla], () => {}, now);
+    await borrar('practicas');
+    await borrar('alumnos');
+    await borrar('vehiculos');
+    await borrar('profesores');
+    await borrar('tarifas');
     try {
-      for (const id of (pending.deleted.pagos || [])) {
-        await sb.from('pagos').update({ deleted: true, updated_at: now }).eq('id', id);
-      }
+      await borrar('pagos');
     } catch (e) {
       console.error('Sync (subir todo): no se pudo borrar pagos en la nube (permiso denegado o error de red):', e.message);
     }
-    if (sucursalesOn) {
-      for (const id of (pending.deleted.sucursales || [])) {
-        await sb.from('sucursales').update({ deleted: true, updated_at: now }).eq('id', id);
-      }
-    }
-    if (reservasOn) {
-      for (const id of (pending.deleted.reservas || [])) {
-        await sb.from('reservas').update({ deleted: true, updated_at: now }).eq('id', id);
-      }
-    }
-    if (cargosOn) {
-      for (const id of (pending.deleted.cargos || [])) {
-        await sb.from('cargos').update({ deleted: true, updated_at: now }).eq('id', id);
-      }
-    }
+    if (sucursalesOn) await borrar('sucursales');
+    if (reservasOn) await borrar('reservas');
+    if (cargosOn) await borrar('cargos');
 
     if (erroresPush.length) {
       // No se vacía la cola: lo que falló se reintentará en el siguiente sync.
@@ -3048,6 +3134,8 @@ module.exports = {
   pushAll,
   markDirty,
   markDeleted,
+  markDirtyVarios,
+  markDeletedVarios,
   getStatus,
   STATUS,
   startAutoSync,

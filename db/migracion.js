@@ -959,9 +959,9 @@ function aplicarImportacion(entrada = {}) {
   addLog('importacion', `Datos traídos de otro programa (${registro.archivo}): ${qué}`, []);
   save();
   if (s) {
-    for (const id of tocados) s.markDirty('alumnos', id);
-    for (const id of registro.creados.practicas) s.markDirty('practicas', id);
-    for (const id of registro.creados.cargos) s.markDirty('cargos', id);
+    s.markDirtyVarios('alumnos', tocados);
+    s.markDirtyVarios('practicas', registro.creados.practicas);
+    s.markDirtyVarios('cargos', registro.creados.cargos);
   }
   return { ok: true, id: registro.id, resumen: registro.resumen, copia: copia && copia.ok ? copia.file : null };
 }
@@ -997,7 +997,7 @@ function deshacerImportacion(id) {
   if (!imp) return { ok: false, error: 'No se encuentra esa importación.' };
   if (imp.deshecha) return { ok: false, error: 'Esa importación ya se deshizo.' };
   const s = _sync();
-  const marcarBorrado = (t, ids) => { if (s) for (const x of ids) s.markDeleted(t, x); };
+  const marcarBorrado = (t, ids) => { if (s) s.markDeletedVarios(t, ids); };
   const res = { practicas: 0, alumnos: 0, conservados: [], restaurados: 0, cargos: 0, profesores: 0, vehiculos: 0 };
 
   const pids = new Set(imp.creados.practicas);
@@ -1024,17 +1024,21 @@ function deshacerImportacion(id) {
   res.tasas = quitar('tasas', imp.creados.tasas);
   res.vencimientos = quitar('vencimientos', imp.creados.vencimientos);
 
-  const usado = aid => d.practicas.some(p => p.alumno_id === aid && !p.deleted) ||
-    (d.pagos || []).some(p => p.alumno_id === aid && !p.deleted) ||
-    (d.cargos || []).some(c => c.alumno_id === aid && !c.deleted) ||
-    (d.reservas || []).some(r => r.alumno_id === aid && !r.deleted);
+  // Alumnos con actividad, calculado una vez (con miles de alumnos, mirar todas
+  // las clases por cada uno dejaba la app parada).
+  const conActividad = new Set();
+  for (const t of ['practicas', 'pagos', 'cargos', 'reservas']) {
+    for (const r of d[t] || []) if (!r.deleted) conActividad.add(r.alumno_id);
+  }
+  const alumnosPorId = new Map(d.alumnos.map(a => [a.id, a]));
   const fuera = [];
   for (const aid of imp.creados.alumnos) {
-    const a = d.alumnos.find(x => x.id === aid);
+    const a = alumnosPorId.get(aid);
     if (!a) continue;
-    if (usado(aid)) res.conservados.push(nombreDe(a)); else fuera.push(aid);
+    if (conActividad.has(aid)) res.conservados.push(nombreDe(a)); else fuera.push(aid);
   }
-  d.alumnos = d.alumnos.filter(a => !fuera.includes(a.id));
+  const fueraSet = new Set(fuera);
+  d.alumnos = d.alumnos.filter(a => !fueraSet.has(a.id));
   marcarBorrado('alumnos', fuera); res.alumnos = fuera.length;
 
   // Lo que se completó en registros que ya estaban (alumnos y, desde Ariauto,
