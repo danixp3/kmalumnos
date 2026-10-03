@@ -5,6 +5,10 @@
 const { load, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar } = require('./core');
 const { getSolapamientos } = require('./km-algoritmos');
 const { getDeudas } = require('./pagos');
+const { vehiculoEnUso } = require('./campos-extra');
+// Coche que cuenta en una estadística por coche: en uso, o retirado pero con
+// clases en lo que se está contando (el historial sigue cuadrando).
+const vehiculoCuenta = (v, practicas) => vehiculoEnUso(v) || practicas.some(p => p.vehiculo_id === v.id);
 const { getEstadisticasAprobados } = require('./convocatorias');
 
 // sucursalId opcional: sin argumento (o "Todas las sucursales" en el
@@ -19,7 +23,7 @@ function getResumen(sucursalId) {
   // funcionalidad, la detección de conflictos es global)
   const conflictos = getSolapamientos();
   return {
-    vehiculos: vehiculos.length,
+    vehiculos: vehiculos.filter(vehiculoEnUso).length,
     alumnos: alumnos.length,
     practicas: practicas.length,
     sinKm,
@@ -161,7 +165,7 @@ function getDatosGraficos(meses, sucursalId) {
     .sort((a, b) => b.num_practicas - a.num_practicas);
 
   const porVehiculo = filtrarPorSucursal(d.vehiculos, sucursalId)
-    .filter(v => !v.deleted)
+    .filter(v => !v.deleted && vehiculoCuenta(v, practicasValidas))
     .map(v => {
       const propias = practicasValidas.filter(x => x.vehiculo_id === v.id);
       const km = propias.filter(conKm).reduce((sum, x) => sum + (x.km_final - x.km_inicial), 0);
@@ -364,7 +368,7 @@ const ANALISIS_VEHICULOS_DIAS = 30;
  */
 function getAnalisisVehiculos() {
   const d = load();
-  const vehiculos = d.vehiculos.filter(v => !v.deleted);
+  const vehiculos = d.vehiculos.filter(v => !v.deleted && vehiculoCuenta(v, d.practicas.filter(p => !p.deleted)));
 
   const msPorDia = 24 * 60 * 60 * 1000;
   const hoy = new Date();
@@ -448,9 +452,9 @@ function getInformes(desde, hasta, sucursalId) {
   // Ocupación de vehículos: getAnalisisVehiculos no filtra por fecha, así
   // que aquí se recorren las prácticas del periodo directamente (mismo
   // criterio de "con km" que esa función).
-  const vehiculos = filtrarPorSucursal(d.vehiculos, sucursalId).filter(v => !v.deleted);
   const practicasPeriodo = filtrarPorSucursal(d.practicas, sucursalId)
     .filter(p => !p.deleted && _enRango(p.fecha, desde, hasta));
+  const vehiculos = filtrarPorSucursal(d.vehiculos, sucursalId).filter(v => !v.deleted && vehiculoCuenta(v, practicasPeriodo));
   const conKm = p => p.km_final != null && p.km_inicial != null && p.km_final >= p.km_inicial && !(p.km_inicial === 0 && p.km_final === 0);
   const ocupacionVehiculos = vehiculos.map(v => {
     const propias = practicasPeriodo.filter(p => p.vehiculo_id === v.id);
@@ -560,7 +564,7 @@ function getLibroVentas(desde, hasta, sucursalId, ivaPorcentaje) {
 //    flujo móvil al empezar una clase y se cierra al fijar el km final).
 //  · "programadas hoy" = reservas de hoy no canceladas (agenda); si hay más
 //    prácticas hechas que reservas, se toma el mayor de los dos.
-const ESTADOS_ALUMNO_FUERA_PANEL = ['baja', 'aprobado', 'apto', 'no_apto'];
+const ESTADOS_ALUMNO_FUERA_PANEL = ['baja', 'aprobado', 'apto', 'no_apto', 'inactivo'];
 
 function getPanel(hoy, sucursalId) {
   const d = load();
@@ -696,7 +700,8 @@ function getPanelVehiculos(hoy, sucursalId, duracionMin) {
   const nombreProf = new Map(d.profesores.map(x => [x.id, x.nombre]));
   const vivas = d.practicas.filter(p => !p.deleted);
 
-  const vehiculos = filtrarPorSucursal(d.vehiculos, sucursalId).filter(v => !v.deleted).map(v => {
+  const delMesTodas = vivas.filter(p => p.fecha && p.fecha.slice(0, 7) === mes);
+  const vehiculos = filtrarPorSucursal(d.vehiculos, sucursalId).filter(v => !v.deleted && vehiculoCuenta(v, delMesTodas)).map(v => {
     const propias = vivas.filter(p => p.vehiculo_id === v.id);
     const delMes = propias.filter(p => p.fecha && p.fecha.slice(0, 7) === mes);
     const kmPracticas = Math.round(delMes.filter(conKm).reduce((s, p) => s + Math.max(0, p.km_final - p.km_inicial), 0));

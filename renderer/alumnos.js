@@ -3,22 +3,22 @@
 
 // Etiquetas del ciclo de estados ampliado (tarea B1 del PLAN-MAESTRO):
 // matriculado → en teórica → apto teórico → en prácticas → presentado →
-// apto/no apto, más baja. activo/aprobado se conservan (legacy) para que
-// alumnos ya guardados con esos valores sigan mostrando su etiqueta. Usado
-// tanto en la tabla (pastilla) como en la ficha imprimible.
+// apto/no apto, más baja e inactivo (dejó de venir sin darse de baja: los
+// archivados de Ariauto). activo/aprobado se conservan (legacy) para que
+// alumnos ya guardados con esos valores sigan mostrando su etiqueta.
 const ESTADO_ALUMNO_TEXTO = {
   matriculado: 'Matriculado', en_teorica: 'En teórica', apto_teorico: 'Apto teórico',
   en_practicas: 'En prácticas', presentado: 'Presentado a examen', apto: 'Apto (aprobado)',
-  no_apto: 'No apto', baja: 'Baja', activo: 'Activo', aprobado: 'Aprobado'
+  no_apto: 'No apto', baja: 'Baja', inactivo: 'Inactivo', activo: 'Activo', aprobado: 'Aprobado'
 };
 
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
 async function loadVehiculosSelect() {
   vehiculosCache = await window.api.getVehiculos();
-  ['a-vehiculo', 'edit-a-vehiculo'].forEach(selId => {
+  ['a-vehiculo'].forEach(selId => {
     const sel = document.getElementById(selId);
     sel.innerHTML = '<option value="">-- Sin asignar --</option>';
-    vehiculosCache.forEach(v => {
+    vehiculosCache.filter(v => v.activo !== false).forEach(v => {
       const opt = document.createElement('option');
       opt.value = v.id;
       opt.textContent = `${v.nombre}${v.matricula ? ' (' + v.matricula + ')' : ''}`;
@@ -30,15 +30,24 @@ async function loadVehiculosSelect() {
 async function loadAlumnos() {
   // Una sola llamada: nº de prácticas, km, última práctica, próxima clase,
   // próximo examen y bono de cada alumno (db.getAlumnosLista).
-  alumnosCache = await window.api.getAlumnosLista(getSucursalActual());
-  // Semáforo de examen: una sola llamada para todos los alumnos (evita N+1),
-  // cruzado por alumno_id en un Map para pintar la pastilla de cada fila.
-  try {
-    const semaforo = await window.api.getSemaforoExamen();
-    semaforoCache = new Map(semaforo.map(s => [s.alumno_id, s]));
-  } catch (e) {
-    semaforoCache = new Map();
+  const [lista, semaforo] = await Promise.all([
+    window.api.getAlumnosLista(getSucursalActual()),
+    // Semáforo de examen: una sola llamada para todos los alumnos (evita N+1),
+    // cruzado por alumno_id en un Map para pintar la pastilla de cada fila.
+    window.api.getSemaforoExamen().catch(() => [])
+  ]);
+  semaforoCache = new Map((semaforo || []).map(s => [s.alumno_id, s]));
+  // Con miles de alumnos, lo que cuesta se calcula una vez aquí y no en cada
+  // tecla: el texto en el que busca el buscador y en qué pestañas sale.
+  const hoy = hoyISO();
+  for (const a of lista) {
+    a._busca = sinTildes([a.nombre, a.primer_apellido, a.segundo_apellido, a.dni, a.n_registro, a.telefono, a.telefono2, a.email, a.poblacion].filter(Boolean).join(' '));
+    a._telDigitos = [a.telefono, a.telefono2].filter(Boolean).join(' ').replace(/\D/g, '');
+    a._tabs = {};
+    for (const [t, pred] of Object.entries(PREDICADOS_TAB_ALUMNOS)) a._tabs[t] = pred(a, hoy);
   }
+  alumnosCache = lista;
+  alumnosConteoTabs = Object.fromEntries(Object.keys(PREDICADOS_TAB_ALUMNOS).map(t => [t, lista.filter(a => a._tabs[t]).length]));
   poblarFiltrosAlumnos();
   renderAlumnosTabla();
 }
@@ -66,14 +75,14 @@ function poblarFiltrosAlumnos() {
     }
   });
   const vehiculosOpts = [...vehiculosVistos.entries()]
-    .sort((x, y) => x[1].localeCompare(y[1], 'es', { numeric: true }));
+    .sort((x, y) => COLLATOR_ES.compare(x[1], y[1]));
 
   selVehiculo.innerHTML = '<option value="">Todos los vehículos</option>' +
     vehiculosOpts.map(([id, nombre]) => `<option value="${id}">${esc(nombre)}</option>`).join('') +
     (haySinAsignar ? '<option value="none">Sin asignar</option>' : '');
 
   const permisosOpts = [...new Set(alumnosCache.map(a => a.permiso).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+    .sort((a, b) => COLLATOR_ES.compare(a, b));
   selPermiso.innerHTML = '<option value="">Todos los permisos</option>' +
     permisosOpts.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
 
@@ -90,7 +99,7 @@ function poblarFiltrosAlumnos() {
       }
     });
     const profesoresOpts = [...profesoresVistos.entries()]
-      .sort((x, y) => x[1].localeCompare(y[1], 'es', { numeric: true }));
+      .sort((x, y) => COLLATOR_ES.compare(x[1], y[1]));
     selProfesor.innerHTML = '<option value="">Todos los profesores</option>' +
       profesoresOpts.map(([id, nombre]) => `<option value="${id}">${esc(nombre)}</option>`).join('') +
       (haySinProfesor ? '<option value="none">Sin asignar</option>' : '');
@@ -144,17 +153,20 @@ function actualizarIndicadoresOrdenAlumnos() {
 }
 
 // ─── Pestañas de grupo (En prácticas / Con examen / Sin clase / Nuevos / Todos) ───
-const ESTADOS_FUERA_DE_PRACTICAS = ['baja', 'aprobado', 'apto', 'no_apto'];
+// 'inactivo': alumno antiguo que dejó de venir (los archivados de Ariauto).
+const ESTADOS_FUERA_DE_PRACTICAS = ['baja', 'aprobado', 'apto', 'no_apto', 'inactivo'];
 const alumnoActivo = a => !ESTADOS_FUERA_DE_PRACTICAS.includes(a.estado || 'activo');
 const DIAS_SIN_CLASE_RIESGO = 30;
 const DIAS_ALUMNO_NUEVO = 30;
 const PREDICADOS_TAB_ALUMNOS = {
   activos: a => alumnoActivo(a),
   examen: a => !!a.proximo_examen,
-  riesgo: a => alumnoActivo(a) && a.num_practicas > 0 && a.ultima_fecha && diasEntre(a.ultima_fecha, hoyISO()) > DIAS_SIN_CLASE_RIESGO,
-  nuevos: a => alumnoActivo(a) && (a.num_practicas === 0 || (a.fecha_alta && diasEntre(a.fecha_alta, hoyISO()) <= DIAS_ALUMNO_NUEVO)),
+  riesgo: (a, hoy = hoyISO()) => alumnoActivo(a) && a.num_practicas > 0 && a.ultima_fecha && diasEntre(a.ultima_fecha, hoy) > DIAS_SIN_CLASE_RIESGO,
+  nuevos: (a, hoy = hoyISO()) => alumnoActivo(a) && (a.num_practicas === 0 || (a.fecha_alta && diasEntre(a.fecha_alta, hoy) <= DIAS_ALUMNO_NUEVO)),
   todos: () => true
 };
+let alumnosConteoTabs = {};
+const enTabAlumnos = (a, tab) => (a._tabs ? a._tabs[tab] : PREDICADOS_TAB_ALUMNOS[tab](a));
 
 function cambiarTabAlumnos(tab) {
   alumnosTab = tab;
@@ -165,13 +177,13 @@ function pintarTabsAlumnos() {
   const nombres = { activos: 'En prácticas', examen: 'Con examen', riesgo: 'Sin clase', nuevos: 'Nuevos', todos: 'Todos' };
   document.querySelectorAll('#alumnos-tabs button').forEach(btn => {
     const t = btn.dataset.tab;
-    const n = alumnosCache.filter(PREDICADOS_TAB_ALUMNOS[t]).length;
-    btn.innerHTML = `${nombres[t]} <span class="seg-n">· ${n}</span>`;
+    const n = alumnosConteoTabs[t] ?? alumnosCache.filter(a => enTabAlumnos(a, t)).length;
+    btn.innerHTML = `${nombres[t]} <span class="seg-n">· ${fmtMiles(n)}</span>`;
     btn.setAttribute('aria-pressed', t === alumnosTab ? 'true' : 'false');
     if (t === 'riesgo') btn.title = `Alumnos en prácticas que llevan más de ${DIAS_SIN_CLASE_RIESGO} días sin dar clase`;
   });
   const resumen = document.getElementById('alumnos-resumen');
-  if (resumen) resumen.textContent = `${alumnosCache.filter(PREDICADOS_TAB_ALUMNOS.activos).length} en prácticas · ${alumnosCache.length} en total`;
+  if (resumen) resumen.textContent = `${fmtMiles(alumnosConteoTabs.activos ?? 0)} en prácticas · ${fmtMiles(alumnosCache.length)} en total`;
 }
 
 // Pastilla de estado: lo más útil de un vistazo (en clase > final de ciclo > examen > nuevo > estado).
@@ -180,8 +192,9 @@ function pillEstadoAlumno(a) {
   if (a.en_clase_ahora) return '<span class="pill pill-dark"><span class="pill-dot"></span>En clase ahora</span>';
   if (estado === 'baja' || estado === 'no_apto') return `<span class="pill pill-err">${esc(ESTADO_ALUMNO_TEXTO[estado])}</span>`;
   if (estado === 'apto' || estado === 'aprobado') return `<span class="pill pill-ok">${esc(ESTADO_ALUMNO_TEXTO[estado])}</span>`;
+  if (estado === 'inactivo') return `<span class="pill pill-line" title="Dejó de venir sin darse de baja">${esc(ESTADO_ALUMNO_TEXTO[estado])}</span>`;
   if (a.proximo_examen) return '<span class="pill pill-info"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>Examen programado</span>';
-  if (PREDICADOS_TAB_ALUMNOS.nuevos(a) && a.num_practicas === 0) return '<span class="pill pill-line">Nuevo</span>';
+  if (enTabAlumnos(a, 'nuevos') && a.num_practicas === 0) return '<span class="pill pill-line">Nuevo</span>';
   return `<span class="pill">${esc(ESTADO_ALUMNO_TEXTO[estado] || estado)}</span>`;
 }
 
@@ -200,28 +213,33 @@ const SVG_MINI = {
   euro: '<path d="M18 7.5A6.5 6.5 0 0 0 7 9.5v5A6.5 6.5 0 0 0 18 16.5"/><path d="M4 10.5h10M4 13.5h10"/>',
   editar: '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>',
   borrar: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
-  ficha: '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>'
+  ficha: '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>',
+  retirar: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/>'
 };
 const svgMini = k => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG_MINI[k]}</svg>`;
 
-function renderAlumnosTabla() {
-  const tbody = document.querySelector('#tabla-alumnos tbody');
-  const nombreFiltro = (document.getElementById('f-alumnos-nombre')?.value || '').trim().toLowerCase();
+// El buscador espera a que se deje de teclear (con miles de alumnos, repintar
+// en cada letra se notaba).
+const filtrarAlumnosPronto = retrasar(() => renderAlumnosTabla(), 120);
+
+// Alumnos que se ven con los filtros, pestaña y orden actuales
+function alumnosFiltrados() {
+  const texto = sinTildes((document.getElementById('f-alumnos-nombre')?.value || '').trim());
+  const palabras = texto ? texto.split(/\s+/) : [];
+  const digitos = texto.replace(/\D/g, '');
   const vehiculoFiltro = document.getElementById('f-alumnos-vehiculo')?.value || '';
   const permisoFiltro = document.getElementById('f-alumnos-permiso')?.value || '';
   const profesorFiltro = document.getElementById('f-alumnos-profesor')?.value || '';
   const estadoFiltro = document.getElementById('f-alumnos-estado')?.value || '';
-  pintarTabsAlumnos();
 
   let filtrados = alumnosCache.filter(a => {
-    if (!PREDICADOS_TAB_ALUMNOS[alumnosTab](a)) return false;
-    // El texto de búsqueda también encuentra por DNI y teléfono, no solo nombre.
-    if (nombreFiltro) {
-      const nombreCompleto = [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ').toLowerCase();
-      const enNombre = nombreCompleto.includes(nombreFiltro);
-      const enDni = (a.dni || '').toLowerCase().includes(nombreFiltro);
-      const enTelefono = (a.telefono || '').toLowerCase().includes(nombreFiltro);
-      if (!enNombre && !enDni && !enTelefono) return false;
+    if (!enTabAlumnos(a, alumnosTab)) return false;
+    // El texto busca en nombre y apellidos, DNI, nº de registro, teléfonos,
+    // email y población (todas las palabras, sin importar tildes); un número
+    // de teléfono escrito con espacios también se encuentra.
+    if (palabras.length) {
+      const busca = a._busca || sinTildes([a.nombre, a.primer_apellido, a.segundo_apellido, a.dni, a.n_registro, a.telefono].join(' '));
+      if (!palabras.every(w => busca.includes(w)) && !(digitos.length >= 6 && (a._telDigitos || '').includes(digitos))) return false;
     }
     if (vehiculoFiltro === 'none') {
       if (a.vehiculo_id) return false;
@@ -240,7 +258,7 @@ function renderAlumnosTabla() {
 
   const { col, dir } = alumnosSort;
   if (col) {
-    filtrados = [...filtrados].sort((a, b) => {
+    filtrados = filtrados.slice().sort((a, b) => {
       if (col === 'practicas') return (a.num_practicas - b.num_practicas) * dir;
       if (col === 'km') return ((a.km_total || 0) - (b.km_total || 0)) * dir;
       if (col === 'ultima') return ((a.ultima_fecha || '') < (b.ultima_fecha || '') ? -1 : (a.ultima_fecha || '') > (b.ultima_fecha || '') ? 1 : 0) * dir;
@@ -248,7 +266,7 @@ function renderAlumnosTabla() {
         // Con examen primero (el más cercano arriba); sin examen al final, por nombre.
         const ea = a.proximo_examen ? a.proximo_examen.fecha : '9999-12-31';
         const eb = b.proximo_examen ? b.proximo_examen.fecha : '9999-12-31';
-        return (ea.localeCompare(eb) || (a.nombre || '').localeCompare(b.nombre || '', 'es')) * dir;
+        return (ea.localeCompare(eb) || COLLATOR_ES.compare(a.nombre || '', b.nombre || '')) * dir;
       }
       let va = '', vb = '';
       if (col === 'nombre') { va = a.nombre || ''; vb = b.nombre || ''; }
@@ -256,43 +274,32 @@ function renderAlumnosTabla() {
       else if (col === 'vehiculo') { va = a.vehiculo_nombre || ''; vb = b.vehiculo_nombre || ''; }
       else if (col === 'profesor') { va = a.profesor_nombre || ''; vb = b.profesor_nombre || ''; }
       else if (col === 'estado') { va = a.estado || 'activo'; vb = b.estado || 'activo'; }
-      return va.localeCompare(vb, 'es', { numeric: true }) * dir;
+      else if (col === 'registro') { va = a.n_registro || ''; vb = b.n_registro || ''; }
+      return COLLATOR_ES.compare(va, vb) * dir;
     });
   }
-  actualizarIndicadoresOrdenAlumnos();
+  return filtrados;
+}
 
-  const pie = document.getElementById('alumnos-pie');
-  const NOMBRE_ORDEN = { examen: 'próximo examen', nombre: 'nombre', practicas: 'clases', km: 'km', ultima: 'última práctica', profesor: 'profesor', estado: 'estado', permiso: 'permiso', vehiculo: 'vehículo' };
-  if (pie) pie.innerHTML = `<span>Mostrando ${filtrados.length} de ${alumnosCache.length} alumnos</span><span>${col ? 'Ordenado por ' + (NOMBRE_ORDEN[col] || col) : ''}</span>`;
-
-  if (!alumnosCache.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">No hay alumnos registrados</td></tr>';
-    return;
-  }
-  if (!filtrados.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">Ningún alumno coincide con los filtros</td></tr>';
-    return;
-  }
-
+function filaAlumnoHTML(a) {
   const semTexto = { verde: 'Listo', ambar: 'Casi', rojo: 'Lejos' };
   const guion = '<span style="color:var(--text-faint)">—</span>';
-  tbody.innerHTML = filtrados.map(a => {
-    const sem = semaforoCache.get(a.id);
-    const pillSemaforo = sem
-      ? `<span class="semaforo-pill semaforo-${sem.nivel}" title="${esc(sem.motivo)}">${semTexto[sem.nivel] || sem.nivel}</span>`
-      : '';
-    const otrosPermisos = (a.permisos || []).map(p => tagPermiso(p)).join(' ');
-    const apellidos = [a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
-    const nombreCompleto = apellidos ? `${a.nombre} ${apellidos}` : a.nombre;
-    const sub = [a.telefono ? esc(a.telefono) : '', a.fecha_alta ? 'Alta el ' + diaMes(a.fecha_alta) : ''].filter(Boolean).join(' · ');
-    const nombreArg = esc(a.nombre);
-    const examen = a.proximo_examen
-      ? `<div class="examen-fecha">${diaMes(a.proximo_examen.fecha)}</div>${pillSemaforo}`
-      : (pillSemaforo || guion);
-    const proxima = a.proxima_clase
-      ? `${esc(fechaRelativa(a.proxima_clase.fecha, a.proxima_clase.hora_inicio))}`
-      : guion;
-    return `<tr>
+  const sem = semaforoCache.get(a.id);
+  const pillSemaforo = sem
+    ? `<span class="semaforo-pill semaforo-${sem.nivel}" title="${esc(sem.motivo)}">${semTexto[sem.nivel] || sem.nivel}</span>`
+    : '';
+  const otrosPermisos = (a.permisos || []).map(p => tagPermiso(p)).join(' ');
+  const apellidos = [a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
+  const nombreCompleto = apellidos ? `${a.nombre} ${apellidos}` : a.nombre;
+  const sub = [a.n_registro ? 'Nº ' + esc(a.n_registro) : '', a.telefono ? esc(a.telefono) : '', a.fecha_alta ? 'Alta el ' + diaMes(a.fecha_alta) : ''].filter(Boolean).join(' · ');
+  const nombreArg = esc(a.nombre);
+  const examen = a.proximo_examen
+    ? `<div class="examen-fecha">${diaMes(a.proximo_examen.fecha)}</div>${pillSemaforo}`
+    : (pillSemaforo || guion);
+  const proxima = a.proxima_clase
+    ? `${esc(fechaRelativa(a.proxima_clase.fecha, a.proxima_clase.hora_inicio))}`
+    : guion;
+  return `<tr>
       <td>
         <div class="al-cell">
           <span class="avatar-ini">${esc(iniciales(nombreCompleto))}</span>
@@ -310,19 +317,52 @@ function renderAlumnosTabla() {
       <td>${examen}</td>
       <td>${pillEstadoAlumno(a)}</td>
       <td class="acciones-fila">
-        <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${nombreArg}')" title="Ficha del alumno: historial de prácticas y km">${svgMini('ficha')} Ficha</button>
+        <button class="btn btn-primary btn-sm" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${nombreArg}')" title="Ficha del alumno: datos, historial de prácticas y km">${svgMini('ficha')} Ficha</button>
         <details class="menu-fila">
           <summary class="btn btn-gray btn-sm btn-icon" title="Más acciones" aria-label="Más acciones"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
           <div class="menu-fila-lista">
             <button type="button" onclick="verAnotaciones(${a.id},'${nombreArg}')">${svgMini('nota')} Anotaciones</button>
             <button type="button" onclick="abrirEconomiaAlumno(${a.id},'${nombreArg}')">${svgMini('euro')} Economía</button>
-            <button type="button" onclick="openEditAlumno(${a.id})">${svgMini('editar')} Editar</button>
+            <button type="button" onclick="openEditAlumno(${a.id})">${svgMini('editar')} Editar datos</button>
             <button type="button" class="menu-fila-borrar" onclick="deleteAlumno(${a.id},'${nombreArg}')">${svgMini('borrar')} Borrar</button>
           </div>
         </details>
       </td>
     </tr>`;
-  }).join('');
+}
+
+function renderAlumnosTabla() {
+  const tbody = document.querySelector('#tabla-alumnos tbody');
+  pintarTabsAlumnos();
+  const filtrados = alumnosFiltrados();
+  actualizarIndicadoresOrdenAlumnos();
+
+  const pie = document.getElementById('alumnos-pie');
+  const NOMBRE_ORDEN = { examen: 'próximo examen', nombre: 'nombre', practicas: 'clases', km: 'km', ultima: 'última práctica', profesor: 'profesor', estado: 'estado', permiso: 'permiso', vehiculo: 'vehículo', registro: 'nº de registro' };
+  const { col } = alumnosSort;
+  if (pie) pie.innerHTML = `<span>Mostrando ${fmtMiles(filtrados.length)} de ${fmtMiles(alumnosCache.length)} alumnos</span><span>${col ? 'Ordenado por ' + (NOMBRE_ORDEN[col] || col) : ''}</span>`;
+
+  if (!alumnosCache.length) {
+    pintarPorTandas(tbody, [], () => '');
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No hay alumnos registrados</td></tr>';
+    return;
+  }
+  if (!filtrados.length) {
+    pintarPorTandas(tbody, [], () => '');
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">Ningún alumno coincide con los filtros</td></tr>';
+    return;
+  }
+  // Las primeras filas al momento; el resto según se baja (miles de alumnos)
+  pintarPorTandas(tbody, filtrados, filaAlumnoHTML, { tanda: 60, columnas: 9 });
+}
+
+// Exportar la lista (lo que se ve con los filtros) con todos los datos de cada alumno
+async function exportarAlumnosUI() {
+  const ids = alumnosFiltrados().map(a => a.id);
+  if (!ids.length) { avisar('No hay alumnos que exportar con estos filtros.'); return; }
+  const r = await window.api.exportarTabla('alumnos', { ids });
+  if (r && r.ok) showToast('alumnos-alta-toast', `Exportados ${fmtMiles(r.total)} alumnos con todos sus datos: ${r.path}`, 'ok');
+  else if (r && !r.canceled) avisar('No se pudo exportar: ' + (r.msg || 'error desconocido'));
 }
 
 // Validación básica de email: vacío se admite (el email es opcional, se pide
@@ -483,40 +523,224 @@ async function verAnotaciones(alumnoId, nombre) {
   modal.classList.add('open');
 }
 
-// id: se busca en alumnosCache (ya cargada por loadAlumnos) en vez de pasar
-// todos los campos por el onclick — más limpio ahora que la ficha tiene 6
-// campos nuevos, y evita problemas de escapado con comas/comillas en ellos.
+// ─── DATOS DEL ALUMNO EN SU FICHA (ver y editar en el sitio) ────────────────
+// Todos los datos del alumno en una tarjeta de su ficha, agrupados. «Editar»
+// convierte la tarjeta en un formulario ahí mismo (sin modal, sin salir de la
+// ficha) y «Guardar» manda solo lo que ha cambiado (db.updateAlumnoCampos).
+// La foto y los documentos adjuntos viven en la misma tarjeta.
+const PERMISOS_FICHA = ['AM', 'A1', 'A2', 'A', 'B', 'BE', 'C1', 'C1E', 'C', 'CE', 'D1', 'D1E', 'D', 'DE', 'CAP', 'ADR'];
+const PERMISOS_OTROS = ['AM', 'A1', 'A2', 'A', 'B', 'BE', 'C1', 'C', 'D1', 'D', 'CAP', 'ADR'];
+const RESULTADO_ALUMNO_TEXTO = { apto: 'Apto', no_apto: 'No apto', baja: 'Baja' };
+const FD_GRUPOS = [
+  { titulo: 'Identidad', campos: [
+    { c: 'nombre', l: 'Nombre', req: true }, { c: 'primer_apellido', l: 'Primer apellido' }, { c: 'segundo_apellido', l: 'Segundo apellido' },
+    { c: 'n_registro', l: 'Nº de registro' }, { c: 'dni', l: 'DNI / NIE' }, { c: 'dni_caducidad', l: 'Caduca el DNI', t: 'fecha' },
+    { c: 'sexo', l: 'Sexo', t: 'select', op: [['', '—'], ['H', 'Hombre'], ['M', 'Mujer']] },
+    { c: 'fecha_nacimiento', l: 'Nacimiento', t: 'fecha' }, { c: 'lugar_nacimiento', l: 'Lugar de nacimiento' }, { c: 'nacionalidad', l: 'Nacionalidad' }] },
+  { titulo: 'Contacto y domicilio', campos: [
+    { c: 'telefono', l: 'Teléfono', t: 'tel' }, { c: 'telefono2', l: 'Otro teléfono', t: 'tel' }, { c: 'email', l: 'Email', t: 'email' },
+    { c: 'direccion', l: 'Dirección', ancho: true }, { c: 'codigo_postal', l: 'Código postal' }, { c: 'poblacion', l: 'Población' },
+    { c: 'municipio', l: 'Municipio' }, { c: 'provincia', l: 'Provincia' }] },
+  { titulo: 'Formación', campos: [
+    { c: 'permiso', l: 'Permiso', t: 'select', op: () => PERMISOS_FICHA.map(p => [p, p]) },
+    { c: 'permisos', l: 'Otros permisos', t: 'permisos', ancho: true }, { c: 'permisos_posee', l: 'Permisos que ya tiene' },
+    { c: 'estado', l: 'Estado', t: 'select', op: () => Object.entries(ESTADO_ALUMNO_TEXTO) },
+    { c: 'profesor_id', l: 'Profesor', t: 'profesor' }, { c: 'vehiculo_id', l: 'Coche', t: 'vehiculo' },
+    { c: 'fecha_alta', l: 'Alta', t: 'fecha' }, { c: 'fecha_teorico', l: 'Teórico aprobado', t: 'fecha' }, { c: 'fecha_fin', l: 'Fin de la enseñanza', t: 'fecha' },
+    { c: 'resultado', l: 'Resultado final', t: 'select', op: [['', '—'], ['apto', 'Apto'], ['no_apto', 'No apto'], ['baja', 'Baja']] },
+    { c: 'n_solicitud', l: 'Nº de solicitud', t: 'num', ayuda: 'Solicitud del expediente en Tráfico' }, { c: 'convocatoria', l: 'Convocatoria', t: 'num' },
+    { c: 'clases_previas', l: 'Clases antes de la app', t: 'num', ayuda: 'Punto de partida: la numeración de clases y los totales continúan desde aquí' },
+    { c: 'km_previos', l: 'Km antes de la app', t: 'num' }] },
+  { titulo: 'Salud, tutor y facturación', campos: [
+    { c: 'centro_medico', l: 'Centro médico' }, { c: 'restricciones', l: 'Restricciones', ayuda: 'Lentes, condiciones restrictivas, validez limitada…' },
+    { c: 'tutor_nombre', l: 'Tutor' }, { c: 'tutor_dni', l: 'DNI del tutor' },
+    { c: 'factura_nombre', l: 'Facturar a' }, { c: 'factura_nif', l: 'NIF factura' }, { c: 'factura_direccion', l: 'Dirección factura', ancho: true }] },
+  { titulo: 'Observaciones', ancho: true, campos: [{ c: 'observaciones', l: 'Observaciones', t: 'texto', ancho: true }] }
+];
+const FD_PUNTO_PARTIDA = ['clases_previas', 'km_previos'];
+let fdEditando = false;
+let fdAbrirEditando = false; // «Editar datos» desde la lista: la ficha se abre ya editando
+let fdListas = { profesores: [], vehiculos: [] };
+
+// Valor tal y como se lee en la ficha
+function fdValorTexto(a, campo) {
+  const v = a[campo.c];
+  const vacio = v == null || v === '' || (Array.isArray(v) && !v.length);
+  if (campo.c === 'profesor_id') return a.profesor_nombre ? esc(a.profesor_nombre) : null;
+  if (campo.c === 'vehiculo_id') return a.vehiculo_nombre ? `${esc(a.vehiculo_nombre)}${a.vehiculo_matricula ? ' · ' + esc(a.vehiculo_matricula) : ''}` : null;
+  if (FD_PUNTO_PARTIDA.includes(campo.c)) return v > 0 ? fmtMiles(v) : null;
+  if (vacio) return null;
+  if (campo.c === 'dni_caducidad') {
+    const dias = diasEntre(hoyISO(), v);
+    if (dias < 0) return `<span class="fd-mal">${fmtFecha(v)} · caducado</span>`;
+    if (dias <= 60) return `<span class="fd-aviso">${fmtFecha(v)} · caduca pronto</span>`;
+    return fmtFecha(v);
+  }
+  if (campo.t === 'fecha') return fmtFecha(v);
+  if (campo.c === 'sexo') return v === 'H' ? 'Hombre' : v === 'M' ? 'Mujer' : esc(v);
+  if (campo.c === 'estado') return esc(ESTADO_ALUMNO_TEXTO[v] || v);
+  if (campo.c === 'resultado') return esc(RESULTADO_ALUMNO_TEXTO[v] || v);
+  if (campo.c === 'convocatoria') return `${v}ª`;
+  if (campo.c === 'permisos') return v.map(p => tagPermiso(p)).join(' ');
+  if (campo.c === 'permiso') return tagPermiso(v);
+  if (campo.c === 'observaciones') return `<span class="fd-obs">${esc(v).replace(/\n/g, '<br>')}</span>`;
+  return esc(v);
+}
+
+function fdEntrada(a, campo) {
+  const id = `fd-${campo.c}`;
+  const v = a[campo.c];
+  const val = v == null ? '' : String(v);
+  const attr = `id="${id}" data-campo="${campo.c}"`;
+  const opciones = (lista, actual) => lista.map(([k, t]) => `<option value="${esc(k)}"${String(k) === String(actual ?? '') ? ' selected' : ''}>${esc(t)}</option>`).join('');
+  switch (campo.t) {
+    case 'fecha': return `<input type="date" ${attr} value="${esc(val)}">`;
+    case 'num': return `<input type="number" min="0" ${attr} value="${v > 0 ? v : ''}" placeholder="0">`;
+    case 'tel': return `<input type="tel" ${attr} value="${esc(val)}">`;
+    case 'email': return `<input type="email" ${attr} value="${esc(val)}" placeholder="alumno@email.com">`;
+    case 'texto': return `<textarea ${attr} rows="3" placeholder="Notas sobre el alumno…">${esc(val)}</textarea>`;
+    case 'select': {
+      let lista = typeof campo.op === 'function' ? campo.op() : campo.op;
+      if (val && !lista.some(([k]) => String(k) === val)) lista = [...lista, [val, val]];
+      return `<select ${attr}>${opciones(lista, val)}</select>`;
+    }
+    case 'profesor': {
+      const lista = [['', '— Sin profesor —'], ...fdListas.profesores.map(p => [String(p.id), p.nombre])];
+      return `<select ${attr}>${opciones(lista, a.profesor_id || '')}</select>`;
+    }
+    case 'vehiculo': {
+      // Los retirados no se ofrecen (salvo el que ya tenga asignado)
+      const coches = fdListas.vehiculos.filter(x => x.activo !== false || x.id === a.vehiculo_id);
+      const lista = [['', '— Sin asignar —'], ...coches.map(x => [String(x.id), `${x.nombre}${x.matricula ? ' (' + x.matricula + ')' : ''}${x.activo === false ? ' · retirado' : ''}`])];
+      return `<select ${attr}>${opciones(lista, a.vehiculo_id || '')}</select>`;
+    }
+    case 'permisos': {
+      const set = new Set(v || []);
+      return `<div class="permisos-checks" ${attr}>${PERMISOS_OTROS.map(p => `<label><input type="checkbox" value="${p}"${set.has(p) ? ' checked' : ''}> ${p}</label>`).join('')}</div>`;
+    }
+    default: return `<input type="text" ${attr} value="${esc(val)}"${campo.req ? ' required' : ''}>`;
+  }
+}
+
+function pintarDatosFicha(f) {
+  const cont = document.getElementById('ficha-datos');
+  if (!cont) return;
+  const a = f.alumno;
+  const lapiz = '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>';
+  if (!fdEditando) {
+    const plegada = fdPlegada();
+    const botones = `<div class="fd-acciones"><button type="button" class="btn btn-outline btn-sm" onclick="editarDatosFicha()">${fichaSvg(lapiz, 14)}Editar</button>
+      <button type="button" class="btn btn-gray btn-sm" onclick="plegarDatosFicha(${!plegada})" aria-expanded="${!plegada}">${plegada ? 'Ver todos' : 'Ocultar'}</button></div>`;
+    if (plegada) {
+      const resumen = [a.n_registro && `Nº ${esc(a.n_registro)}`, a.dni && `DNI ${esc(a.dni)}`, a.telefono && esc(a.telefono), a.email && esc(a.email),
+        [a.poblacion, a.provincia].filter(Boolean).map(esc).join(', '), a.nacionalidad && esc(a.nacionalidad)].filter(Boolean).join(' · ');
+      cont.innerHTML = `<div class="card-head" style="margin:0"><h2 id="h-ficha-datos">Datos del alumno</h2>${botones}</div>
+        <div class="fd-resumen">${resumen || '<span class="fd-vacio">Sin datos personales</span>'}</div><div id="fd-alerta" class="hidden" style="margin-top:10px"></div>`;
+      return;
+    }
+    const grupos = FD_GRUPOS.map(g => {
+      if (g.campos[0].c === 'observaciones') {
+        const t = fdValorTexto(a, g.campos[0]);
+        return `<div class="fd-grupo fd-ancho"><h3>${g.titulo}</h3>${t || '<span class="fd-vacio">Sin observaciones</span>'}</div>`;
+      }
+      const filas = g.campos.map(c => {
+        const t = fdValorTexto(a, c);
+        return `<dt>${c.l}</dt><dd${t ? '' : ' class="fd-vacio"'}>${t || '—'}</dd>`;
+      }).join('');
+      return `<div class="fd-grupo"><h3>${g.titulo}</h3><dl class="fd-lista">${filas}</dl></div>`;
+    }).join('');
+    cont.innerHTML = `<div class="card-head"><h2 id="h-ficha-datos">Datos del alumno</h2>${botones}</div>
+      <div class="fd-grupos">${grupos}
+        <div class="fd-grupo"><h3>Foto y documentos</h3><div id="fd-foto-docs" class="fd-foto-docs"><span class="fd-vacio">Cargando…</span></div></div>
+      </div>
+      <div id="fd-alerta" class="hidden" style="margin-top:10px"></div>`;
+    cargarFotoDocsAlumno(a.id);
+    return;
+  }
+  const grupos = FD_GRUPOS.map(g => `<fieldset class="fd-grupo${g.ancho ? ' fd-ancho' : ''}"><legend>${g.titulo}</legend><div class="fd-form">${g.campos.map(c =>
+    `<div class="form-group${c.ancho ? ' fd-campo-ancho' : ''}"><label for="fd-${c.c}"${c.ayuda ? ` title="${esc(c.ayuda)}"` : ''}>${c.l}${c.req ? ' *' : ''}</label>${fdEntrada(a, c)}</div>`).join('')}</div></fieldset>`).join('');
+  cont.innerHTML = `<div class="card-head"><h2 id="h-ficha-datos">Editar datos del alumno</h2>
+      <div class="fd-acciones"><button type="button" class="btn btn-gray btn-sm" onclick="cancelarDatosFicha()">Cancelar</button>
+      <button type="button" class="btn btn-primary btn-sm" onclick="guardarDatosFicha()">Guardar cambios</button></div></div>
+    <form class="fd-grupos fd-editando" onsubmit="event.preventDefault(); guardarDatosFicha()">${grupos}<button type="submit" hidden></button></form>
+    <div id="fd-alerta" class="hidden" style="margin-top:10px"></div>
+    <div class="fd-pie"><span>Intro guarda · Esc cancela</span><div class="fd-acciones"><button type="button" class="btn btn-gray btn-sm" onclick="cancelarDatosFicha()">Cancelar</button>
+      <button type="button" class="btn btn-primary btn-sm" onclick="guardarDatosFicha()">Guardar cambios</button></div></div>`;
+  cont.querySelector('form').addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); cancelarDatosFicha(); } });
+}
+
+// Plegar la tarjeta de datos (se recuerda en este PC)
+const FD_PLEGADA_KEY = 'km_ficha_datos_plegada';
+function fdPlegada() { try { return localStorage.getItem(FD_PLEGADA_KEY) === '1'; } catch (e) { return false; } }
+function plegarDatosFicha(plegar) {
+  try { localStorage.setItem(FD_PLEGADA_KEY, plegar ? '1' : '0'); } catch (e) { /* sin almacenamiento: solo esta vez */ }
+  if (fichaCache) pintarDatosFicha(fichaCache);
+}
+
+async function editarDatosFicha() {
+  if (!fichaCache) return;
+  try {
+    const [profesores, vehiculos] = await Promise.all([window.api.getProfesores(), window.api.getVehiculos()]);
+    fdListas = { profesores, vehiculos };
+  } catch (e) { /* sin listas: los desplegables salen vacíos */ }
+  fdEditando = true;
+  pintarDatosFicha(fichaCache);
+  const card = document.getElementById('ficha-datos');
+  card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  setTimeout(() => document.getElementById('fd-nombre')?.focus(), 250);
+}
+
+function cancelarDatosFicha() {
+  fdEditando = false;
+  if (fichaCache) pintarDatosFicha(fichaCache);
+}
+
+function fdLeerValor(el) {
+  if (el.classList.contains('permisos-checks')) return [...el.querySelectorAll('input:checked')].map(x => x.value);
+  return el.value.trim();
+}
+
+async function guardarDatosFicha() {
+  if (!fichaCache) return;
+  const a = fichaCache.alumno;
+  const cambios = {};
+  let previasCambiadas = false;
+  document.querySelectorAll('#ficha-datos [data-campo]').forEach(el => {
+    const c = el.dataset.campo;
+    const nuevo = fdLeerValor(el);
+    const viejo = a[c];
+    if (Array.isArray(nuevo)) {
+      if (JSON.stringify([...nuevo].sort()) !== JSON.stringify([...(viejo || [])].sort())) cambios[c] = nuevo;
+      return;
+    }
+    if (FD_PUNTO_PARTIDA.includes(c)) {
+      if ((parseInt(nuevo) || 0) !== (viejo || 0)) previasCambiadas = true;
+      return;
+    }
+    if (String(nuevo) !== String(viejo ?? '')) cambios[c] = nuevo;
+  });
+  if ('nombre' in cambios && !cambios.nombre) { showToast('fd-alerta', 'El nombre no puede quedar vacío.', 'err'); document.getElementById('fd-nombre')?.focus(); return; }
+  if ('email' in cambios && !emailValido(cambios.email)) { showToast('fd-alerta', 'El email no tiene un formato válido.', 'err'); document.getElementById('fd-email')?.focus(); return; }
+  if (!Object.keys(cambios).length && !previasCambiadas) { cancelarDatosFicha(); return; }
+  if (Object.keys(cambios).length) {
+    const r = await window.api.updateAlumnoCampos(a.id, cambios);
+    if (!r || !r.ok) { showToast('fd-alerta', (r && r.error) || 'No se pudieron guardar los cambios.', 'err'); return; }
+  }
+  if (previasCambiadas) {
+    const clases = parseInt(document.getElementById('fd-clases_previas')?.value) || 0;
+    const km = parseInt(document.getElementById('fd-km_previos')?.value) || 0;
+    await window.api.setPuntoDePartidaAlumno(a.id, clases, km);
+  }
+  fdEditando = false;
+  await loadPracticas();
+  showToast('fd-alerta', 'Datos guardados.', 'ok');
+}
+
+// «Editar datos» de la lista de alumnos: abre su ficha ya editando
 async function openEditAlumno(id) {
   const a = alumnosCache.find(x => x.id === id);
-  if (!a) return;
-  document.getElementById('edit-a-id').value = a.id;
-  document.getElementById('edit-a-nombre').value = a.nombre;
-  document.getElementById('edit-a-primer-apellido').value = a.primer_apellido || '';
-  document.getElementById('edit-a-segundo-apellido').value = a.segundo_apellido || '';
-  document.getElementById('edit-a-permiso').value = a.permiso;
-  document.getElementById('edit-a-vehiculo').value = a.vehiculo_id || '';
-  document.getElementById('edit-a-email').value = a.email || '';
-  document.getElementById('edit-a-telefono').value = a.telefono || '';
-  document.getElementById('edit-a-dni').value = a.dni || '';
-  document.getElementById('edit-a-fecha-nacimiento').value = a.fecha_nacimiento || '';
-  document.getElementById('edit-a-direccion').value = a.direccion || '';
-  document.getElementById('edit-a-cp').value = a.codigo_postal || '';
-  document.getElementById('edit-a-poblacion').value = a.poblacion || '';
-  document.getElementById('edit-a-fecha-alta').value = a.fecha_alta || '';
-  document.getElementById('edit-a-observaciones').value = a.observaciones || '';
-  document.getElementById('edit-a-clases-previas').value = a.clases_previas || '';
-  document.getElementById('edit-a-km-previos').value = a.km_previos || '';
-  document.getElementById('edit-a-estado').value = a.estado || 'activo';
-  document.getElementById('edit-a-permisos-posee').value = a.permisos_posee || '';
-  document.getElementById('edit-a-fecha-inicio').value = a.fecha_inicio || '';
-  document.getElementById('edit-a-fecha-fin').value = a.fecha_fin || '';
-  document.getElementById('edit-a-resultado').value = a.resultado || '';
-  marcarPermisosCheckboxes('edit-a-permisos', a.permisos || []);
-  const nInsc = document.getElementById('edit-a-n-inscripcion');
-  nInsc.textContent = a.n_inscripcion != null ? `Nº inscripción libro: ${a.n_inscripcion}` : '';
-  await llenarSelectProfesores('edit-a-profesor', a.profesor_id);
-  await cargarFotoDocsAlumno(id);
-  openModal('modal-alumno');
+  fdAbrirEditando = true;
+  verPracticas(id, a ? a.vehiculo_id : null, a ? a.nombre : '');
 }
 
 // ─── FOTO Y DOCUMENTOS DEL ALUMNO (D7, almacenamiento local sin sync) ──────
@@ -532,48 +756,27 @@ function leerFicheroComoDataUrl(file) {
 }
 
 async function cargarFotoDocsAlumno(id) {
-  const preview = document.getElementById('edit-a-foto-preview');
-  const placeholder = document.getElementById('edit-a-foto-placeholder');
-  try {
-    const dataUrl = await window.api.getFotoAlumno(id);
-    if (dataUrl) {
-      preview.src = dataUrl;
-      preview.style.display = 'block';
-      placeholder.style.display = 'none';
-    } else {
-      preview.src = '';
-      preview.style.display = 'none';
-      placeholder.style.display = 'flex';
-    }
-  } catch (e) {
-    preview.style.display = 'none';
-    placeholder.style.display = 'flex';
-  }
-
-  const lista = document.getElementById('edit-a-documentos-lista');
-  try {
-    docsAlumnoCache = await window.api.getDocumentosAlumno(id) || [];
-  } catch (e) {
-    docsAlumnoCache = [];
-  }
-  if (!docsAlumnoCache.length) {
-    lista.innerHTML = '<span class="text-muted">Sin documentos</span>';
-    return;
-  }
-  lista.innerHTML = docsAlumnoCache.map((d, i) => `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-      <span>${esc(d.nombre)}</span>
-      <span class="text-muted">(${Math.round(d.tamano / 1024)} KB)</span>
-      <button type="button" class="btn btn-gray btn-sm doc-abrir" data-idx="${i}">Abrir</button>
-      <button type="button" class="btn btn-gray btn-sm doc-borrar" data-idx="${i}">Borrar</button>
-    </div>
-  `).join('');
-  lista.querySelectorAll('.doc-abrir').forEach(btn => {
-    btn.addEventListener('click', () => abrirDocAlumno(docsAlumnoCache[parseInt(btn.dataset.idx)].ruta));
-  });
-  lista.querySelectorAll('.doc-borrar').forEach(btn => {
-    btn.addEventListener('click', () => borrarDocAlumno(id, docsAlumnoCache[parseInt(btn.dataset.idx)].ruta));
-  });
+  const cont = document.getElementById('fd-foto-docs');
+  if (!cont) return;
+  let foto = null;
+  try { foto = await window.api.getFotoAlumno(id); } catch (e) { foto = null; }
+  try { docsAlumnoCache = await window.api.getDocumentosAlumno(id) || []; } catch (e) { docsAlumnoCache = []; }
+  // La foto también en el avatar de la cabecera
+  const avatar = document.querySelector('#ficha-cab .avatar-ini-lg');
+  if (avatar) avatar.innerHTML = foto ? `<img src="${foto}" alt="" class="avatar-foto">` : esc(avatar.dataset.ini || avatar.textContent);
+  if (!document.getElementById('fd-foto-docs') || currentAlumnoId !== id) return;
+  const docs = docsAlumnoCache.length
+    ? docsAlumnoCache.map((d, i) => `<div class="fd-doc"><span title="${esc(d.nombre)}">${esc(d.nombre)}</span><small>${Math.max(1, Math.round(d.tamano / 1024))} KB</small>
+        <button type="button" class="btn btn-gray btn-sm" onclick="abrirDocAlumno(docsAlumnoCache[${i}].ruta)">Abrir</button>
+        <button type="button" class="btn btn-gray btn-sm" onclick="borrarDocAlumno(${id}, docsAlumnoCache[${i}].ruta)">Borrar</button></div>`).join('')
+    : '<span class="fd-vacio">Sin documentos</span>';
+  cont.innerHTML = `<div class="fd-foto-fila">${foto ? `<img src="${foto}" alt="Foto" class="fd-foto">` : '<div class="fd-foto fd-foto-vacia">Sin foto</div>'}
+      <div class="fd-foto-btns"><input type="file" id="fd-foto-input" accept="image/*" hidden onchange="cambiarFotoAlumno(${id}, this.files[0])">
+        <button type="button" class="btn btn-gray btn-sm" onclick="document.getElementById('fd-foto-input').click()">${foto ? 'Cambiar foto' : 'Poner foto'}</button>
+        ${foto ? `<button type="button" class="btn btn-gray btn-sm" onclick="quitarFotoAlumno(${id})">Quitar</button>` : ''}</div></div>
+    <div class="fd-docs">${docs}</div>
+    <input type="file" id="fd-doc-input" hidden onchange="adjuntarDocAlumno(${id}, this.files[0])">
+    <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('fd-doc-input').click()">Adjuntar documento</button>`;
 }
 
 async function cambiarFotoAlumno(id, file) {
@@ -583,12 +786,12 @@ async function cambiarFotoAlumno(id, file) {
     const res = await window.api.guardarFotoAlumno(id, dataUrl);
     if (res && res.ok) {
       await cargarFotoDocsAlumno(id);
-      showToast('edit-a-foto-alert', 'Foto actualizada.', 'ok');
+      showToast('fd-alerta', 'Foto actualizada.', 'ok');
     } else {
-      showToast('edit-a-foto-alert', (res && res.msg) || 'No se pudo guardar la foto.', 'err');
+      showToast('fd-alerta', (res && res.msg) || 'No se pudo guardar la foto.', 'err');
     }
   } catch (e) {
-    showToast('edit-a-foto-alert', 'No se pudo guardar la foto.', 'err');
+    showToast('fd-alerta', 'No se pudo guardar la foto.', 'err');
   }
 }
 
@@ -599,7 +802,7 @@ async function quitarFotoAlumno(id) {
     await window.api.borrarFotoAlumno(id);
     await cargarFotoDocsAlumno(id);
   } catch (e) {
-    showToast('edit-a-foto-alert', 'No se pudo quitar la foto.', 'err');
+    showToast('fd-alerta', 'No se pudo quitar la foto.', 'err');
   }
 }
 
@@ -610,12 +813,12 @@ async function adjuntarDocAlumno(id, file) {
     const res = await window.api.adjuntarDocumentoAlumno(id, file.name, dataUrl);
     if (res && res.ok) {
       await cargarFotoDocsAlumno(id);
-      showToast('edit-a-foto-alert', 'Documento adjuntado.', 'ok');
+      showToast('fd-alerta', 'Documento adjuntado.', 'ok');
     } else {
-      showToast('edit-a-foto-alert', (res && res.msg) || 'No se pudo adjuntar el documento.', 'err');
+      showToast('fd-alerta', (res && res.msg) || 'No se pudo adjuntar el documento.', 'err');
     }
   } catch (e) {
-    showToast('edit-a-foto-alert', 'No se pudo adjuntar el documento.', 'err');
+    showToast('fd-alerta', 'No se pudo adjuntar el documento.', 'err');
   }
 }
 
@@ -629,48 +832,8 @@ async function borrarDocAlumno(id, ruta) {
     await window.api.borrarDocumentoAlumno(ruta);
     await cargarFotoDocsAlumno(id);
   } catch (e) {
-    showToast('edit-a-foto-alert', 'No se pudo borrar el documento.', 'err');
+    showToast('fd-alerta', 'No se pudo borrar el documento.', 'err');
   }
-}
-
-async function saveAlumno() {
-  const id = parseInt(document.getElementById('edit-a-id').value);
-  const nombre = document.getElementById('edit-a-nombre').value.trim();
-  const permiso = document.getElementById('edit-a-permiso').value;
-  const vid = document.getElementById('edit-a-vehiculo').value || null;
-  const profId = document.getElementById('edit-a-profesor')?.value || null;
-  const email = document.getElementById('edit-a-email')?.value.trim() || '';
-  const datos = {
-    telefono: document.getElementById('edit-a-telefono')?.value.trim() || '',
-    dni: document.getElementById('edit-a-dni')?.value.trim() || '',
-    fecha_nacimiento: document.getElementById('edit-a-fecha-nacimiento')?.value || '',
-    direccion: document.getElementById('edit-a-direccion')?.value.trim() || '',
-    fecha_alta: document.getElementById('edit-a-fecha-alta')?.value || '',
-    observaciones: document.getElementById('edit-a-observaciones')?.value.trim() || '',
-    estado: document.getElementById('edit-a-estado')?.value || '',
-    primer_apellido: document.getElementById('edit-a-primer-apellido')?.value.trim() || '',
-    segundo_apellido: document.getElementById('edit-a-segundo-apellido')?.value.trim() || '',
-    codigo_postal: document.getElementById('edit-a-cp')?.value.trim() || '',
-    poblacion: document.getElementById('edit-a-poblacion')?.value.trim() || ''
-  };
-  const libro = {
-    permisos_posee: document.getElementById('edit-a-permisos-posee')?.value.trim() || '',
-    fecha_inicio: document.getElementById('edit-a-fecha-inicio')?.value || '',
-    fecha_fin: document.getElementById('edit-a-fecha-fin')?.value || '',
-    resultado: document.getElementById('edit-a-resultado')?.value || ''
-  };
-  if (!nombre) { alert('Introduce un nombre.'); return; }
-  if (!emailValido(email)) { alert('El email no tiene un formato válido.'); return; }
-  const permisos = leerPermisosCheckboxes('edit-a-permisos');
-  await window.api.updateAlumno(id, nombre, permiso, vid ? parseInt(vid) : null, profId ? parseInt(profId) : null, email || null, datos, libro, permisos);
-  const previo = alumnosCache.find(x => x.id === id) || {};
-  const clasesPrevias = parseInt(document.getElementById('edit-a-clases-previas')?.value) || 0;
-  const kmPrevios = parseInt(document.getElementById('edit-a-km-previos')?.value) || 0;
-  if (clasesPrevias !== (previo.clases_previas || 0) || kmPrevios !== (previo.km_previos || 0)) {
-    await window.api.setPuntoDePartidaAlumno(id, clasesPrevias, kmPrevios);
-  }
-  closeModal('modal-alumno');
-  loadAlumnos();
 }
 
 // ─── ECONOMÍA DEL ALUMNO (modal) ───────────────────────────────────────────
@@ -843,164 +1006,6 @@ async function deletePagoEconomia(id) {
   await renderEconomiaAlumno();
 }
 
-// ─── FICHA IMPRIMIBLE DEL ALUMNO ────────────────────────────────────────────
-// Reutiliza datos ya cargados (alumnosCache) + dos llamadas puntuales
-// (desglose de pagos y semáforo). Rellena #ficha-print (oculto en pantalla,
-// visible solo dentro de @media print, ver styles.css) y lanza window.print().
-function fmtEuros(num) {
-  return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num || 0);
-}
-
-// Construye un bloque "Etiqueta: valor" solo si el valor no está vacío
-// (omite null/undefined/'' con elegancia en vez de imprimir "null").
-function filaFicha(etiqueta, valor) {
-  if (valor === null || valor === undefined || valor === '') return '';
-  return `<div class="ficha-campo"><span class="ficha-etiqueta">${esc(etiqueta)}</span><span class="ficha-valor">${esc(valor)}</span></div>`;
-}
-
-async function imprimirFichaAlumno(id) {
-  const a = alumnosCache.find(x => x.id === id);
-  if (!a) return;
-
-  let desglose = null;
-  let semaforo = null;
-  let fotoAlumno = null;
-  try { desglose = await window.api.getDesglosePagosAlumno(id); } catch (e) { /* sin economía disponible */ }
-  try { semaforo = await window.api.getSemaforoAlumno(id); } catch (e) { /* sin semáforo disponible */ }
-  try { fotoAlumno = await window.api.getFotoAlumno(id); } catch (e) { /* sin foto disponible */ }
-
-  const SEM_TEXTO = { verde: 'Listo para examen', ambar: 'Casi listo', rojo: 'Aún lejos' };
-  const PERMISO_TEXTO = { B: 'B (Coche)', A: 'A (Moto)', A2: 'A2', AM: 'AM', C: 'C (Camión)' };
-
-  const kmTotales = semaforo ? semaforo.kmTotales : null;
-
-  const ficha = document.getElementById('ficha-print');
-  ficha.innerHTML = `
-    <div class="ficha-cabecera">
-      <img src="icon.png" alt="AulaMovil" class="ficha-logo">
-      <div>
-        <h1>AulaMovil — Ficha del alumno</h1>
-        <div class="ficha-fecha">Impresa el ${fmtFecha(new Date().toISOString().split('T')[0])}</div>
-      </div>
-      ${fotoAlumno ? `<img src="${fotoAlumno}" alt="Foto del alumno" style="width:60px;height:60px;object-fit:cover;border-radius:6px;margin-left:auto">` : ''}
-    </div>
-
-    <h2>Datos personales</h2>
-    <div class="ficha-grid">
-      ${filaFicha('Nombre', a.nombre)}
-      ${filaFicha('DNI/NIE', a.dni)}
-      ${filaFicha('Teléfono', a.telefono)}
-      ${filaFicha('Email', a.email)}
-      ${filaFicha('Fecha de nacimiento', a.fecha_nacimiento ? fmtFecha(a.fecha_nacimiento) : '')}
-      ${filaFicha('Dirección', a.direccion)}
-      ${filaFicha('Permiso', PERMISO_TEXTO[a.permiso] || a.permiso)}
-      ${filaFicha('Otros permisos', (a.permisos || []).join(', '))}
-      ${filaFicha('Estado', ESTADO_ALUMNO_TEXTO[a.estado || 'activo'] || a.estado)}
-      ${filaFicha('Fecha de alta', a.fecha_alta ? fmtFecha(a.fecha_alta) : '')}
-      ${filaFicha('Profesor', a.profesor_nombre)}
-      ${filaFicha('Vehículo', a.vehiculo_nombre)}
-    </div>
-    ${a.observaciones ? `<div class="ficha-observaciones"><span class="ficha-etiqueta">Observaciones</span><p>${esc(a.observaciones)}</p></div>` : ''}
-
-    <h2>Progreso</h2>
-    <div class="ficha-grid">
-      ${filaFicha('Nº de prácticas', a.num_practicas != null ? fmtClases(a.num_practicas) + (a.minutos_sobrantes > 0 ? ` (+ ${fmtDec(a.minutos_sobrantes)} min acumulados)` : '') : '')}
-      ${filaFicha('Km totales', kmTotales != null ? `${kmTotales} km` : '')}
-      ${filaFicha('Semáforo de examen', semaforo ? (SEM_TEXTO[semaforo.nivel] || semaforo.nivel) : 'Sin datos suficientes')}
-      ${semaforo && semaforo.motivo ? filaFicha('Motivo', semaforo.motivo) : ''}
-    </div>
-
-    <h2>Economía</h2>
-    ${desglose ? `
-    <div class="ficha-grid">
-      ${filaFicha('Generado', `${fmtEuros(desglose.total_generado)} €`)}
-      ${filaFicha('Pagado', `${fmtEuros(desglose.total_pagado)} €`)}
-      ${filaFicha('Saldo', `${fmtEuros(desglose.saldo)} €`)}
-    </div>` : '<p class="ficha-sin-datos">No hay datos de economía disponibles.</p>'}
-  `;
-
-  window.print();
-}
-
-// ─── FICHA DE CLASES PRÁCTICAS FIRMABLE (RD 1295/2003 art. 40) ─────────────
-// Mismo mecanismo de impresión que imprimirFichaAlumno/imprimirLibroRegistro
-// (#ficha-print oculto en pantalla, visible solo en @media print).
-const TIPO_PRACTICA_TEXTO = { circulacion: 'Circulación', pista: 'Pista' };
-
-async function imprimirFichaPracticas(alumnoId) {
-  const datos = await window.api.getFichaPracticasAlumno(alumnoId);
-  if (!datos) return;
-
-  const { alumno, practicas, totales } = datos;
-  const PERMISO_TEXTO = { B: 'B (Coche)', A: 'A (Moto)', A2: 'A2', AM: 'AM', C: 'C (Camión)' };
-
-  const filas = practicas.map((p, i) => `<tr>
-      <td>${p.n || i + 1}${p.clases_txt ? ` <small>(${p.clases_txt})</small>` : ''}</td>
-      <td>${fmtFecha(p.fecha)}</td>
-      <td>${esc(p.vehiculo_nombre || '—')}${p.matricula ? ` (${esc(p.matricula)})` : ''}</td>
-      <td>${esc(p.profesor_nombre || '—')}</td>
-      <td>${esc(TIPO_PRACTICA_TEXTO[p.tipo] || p.tipo)}</td>
-      <td>${p.km_inicial}</td>
-      <td>${p.km_final}</td>
-      <td>${p.km_recorridos}</td>
-      <td class="ficha-firma-celda">${p.firma ? `<img class="ficha-firma-img" src="${p.firma}" alt="Firma del alumno">` : ''}</td>
-      <td class="ficha-firma-celda">${p.firma_profesor ? `<img class="ficha-firma-img" src="${p.firma_profesor}" alt="Firma del profesor">` : ''}</td>
-    </tr>`).join('');
-
-  const ficha = document.getElementById('ficha-print');
-  ficha.innerHTML = `
-    <div class="ficha-cabecera">
-      <img src="icon.png" alt="AulaMovil" class="ficha-logo">
-      <div>
-        <h1>AulaMovil — Ficha de clases prácticas</h1>
-        <div class="ficha-fecha">Impresa el ${fmtFecha(new Date().toISOString().split('T')[0])}</div>
-      </div>
-    </div>
-
-    <div class="ficha-grid">
-      ${filaFicha('Alumno', alumno.nombre)}
-      ${filaFicha('DNI/NIE', alumno.dni)}
-      ${filaFicha('Permiso', PERMISO_TEXTO[alumno.permiso] || alumno.permiso)}
-      ${totales.clasesPrevias ? filaFicha('Clases anteriores', `${totales.clasesPrevias} clases${totales.kmPrevios ? ' · ' + totales.kmPrevios + ' km' : ''} (antes de usar la app; la numeración continúa)`) : ''}
-    </div>
-
-    <table class="ficha-tabla">
-      <thead><tr>
-        <th>Nº</th><th>Fecha</th><th>Vehículo</th><th>Profesor</th><th>Tipo</th>
-        <th>Km inicial</th><th>Km final</th><th>Km recorridos</th><th>Firma alumno</th><th>Firma profesor</th>
-      </tr></thead>
-      <tbody>${filas || '<tr><td colspan="10" style="text-align:center">No hay clases prácticas registradas</td></tr>'}</tbody>
-      <tfoot><tr>
-        <td colspan="7" style="text-align:right"><strong>Totales</strong></td>
-        <td><strong>${fmtClases(totales.nClases)} clase${totales.nClases === 1 ? '' : 's'}</strong></td>
-        <td colspan="2"><strong>${totales.kmTotales} km</strong></td>
-      </tr></tfoot>
-    </table>
-
-    <div class="ficha-firmas-final">
-      <div class="ficha-firma-bloque">
-        <div class="ficha-firma-linea"></div>
-        <span>Firma y sello del centro</span>
-      </div>
-      <div class="ficha-firma-bloque">
-        <div class="ficha-firma-linea"></div>
-        <span>Firma del alumno</span>
-      </div>
-      <div class="ficha-firma-bloque">
-        <div class="ficha-firma-linea"></div>
-        <span>Fecha</span>
-      </div>
-    </div>
-  `;
-
-  window.print();
-}
-
-// ─── FICHA DGT (impreso oficial de formación práctica) ─────────────────────
-// Modal pequeño para elegir destreza/circulación (#modal-ficha-dgt) y llamar
-// a window.api.generarFichaDGT (IPC 'generar-ficha-dgt' → fichas-dgt.js). Los
-// datos del centro se leen de Ajustes (getCentroDatos, renderer/ajustes.js);
-// si están vacíos se avisa pero se deja continuar igualmente.
 const FICHA_FIRMAR_PIE_KEY = 'km_ficha_firmar_pie';
 
 async function abrirFichaDGT(alumnoId) {
@@ -1068,9 +1073,8 @@ ${r.sinFirmaAlumno} de ${r.dias} ${r.dias === 1 ? 'día no tiene' : 'días no ti
 }
 
 // ─── LIBRO DE REGISTRO DE ALUMNOS (RD 1295/2003 art. 39) ──────────────────
-// Reutiliza EXACTAMENTE el mismo elemento/patrón de impresión que
-// imprimirFichaAlumno (#ficha-print oculto en pantalla, visible solo en
-// @media print, ver styles.css) en vez de reinventar el CSS de impresión.
+// #ficha-print oculto en pantalla, visible solo en @media print (ver
+// styles.css), el mismo que usan los informes.
 async function imprimirLibroRegistro() {
   // Asegura que todos los alumnos tienen nº de inscripción antes de listar.
   await window.api.backfillNumInscripcion();
@@ -1083,6 +1087,7 @@ async function imprimirLibroRegistro() {
     const fechaInscripcion = a.fecha_inicio || a.fecha_alta || '';
     return `<tr>
       <td>${a.n_inscripcion != null ? a.n_inscripcion : '—'}</td>
+      <td>${a.n_registro ? esc(a.n_registro) : '—'}</td>
       <td>${fechaInscripcion ? fmtFecha(fechaInscripcion) : '—'}</td>
       <td>${esc(a.nombre)}</td>
       <td>${a.dni ? esc(a.dni) : '—'}</td>
@@ -1106,7 +1111,7 @@ async function imprimirLibroRegistro() {
     </div>
     <table class="ficha-tabla">
       <thead><tr>
-        <th>Nº</th><th>F. inscripción</th><th>Nombre</th><th>DNI/NIE</th><th>F. nacimiento</th>
+        <th>Nº</th><th>Nº registro</th><th>F. inscripción</th><th>Nombre</th><th>DNI/NIE</th><th>F. nacimiento</th>
         <th>Permisos que posee</th><th>Permiso al que aspira</th><th>Inicio enseñanza</th><th>Fin enseñanza</th><th>Resultado</th>
       </tr></thead>
       <tbody>${filas || '<tr><td colspan="10" style="text-align:center">No hay alumnos registrados</td></tr>'}</tbody>

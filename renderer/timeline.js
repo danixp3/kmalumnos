@@ -8,7 +8,7 @@ async function loadTimelineSelect() {
   const sel = document.getElementById('timeline-vehiculo');
   if (!sel) return;
   sel.innerHTML = vehiculos.length
-    ? vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + v.matricula + ')' : ''}</option>`).join('')
+    ? vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + v.matricula + ')' : ''}${v.activo === false ? ' · retirado' : ''}</option>`).join('')
     : '<option value="">Sin vehículos</option>';
   loadTimeline();
 }

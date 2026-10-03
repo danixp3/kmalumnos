@@ -43,6 +43,7 @@ module.exports = {
   ...require('./db/migracion'),
   ...require('./db/lector-tablas'),
   ...require('./db/ariauto'),
+  ...require('./db/exportar'),
 
   getLogs: core.getLogs,
   clearLogs: core.clearLogs,

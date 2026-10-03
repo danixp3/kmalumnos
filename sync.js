@@ -12,6 +12,7 @@ const fs   = require('fs');
 const path = require('path');
 const { app } = require('electron');
 const { createClient } = require('@supabase/supabase-js');
+const { CAMPOS_EXTRA, normalizarCampoExtra } = require('./db/campos-extra');
 
 // Polyfill WebSocket for Node.js (required by supabase-js realtime)
 if (typeof globalThis.WebSocket === 'undefined') {
@@ -792,6 +793,39 @@ const _ajustesEmpresaDisponible = sb => _columnasDisponibles(sb, 'ajustes_empres
 const _profesoresFirmaDisponible = sb => _columnasDisponibles(sb, 'profesores', 'firma');
 const _practicasFraccionDisponible = sb => _columnasDisponibles(sb, 'practicas', 'fraccion');
 const _alumnosMinutosDisponible = sb => _columnasDisponibles(sb, 'alumnos', 'minutos_sobrantes');
+// Migración 2026-10-03: datos completos de alumnos, profesores y coches (los
+// de Ariauto) y coches retirados (db/campos-extra.js). Un grupo por tabla.
+const _extraDisponible = (sb, tabla) => _columnasDisponibles(sb, tabla, Object.keys(CAMPOS_EXTRA[tabla]).join(', '));
+async function _extraTablas(sb) {
+  return {
+    alumnos: await _extraDisponible(sb, 'alumnos'),
+    profesores: await _extraDisponible(sb, 'profesores'),
+    vehiculos: await _extraDisponible(sb, 'vehiculos')
+  };
+}
+// Subida: los campos ampliados del registro local, limpios.
+function _ponerExtra(tabla, payload, local) {
+  for (const [c, t] of Object.entries(CAMPOS_EXTRA[tabla])) payload[c] = normalizarCampoExtra(t, local[c]);
+  return payload;
+}
+// Bajada: lo que trae la nube; si la fila no trae la columna (nube sin la
+// migración), se conserva lo que había en este PC.
+function _traerExtra(tabla, destino, remoto, local) {
+  for (const [c, t] of Object.entries(CAMPOS_EXTRA[tabla])) {
+    if (c in remoto) destino[c] = normalizarCampoExtra(t, remoto[c]);
+    else if (local && c in local) destino[c] = local[c];
+  }
+  return destino;
+}
+// Subida completa (objeto local entero): sin las columnas en la nube hay que
+// quitarlos o el upsert entero fallaría.
+function _quitarExtra(tabla, obj, on) {
+  const out = { ...obj };
+  for (const [c, t] of Object.entries(CAMPOS_EXTRA[tabla])) {
+    if (on) out[c] = normalizarCampoExtra(t, obj[c]); else delete out[c];
+  }
+  return out;
+}
 
 let _practicasMovilDisponibleCache = null;
 
@@ -1687,6 +1721,7 @@ async function _syncInterno() {
     const ajustesOn = _empresaId ? await _ajustesEmpresaDisponible(sb) : false;
     const firmaProfOn = await _profesoresFirmaDisponible(sb);
     const fraccionOn = await _practicasFraccionDisponible(sb);
+    const extraOn = await _extraTablas(sb);
     // Marcas locales que cambian al subir (firma_pendiente): hay que guardar data.json.
     let marcasLocales = false;
     // Conflicto de empresa sin resolver (ver sección "PROPIETARIO DE LOS DATOS
@@ -1771,6 +1806,7 @@ async function _syncInterno() {
           };
           if (_empresaId) payload.empresa_id = _empresaId;
           if (sucursalesOn) payload.sucursal_id = v.sucursal_id != null ? v.sucursal_id : null;
+          if (extraOn.vehiculos) _ponerExtra('vehiculos', payload, v);
           // v.id: la reconciliación por matrícula puede haberle dado el id remoto.
           if (subidaOk(await sb.from('vehiculos').upsert(payload, { onConflict: 'id' }), 'vehiculos', v.id)) hecho('vehiculos', id);
         }
@@ -1792,6 +1828,7 @@ async function _syncInterno() {
           if (_empresaId) payload.empresa_id = _empresaId;
           if (sucursalesOn) payload.sucursal_id = pr.sucursal_id != null ? pr.sucursal_id : null;
           if (profesoresDniOn) payload.dni = pr.dni || null;
+          if (extraOn.profesores) _ponerExtra('profesores', payload, pr);
           // La firma solo viaja cuando se cambió en este PC (firma_pendiente):
           // así editar el nombre aquí nunca pisa una firma hecha en el móvil.
           const conFirma = firmaProfOn && pr.firma_pendiente;
@@ -1862,6 +1899,7 @@ async function _syncInterno() {
             payload.clases_previas = a.clases_previas > 0 ? Math.round(a.clases_previas) : null;
             payload.km_previos = a.km_previos > 0 ? Math.round(a.km_previos) : null;
           }
+          if (extraOn.alumnos) _ponerExtra('alumnos', payload, a);
           loteAlumnos.push([id, payload]);
         }
       }
@@ -2092,12 +2130,12 @@ async function _syncInterno() {
           continue;
         }
         if (idx === -1) {
-          data.vehiculos.push({
+          data.vehiculos.push(_traerExtra('vehiculos', {
             id: rv.id, nombre: rv.nombre, matricula: rv.matricula || '',
             km_actual: parseFloat(rv.km_actual) || 0,
             sucursal_id: rv.sucursal_id != null ? rv.sucursal_id : null,
             updated_at: rv.updated_at
-          });
+          }, rv, null));
           _avanzarSeq(data, 'v', rv.id);
           dataChanged = true;
           pulled++;
@@ -2105,11 +2143,11 @@ async function _syncInterno() {
           const localUpdated  = data.vehiculos[idx].updated_at || '1970-01-01T00:00:00.000Z';
           const remoteUpdated = rv.updated_at || '1970-01-01T00:00:00.000Z';
           if (remoteUpdated > localUpdated) {
-            const nuevo = {
+            const nuevo = _traerExtra('vehiculos', {
               nombre: rv.nombre, matricula: rv.matricula || '',
               km_actual: parseFloat(rv.km_actual) || 0,
               sucursal_id: rv.sucursal_id != null ? rv.sucursal_id : null
-            };
+            }, rv, data.vehiculos[idx]);
             _detectarYRegistrarConflicto(data, 'vehiculos', pending.vehiculos,
               rv.id, ['nombre', 'matricula', 'km_actual'], data.vehiculos[idx], nuevo, conflictos);
             Object.assign(data.vehiculos[idx], nuevo, { updated_at: rv.updated_at });
@@ -2140,13 +2178,13 @@ async function _syncInterno() {
           continue;
         }
         if (idx === -1) {
-          data.profesores.push({
+          data.profesores.push(_traerExtra('profesores', {
             id: rp.id, nombre: rp.nombre, nota: rp.nota || '',
             sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null,
             dni: rp.dni != null ? rp.dni : null,
             firma: typeof rp.firma === 'string' ? rp.firma : null,
             updated_at: rp.updated_at
-          });
+          }, rp, null));
           _avanzarSeq(data, 'pf', rp.id);
           dataChanged = true;
           pulled++;
@@ -2154,7 +2192,7 @@ async function _syncInterno() {
           const localUpdated  = data.profesores[idx].updated_at || '1970-01-01T00:00:00.000Z';
           const remoteUpdated = rp.updated_at || '1970-01-01T00:00:00.000Z';
           if (remoteUpdated > localUpdated) {
-            const nuevo = { nombre: rp.nombre, nota: rp.nota || '', sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null, dni: rp.dni != null ? rp.dni : null };
+            const nuevo = _traerExtra('profesores', { nombre: rp.nombre, nota: rp.nota || '', sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null, dni: rp.dni != null ? rp.dni : null }, rp, data.profesores[idx]);
             _detectarYRegistrarConflicto(data, 'profesores', pending.profesores,
               rp.id, ['nombre', 'nota', 'dni'], data.profesores[idx], nuevo, conflictos);
             // Firma: manda la nube, salvo que aquí haya una cambiada sin subir aún.
@@ -2261,6 +2299,7 @@ async function _syncInterno() {
           minutos_sobrantes: ra.minutos_sobrantes != null ? Number(ra.minutos_sobrantes) : null,
           updated_at: ra.updated_at
         };
+        _traerExtra('alumnos', alumno, ra, idx !== -1 ? data.alumnos[idx] : null);
         if (idx !== -1) {
           // Comparar timestamps: solo sobrescribir si el remoto es más reciente
           const local = data.alumnos[idx];
@@ -2827,6 +2866,7 @@ async function pushAll() {
     };
     // Punto de partida del alumno (migración 2026-10-01), mismo cuidado que quitarFichaDgt.
     const previasOn = await _alumnosPreviasDisponible(sb);
+    const extraOn = await _extraTablas(sb);
     const quitarPrevias = obj => {
       const { clases_previas, km_previos, minutos_sobrantes, ...resto } = obj;
       if (!previasOn) return resto;
@@ -2846,13 +2886,13 @@ async function pushAll() {
     // Subir en orden: vehiculos → profesores → tarifas → alumnos → practicas → pagos
     if (data.vehiculos.length) {
       comprobar(await sb.from('vehiculos').upsert(
-        data.vehiculos.map(v => quitarSucursal({ ...v, ...conEmpresaTag, deleted: false, updated_at: now })),
+        data.vehiculos.map(v => _quitarExtra('vehiculos', quitarSucursal({ ...v, ...conEmpresaTag, deleted: false, updated_at: now }), extraOn.vehiculos)),
         { onConflict: 'id' }
       ), 'subida completa');
     }
     if (data.profesores.length) {
       comprobar(await sb.from('profesores').upsert(
-        data.profesores.map(p => quitarDniProfesor(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now }))),
+        data.profesores.map(p => _quitarExtra('profesores', quitarDniProfesor(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })), extraOn.profesores)),
         { onConflict: 'id' }
       ), 'subida completa');
     }
@@ -2864,7 +2904,7 @@ async function pushAll() {
     }
     if (data.alumnos.length) {
       comprobar(await sb.from('alumnos').upsert(
-        data.alumnos.map(a => quitarPrevias(quitarFichaDgt(quitarPermisos(quitarLibro(quitarDatos(quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now })))))))),
+        data.alumnos.map(a => _quitarExtra('alumnos', quitarPrevias(quitarFichaDgt(quitarPermisos(quitarLibro(quitarDatos(quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now }))))))), extraOn.alumnos)),
         { onConflict: 'id' }
       ), 'subida completa');
     }

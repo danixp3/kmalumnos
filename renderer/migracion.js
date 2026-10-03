@@ -344,7 +344,7 @@ const mga = { archivo: '', plan: null, opciones: {}, turno: 0 };
 
 function mgAriautoMostrar(r) {
   mga.archivo = r.archivo; mga.plan = r.plan;
-  mga.opciones = { alcance: 'curso', economia: false, examenes: true, tasas: true, profesores: true, vehiculos: true, centro: true,
+  mga.opciones = { alcance: r.plan.opciones.alcance || 'curso', economia: false, examenes: true, tasas: true, profesores: true, vehiculos: true, centro: true,
     secciones: r.plan.secciones.filter(s => s.elegida).map(s => s.seccion) };
   mgMsg(`<b>${esc(r.archivo)}</b>: base de datos de <b>Ariauto</b> reconocida.`, 'ok');
   ['mg-paso-columnas', 'mg-paso-revisar', 'mg-paso-hecho'].forEach(id => { document.getElementById(id).hidden = true; });
@@ -375,17 +375,24 @@ function mgAriautoPintar() {
   const pills = [[r.nuevos, r.nuevos === 1 ? 'alumno nuevo' : 'alumnos nuevos', 'pill-ok'], [r.completar, r.completar === 1 ? 'se completa' : 'se completan', 'pill-info'],
     [r.revisar, 'no se tocan (nombre repetido)', 'pill-warn'], [r.clases, 'clases ya hechas', 'pill-line'], [r.examenes, 'exámenes', 'pill-line'],
     [r.tasas, 'tasas', 'pill-line'], [r.vencimientos, 'caducidades', 'pill-line'], [r.profesoresNuevos, r.profesoresNuevos === 1 ? 'profesor nuevo' : 'profesores nuevos', 'pill-line'],
-    [r.vehiculosNuevos, r.vehiculosNuevos === 1 ? 'coche nuevo' : 'coches nuevos', 'pill-line'], ...(o.economia ? [[r.cargos, 'cargos', 'pill-line'], [r.pagos, 'pagos', 'pill-line']] : [])]
+    [r.vehiculosNuevos, r.vehiculosNuevos === 1 ? 'coche nuevo' : 'coches nuevos', 'pill-line'],
+    [r.profesoresCompletar, r.profesoresCompletar === 1 ? 'profesor se completa' : 'profesores se completan', 'pill-line'],
+    [r.vehiculosCompletar, r.vehiculosCompletar === 1 ? 'coche se completa' : 'coches se completan', 'pill-line'],
+    ...(o.economia ? [[r.cargos, 'cargos', 'pill-line'], [r.pagos, 'pagos', 'pill-line']] : [])]
     .filter(([n], i) => n || i === 0).map(([n, t, c]) => `<span class="pill ${c}"><b>${fmtMiles(n)}</b>&nbsp;${t}</span>`).join('');
-  const estados = { matriculado: 'Matriculado', en_practicas: 'En prácticas', apto: 'Aprobado', baja: 'Baja', apto_teorico: 'Teórico aprobado' };
+  const estados = { matriculado: 'Matriculado', en_practicas: 'En prácticas', apto: 'Aprobado', baja: 'Baja', apto_teorico: 'Teórico aprobado', inactivo: 'Inactivo' };
   const filas = p.filas.map(x => {
     const [cls, txt] = MG_ACCIONES[x.accion] || (x.accion === 'revisar' ? ['pill-warn', 'No se toca'] : ['pill-line', x.accion]);
     return `<tr><td><span class="pill ${cls}">${txt}</span></td><td>${esc(x.nombre)}</td><td class="num-mono">${esc(x.dni || '')}</td><td>${esc(x.permiso || '')}</td>
       <td>${esc(estados[x.estado] || x.estado || '')}</td><td class="col-num">${x.clases ? String(x.clases).replace('.', ',') : ''}</td>
       ${o.economia ? `<td class="col-num num-mono">${x.saldo == null ? '' : esc(String(x.saldo).replace('.', ','))}</td>` : ''}<td class="col-num">${x.examenes || ''}</td>
-      <td class="mg-det">${x.avisos.length ? `<div class="mg-avisos">${x.avisos.map(esc).join('<br>')}</div>` : ''}</td></tr>`;
+      <td class="mg-det">${x.accion === 'actualizar' ? (x.cambios ? `<small>${mgPl(x.cambios, 'dato nuevo', 'datos nuevos')}</small>` : '<small>Ya está al día</small>') : ''}${x.avisos.length ? `<div class="mg-avisos">${x.avisos.map(esc).join('<br>')}</div>` : ''}</td></tr>`;
   }).join('');
-  const hay = r.nuevos + r.completar;
+  const hay = r.nuevos + r.conCambios + r.examenes + r.tasas + r.vencimientos + r.profesoresNuevos + r.vehiculosNuevos + (r.examenesCompletar || 0) + r.profesoresCompletar + r.vehiculosCompletar;
+  // Al volver a abrir el mismo archivo: qué se completa en los que ya están
+  const yaTraidos = r.completar ? `<div class="alert alert-info" style="margin-top:12px"><span><b>${fmtMiles(r.completar)} de estos alumnos ya están en la app.</b>
+      ${r.conCambios ? `Se completarán con los datos que les faltan (nº de registro, sexo, nacionalidad, provincia, tutor, centro médico…)${r.limpiarObservaciones ? `, sus observaciones quedarán solo con las de Ariauto (${fmtMiles(r.limpiarObservaciones)})` : ''}${r.pasanAInactivo ? ` y ${mgPl(r.pasanAInactivo, 'alumno antiguo sin actividad pasa', 'alumnos antiguos sin actividad pasan')} a «Inactivo»` : ''}.` : 'Ya tienen todos sus datos.'}
+      ${r.examenes ? `Se añaden ${mgPl(r.examenes, 'examen', 'exámenes')} con su examinador y sus fallos.` : ''} Lo que ya tenga cada alumno en la app no se toca ni se duplica.</span></div>` : '';
   el.innerHTML = `<div class="pm-paso-cab"><span class="pm-num">2</span><div><h3>Ariauto: elige qué traer</h3>
       <p>La app ya sabe dónde guarda Ariauto cada dato. <b>Todavía no se ha guardado nada</b>: cambia lo que quieras y la vista previa se actualiza.</p></div></div>
     <div class="mg-ariauto-op">
@@ -393,22 +400,23 @@ function mgAriautoPintar() {
       <div><b>Alumnos</b><div class="seg seg-tabs" role="group" aria-label="Qué alumnos">
         <button type="button" aria-pressed="${o.alcance !== 'todos'}" onclick="mgAriautoOpcion('alcance','curso')">En curso <span class="seg-n">${fmtMiles(r.enCurso)}</span></button>
         <button type="button" aria-pressed="${o.alcance === 'todos'}" onclick="mgAriautoOpcion('alcance','todos')">También los terminados <span class="seg-n">${fmtMiles(r.enCurso + r.terminados)}</span></button></div>
-        <small class="mg-nota">En curso: sin baja ni aprobado y con alta o movimientos en el último año. De los terminados solo se traen sus datos.</small></div>
-      <div><b>Qué más</b><div class="mg-ariauto-lista">${chk('examenes', 'Exámenes')}${chk('tasas', 'Tasas de la DGT')}${chk('profesores', 'Profesores que falten')}${chk('vehiculos', 'Coches de alta, con ITV y seguro en Caducidades')}${chk('centro', 'Datos del centro para la ficha DGT (si están vacíos)')}</div></div>
+        <small class="mg-nota">En curso: sin baja ni aprobado y con alta o movimientos en el último año. Los terminados entran con sus datos y exámenes (los antiguos sin actividad, como «Inactivo»).</small></div>
+      <div><b>Qué más</b><div class="mg-ariauto-lista">${chk('examenes', 'Exámenes')}${chk('tasas', 'Tasas de la DGT')}${chk('profesores', 'Profesores que falten')}${chk('vehiculos', 'Coches de alta, con ITV y seguro en Caducidades')}${chk('centro', 'Datos del centro que falten (ficha DGT)')}</div></div>
     </div>
     <div class="alert ${f.fiable ? 'alert-info' : 'alert-warn'}" style="margin-top:12px"><span>${chk('economia', '<b>Traer también los cargos y pagos de Ariauto</b>')}
       ${f.fiable ? 'Su saldo pasará a ser el de Ariauto.' : `<br>No recomendado: en Ariauto no constan la mayoría de los cobros (de ${fmtMiles(f.aptosRecientes)} alumnos aprobados en los dos últimos años, ${fmtMiles(f.aptosConDeuda)} aparecen debiendo). Si los traes, la app los mostraría como morosos. Mejor empezar a cero y apuntar en la app lo que cobres desde ahora.`}</span></div>
+    ${yaTraidos}
     <div class="pm-resumen" style="margin-top:14px">${pills}</div>
     <div class="table-wrap mg-prev-wrap"><table class="mg-prev"><thead><tr><th>Qué pasa</th><th>Alumno</th><th>DNI</th><th>Permiso</th><th>Estado</th><th class="col-num">Clases hechas</th>${o.economia ? '<th class="col-num">Saldo €</th>' : ''}<th class="col-num">Exámenes</th><th>Avisos</th></tr></thead>
       <tbody>${filas || '<tr><td colspan="9" class="mg-vacio">Ningún alumno con estas opciones.</td></tr>'}${p.masFilas ? `<tr><td colspan="9" class="mg-vacio">… y ${fmtMiles(p.masFilas)} alumnos más</td></tr>` : ''}</tbody></table></div>
     <div class="mg-acciones"><span>${hay ? 'Antes se guarda una copia de seguridad y se puede deshacer.' : ''}</span>
-      <button class="btn btn-primary" id="mg-ariauto-btn" onclick="mgAriautoImportar()" ${hay ? '' : 'disabled'}>${hay ? `Importar ${fmtMiles(r.nuevos)} ${r.nuevos === 1 ? 'alumno' : 'alumnos'}${r.completar ? ` y completar ${fmtMiles(r.completar)}` : ''}` : 'No hay nada que importar'}</button></div>`;
+      <button class="btn btn-primary" id="mg-ariauto-btn" onclick="mgAriautoImportar()" ${hay ? '' : 'disabled'}>${!hay ? 'Ya está todo en la app' : r.nuevos ? `Importar ${fmtMiles(r.nuevos)} ${r.nuevos === 1 ? 'alumno' : 'alumnos'}${r.conCambios ? ` y completar ${fmtMiles(r.conCambios)}` : ''}` : r.conCambios ? `Completar ${fmtMiles(r.conCambios)} ${r.conCambios === 1 ? 'alumno' : 'alumnos'}` : 'Traer lo que falta'}</button></div>`;
 }
 
 async function mgAriautoImportar() {
   const r = mga.plan && mga.plan.ok ? mga.plan.resumen : null;
   if (!r) return;
-  const ok = await confirmar(`Entrarán ${mgPl(r.nuevos, 'alumno nuevo', 'alumnos nuevos')}${r.completar ? ` y se completarán ${mgPl(r.completar, 'alumno', 'alumnos')}` : ''}, con sus clases ya hechas${mga.opciones.examenes ? ', exámenes' : ''}${mga.opciones.economia ? ', cargos y pagos' : ''}.\n\nAntes se guarda una copia de seguridad, y podrás deshacer esta importación desde esta misma pantalla.`, { titulo: 'Importar de Ariauto', textoAceptar: 'Importar' });
+  const ok = await confirmar(`${r.nuevos ? `Entrarán ${mgPl(r.nuevos, 'alumno nuevo', 'alumnos nuevos')}` : 'No entra ningún alumno nuevo'}${r.conCambios ? ` y se completarán ${mgPl(r.conCambios, 'alumno', 'alumnos')}` : ''}${r.examenes ? `, con ${mgPl(r.examenes, 'examen', 'exámenes')}` : ''}${mga.opciones.economia ? ', cargos y pagos' : ''}.\n\nAntes se guarda una copia de seguridad, y podrás deshacer esta importación desde esta misma pantalla.`, { titulo: 'Importar de Ariauto', textoAceptar: r.nuevos ? 'Importar' : 'Completar' });
   if (!ok) return;
   const btn = document.getElementById('mg-ariauto-btn');
   btn.disabled = true; btn.textContent = 'Importando…';
@@ -419,13 +427,13 @@ async function mgAriautoImportar() {
     mgAriautoPintar();
     return;
   }
-  // Datos del centro para la ficha DGT, si aún no se habían puesto
+  // Datos del centro (ficha DGT y de la autoescuela): se completa lo que falte
   let centro = false;
   if (mga.opciones.centro && res.centro) {
     const actual = getCentroDatos();
-    if (!actual.numero && !actual.denominacion) {
-      try { localStorage.setItem(CENTRO_DATOS_KEY, JSON.stringify({ ...res.centro, rellenar_fecha: actual.rellenar_fecha !== false })); centro = true; } catch (e) {}
-    }
+    const nuevo = { ...actual };
+    for (const [k, v] of Object.entries(res.centro)) if (v && !actual[k]) { nuevo[k] = v; centro = true; }
+    if (centro) { try { localStorage.setItem(CENTRO_DATOS_KEY, JSON.stringify({ ...nuevo, rellenar_fecha: actual.rellenar_fecha !== false })); } catch (e) { centro = false; } }
   }
   document.getElementById('mg-paso-ariauto').hidden = true;
   document.getElementById('mg-origen-msg').className = 'hidden';
@@ -433,8 +441,8 @@ async function mgAriautoImportar() {
   const x = res.resumen;
   const el = document.getElementById('mg-paso-hecho');
   el.innerHTML = `<div class="pm-paso-cab"><span class="pm-num mg-num-ok">✓</span><div><h3>Hecho: ${mgPl(x.creadosAlumnos, 'alumno nuevo', 'alumnos nuevos')}${x.actualizadosAlumnos ? ` y ${mgPl(x.actualizadosAlumnos, 'completado', 'completados')}` : ''} desde Ariauto</h3>
-      <p>Se están subiendo a la nube: en unos segundos los profesores los verán en el móvil.${res.copia ? ' Copia de seguridad previa guardada.' : ''}${centro ? ' Los datos del centro de la ficha DGT se han rellenado con los de Ariauto (Ajustes → Datos del centro).' : ''}
-      Los datos que la app no tiene como campo (sexo, nacionalidad, tutor, nº de Ariauto…) están en las observaciones de cada alumno.</p></div></div>
+      <p>Se están subiendo a la nube: en unos segundos los profesores los verán en el móvil.${res.copia ? ' Copia de seguridad previa guardada.' : ''}${centro ? ' Los datos del centro que faltaban se han rellenado con los de Ariauto (Ajustes → Datos del centro).' : ''}
+      Cada dato está en su sitio de la ficha del alumno (nº de registro, sexo, nacionalidad, tutor…); los exámenes, con su examinador y sus fallos, en Exámenes.</p></div></div>
     <div class="mg-siguientes"><button class="btn btn-outline" onclick="navegarA('alumnos')">Ver los alumnos</button>
       <button class="btn btn-outline" onclick="navegarA('puesta-en-marcha')">Puesta en marcha: km de los coches y clases ya hechas</button>
       <button class="btn btn-outline" onclick="navegarA('vencimientos')">Ver caducidades (ITV, seguros, DNI)</button></div>`;

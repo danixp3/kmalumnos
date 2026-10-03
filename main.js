@@ -308,18 +308,19 @@ ipcMain.handle('ventana-esta-maximizada', () => {
 ipcMain.handle('guardar-tema-fondo', (_, color) => guardarTemaFondo(color));
 
 ipcMain.handle('get-vehiculos', (_, sucursalId) => db.getVehiculos(sucursalId));
-ipcMain.handle('add-vehiculo', (_, nombre, matricula, km_actual, sucursalId) => {
-  const id = db.addVehiculo(nombre, matricula, km_actual, sucursalId);
+ipcMain.handle('add-vehiculo', (_, nombre, matricula, km_actual, sucursalId, datos) => {
+  const id = db.addVehiculo(nombre, matricula, km_actual, sucursalId, datos);
   return id;
 });
 ipcMain.handle('delete-vehiculo', (_, id) => { db.deleteVehiculo(id); return true; });
 ipcMain.handle('update-vehiculo-km', (_, id, km) => { db.updateVehiculoKm(id, km); return true; });
-ipcMain.handle('update-vehiculo', (_, id, nombre, matricula) => { db.updateVehiculo(id, nombre, matricula); return true; });
+ipcMain.handle('update-vehiculo', (_, id, nombre, matricula, datos) => { db.updateVehiculo(id, nombre, matricula, datos); return true; });
+ipcMain.handle('set-vehiculo-activo', (_, id, activo) => db.setVehiculoActivo(id, activo));
 
 ipcMain.handle('get-profesores', (_, sucursalId) => db.getProfesores(sucursalId));
-ipcMain.handle('add-profesor', (_, nombre, nota, sucursalId, dni) => db.addProfesor(nombre, nota, sucursalId, dni));
+ipcMain.handle('add-profesor', (_, nombre, nota, sucursalId, dni, datos) => db.addProfesor(nombre, nota, sucursalId, dni, datos));
 ipcMain.handle('delete-profesor', (_, id) => { db.deleteProfesor(id); return true; });
-ipcMain.handle('update-profesor', (_, id, nombre, nota, dni) => { db.updateProfesor(id, nombre, nota, dni); return true; });
+ipcMain.handle('update-profesor', (_, id, nombre, nota, dni, datos) => { db.updateProfesor(id, nombre, nota, dni, datos); return true; });
 ipcMain.handle('get-firma-profesor', (_, id) => db.getFirmaProfesor(id));
 ipcMain.handle('get-director', () => db.getDirector());
 ipcMain.handle('set-director', (_, datos) => db.setDirector(datos));
@@ -337,6 +338,8 @@ ipcMain.handle('get-ficha-alumno', (_, alumnoId, hoy) => db.getFichaAlumno(alumn
 ipcMain.handle('get-alumnos-lista', (_, sucursalId, hoy) => db.getAlumnosLista(sucursalId, hoy));
 ipcMain.handle('add-alumno', (_, nombre, permiso, vehiculo_id, profesor_id, sucursalId, email, datos, libro, permisos) => db.addAlumno(nombre, permiso, vehiculo_id, profesor_id, sucursalId, email, datos, libro, permisos));
 ipcMain.handle('delete-alumno', (_, id) => { db.deleteAlumno(id); return true; });
+ipcMain.handle('update-alumno-campos', (_, id, campos) => db.updateAlumnoCampos(id, campos));
+ipcMain.handle('buscar-alumnos-rapido', (_, texto, limite) => db.buscarAlumnosRapido(texto, limite));
 ipcMain.handle('update-alumno', (_, id, nombre, permiso, vehiculo_id, profesor_id, email, datos, libro, permisos) => { db.updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id, email, datos, libro, permisos); return true; });
 
 // Libro de registro de alumnos (RD 1295/2003 art. 39) — mismo patrón "columna
@@ -432,6 +435,7 @@ ipcMain.handle('add-presentacion', (_, datos) => db.addPresentacion(datos));
 ipcMain.handle('update-presentacion', (_, id, campos) => { db.updatePresentacion(id, campos); return true; });
 ipcMain.handle('set-resultado-presentacion', (_, id, resultado) => { db.setResultadoPresentacion(id, resultado); return true; });
 ipcMain.handle('delete-presentacion', (_, id) => { db.deletePresentacion(id); return true; });
+ipcMain.handle('buscar-examenes', (_, filtros, sucursalId) => db.buscarExamenes(filtros, sucursalId));
 
 // Bonos / packs de prácticas — local por puesto, NO sincroniza con Supabase
 // (ver db/bonos.js).
@@ -628,6 +632,23 @@ ipcMain.handle('importar-csv', (_, filePath, kmMin, kmMax) => {
 });
 
 // Handlers para exportar y comparar CSV - para añadir a main.js
+
+// Exportar listas (alumnos con todos sus datos, exámenes filtrados) a CSV para Excel
+ipcMain.handle('exportar-tabla', async (_, tipo, opciones) => {
+  try {
+    const res = tipo === 'examenes' ? db.exportarExamenes((opciones || {}).filtros || {}, (opciones || {}).sucursalId) : db.exportarAlumnos(opciones || {});
+    const result = await dialog.showSaveDialog(mainWin, {
+      title: 'Guardar para abrir con Excel',
+      defaultPath: res.nombre + '_' + new Date().toISOString().slice(0, 10) + '.csv',
+      filters: [{ name: 'CSV (Excel)', extensions: ['csv'] }]
+    });
+    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+    fs.writeFileSync(result.filePath, res.csv, 'utf-8');
+    return { ok: true, total: res.total, path: result.filePath };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+});
 
 ipcMain.handle('exportar-csv', async (_, opciones) => {
   try {

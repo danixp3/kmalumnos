@@ -15,7 +15,7 @@ function llenarSelectAlumnosReserva(selectedId) {
   const sel = document.getElementById('res-alumno');
   if (!sel) return;
   sel.innerHTML = '<option value="">— Selecciona un alumno —</option>' +
-    alumnosCache.map(a => `<option value="${a.id}">${esc(a.nombre)}</option>`).join('');
+    opcionesAlumnosHTML(alumnosCache);
   sel.value = (selectedId !== undefined && selectedId !== null) ? String(selectedId) : '';
 }
 
@@ -23,7 +23,8 @@ function llenarSelectVehiculosReserva(selectedId) {
   const sel = document.getElementById('res-vehiculo');
   if (!sel) return;
   sel.innerHTML = '<option value="">— Sin asignar —</option>' +
-    vehiculosCache.map(v => `<option value="${v.id}">${esc(v.nombre)}</option>`).join('');
+    // Los coches retirados no se ofrecen (salvo el que ya tenga la reserva)
+    vehiculosCache.filter(v => v.activo !== false || String(v.id) === String(selectedId)).map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('');
   sel.value = (selectedId !== undefined && selectedId !== null) ? String(selectedId) : '';
 }
 

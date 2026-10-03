@@ -222,9 +222,12 @@ const TUTORIAL_PASOS = {
     { sel: '#examenes-stats', pos: 'bottom',
       titulo: 'Ratio de aprobados',
       texto: 'Se calcula solo sobre las presentaciones con resultado apto o no apto, desglosado por tipo y por profesor. Las pendientes o aplazadas no cuentan.' },
+    { sel: '#ex-buscar', pos: 'bottom',
+      titulo: 'Buscar exámenes',
+      texto: 'Busca por alumno, DNI, nº de registro o examinador y filtra por fechas, tipo, resultado, permiso o profesor. Arriba de la lista ves cuántos aprobaron de lo que has filtrado; «Exportar» lo guarda para Excel.' },
     { sel: '#presentaciones-lista', pos: 'top',
       titulo: 'Resultado rápido',
-      texto: 'El desplegable de cada fila cambia el resultado (apto, no apto, aplazado, no presentado) al momento, sin abrir la ficha.' }
+      texto: 'El desplegable de cada fila cambia el resultado (apto, no apto, aplazado, no presentado) al momento. Si el examen tiene fallos apuntados, pulsa en ellos para ver el detalle.' }
   ],
   caja: [
     { sel: '#caja-desde', pos: 'bottom',

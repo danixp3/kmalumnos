@@ -22,7 +22,7 @@ async function poblarSelectsPracticasGlobal() {
   if (selAlumno) {
     const actual = selAlumno.value;
     selAlumno.innerHTML = '<option value="">Todos los alumnos</option>' +
-      [...alumnos].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(a => `<option value="${a.id}">${esc(a.nombre)}</option>`).join('');
+      opcionesAlumnosHTML(alumnos);
     if ([...selAlumno.options].some(o => o.value === actual)) selAlumno.value = actual;
   }
   if (selVehiculo) {

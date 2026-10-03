@@ -2,6 +2,7 @@
 // CRUD de alumnos y anotaciones de alumno (notas guardadas en sus prácticas).
 
 const { load, save, nextId, _sync, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, clasesDePractica } = require('./core');
+const { extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
 
 // sucursalId opcional: sin argumento devuelve todos los alumnos (modo clásico
 // o "Todas las sucursales") — ver filtrarPorSucursal en core.js.
@@ -204,7 +205,9 @@ const CAMPOS_DATOS_ALUMNO = ['telefono', 'dni', 'fecha_nacimiento', 'direccion',
 // más 'baja' en cualquier punto. 'activo'/'aprobado' se conservan al final por
 // retrocompatibilidad con alumnos ya guardados con esos valores (sync de
 // `estado` no cambia: sigue siendo la misma columna gateada de siempre).
-const ESTADOS_ALUMNO_VALIDOS = ['matriculado', 'en_teorica', 'apto_teorico', 'en_practicas', 'presentado', 'apto', 'no_apto', 'baja', 'activo', 'aprobado'];
+// 'inactivo' (2026-10-03): alumno antiguo que dejó de venir sin darse de baja
+// (los «archivados» de Ariauto); no cuenta como en prácticas.
+const ESTADOS_ALUMNO_VALIDOS = ['matriculado', 'en_teorica', 'apto_teorico', 'en_practicas', 'presentado', 'apto', 'no_apto', 'baja', 'inactivo', 'activo', 'aprobado'];
 
 // Normaliza el objeto `datos`: trim de cada campo y vacío → null; `estado`
 // además se valida contra ESTADOS_ALUMNO_VALIDOS (cualquier otro valor → null).
@@ -276,6 +279,9 @@ function addAlumno(nombre, permiso, vehiculo_id, profesor_id = null, sucursal_id
     email: email ? String(email).trim() : null,
     n_inscripcion: null,
     ..._normalizarDatosAlumno(datos),
+    // Campos ampliados (nº de registro, sexo, nacionalidad...): db/campos-extra.js
+    ...camposExtraVacios('alumnos'),
+    ...extraerCamposExtra('alumnos', datos),
     // En el alta se normalizan las 4 claves del libro siempre (aunque vengan
     // vacías/undefined), a diferencia de update donde solo se tocan las
     // claves presentes: así un alumno nuevo siempre arranca con las 4 en null.
@@ -311,12 +317,69 @@ function updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id = null, emai
     a.vehiculo_id = vehiculo_id ? parseInt(vehiculo_id) : null;
     a.profesor_id = profesor_id ? parseInt(profesor_id) : null;
     a.email = email ? String(email).trim() : null;
-    if (datos) Object.assign(a, _normalizarDatosAlumno(datos));
+    if (datos) Object.assign(a, _normalizarDatosAlumno(datos), extraerCamposExtra('alumnos', datos));
     if (libro) Object.assign(a, _normalizarLibroAlumno(libro));
     if (permisos !== null) a.permisos = _normalizarPermisos(permisos);
     save();
     const s = _sync(); if (s) s.markDirty('alumnos', id);
   }
+}
+
+// ─── BUSCADOR DE LA BARRA SUPERIOR ──────────────────────────────────────────
+// Alumnos por nombre y apellidos, DNI, nº de registro o teléfono (todas las
+// palabras, sin tildes). Primero los que están en curso y los que empiezan
+// por lo escrito. Pocos resultados: es para saltar a una ficha.
+const sinTildes = t => String(t == null ? '' : t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const ESTADOS_TERMINADO = ['baja', 'aprobado', 'apto', 'no_apto', 'inactivo'];
+function buscarAlumnosRapido(texto, limite = 6) {
+  const q = sinTildes(texto).trim();
+  if (q.length < 2) return [];
+  const palabras = q.split(/\s+/);
+  const digitos = q.replace(/\D/g, '');
+  const res = [];
+  for (const a of load().alumnos) {
+    if (a.deleted) continue;
+    const nombre = [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
+    const pajar = sinTildes([nombre, a.dni, a.n_registro, a.telefono, a.telefono2].filter(Boolean).join(' '));
+    const telefonos = [a.telefono, a.telefono2].filter(Boolean).join(' ').replace(/\D/g, '');
+    if (!palabras.every(w => pajar.includes(w)) && !(digitos.length >= 6 && telefonos.includes(digitos))) continue;
+    const enCurso = !ESTADOS_TERMINADO.includes(a.estado);
+    const exacto = String(a.n_registro || '') === texto.trim() || sinTildes(a.dni) === q;
+    res.push({ a, nombre, puntos: (exacto ? 4 : 0) + (enCurso ? 2 : 0) + (sinTildes(nombre).startsWith(q) ? 1 : 0) });
+  }
+  return res.sort((x, y) => y.puntos - x.puntos || x.nombre.localeCompare(y.nombre, 'es')).slice(0, limite)
+    .map(({ a, nombre }) => ({ id: a.id, nombre, n_registro: a.n_registro || null, dni: a.dni || null, estado: a.estado || null, vehiculo_id: a.vehiculo_id || null, permiso: a.permiso }));
+}
+
+// ─── EDICIÓN DESDE LA FICHA ─────────────────────────────────────────────────
+// Cambia solo los campos que llegan (la ficha edita en el sitio, sin el modal
+// que pedía todos los datos). Devuelve { ok, alumno } o { ok:false, error }.
+const CAMPOS_BASE_EDITABLES = ['nombre', 'permiso', 'vehiculo_id', 'profesor_id', 'email'];
+function updateAlumnoCampos(id, campos = {}) {
+  const d = load();
+  const a = d.alumnos.find(x => x.id === parseInt(id));
+  if (!a) return { ok: false, error: 'No se encuentra el alumno.' };
+  if ('nombre' in campos && !String(campos.nombre || '').trim()) return { ok: false, error: 'El nombre no puede quedar vacío.' };
+  const cambios = {};
+  for (const c of CAMPOS_BASE_EDITABLES) {
+    if (!(c in campos)) continue;
+    const v = campos[c];
+    if (c === 'vehiculo_id' || c === 'profesor_id') cambios[c] = v ? parseInt(v) || null : null;
+    else if (c === 'permiso') cambios[c] = String(v || '').trim().toUpperCase() || a.permiso || 'B';
+    else cambios[c] = String(v == null ? '' : v).trim() || (c === 'nombre' ? a.nombre : null);
+  }
+  const datos = {};
+  for (const c of CAMPOS_DATOS_ALUMNO) if (c in campos) datos[c] = campos[c];
+  if (Object.keys(datos).length) {
+    const norm = _normalizarDatosAlumno(datos);
+    for (const c of Object.keys(datos)) cambios[c] = norm[c];
+  }
+  Object.assign(cambios, _normalizarLibroAlumno(campos), extraerCamposExtra('alumnos', campos));
+  if ('permisos' in campos) cambios.permisos = _normalizarPermisos(campos.permisos);
+  Object.assign(a, cambios);
+  save();
+  const s = _sync(); if (s) s.markDirty('alumnos', a.id);
+  return { ok: true, alumno: { ...a } };
 }
 
 /**
@@ -405,7 +468,8 @@ function getLibroRegistro(sucursalId) {
     })
     .map(a => ({
       n_inscripcion: a.n_inscripcion,
-      nombre: a.nombre,
+      n_registro: a.n_registro || null,
+      nombre: [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' '),
       dni: a.dni || null,
       fecha_nacimiento: a.fecha_nacimiento || null,
       permisos_posee: a.permisos_posee || null,
@@ -419,7 +483,7 @@ function getLibroRegistro(sucursalId) {
 }
 
 module.exports = {
-  getAlumnos, getAlumnosLista, getFichaAlumno, addAlumno, deleteAlumno, updateAlumno,
+  getAlumnos, getAlumnosLista, getFichaAlumno, addAlumno, deleteAlumno, updateAlumno, updateAlumnoCampos, buscarAlumnosRapido,
   getAnotacionesAlumno,
   ESTADOS_ALUMNO_VALIDOS,
   RESULTADOS_ALUMNO_VALIDOS,

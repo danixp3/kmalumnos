@@ -13,7 +13,7 @@ async function loadGenerarKm() {
   if (!sel) return;
   const previo = sel.value;
   sel.innerHTML = vehiculos.length
-    ? vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + v.matricula + ')' : ''}</option>`).join('')
+    ? vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + v.matricula + ')' : ''}${v.activo === false ? ' · retirado' : ''}</option>`).join('')
     : '<option value="">Sin vehículos</option>';
   // Conservar el vehículo seleccionado si sigue existiendo
   if (previo && vehiculos.some(v => String(v.id) === previo)) sel.value = previo;

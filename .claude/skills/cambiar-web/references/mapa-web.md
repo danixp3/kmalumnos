@@ -40,7 +40,7 @@ App del **profesor** para dar la clase desde el teléfono (tablet en horizontal 
 
 | Endpoint | Método | Qué hace |
 |---|---|---|
-| `/api/vehiculos` | GET | Vehículos con `km_actual` y `ultimo` (última práctica cerrada, para la continuidad del cuentakilómetros) |
+| `/api/vehiculos` | GET | Vehículos con `km_actual` y `ultimo` (última práctica cerrada, para la continuidad del cuentakilómetros). Sin los retirados en el escritorio (`activo = false`, `.neq('activo', false)`; si falta la columna, todos) |
 | `/api/alumnos` | GET | Alumnos con resumen (nº prácticas, km, última) |
 | `/api/hoy?fecha&hoy&profesor_id` | GET | Jornada: prácticas del día (`en_curso`, `firmada`), sin cerrar de días anteriores, reservas |
 | `/api/iniciar-practica` | POST | Crea la práctica con km inicial real y km final 0 (=en curso). 409 si el coche ya tiene una abierta |

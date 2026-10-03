@@ -11,14 +11,15 @@ async function loadProfesores() {
     return;
   }
   tbody.innerHTML = profesoresCache.map(p => `<tr>
-      <td><strong>${esc(p.nombre)}</strong></td>
+      <td><strong>${esc(p.nombre)}</strong>${[p.telefono, p.n_certificado && 'certificado ' + p.n_certificado, p.fecha_baja && 'de baja desde ' + fmtFecha(p.fecha_baja)].filter(Boolean).length
+        ? `<div class="al-sub">${[p.telefono, p.n_certificado && 'certificado ' + p.n_certificado, p.fecha_baja && 'de baja desde ' + fmtFecha(p.fecha_baja)].filter(Boolean).map(esc).join(' · ')}</div>` : ''}</td>
       <td>${esc(p.nota) || '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${p.num_practicas}</td>
       <td>${p.tiene_firma
         ? `<button type="button" class="pill pill-ok firma-pill" onclick="abrirFirmaProfesor(${p.id})" title="Ver o cambiar su firma">${fichaSvg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 12)} Guardada</button>`
         : `<button type="button" class="pill pill-warn firma-pill" onclick="abrirFirmaProfesor(${p.id})" title="Dibujar su firma para la ficha DGT">Sin firma · Firmar</button>`}</td>
       <td>
-        <button class="btn btn-warn btn-sm" onclick="openEditProfesor(${p.id},'${esc(p.nombre)}','${esc(p.nota || '')}','${esc(p.dni || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
+        <button class="btn btn-warn btn-sm" onclick="openEditProfesor(${p.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProfesor(${p.id},'${esc(p.nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
       </td>
     </tr>`).join('');
@@ -42,11 +43,16 @@ async function deleteProfesor(id, nombre) {
   loadProfesores();
 }
 
-function openEditProfesor(id, nombre, nota, dni) {
+// Datos del profesor además de nombre, nota y DNI (los mismos que guarda Ariauto)
+const CAMPOS_PROFESOR_MODAL = ['telefono', 'email', 'direccion', 'codigo_postal', 'poblacion', 'fecha_nacimiento', 'fecha_alta', 'fecha_baja', 'n_certificado', 'fecha_certificado'];
+function openEditProfesor(id) {
+  const p = profesoresCache.find(x => x.id === id);
+  if (!p) return;
   document.getElementById('edit-pf-id').value = id;
-  document.getElementById('edit-pf-nombre').value = nombre;
-  document.getElementById('edit-pf-nota').value = nota;
-  document.getElementById('edit-pf-dni').value = dni || '';
+  document.getElementById('edit-pf-nombre').value = p.nombre || '';
+  document.getElementById('edit-pf-nota').value = p.nota || '';
+  document.getElementById('edit-pf-dni').value = p.dni || '';
+  for (const c of CAMPOS_PROFESOR_MODAL) { const el = document.getElementById('edit-pf-' + c); if (el) el.value = p[c] || ''; }
   openModal('modal-profesor');
 }
 
@@ -56,7 +62,10 @@ async function saveProfesor() {
   const nota = document.getElementById('edit-pf-nota').value.trim();
   const dni = document.getElementById('edit-pf-dni')?.value.trim() || null;
   if (!nombre) { alert('Introduce un nombre para el profesor.'); return; }
-  await window.api.updateProfesor(id, nombre, nota, dni);
+  const datos = {};
+  for (const c of CAMPOS_PROFESOR_MODAL) { const el = document.getElementById('edit-pf-' + c); if (el) datos[c] = el.value.trim(); }
+  if (datos.email && !emailValido(datos.email)) { alert('El email no tiene un formato válido.'); return; }
+  await window.api.updateProfesor(id, nombre, nota, dni, datos);
   closeModal('modal-profesor');
   loadProfesores();
 }

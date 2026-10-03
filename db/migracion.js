@@ -32,6 +32,7 @@
 
 const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO } = require('./core');
 const { PERMISOS_VALIDOS } = require('./alumnos');
+const { normalizarCampoExtra, extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
 
 const MARCA_ANTERIOR = 'anterior';            // = db/clases-anteriores.js
 const NOTA_IMPORTADO = 'Importado del programa anterior';
@@ -286,6 +287,14 @@ const CAMPOS = {
     { id: 'clases_previas', nombre: 'Clases prácticas ya hechas' },
     { id: 'km_previos', nombre: 'Km ya hechos' },
     { id: 'saldo', nombre: 'Saldo pendiente (€)' },
+    { id: 'n_registro', nombre: 'Nº de registro / expediente' },
+    { id: 'sexo', nombre: 'Sexo' },
+    { id: 'nacionalidad', nombre: 'Nacionalidad' },
+    { id: 'lugar_nacimiento', nombre: 'Lugar de nacimiento' },
+    { id: 'provincia', nombre: 'Provincia' },
+    { id: 'telefono2', nombre: 'Otro teléfono' },
+    { id: 'dni_caducidad', nombre: 'Caducidad del DNI' },
+    { id: 'tutor_nombre', nombre: 'Tutor' },
     { id: 'observaciones', nombre: 'Observaciones', multiple: true }
   ],
   clases: [
@@ -303,13 +312,25 @@ const CAMPOS = {
   ]
 };
 
-const RE_IGNORAR = /^(id|cod|codigo|n|no|num|numero|nro|ref|referencia|expediente|n expediente|num expediente|n alumno|codigo alumno|cod alumno|n matricula|num matricula|numero matricula|sucursal|centro|seccion|provincia|pais|nacionalidad|sexo|genero|foto|edad|seleccion|sel)$/;
+const RE_IGNORAR = /^(id|cod|codigo|ref|referencia|sucursal|centro|seccion|foto|edad|seleccion|sel)$/;
+// Nº de registro del alumno (el número que le daba el programa anterior)
+const RE_REGISTRO = /^(n|no|num|numero|nro)( de)? (registro|expediente|alumno|matricula|inscripcion)$|^(expediente|registro|codigo alumno|cod alumno|id alumno)$|^(n|no|num|numero|nro)$/;
 
 // Título de columna → campo ('' = no importar, undefined = no se sabe)
 function campoPorTitulo(titulo, tipo) {
   const h = normTexto(titulo);
   if (!h) return undefined;
   if (RE_IGNORAR.test(h)) return '';
+  if (tipo === 'alumnos') {
+    if (RE_REGISTRO.test(h)) return 'n_registro';
+    if (/^(sexo|genero|h m|v m)$/.test(h)) return 'sexo';
+    if (/^(nacionalidad|pais|pais de nacionalidad|nacion)$/.test(h)) return 'nacionalidad';
+    if (/lugar (de )?nacimiento|pais de nacimiento|naci(o|do) en/.test(h)) return 'lugar_nacimiento';
+    if (/^provincia/.test(h)) return 'provincia';
+    if (/(tel[eé]?f\w*|movil|tlf|tfno) ?(2|segundo|alternativo|fijo)|otro tel/.test(h)) return 'telefono2';
+    if (/(cad|caducidad|vence|validez).*(dni|nie|documento)|(dni|nie|documento).*(cad|caduc|vence|validez)/.test(h)) return 'dni_caducidad';
+    if (/^tutor|padre|madre|representante/.test(h)) return 'tutor_nombre';
+  }
   const apellido = /apellido/.test(h);
   if (/\b(e ?mail|correo|mail)\b/.test(h)) return 'email';
   if (/nacim|\bnac\b|\bf ?nac|fnac|cumple/.test(h)) return tipo === 'alumnos' ? 'fecha_nacimiento' : '';
@@ -558,7 +579,8 @@ function resolverRelacionados(d, opciones) {
 
 // ─── ANÁLISIS: ALUMNOS ──────────────────────────────────────────────────────
 
-const CAMPOS_ACTUALIZABLES = ['primer_apellido', 'segundo_apellido', 'dni', 'telefono', 'email', 'fecha_nacimiento', 'direccion', 'codigo_postal', 'poblacion', 'permiso', 'fecha_alta', 'estado', 'observaciones', 'profesor_id', 'vehiculo_id'];
+const CAMPOS_ACTUALIZABLES = ['primer_apellido', 'segundo_apellido', 'dni', 'telefono', 'email', 'fecha_nacimiento', 'direccion', 'codigo_postal', 'poblacion', 'permiso', 'fecha_alta', 'estado', 'observaciones', 'profesor_id', 'vehiculo_id',
+  'n_registro', 'sexo', 'nacionalidad', 'lugar_nacimiento', 'provincia', 'telefono2', 'dni_caducidad', 'tutor_nombre'];
 const vacio = x => x == null || x === '' || (Array.isArray(x) && !x.length);
 
 function analizarAlumnos(d, entrada) {
@@ -600,6 +622,15 @@ function analizarAlumnos(d, entrada) {
     const fechaBaja = v.fecha_baja ? leerFechaFlexible(v.fecha_baja) : null;
     if (fechaBaja && fechaBaja <= hoy && !datos.estado) datos.estado = 'baja';
     if (v.observaciones) datos.observaciones = txt(v.observaciones).slice(0, 1000);
+    // Datos que también guardan otros programas (Ariauto…): cada uno a su campo
+    if (v.n_registro) datos.n_registro = txt(v.n_registro).slice(0, 40);
+    if (v.sexo) { datos.sexo = normalizarCampoExtra('sexo', v.sexo); if (!datos.sexo) avisos.push(`Sexo «${v.sexo}» no reconocido.`); }
+    if (v.nacionalidad) datos.nacionalidad = capitalizarNombre(v.nacionalidad).slice(0, 60);
+    if (v.lugar_nacimiento) datos.lugar_nacimiento = capitalizarNombre(v.lugar_nacimiento).slice(0, 80);
+    if (v.provincia) datos.provincia = capitalizarNombre(v.provincia).slice(0, 60);
+    if (v.telefono2) datos.telefono2 = limpiarTelefono(v.telefono2);
+    if (v.dni_caducidad) { datos.dni_caducidad = leerFechaFlexible(v.dni_caducidad); if (!datos.dni_caducidad) avisos.push(`Caducidad del DNI «${v.dni_caducidad}» no se entiende.`); }
+    if (v.tutor_nombre) datos.tutor_nombre = capitalizarNombre(v.tutor_nombre).slice(0, 120);
     if (v.profesor) { const r = rel.profesor(v.profesor); if (r.aviso) avisos.push(r.aviso); else { datos.profesor_id = r.id ?? `nuevo:${r.nuevo}`; fila.profesor = r.nombre; } }
     if (v.vehiculo) { const r = rel.vehiculo(v.vehiculo); if (r.aviso) avisos.push(r.aviso); else { datos.vehiculo_id = r.id ?? `nuevo:${r.nuevo}`; fila.vehiculo = r.nombre; } }
     const previas = v.clases_previas ? leerEntero(v.clases_previas, 500) : null;
@@ -825,7 +856,8 @@ function nuevoAlumno(d, datos, opciones, hoy) {
     direccion: datos.direccion || null, fecha_alta: datos.fecha_alta || hoy, observaciones: datos.observaciones || null,
     estado: datos.estado || null, codigo_postal: datos.codigo_postal || null, poblacion: datos.poblacion || null,
     permisos_posee: null, fecha_inicio: null, fecha_fin: null, resultado: null, permisos: datos.permisos || [],
-    clases_previas: datos.clases_previas || 0, km_previos: datos.km_previos || 0
+    clases_previas: datos.clases_previas || 0, km_previos: datos.km_previos || 0,
+    ...camposExtraVacios('alumnos'), ...extraerCamposExtra('alumnos', datos)
   };
   d.alumnos.push(a);
   return a;
@@ -948,7 +980,7 @@ function getImportaciones() {
   const n = (i, k) => ((i.creados || {})[k] || []).length;
   return (d.importaciones || []).map(i => ({
     id: i.id, fecha: i.fecha, tipo: i.tipo, archivo: i.archivo, deshecha: i.deshecha,
-    alumnos: n(i, 'alumnos'), actualizados: i.actualizados.length, clases: n(i, 'practicas'),
+    alumnos: n(i, 'alumnos'), actualizados: i.actualizados.filter(x => !x.tabla || x.tabla === 'alumnos').length, clases: n(i, 'practicas'),
     profesores: n(i, 'profesores'), vehiculos: n(i, 'vehiculos'),
     cargos: n(i, 'cargos'), pagos: n(i, 'pagos'), examenes: n(i, 'presentaciones')
   }));
@@ -1005,14 +1037,20 @@ function deshacerImportacion(id) {
   d.alumnos = d.alumnos.filter(a => !fuera.includes(a.id));
   marcarBorrado('alumnos', fuera); res.alumnos = fuera.length;
 
-  for (const { id: aid, antes, despues } of imp.actualizados) {
-    const a = d.alumnos.find(x => x.id === aid);
-    if (!a) continue;
+  // Lo que se completó en registros que ya estaban (alumnos y, desde Ariauto,
+  // también profesores, coches, exámenes y tasas): vuelve a como estaba si
+  // nadie lo ha cambiado después.
+  const SINCRONIZADAS = new Set(['alumnos', 'profesores', 'vehiculos']);
+  for (const { tabla = 'alumnos', id: rid, antes, despues } of imp.actualizados) {
+    const r = (d[tabla] || []).find(x => x.id === rid);
+    if (!r) continue;
     let algo = false;
     for (const campo of Object.keys(antes)) {
-      if (String(a[campo] ?? '') === String(despues[campo] ?? '')) { a[campo] = antes[campo]; algo = true; }
+      if (String(r[campo] ?? '') === String(despues[campo] ?? '')) { r[campo] = antes[campo]; algo = true; }
     }
-    if (algo) { res.restaurados++; if (s) s.markDirty('alumnos', a.id); }
+    if (!algo) continue;
+    if (tabla === 'alumnos') res.restaurados++;
+    if (s && SINCRONIZADAS.has(tabla)) s.markDirty(tabla, r.id);
   }
   const profUsado = pid => d.alumnos.some(a => a.profesor_id === pid) || d.practicas.some(p => p.profesor_id === pid);
   const vehUsado = vid => d.alumnos.some(a => a.vehiculo_id === vid) || d.practicas.some(p => p.vehiculo_id === vid) ||
