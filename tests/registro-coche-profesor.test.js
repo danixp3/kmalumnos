@@ -146,12 +146,16 @@ test('Puesta en marcha: nº de registro, coche del profesor, alumnos repetidos y
   expect(kole).toMatchObject({ n_registro: '4906', vehiculo_id: kia, profesor_id: prof });
   expect(db.getVehiculoDeProfesor(prof)).toBe(kia);
 
-  // Meter otra vez al mismo (o a uno que está entre los terminados): no se deja
-  r = db.guardarPuestaEnMarcha({ alumnos: [{ id: null, nombre: 'KOLE', primer_apellido: 'bardechi' }] });
+  // Meter otra vez al mismo con el mismo permiso mientras sigue en curso: no se deja
+  r = db.guardarPuestaEnMarcha({ alumnos: [{ id: null, nombre: 'KOLE', primer_apellido: 'bardechi', permiso: 'B' }] });
   expect(r.ok).toBe(false);
-  expect(r.errores[0]).toMatch(/ya está en la app como «Kole Bardechi» \(nº 4906\)/);
-  r = db.guardarPuestaEnMarcha({ alumnos: [{ id: null, nombre: 'Luis', primer_apellido: 'Soto' }] });
-  expect(r.errores[0]).toMatch(/entre los terminados/);
+  expect(r.errores[0]).toMatch(/ya está en la app como «Kole Bardechi» \(nº 4906\), en curso con el permiso B/);
+  // Otro permiso de la misma persona, o el mismo permiso cuando el anterior ya
+  // terminó: es otro expediente, con su nº
+  r = db.guardarPuestaEnMarcha({ alumnos: [{ id: null, nombre: 'Kole', primer_apellido: 'Bardechi', permiso: 'A2' }, { id: null, nombre: 'Luis', primer_apellido: 'Soto', permiso: 'B' }] });
+  expect(r.ok).toBe(true);
+  const expedientes = leerLocal().alumnos.filter(a => a.nombre === 'Kole' || a.nombre === 'Luis').map(a => [a.nombre, a.permiso, a.n_registro, a.estado]);
+  expect(expedientes).toEqual([['Luis', 'B', '3001', 'apto'], ['Kole', 'B', '4906', 'en_practicas'], ['Kole', 'A2', '4907', 'en_practicas'], ['Luis', 'B', '4908', 'en_practicas']]);
   // Nº de registro repetido: no se deja
   r = db.guardarPuestaEnMarcha({ alumnos: [{ id: ana, n_registro: '3001', nombre: 'Ana', primer_apellido: 'Ríos' }] });
   expect(r.errores[0]).toMatch(/el nº de registro 3001 ya lo tiene Luis Soto/);

@@ -109,6 +109,8 @@ function pintarCabeceraFicha(f) {
         <h1>${esc(nombreCompleto)}${estado === 'baja' ? ' <span class="pill pill-err" style="vertical-align:middle">Baja</span>' : estado === 'inactivo' ? ' <span class="pill pill-line" style="vertical-align:middle">Inactivo</span>' : ''}</h1>
         <span class="ficha-linea">${linea1}</span>
         <div class="ficha-contacto">${contacto}</div>
+        ${(f.otros_expedientes || []).length ? `<div class="ficha-expedientes" title="La misma persona con otro permiso o curso: cada uno es un expediente con su nº">Otros expedientes: ${f.otros_expedientes.map(x =>
+          `<button type="button" class="pill pill-line ficha-exp" onclick="verPracticas(${x.id},${x.vehiculo_id || 'null'},'${esc(x.nombre)}')">${x.n_registro ? 'Nº ' + esc(x.n_registro) + ' · ' : ''}${esc(x.permiso)}${x.estado ? ' · ' + esc(ESTADO_ALUMNO_TEXTO[x.estado] || x.estado) : ''}</button>`).join(' ')}</div>` : ''}
       </div>
       <dl class="ficha-metricas">
         ${bono}

@@ -42,7 +42,7 @@ const path = require('path');
 const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO } = require('./core');
 const mig = require('./migracion');
 const { normTexto, claveNombre, capitalizarNombre, limpiarDni, limpiarTelefono, limpiarEmail, limpiarCP } = mig._norm;
-const { indices, buscarAlumno, nombreDe, limpiarMatricula, registrarImportacion, buscadorParecidos } = mig._interno;
+const { nombreDe, limpiarMatricula, registrarImportacion, buscadorParecidos } = mig._interno;
 const { CAMPOS_EXTRA, extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
 const { sugerirCocheProfesor } = require('./profesores');
 
@@ -415,7 +415,6 @@ function planAriauto(tablas, opciones = {}, d = load()) {
       : { nuevo: `ariauto-prof-${p['NUMERO PROFESOR']}`, nombre, dni, deBaja: !!p['FECHA DE BAJA'], extra });
   }
 
-  const idx = indices(d);
   // Lo que ya tiene cada alumno en la app (para no repetir nada)
   const porAlumno = tabla => {
     const m = new Map();
@@ -434,7 +433,8 @@ function planAriauto(tablas, opciones = {}, d = load()) {
   }
   const filas = [];
   const idsUsados = new Set();
-  const vistos = new Set();
+  const expedientesVistos = new Set();
+  const fichaDe = new Map(); // id del alumno de la app → la ficha de Ariauto que le ha tocado
   const profUsados = new Set();
   let enCurso = 0, terminados = 0;
 
@@ -486,10 +486,12 @@ function planAriauto(tablas, opciones = {}, d = load()) {
     if (fila.caducaDni && dniVencido.has(`${al.id}|${fila.caducaDni}`)) fila.caducaDni = null;
   };
 
-  // Lo más reciente primero: si alguien se matriculó dos veces, vale su última
-  // ficha (la de antes queda como repetida)
+  // Lo más reciente primero (y, a la misma fecha, la de la sección de
+  // autoescuela antes que su copia en la de cursos)
+  const esCurso = sec => !!(secs.find(x => x.seccion === sec) || {}).curso;
   const fichas = (tablas['ALUMNOS'] || []).map((a, orden) => ({ a, orden })).sort((x, y) =>
-    String(y.a['FECHA DE ALTA'] || y.a['FECHA DE INGRESO'] || '').localeCompare(String(x.a['FECHA DE ALTA'] || x.a['FECHA DE INGRESO'] || '')));
+    String(y.a['FECHA DE ALTA'] || y.a['FECHA DE INGRESO'] || '').localeCompare(String(x.a['FECHA DE ALTA'] || x.a['FECHA DE INGRESO'] || '')) ||
+    esCurso(x.a.SECCION) - esCurso(y.a.SECCION));
   for (const { a, orden } of fichas) {
     if (!elegidas.has(a.SECCION)) continue;
     const k = clave(a.SECCION, a['Nº ALUMNO']);
@@ -513,8 +515,13 @@ function planAriauto(tablas, opciones = {}, d = load()) {
     const docTxt = txt(a['DNI DEL ALUMNO']) + (/^[XYZ]?\d{6,8}$/i.test(txt(a['DNI DEL ALUMNO']).replace(/[\s.-]/g, '')) ? txt(a['NIF DEL ALUMNO']) : '');
     const dni = limpiarDni(docTxt);
     const kPersona = dni.valor || claveNombre(nombre, a1, a2);
-    if (vistos.has(kPersona)) continue; // repetido en otra sección
-    vistos.add(kPersona);
+    // Una persona puede tener varias fichas, cada una con su nº: los permisos o
+    // cursos que ha ido sacando (B, luego C y EC; A2 y luego A; el CAP…). Cada
+    // una es un expediente aparte. Solo se junta la MISMA ficha copiada en otra
+    // sección (mismo nº y permiso: Ariauto copia la del alumno en la de cursos).
+    const kExpediente = `${kPersona}|${txt(a['Nº ALUMNO'])}|${letras(a.PERMISO) || 'B'}`;
+    if (expedientesVistos.has(kExpediente)) continue;
+    expedientesVistos.add(kExpediente);
 
     const via = txt(a.Tipo_de_Via), dom = txt(a['DOMICILIO DEL ALUMNO']);
     const calle = capitalizarNombre([via && !dom.toUpperCase().startsWith(via.toUpperCase()) ? via : '', dom].filter(Boolean).join(' '));
@@ -611,9 +618,7 @@ function planAriauto(tablas, opciones = {}, d = load()) {
     // por DNI / nombre
     const mismaPersona = al => (dni.valor && limpiarDni(al.dni).valor === dni.valor) || claveNombre(al.nombre, al.primer_apellido, al.segundo_apellido) === claveNombre(persona.nombre, persona.primer_apellido, persona.segundo_apellido);
     const porClave = [porClaveV125.get(kAri), ...(porRegistro.get(txt(a['Nº ALUMNO'])) || [])].find(al => al && !idsUsados.has(al.id) && mismaPersona(al));
-    const enApp = porClave ? { alumno: porClave } : buscarAlumno(idx, persona);
-    if (enApp.alumno && idsUsados.has(enApp.alumno.id)) continue; // ya emparejado con otra ficha de Ariauto
-    if (enApp.alumno) idsUsados.add(enApp.alumno.id);
+    if (porClave) idsUsados.add(porClave.id);
     const datos = {
       nombre: persona.nombre, primer_apellido: persona.primer_apellido || null, segundo_apellido: persona.segundo_apellido || null,
       dni: dni.valor, telefono: tels[0] || null, email: limpiarEmail(a.email_al), fecha_nacimiento: a['FECHA NACIMIENTO'] || null,
@@ -626,42 +631,121 @@ function planAriauto(tablas, opciones = {}, d = load()) {
     const fila = {
       clave: k, nombre: [datos.nombre, datos.primer_apellido, datos.segundo_apellido].filter(Boolean).join(' '), dni: dni.valor, permiso, estado, activo,
       n_registro: datos.n_registro, clases, saldo, cargos, pagos, presentaciones, tasas: tasasAl, caducaDni, datos, estadoV125, avisos: [],
-      persona, entradasClase, orden,
+      persona, entradasClase, orden, kPersona,
       // Alumno nuevo: en curso, cada clase con su día; terminado, solo el número
       reparto: activo ? repartirClases(entradasClase) : { conFecha: [], sinFecha: clases, omitidas: 0, total: clases }
     };
     if (dni.valor && !dni.valido) fila.avisos.push('DNI con letra que no cuadra');
-    if (enApp.alumno) prepararActualizar(fila, enApp.alumno, false);
-    else if (enApp.ambiguo || enApp.mismoNombre) {
-      fila.accion = 'revisar'; fila.avisos.push(enApp.ambiguo ? 'Hay varios alumnos con este nombre en la app: no se toca' : 'En la app hay otro alumno con este nombre y otro DNI: no se toca');
-    } else fila.accion = 'nuevo';
+    // Por su nº ya está en la app; si no, se empareja después, con todas las
+    // fichas a la vista (una persona puede tener varias)
+    if (porClave) { prepararActualizar(fila, porClave, false); fichaDe.set(porClave.id, fila); } else fila.accion = null;
     filas.push(fila);
+  }
+
+  // ─── Emparejar por DNI o nombre con los alumnos de la app ─────────────────
+  // Al alumno que ya está en la app (p. ej. el de la Puesta en marcha, sin nº)
+  // le toca la ficha de su misma persona que más se le parece: mismo permiso,
+  // en curso si él está en curso, y la más reciente. Las demás fichas de esa
+  // persona (otros permisos o cursos) entran como expedientes aparte. Si dos
+  // alumnos de la app empatan para la misma ficha, no se toca (se avisa).
+  const nombreAl = al => [al.nombre, al.primer_apellido, al.segundo_apellido].filter(Boolean).join(' ');
+  const terminadoApp = al => ['baja', 'apto', 'aprobado', 'inactivo'].includes(al.estado);
+  const porDniApp = new Map(), porNombreApp = new Map();
+  const meter = (m, k, v) => { if (!m.has(k)) m.set(k, []); m.get(k).push(v); };
+  for (const al of d.alumnos) {
+    if (al.deleted) continue;
+    const dv = limpiarDni(al.dni).valor;
+    if (dv) meter(porDniApp, dv, al);
+    const kn = claveNombre(al.nombre, al.primer_apellido, al.segundo_apellido);
+    if (kn) meter(porNombreApp, kn, al);
+  }
+  const altaNum = f => (Number(String(f.datos.fecha_alta || '').replace(/-/g, '')) || 0) / 1e9;
+  // Mismo permiso y mismo «en curso / terminado»; entre fichas de una misma
+  // persona desempata la más reciente
+  const puntosBase = (f, al) => (al.permiso === f.permiso ? 100 : 0) + (terminadoApp(al) === !f.activo ? 10 : 0);
+  const puntos = (f, al) => puntosBase(f, al) + altaNum(f);
+  const pendientes = filas.filter(f => f.accion === null);
+  for (const f of pendientes) {
+    const dniF = f.persona.dni.valor;
+    const c = new Set(dniF ? porDniApp.get(dniF) || [] : []);
+    for (const al of porNombreApp.get(claveNombre(f.persona.nombre, f.persona.primer_apellido, f.persona.segundo_apellido)) || []) {
+      const dv = limpiarDni(al.dni).valor;
+      if (dniF && dv && dv !== dniF) f.otroDni = true; else c.add(al);
+    }
+    f.cands = [...c];
+  }
+  const pares = [];
+  for (const f of pendientes) for (const al of f.cands) pares.push([puntos(f, al), f, al]);
+  pares.sort((x, y) => y[0] - x[0]);
+  for (const [pt, f, al] of pares) {
+    if (f.asignado || f.empate || idsUsados.has(al.id)) continue;
+    if (f.cands.some(x => x !== al && !idsUsados.has(x.id) && puntos(f, x) === pt)) { f.empate = true; continue; }
+    f.asignado = al; idsUsados.add(al.id); fichaDe.set(al.id, f);
+  }
+  // Personas DISTINTAS (otro DNI) que se disputan, empatadas, al mismo alumno
+  // de la app (sin DNI): no se sabe cuál de ellas es
+  for (const f of pendientes) {
+    const al = f.asignado;
+    if (!al) continue;
+    const rivales = pendientes.filter(g => g !== f && g.kPersona !== f.kPersona && g.cands.includes(al) && puntosBase(g, al) === puntosBase(f, al));
+    if (!rivales.length) continue;
+    idsUsados.delete(al.id); fichaDe.delete(al.id);
+    for (const g of [f, ...rivales]) { g.asignado = null; g.homonimo = true; }
+  }
+  for (const f of pendientes) {
+    // El alumno de la app que es de esta misma persona (se lo llevó otra de sus fichas)
+    const suyo = f.cands.find(al => fichaDe.has(al.id) && fichaDe.get(al.id).kPersona === f.kPersona);
+    if (f.asignado) prepararActualizar(f, f.asignado, false);
+    else if (f.homonimo) { f.accion = 'revisar'; f.avisos.push('En la app hay un alumno con este nombre y en Ariauto hay más de una persona que se llama así: no se toca (pon el DNI en la app para saber cuál es)'); }
+    else if (f.empate) { f.accion = 'revisar'; f.avisos.push('Hay varios alumnos con este nombre en la app: no se toca'); }
+    else if (suyo) { f.accion = 'nuevo'; f.otroExpedienteDe = suyo; }
+    else if (f.cands.length) f.accion = 'nuevo'; // otra persona que se llama igual
+    else if (f.otroDni) { f.accion = 'revisar'; f.avisos.push('En la app hay otro alumno con este nombre y otro DNI: no se toca'); }
+    else f.accion = 'nuevo';
   }
 
   filas.sort((x, y) => x.orden - y.orden); // en el orden de Ariauto
   // Segunda vuelta: alumnos de la app sin pareja que se PARECEN a una ficha
   // que iba a entrar como nueva (una errata: «Kole Bardechi» / «Kolë Bardheci»,
-  // o le falta un apellido). Si el parecido es de uno a uno, es el mismo; si
-  // hay varios posibles, no se toca ninguno (mejor que duplicar).
-  const nuevas = filas.filter(f => f.accion === 'nuevo');
+  // o le falta un apellido). Si las fichas parecidas son de UNA persona, al
+  // alumno le toca la que más se le parece (las demás son sus otros
+  // expedientes); si son de personas distintas o varios alumnos de la app
+  // quieren la misma, no se toca ninguna (mejor que duplicar o mezclar).
+  const nuevas = filas.filter(f => f.accion === 'nuevo' && !f.otroExpedienteDe);
   if (nuevas.length) {
     const parecidosA = buscadorParecidos(d.alumnos.filter(al => !al.deleted && !idsUsados.has(al.id)));
-    const porAlumno = new Map(); // id del alumno de la app → filas parecidas
-    const candidatos = new Map(); // fila → alumnos de la app parecidos
+    const porAlumno = new Map(); // id del alumno de la app → { al, filas parecidas }
     for (const f of nuevas) {
-      const c = parecidosA(f.persona);
-      if (!c.length) continue;
-      candidatos.set(f, c);
-      for (const al of c) { if (!porAlumno.has(al.id)) porAlumno.set(al.id, []); porAlumno.get(al.id).push(f); }
+      for (const al of parecidosA(f.persona)) { if (!porAlumno.has(al.id)) porAlumno.set(al.id, { al, filas: [] }); porAlumno.get(al.id).filas.push(f); }
     }
-    for (const [f, c] of candidatos) {
-      if (c.length === 1 && porAlumno.get(c[0].id).length === 1) {
-        idsUsados.add(c[0].id);
-        prepararActualizar(f, c[0], true);
-      } else {
-        f.accion = 'revisar';
-        f.avisos.push(`Se parece a ${c.map(al => '«' + [al.nombre, al.primer_apellido, al.segundo_apellido].filter(Boolean).join(' ') + '»').join(' y ')} de la app: no se toca (corrige el nombre en la app si es el mismo)`);
-      }
+    const elegidaPor = new Map(), dudosas = new Map(); // fila → alumnos de la app
+    const anotar = (m, f, al) => m.set(f, [...(m.get(f) || []), al]);
+    for (const { al, filas: fs } of porAlumno.values()) {
+      if (new Set(fs.map(f => f.kPersona)).size > 1) { for (const f of fs) anotar(dudosas, f, al); continue; }
+      const mejor = fs.slice().sort((x, y) => puntos(y, al) - puntos(x, al))[0];
+      anotar(elegidaPor, mejor, al);
+      for (const f of fs) if (f !== mejor) f.otroExpedienteDe = al;
+    }
+    for (const [f, als] of elegidaPor) {
+      if (als.length === 1 && !dudosas.has(f)) { idsUsados.add(als[0].id); fichaDe.set(als[0].id, f); prepararActualizar(f, als[0], true); }
+      else for (const al of als) anotar(dudosas, f, al);
+    }
+    for (const [f, als] of dudosas) {
+      if (f.accion !== 'nuevo') continue;
+      f.accion = 'revisar'; delete f.otroExpedienteDe;
+      f.avisos.push(`Se parece a ${[...new Set(als)].map(al => '«' + nombreAl(al) + '»').join(' y ')} de la app: no se toca (corrige el nombre en la app si es el mismo)`);
+    }
+  }
+  // Varios expedientes de una misma persona: cada uno con su nº, y se avisa
+  const porPersona = new Map();
+  for (const f of filas) if (f.accion !== 'revisar') meter(porPersona, f.kPersona, f);
+  const permisoTxt = f => `${f.n_registro ? 'nº ' + f.n_registro + ', ' : ''}permiso ${f.permiso}`;
+  for (const f of filas) {
+    const otras = (porPersona.get(f.kPersona) || []).filter(x => x !== f);
+    if (otras.length) f.otrosExpedientes = otras.map(x => ({ n_registro: x.n_registro || null, permiso: x.permiso, estado: x.estado }));
+    if (f.accion === 'nuevo' && f.otroExpedienteDe) {
+      const suya = fichaDe.get(f.otroExpedienteDe.id);
+      f.avisos.push(`Otro permiso o curso de «${nombreAl(f.otroExpedienteDe)}», que ya está en la app${suya ? ` (${permisoTxt(suya)})` : ` (permiso ${f.otroExpedienteDe.permiso})`}: entra como expediente aparte, con su nº`);
     }
   }
   // «Clases ya hechas» sin fecha: en la nube es un número entero
@@ -786,6 +870,9 @@ function planAriauto(tablas, opciones = {}, d = load()) {
     clasesConFecha: filas.reduce((n, f) => n + (f.accion === 'nuevo' || f.accion === 'actualizar' ? f.reparto.conFecha.reduce((t, x) => t + x.n, 0) : 0), 0),
     clasesYaEnApp: actualizar.reduce((n, f) => n + f.reparto.omitidas, 0),
     parecidos: actualizar.filter(f => f.parecido).length,
+    // Expedientes de una persona que ya está en la app (otro permiso o curso)
+    expedientesAparte: filas.filter(f => f.accion === 'nuevo' && f.otroExpedienteDe).length,
+    personasVariosExpedientes: new Set(filas.filter(f => f.otrosExpedientes && f.accion !== 'revisar').map(f => f.kPersona)).size,
     nombresCorregidos: actualizar.filter(f => f.cambios.nombre || f.cambios.primer_apellido || f.cambios.segundo_apellido).length,
     altasCorregidas: actualizar.filter(f => f.cambios.fecha_alta && f.cambios.fecha_alta.antes).length,
     cochesProfesor: cochesProfesor.length,
@@ -867,7 +954,8 @@ function previaAriauto(plan) {
         // Lo que se le corrige a uno que ya está (para enseñarlo)
         nombreNuevo: f.cambios && (f.cambios.nombre || f.cambios.primer_apellido || f.cambios.segundo_apellido) ? f.nombre : null,
         altaNueva: f.cambios && f.cambios.fecha_alta && f.cambios.fecha_alta.antes ? f.cambios.fecha_alta.despues : null,
-        registroNuevo: f.cambios && f.cambios.n_registro ? f.cambios.n_registro.despues : null
+        registroNuevo: f.cambios && f.cambios.n_registro ? f.cambios.n_registro.despues : null,
+        otrosExpedientes: f.otrosExpedientes || null
       };
     }),
     masFilas: Math.max(0, filas.length - MAX_PREVIA)

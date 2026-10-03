@@ -153,8 +153,20 @@ function getFichaAlumno(alumno_id, hoy) {
     }
   }
 
+  // Sus otros expedientes: la misma persona con otro permiso o curso, cada uno
+  // con su nº (como en el programa anterior). Por DNI; sin DNI, por el nombre
+  // completo si ninguno tiene otro DNI.
+  const dniDe = x => String(x.dni || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+  const claveDe = x => sinTildes([x.nombre, x.primer_apellido, x.segundo_apellido].filter(Boolean).join(' ')).replace(/[^a-z0-9ñ]+/g, ' ').trim().split(' ').filter(Boolean).sort().join(' ');
+  const miDni = dniDe(base), miClave = claveDe(base);
+  const otros_expedientes = d.alumnos
+    .filter(x => !x.deleted && x.id !== aid && (miDni ? dniDe(x) === miDni : (!dniDe(x) && miClave && claveDe(x) === miClave)))
+    .sort((x, y) => String(y.fecha_alta || '').localeCompare(String(x.fecha_alta || '')))
+    .map(x => ({ id: x.id, nombre: x.nombre, n_registro: x.n_registro || null, permiso: x.permiso, estado: x.estado || null, fecha_alta: x.fecha_alta || null, vehiculo_id: x.vehiculo_id || null }));
+
   return {
     alumno: base,
+    otros_expedientes,
     metricas: {
       clases: hechas.reduce((n, p) => n + clasesDePractica(p), 0) + previas,
       km: Math.round(hechas.reduce((s, p) => s + p.km, 0)) + (base.km_previos || 0),

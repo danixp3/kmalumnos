@@ -120,12 +120,18 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
     }
   });
   const anteriores = contarClasesAnteriores(d);
-  // Alumnos ya en la app por su nombre completo (para no darlos de alta dos veces)
+  // Alumnos ya en la app por su nombre completo (para no darlos de alta dos
+  // veces). Una persona puede tener varios expedientes (uno por permiso o
+  // curso, cada uno con su nº): solo se impide otro del MISMO permiso mientras
+  // el que tiene sigue en curso; para otro permiso, o si el anterior ya
+  // terminó (aprobado, baja), es un expediente nuevo y se deja.
   const porNombre = new Map();
   for (const x of d.alumnos) {
     if (x.deleted) continue;
     const k = claveNombre(x.nombre, x.primer_apellido, x.segundo_apellido);
-    if (k && !porNombre.has(k)) porNombre.set(k, x);
+    if (!k) continue;
+    if (!porNombre.has(k)) porNombre.set(k, []);
+    porNombre.get(k).push(x);
   }
   alumnos.forEach((a, i) => {
     const nombre = texto(a.nombre);
@@ -133,10 +139,14 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
     if (!a.id && !nombre && hayDatos) errores.push(`Alumno de la fila ${i + 1}: falta el nombre.`);
     if (!a.id && nombre) {
       const k = claveNombre(nombre, texto(a.primer_apellido), texto(a.segundo_apellido));
-      const ya = porNombre.get(k);
+      const permiso = texto(a.permiso, 6) || 'B';
+      const ya = (porNombre.get(k) || []).find(x => (x.permiso || 'B') === permiso && !TERMINADOS.includes(x.estado));
       if (ya) {
-        errores.push(`${nombre}: ya está en la app como «${nombreCompleto(ya)}»${ya.n_registro ? ` (nº ${ya.n_registro})` : ''}${TERMINADOS.includes(ya.estado) ? ', entre los terminados (búscalo en Alumnos y cámbiale el estado)' : ''}. No lo añadas otra vez; si es otra persona con el mismo nombre, pon su segundo apellido.`);
-      } else if (k) porNombre.set(k, { nombre, primer_apellido: texto(a.primer_apellido), segundo_apellido: texto(a.segundo_apellido) });
+        errores.push(`${nombre}: ya está en la app como «${nombreCompleto(ya)}»${ya.n_registro ? ` (nº ${ya.n_registro})` : ''}, en curso con el permiso ${permiso}. No lo añadas otra vez; si es otra persona con el mismo nombre, pon su segundo apellido, y si saca otro permiso, elige ese permiso.`);
+      } else if (k) {
+        if (!porNombre.has(k)) porNombre.set(k, []);
+        porNombre.get(k).push({ nombre, primer_apellido: texto(a.primer_apellido), segundo_apellido: texto(a.segundo_apellido), permiso, estado: 'en_practicas' });
+      }
     }
     const nReg = texto(a.n_registro, 40);
     const nRegAntes = a.id ? String((d.alumnos.find(x => x.id === a.id) || {}).n_registro || '') : '';
