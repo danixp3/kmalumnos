@@ -508,17 +508,34 @@ ipcMain.handle('planificar-clases-anteriores', (_, opciones) => db.planificarCla
 ipcMain.handle('aplicar-clases-anteriores', (_, plan) => db.aplicarClasesAnteriores(plan));
 ipcMain.handle('set-punto-de-partida-alumno', (_, id, clases, km) => db.setPuntoDePartidaAlumno(id, clases, km));
 // Traer datos de otro programa (db/migracion.js + db/lector-tablas.js)
+// Base de Access de Ariauto leída: se guarda aquí entre la vista previa y la
+// importación (son decenas de MB; a la pantalla solo va el resumen).
+let ariautoLeido = null;
 ipcMain.handle('migracion-abrir-archivo', async () => {
   const r = await dialog.showOpenDialog(mainWin, {
     title: 'Elegir el archivo que ha sacado tu programa anterior',
     filters: [
-      { name: 'Excel, CSV y listados', extensions: ['xlsx', 'xls', 'xlsm', 'ods', 'csv', 'txt', 'tsv', 'dbf', 'htm', 'html', 'xml'] },
+      { name: 'Excel, CSV, listados y bases de Access', extensions: ['xlsx', 'xls', 'xlsm', 'ods', 'csv', 'txt', 'tsv', 'dbf', 'htm', 'html', 'xml', 'accdb', 'mdb'] },
       { name: 'Todos los archivos', extensions: ['*'] }
     ],
     properties: ['openFile']
   });
   if (r.canceled || !r.filePaths.length) return { ok: false, canceled: true };
-  return db.leerArchivoTabla(r.filePaths[0]);
+  const ruta = r.filePaths[0];
+  if (/\.(accdb|mdb)$/i.test(ruta)) {
+    const a = await db.leerAccess(ruta);
+    if (!a.ok || !a.ariauto) return a; // otro programa: cada tabla, como una hoja
+    ariautoLeido = { archivo: a.archivo, tablas: a.tablas };
+    return { ok: true, ariauto: true, archivo: a.archivo, plan: db.previaAriauto(db.planAriauto(a.tablas, {})) };
+  }
+  return db.leerArchivoTabla(ruta);
+});
+ipcMain.handle('ariauto-analizar', (_, opciones) => (ariautoLeido ? db.previaAriauto(db.planAriauto(ariautoLeido.tablas, opciones || {})) : { ok: false, errores: ['Vuelve a elegir el archivo de Ariauto.'] }));
+ipcMain.handle('ariauto-aplicar', (_, opciones) => {
+  if (!ariautoLeido) return { ok: false, errores: ['Vuelve a elegir el archivo de Ariauto.'] };
+  const res = db.aplicarAriauto(ariautoLeido.tablas, opciones || {}, ariautoLeido.archivo);
+  if (res && res.ok) { ariautoLeido = null; sync.sync().catch(() => {}); }
+  return res;
 });
 ipcMain.handle('migracion-leer-texto', (_, texto) => db.leerTextoTabla(texto));
 ipcMain.handle('migracion-detectar', (_, hoja, tipo, filaCabecera) => db.detectarTablaMigracion(hoja, tipo, filaCabecera));

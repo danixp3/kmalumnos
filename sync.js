@@ -1913,22 +1913,23 @@ async function _syncInterno() {
     // que un empleado sin permiso no se queda con reintentos atascados: sus
     // pagos pendientes simplemente no llegan a la nube (el jefe los subirá
     // cuando sincronice él).
+    // Por lotes, como alumnos y prácticas (una importación puede traer miles).
     try {
+      const lotePagos = [];
       for (const id of (pending.pagos || [])) {
         const pg = data.pagos.find(x => x.id === id);
         if (!pg) { hecho('pagos', id); continue; }
-        if (pg) {
-          const payload = {
-            id: pg.id, alumno_id: pg.alumno_id, fecha: pg.fecha,
-            cantidad: pg.cantidad || 0, nota: pg.nota || '',
-            deleted: false, updated_at: new Date().toISOString()
-          };
-          if (_empresaId) payload.empresa_id = _empresaId;
-          if (sucursalesOn) payload.sucursal_id = pg.sucursal_id != null ? pg.sucursal_id : null;
-          if (pagosCamposOn) { payload.forma_pago = pg.forma_pago || null; payload.empleado = pg.empleado || null; }
-          subidaOk(await sb.from('pagos').upsert(payload, { onConflict: 'id' }), 'pagos', id);
-        }
+        const payload = {
+          id: pg.id, alumno_id: pg.alumno_id, fecha: pg.fecha,
+          cantidad: pg.cantidad || 0, nota: pg.nota || '',
+          deleted: false, updated_at: new Date().toISOString()
+        };
+        if (_empresaId) payload.empresa_id = _empresaId;
+        if (sucursalesOn) payload.sucursal_id = pg.sucursal_id != null ? pg.sucursal_id : null;
+        if (pagosCamposOn) { payload.forma_pago = pg.forma_pago || null; payload.empleado = pg.empleado || null; }
+        lotePagos.push([id, payload]);
       }
+      await subirEnLotes('pagos', lotePagos);
     } catch (e) {
       console.error('Sync: no se pudo subir pagos (permiso denegado o error de red):', e.message);
       // Empleado sin acceso a pagos: no se reintenta (lo subirá el jefe).
@@ -1987,20 +1988,20 @@ async function _syncInterno() {
     // después de alumnos (más arriba) para que un cargo nuevo nunca llegue
     // antes que el alumno al que pertenece.
     if (cargosOn) {
+      const loteCargos = [];
       for (const id of (pending.cargos || [])) {
         const c = data.cargos.find(x => x.id === id);
         if (!c) { hecho('cargos', id); continue; }
-        if (c) {
-          const payload = {
-            id: c.id, alumno_id: c.alumno_id || null, concepto: c.concepto || '',
-            tipo: c.tipo, importe: c.importe || 0, fecha: c.fecha || null, nota: c.nota || '',
-            deleted: !!c.deleted, updated_at: new Date().toISOString()
-          };
-          if (_empresaId) payload.empresa_id = _empresaId;
-          if (sucursalesOn) payload.sucursal_id = c.sucursal_id != null ? c.sucursal_id : null;
-          subidaOk(await sb.from('cargos').upsert(payload, { onConflict: 'id' }), 'cargos', id);
-        }
+        const payload = {
+          id: c.id, alumno_id: c.alumno_id || null, concepto: c.concepto || '',
+          tipo: c.tipo, importe: c.importe || 0, fecha: c.fecha || null, nota: c.nota || '',
+          deleted: !!c.deleted, updated_at: new Date().toISOString()
+        };
+        if (_empresaId) payload.empresa_id = _empresaId;
+        if (sucursalesOn) payload.sucursal_id = c.sucursal_id != null ? c.sucursal_id : null;
+        loteCargos.push([id, payload]);
       }
+      await subirEnLotes('cargos', loteCargos);
     }
 
     // Ajustes compartidos con la web (p. ej. zonas de prácticas): la "id" en la

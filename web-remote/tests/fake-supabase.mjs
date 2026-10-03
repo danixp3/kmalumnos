@@ -1,6 +1,6 @@
 // Supabase simulado en memoria: solo lo que usan los endpoints de web-remote/api.
-export const BD = { tablas: {}, columnasInexistentes: {}, rpc: [] };
-export function reiniciar(tablas = {}, columnasInexistentes = {}) { BD.tablas = JSON.parse(JSON.stringify(tablas)); BD.columnasInexistentes = columnasInexistentes; BD.rpc = []; BD.maxRows = 0; }
+export const BD = { tablas: {}, columnasInexistentes: {}, rpc: [], funciones: {} };
+export function reiniciar(tablas = {}, columnasInexistentes = {}) { BD.tablas = JSON.parse(JSON.stringify(tablas)); BD.columnasInexistentes = columnasInexistentes; BD.rpc = []; BD.maxRows = 0; BD.funciones = {}; }
 
 const FK = { alumnos: 'alumno_id', vehiculos: 'vehiculo_id' };
 const errCol = c => ({ code: 'PGRST204', message: `Could not find the '${c}' column of 'practicas' in the schema cache` });
@@ -11,6 +11,8 @@ class Consulta {
   select(cols = '*', opts = {}) { if (this.modo === 'select') { this.cols = cols; this.opts = opts; } else { this.retorna = cols; } return this; }
   insert(p) { this.modo = 'insert'; this.payload = p; return this; }
   update(p) { this.modo = 'update'; this.payload = p; return this; }
+  delete() { this.modo = 'delete'; return this; }
+  is(c, v) { this.filtros.push(r => (r[c] ?? null) === v); return this; }
   eq(c, v) { this.filtros.push(r => r[c] === v); return this; }
   neq(c, v) { this.filtros.push(r => r[c] !== v); return this; }
   gt(c, v) { this.filtros.push(r => r[c] > v); return this; }
@@ -30,14 +32,24 @@ class Consulta {
     const faltan = (BD.columnasInexistentes[this.t] || []);
     if (this.modo === 'insert') {
       const c = faltan.find(k => k in this.payload); if (c) return { data: null, error: errCol(c) };
-      const fila = { ...this.payload }; if (fila.id == null) fila.id = Math.max(0, ...this.filas().map(r => r.id || 0)) + 1;
-      if (this.filas().some(r => r.id === fila.id)) return { data: null, error: { code: '23505', message: 'duplicate key' } };
-      this.filas().push(fila); return { data: this.unico ? { id: fila.id } : [{ id: fila.id }], error: null };
+      const lote = Array.isArray(this.payload) ? this.payload : [this.payload];
+      const ids = [];
+      for (const p of lote) {
+        const fila = { ...p }; if (fila.id == null) fila.id = Math.max(0, ...this.filas().map(r => r.id || 0)) + 1;
+        if (this.filas().some(r => r.id === fila.id)) return { data: null, error: { code: '23505', message: 'duplicate key' } };
+        this.filas().push(fila); ids.push({ id: fila.id });
+      }
+      return { data: this.unico ? ids[0] : ids, error: null };
     }
     if (this.modo === 'upsert') {
       const claves = String(this.onConflict || 'id').split(',').map(c => c.trim());
       const i = this.filas().findIndex(r => claves.every(c => r[c] === this.payload[c]));
       if (i >= 0) Object.assign(this.filas()[i], this.payload); else this.filas().push({ ...this.payload });
+      return { data: null, error: null };
+    }
+    if (this.modo === 'delete') {
+      const quedan = this.filas().filter(r => !this.filtros.every(f => f(r)));
+      BD.tablas[this.t] = quedan;
       return { data: null, error: null };
     }
     if (this.modo === 'update') {
@@ -59,4 +71,10 @@ class Consulta {
     return { data: filas, error: null };
   }
 }
-export function createClient() { return { from: t => new Consulta(t), rpc: async n => { BD.rpc.push(n); return { data: null, error: null }; }, auth: {} }; }
+export function createClient() {
+  return {
+    from: t => new Consulta(t),
+    rpc: async (n, params) => { BD.rpc.push(n); const f = BD.funciones[n]; return f ? f(params) : { data: null, error: null }; },
+    auth: {}
+  };
+}

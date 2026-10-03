@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError } from '../../api/_utils.js';
+import { setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError, borrarAvisosPractica } from '../../api/_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -55,6 +55,7 @@ export default async function handler(req, res) {
     .eq('id', practicaIdVal.value);
 
   if (handleSupabaseError(errDelete, res, 'Error al cancelar la práctica')) return;
+  await borrarAvisosPractica(supabase, auth.empresaId, [practicaIdVal.value]);
 
   return res.status(200).json({
     ok: true,

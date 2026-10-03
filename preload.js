@@ -121,6 +121,8 @@ contextBridge.exposeInMainWorld('api', {
   migracionAnalizar:     (entrada)               => ipcRenderer.invoke('migracion-analizar', entrada),
   migracionAplicar:      (entrada)               => ipcRenderer.invoke('migracion-aplicar', entrada),
   migracionHistorial:    ()                      => ipcRenderer.invoke('migracion-historial'),
+  ariautoAnalizar:       (opciones)              => ipcRenderer.invoke('ariauto-analizar', opciones),
+  ariautoAplicar:        (opciones)              => ipcRenderer.invoke('ariauto-aplicar', opciones),
   migracionDeshacer:     (id)                    => ipcRenderer.invoke('migracion-deshacer', id),
   getLogs:               (filtro)                => ipcRenderer.invoke('get-logs', filtro),
   clearLogs:             ()                      => ipcRenderer.invoke('clear-logs'),

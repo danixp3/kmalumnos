@@ -238,6 +238,13 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .crono { font-family: var(--font-display); font-size: 116px; font-weight: 700; line-height: .95; letter-spacing: -.01em; display: flex; align-items: baseline; gap: 10px; margin: 18px 0 8px; }
   .crono small { font-size: 34px; color: #A3A6AE; font-weight: 600; }
   .crono.pasado { color: var(--amber); }
+  .crono.pausado, .crono.pausado small { color: #6B6E76; }
+  .curso-et.pausa { background: #2A2D35; color: #C9CBD1; }
+  .pausa-lin { margin-top: 10px; font-size: 15px; color: #C9CBD1; display: flex; align-items: center; gap: 8px; }
+  .acciones-curso { display: flex; gap: 10px; }
+  .acciones-curso .btn-lg { flex: 1; }
+  .acciones-curso .btn-pausa { flex: 0 0 auto; width: auto; padding: 0 18px; background: transparent; border: 1.5px solid #4A4E58; color: #F3F2EE; }
+  .acciones-curso .btn-sec-osc { flex: 0 0 auto; width: auto; padding: 0 18px; background: transparent; border: 1.5px solid #4A4E58; color: #F3F2EE; }
   .barra-tiempo { height: 8px; border-radius: 999px; background: #2B2E36; overflow: hidden; }
   .barra-tiempo i { display: block; height: 100%; background: var(--amber); border-radius: 999px; transition: width 1s linear; }
   .curso-horas { display: flex; justify-content: space-between; font-size: 15px; color: #A3A6AE; margin-top: 8px; }
@@ -527,7 +534,9 @@ const IC = {
   temaAuto: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
   sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
   luna: '<path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/>',
-  lunaLlena: '<path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z" fill="currentColor"/>'
+  lunaLlena: '<path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z" fill="currentColor"/>',
+  pausa: '<rect x="6.5" y="5" width="3.6" height="14" rx="1" fill="currentColor"/><rect x="13.9" y="5" width="3.6" height="14" rx="1" fill="currentColor"/>',
+  campana: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'
 };
 const ic = (k, w = 20, extra = '') => `<svg class="ic" width="${w}" height="${w}" viewBox="0 0 24 24" ${extra} aria-hidden="true">${IC[k]}</svg>`;
 const placa = m => m ? `<span class="placa"><span class="placa-e">E</span><span class="placa-n">${esc(m)}</span></span>` : '';
@@ -737,7 +746,7 @@ document.getElementById('login-password').addEventListener('keypress', e => { if
 // la cuenta siguen dentro. El profesor elegido se recuerda para la próxima vez.
 async function cerrarSesion() {
   if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada && !confirm('Tienes una práctica en marcha: seguirá abierta y podrás terminarla al volver a entrar. ¿Cerrar sesión?')) return;
-  pararTimer();
+  pararTimer(); cerrarEnVivo();
   const s = sesionCruda();
   if (s && s.access_token) authPost('logout?scope=local', {}, s.access_token).catch(() => {});
   borrarSesion();
@@ -768,6 +777,143 @@ function menuTema() {
     <div class="card" role="radiogroup" aria-label="Apariencia">${TEMAS.map(([k, n, sub, icono]) => `<button class="fila" role="radio" aria-checked="${k === t}" onclick="elegirTema('${k}')"><span class="veh-ic">${ic(icono, 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">${n}</div>${sub ? `<div class="fila-sub">${sub}</div>` : ''}</div>${k === t ? ic('ok', 22) : ''}</button>`).join('')}</div>`);
 }
 function elegirTema(k) { try { localStorage.setItem(TEMA_KEY, k); } catch {} aplicarTema(); menuTema(); }
+
+// ─── AVISOS DE LA PRÁCTICA (notificaciones) ──────────────────────────────────
+// Ajustes de cada teléfono en Perfil → Avisos de la práctica. Los avisos con
+// hora («quedan 5 min», «hora de terminar», «sigue abierta») los manda el
+// servidor (Web Push, /api/avisos → pg_cron → /api/avisos-enviar): llegan con
+// la pantalla apagada y la app cerrada. La notificación «Práctica en curso» la
+// pone el propio teléfono y se queda en la pantalla de bloqueo y en el centro
+// de notificaciones mientras dura la clase. iPhone: con la app instalada
+// (iOS 16.4+). La isla dinámica (Live Activities) exige una app nativa.
+const AVISOS_KEY = 'km_avisos';                 // ajustes de avisos de este teléfono
+const AVISOS_ACTIVOS_KEY = 'km_avisos_activos'; // '1' = suscrito en el servidor
+const AVISOS_VISTO_KEY = 'km_avisos_visto';     // tarjeta «Activa los avisos» descartada
+const AVISOS_DEF = { antes: 5, alFinal: true, despues: 10, enVivo: true };
+const ETIQUETA_EN_VIVO = 'practica-en-curso';
+function avisosAjustes() { try { return { ...AVISOS_DEF, ...JSON.parse(localStorage.getItem(AVISOS_KEY) || '{}') }; } catch { return { ...AVISOS_DEF }; } }
+function guardarAvisosAjustes(cambio) { const a = { ...avisosAjustes(), ...cambio }; try { localStorage.setItem(AVISOS_KEY, JSON.stringify(a)); } catch {} return a; }
+const pushSoportado = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const permisoAvisos = () => ('Notification' in window ? Notification.permission : 'unsupported');
+const avisosActivos = () => permisoAvisos() === 'granted' && localStorage.getItem(AVISOS_ACTIVOS_KEY) === '1';
+const iphoneSinInstalar = () => esIOS() && !enModoApp();
+async function registroSW() {
+  if (!('serviceWorker' in navigator)) return null;
+  try { return await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 4000))]); } catch { return null; }
+}
+function claveVapid(b64) {
+  const s = atob((b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(s, c => c.charCodeAt(0));
+}
+// Suscripción de este teléfono al servicio de push (la crea si se pide).
+async function suscripcionAvisos(crear = false) {
+  if (!pushSoportado() || permisoAvisos() !== 'granted') return null;
+  const reg = await registroSW(); if (!reg || !reg.pushManager) return null;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub && crear) {
+    if (!S.vapid) throw new Error('Los avisos aún no están disponibles en el servidor.');
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: claveVapid(S.vapid) });
+  }
+  return sub;
+}
+async function guardarSuscripcion(sub) {
+  const res = await postJSON('/api/avisos', { accion: 'suscribir', suscripcion: sub.toJSON(), profesor_id: (S.perfil && S.perfil.id) || null });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'No se pudieron activar los avisos');
+}
+async function activarAvisos() {
+  if (iphoneSinInstalar()) { cerrarHoja(); instalarApp(); toast('En iPhone los avisos llegan con AulaMovil instalada en la pantalla de inicio.', 5000); return; }
+  if (!pushSoportado()) { toast('Este navegador no permite avisos.'); return; }
+  try {
+    const p = await Notification.requestPermission();
+    if (p !== 'granted') { toast('Sin permiso, el teléfono no puede mostrar avisos.'); menuAvisos(); return; }
+    await guardarSuscripcion(await suscripcionAvisos(true));
+    localStorage.setItem(AVISOS_ACTIVOS_KEY, '1'); localStorage.setItem(AVISOS_VISTO_KEY, '1');
+    toast('Avisos activados en este teléfono');
+    if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada) avisosPractica('reprogramar');
+  } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message || 'No se pudieron activar los avisos', 4000); }
+  if (document.querySelector('#capa .hoja')) menuAvisos();
+  if (S.vista === 'hoy') renderHoy();
+}
+async function desactivarAvisos() {
+  try {
+    const sub = await suscripcionAvisos();
+    if (sub) { postJSON('/api/avisos', { accion: 'baja', endpoint: sub.endpoint }).catch(() => {}); await sub.unsubscribe(); }
+  } catch {}
+  localStorage.removeItem(AVISOS_ACTIVOS_KEY); cerrarEnVivo();
+  toast('Avisos desactivados en este teléfono'); menuAvisos();
+}
+async function probarAvisos() {
+  try {
+    const sub = await suscripcionAvisos(true); if (!sub) throw new Error('Activa primero los avisos.');
+    await guardarSuscripcion(sub);
+    const res = await postJSON('/api/avisos', { accion: 'probar', endpoint: sub.endpoint });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'No se pudo enviar el aviso de prueba');
+    toast('Aviso enviado: te llegará en unos segundos (prueba con el móvil bloqueado).', 4000);
+  } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message, 4000); }
+}
+// Al entrar: si el servicio de push renovó la suscripción, el servidor se entera.
+async function refrescarSuscripcion() {
+  if (!avisosActivos()) return;
+  try { const sub = await suscripcionAvisos(true); if (sub) await guardarSuscripcion(sub); } catch {}
+}
+// Notificación «Práctica en curso» (o «en pausa»): una sola, que se va
+// actualizando; al cerrar o cancelar la práctica se retira.
+async function mostrarEnVivo(F) {
+  if (permisoAvisos() !== 'granted') return;
+  const reg = await registroSW(); if (!reg || !reg.showNotification) return;
+  const pausa = !!F.pausada_ms;
+  await reg.showNotification(pausa ? 'Práctica en pausa' : 'Práctica en curso', {
+    body: `${F.alumno_nombre} · ${F.hora_inicio} → ${horaFinPrevista(F)}${F.matricula ? ' · ' + F.matricula : ''}${pausa ? ` · parada desde las ${hhmm(new Date(F.pausada_ms))}` : ''}`,
+    tag: ETIQUETA_EN_VIVO, renotify: false, silent: true, requireInteraction: true,
+    icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', timestamp: F.inicio_ms, data: { url: '/' }
+  });
+}
+async function cerrarEnVivo() {
+  try { const reg = await registroSW(); if (reg && reg.getNotifications) (await reg.getNotifications({ tag: ETIQUETA_EN_VIVO })).forEach(n => n.close()); } catch {}
+}
+// Se llama al empezar, pausar, reanudar, cambiar los ajustes, volver a la
+// práctica ('reprogramar') y al cerrarla o cancelarla ('fin' / 'cancelar').
+async function avisosPractica(evento) {
+  const F = S.flujo; if (!F || !F.practica_id) return;
+  try {
+    const aj = avisosAjustes(), cerrar = evento === 'fin' || evento === 'cancelar';
+    if (cerrar || !aj.enVivo) await cerrarEnVivo(); else await mostrarEnVivo(F);
+    if (cerrar || !avisosActivos()) return; // al cerrar/cancelar los quita el servidor
+    const sub = await suscripcionAvisos(); if (!sub) return;
+    const lista = [];
+    if (!F.pausada_ms) {
+      const fin = finPrevistoMs(F), hasta = hhmm(new Date(fin)), quien = F.alumno_nombre || 'Alumno';
+      if (aj.antes) lista.push({ tipo: 'antes', enviar_en: new Date(fin - aj.antes * 60000).toISOString(), titulo: `Quedan ${aj.antes} min de práctica`, cuerpo: `${quien} · termina a las ${hasta}`, etiqueta: ETIQUETA_EN_VIVO });
+      if (aj.alFinal) lista.push({ tipo: 'fin', enviar_en: new Date(fin).toISOString(), titulo: 'Hora de terminar la práctica', cuerpo: `${quien} · ${hasta}. Toca para poner los km y la firma.`, etiqueta: ETIQUETA_EN_VIVO });
+      if (aj.despues) lista.push({ tipo: 'recordatorio', enviar_en: new Date(fin + aj.despues * 60000).toISOString(), titulo: 'La práctica sigue abierta', cuerpo: `${quien}: terminaba a las ${hasta}. Ciérrala cuando puedas.`, etiqueta: ETIQUETA_EN_VIVO });
+    }
+    await postJSON('/api/avisos', { accion: 'programar', endpoint: sub.endpoint, practica_id: F.practica_id, avisos: lista.filter(a => Date.parse(a.enviar_en) > Date.now() + 5000) });
+  } catch { /* los avisos nunca estorban a la práctica */ }
+}
+const segAviso = (clave, valores, actual) => `<div class="seg3">${valores.map(([v, t]) => `<button class="${v === actual ? 'on' : ''}" onclick="cambiarAviso('${clave}', ${JSON.stringify(v)})">${t}</button>`).join('')}</div>`;
+function menuAvisos() {
+  const aj = avisosAjustes(), perm = permisoAvisos();
+  let estado;
+  if (iphoneSinInstalar()) estado = `<div class="msg msg-warn">${ic('aviso', 20)}<span>En iPhone los avisos llegan con AulaMovil <b>instalada en la pantalla de inicio</b> (iOS 16.4 o posterior).</span></div><button class="btn btn-pri" style="margin-top:10px" onclick="cerrarHoja();instalarApp()">Cómo instalarla</button>`;
+  else if (!pushSoportado()) estado = `<div class="msg msg-gris">${ic('aviso', 20)}<span>Este navegador no permite avisos. En Android usa Chrome; en iPhone, la app instalada.</span></div>`;
+  else if (perm === 'denied') estado = `<div class="msg msg-err">${ic('aviso', 20)}<span>Los avisos de AulaMovil están bloqueados. Actívalos en los ajustes del teléfono (Notificaciones → AulaMovil) y vuelve aquí.</span></div>`;
+  else if (!avisosActivos()) estado = `<button class="btn btn-pri" onclick="activarAvisos()">${ic('campana', 20)} Activar avisos en este teléfono</button>`;
+  else estado = `<div class="msg msg-ok" style="margin-top:0">${ic('ok', 20)}<span>Avisos activados en este teléfono.</span></div>
+    <div style="display:flex;gap:10px;margin-top:10px"><button class="btn btn-sec btn-peq" style="flex:1" onclick="probarAvisos()">Probar aviso</button><button class="btn btn-sec btn-peq" style="flex:1" onclick="desactivarAvisos()">Desactivar</button></div>`;
+  abrirHoja(`<div class="hoja-tit"><h3>Avisos de la práctica</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+    <div class="hoja-scroll">${estado}
+    <div class="etq">Antes de que acabe <small>minutos antes</small></div>${segAviso('antes', [[0, 'No'], [2, '2'], [5, '5'], [10, '10'], [15, '15']], aj.antes)}
+    <div class="etq">A la hora de terminar</div>${segAviso('alFinal', [[false, 'No'], [true, 'Avisar']], aj.alFinal)}
+    <div class="etq">Si sigue abierta <small>después de la hora</small></div>${segAviso('despues', [[0, 'No'], [5, '5 min'], [10, '10 min'], [15, '15 min']], aj.despues)}
+    <div class="etq">«Práctica en curso» <small>pantalla de bloqueo</small></div>${segAviso('enVivo', [[false, 'No'], [true, 'Mostrar']], aj.enVivo)}
+    <p class="fila-sub" style="margin:14px 2px 4px">Mientras dura la clase, la práctica (alumno, hora de fin, pausa) se ve en la pantalla de bloqueo y en el centro de notificaciones. La isla dinámica del iPhone solo está al alcance de las apps de la App Store.</p></div>`);
+}
+function cambiarAviso(clave, valor) {
+  guardarAvisosAjustes({ [clave]: valor }); menuAvisos();
+  if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada) avisosPractica('reprogramar');
+}
 
 // Pantalla «En curso»: oscura siempre.
 function setTema(oscuro) {
@@ -820,7 +966,7 @@ async function cargarBase() {
     if (!rv.ok) throw new Error('Error cargando vehículos');
     if (!ra.ok) throw new Error('Error cargando alumnos');
     S.vehiculos = await rv.json(); S.alumnos = await ra.json();
-    if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; S.duracionClase = parseInt(c.duracion_clase_min) || 45; if (c.km_auto && c.km_auto.min > 0) S.kmAuto = c.km_auto; }
+    if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; S.duracionClase = parseInt(c.duracion_clase_min) || 45; if (c.km_auto && c.km_auto.min > 0) S.kmAuto = c.km_auto; S.vapid = c.vapid_public || null; }
     S.ultimaCarga = Date.now();
   } catch (e) { if (e.message !== 'Sesión expirada') toast('No se pudieron cargar los datos. Reintenta.'); }
   const guardado = parseInt(localStorage.getItem(VEHICULO_KEY));
@@ -944,6 +1090,7 @@ async function entrarApp() {
   if (S.vista === 'hoy') renderHoy();
   renderRiel();
   cargarMiFirma().then(() => { if (S.vista === 'hoy' && S.miFirma === false) renderHoy(); });
+  refrescarSuscripcion();
   // Atajo «Nueva práctica» del icono de la app (mantener pulsado el icono)
   if (new URLSearchParams(location.search).get('accion') === 'nueva') {
     history.replaceState({ vista: 'hoy' }, '', location.pathname);
@@ -996,6 +1143,9 @@ function renderHoy() {
   if (esHoy && puedeInstalar() && !localStorage.getItem(INSTALAR_VISTO_KEY)) html += `<div class="card instalar-card"><img src="/icons/maskable-192.png" alt="">
     <div style="flex:1;min-width:0"><div class="fila-tit">Instala AulaMovil</div><div class="fila-sub">Como una app más del móvil.</div></div>
     <button class="btn btn-pri btn-peq" onclick="instalarApp()">Instalar</button><button class="cab-atras" onclick="localStorage.setItem(INSTALAR_VISTO_KEY,'1');renderHoy()" aria-label="Ahora no">${ic('cerrar', 20)}</button></div>`;
+  if (esHoy && pushSoportado() && !iphoneSinInstalar() && permisoAvisos() === 'default' && !localStorage.getItem(AVISOS_VISTO_KEY)) html += `<div class="card instalar-card"><span class="veh-ic">${ic('campana', 24)}</span>
+    <div style="flex:1;min-width:0"><div class="fila-tit">Avisos de la práctica</div><div class="fila-sub">Te avisa cuando va a acabar la clase, aunque el móvil esté bloqueado.</div></div>
+    <button class="btn btn-pri btn-peq" onclick="activarAvisos()">Activar</button><button class="cab-atras" onclick="localStorage.setItem(AVISOS_VISTO_KEY,'1');renderHoy()" aria-label="Ahora no">${ic('cerrar', 20)}</button></div>`;
   html += cardVehiculo(esHoy);
   html += `<div style="margin-top:16px"><div class="prog-lin"><span>${r.cerradas.length} de ${r.total} ${r.total === 1 ? 'clase' : 'clases'} ${r.cerradas.length === 1 ? 'hecha' : 'hechas'}</span><span><b class="mono">${miles(r.km)}</b> <span style="font-weight:500;color:var(--muted)">km ${esHoy ? 'hoy' : ''}</span></span></div>${segmentos(r)}</div>`;
 
@@ -1004,7 +1154,8 @@ function renderHoy() {
     const enCurso = r.enCurso[0];
     const sinCerrar = S.jornada.sin_cerrar[0];
     if (enCurso) {
-      html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et"><span class="pill-dot"></span>EN CURSO</span><span>${esc(enCurso.hora_inicio || '')} ${enCurso.hora_inicio ? '–' : ''} ${esc(sumaMin(enCurso.hora_inicio, S.flujo && S.flujo.practica_id === enCurso.id && S.flujo.duracion_min ? S.flujo.duracion_min : nClasesGuardado() * durClase()))}</span></div>
+      const miFlujo = S.flujo && S.flujo.practica_id === enCurso.id;
+      html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et">${miFlujo && S.flujo.pausada_ms ? ic('pausa', 14) + ' EN PAUSA' : '<span class="pill-dot"></span>EN CURSO'}</span><span>${esc(enCurso.hora_inicio || '')} ${enCurso.hora_inicio ? '–' : ''} ${esc(miFlujo && S.flujo.inicio_ms ? horaFinPrevista(S.flujo) : sumaMin(enCurso.hora_inicio, nClasesGuardado() * durClase()))}</span></div>
         <div class="ahora-quien"><span class="ini">${esc(iniciales(enCurso.alumno_nombre))}</span><div><div class="ahora-nom">${esc(enCurso.alumno_nombre)}</div><div class="ahora-sub">${S.flujo && S.flujo.practica_id === enCurso.id ? esc(claseTxt(S.flujo)) : 'Clase ' + enCurso.clase_n}${enCurso.zonas && enCurso.zonas.length ? ' · ' + esc(zonasTxt(enCurso.zonas)) : ''}</div></div></div>
         <button class="btn btn-pri btn-lg" onclick="continuarPractica(${enCurso.id})">${ic('play', 18)} Continuar práctica</button></div>`;
     } else if (sinCerrar) {
@@ -1063,6 +1214,7 @@ function menuPerfil() {
     <div class="card"><button class="fila" onclick="cerrarHoja();refrescar({ silencioso: false })"><span class="veh-ic">${ic('deshacer', 22)}</span><div class="fila-tit" style="flex:1">Actualizar datos</div></button>
     ${puedeInstalar() ? `<button class="fila" onclick="cerrarHoja();instalarApp()"><span class="veh-ic">${ic('tel', 22)}</span><div class="fila-tit" style="flex:1">Instalar como app</div>${ic('chev', 20)}</button>` : ''}
     ${S.perfil && S.perfil.id ? `<button class="fila" onclick="cerrarHoja();go('mifirma')"><span class="veh-ic">${ic('firma', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Mi firma</div><div class="fila-sub">Sale en tus clases de la ficha DGT</div></div>${S.miFirma === false ? '<span class="pill pill-warn">Falta</span>' : (S.miFirma ? '<span class="pill pill-ok">Guardada</span>' : '')}${ic('chev', 20)}</button>` : ''}
+    <button class="fila" onclick="menuAvisos()"><span class="veh-ic">${ic('campana', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Avisos de la práctica</div><div class="fila-sub">${avisosActivos() ? 'Activados en este teléfono' : 'Cuando va a acabar, al acabar…'}</div></div>${avisosActivos() ? '<span class="pill pill-ok">Sí</span>' : ''}${ic('chev', 20)}</button>
     <button class="fila" onclick="menuTema()"><span class="veh-ic">${ic(TEMAS.find(x => x[0] === temaElegido())[3], 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Apariencia</div><div class="fila-sub">${TEMAS.find(x => x[0] === temaElegido())[1]}</div></div>${ic('chev', 20)}</button>
     <button class="fila" onclick="cerrarHoja();cambiarPerfil()"><span class="veh-ic">${ic('persona', 22)}</span><div class="fila-tit" style="flex:1">Cambiar de perfil</div>${ic('chev', 20)}</button>
     <button class="fila" onclick="cerrarSesion()"><span class="veh-ic">${ic('salir', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Cerrar sesión</div>${cuentaEmail() ? `<div class="fila-sub">${esc(cuentaEmail())}</div>` : ''}</div></button></div>`);
@@ -1218,6 +1370,7 @@ async function empezarPractica() {
     };
     guardarFlujo();
     go('curso');
+    avisosPractica('inicio');
   } catch (e) {
     if (e.message !== 'Sesión expirada') { toast(e.message || 'Error al empezar'); btn.disabled = false; btn.innerHTML = ic('play', 18) + ' Empezar práctica'; }
   }
@@ -1412,19 +1565,43 @@ async function continuarPractica(id) {
     guardarFlujo(); go('firma'); return;
   }
   go('curso');
+  avisosPractica('reprogramar');
 }
 function pararTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } }
+// ─── PAUSA ───────────────────────────────────────────────────────────────────
+// «Pausar» detiene el cronómetro por un imprevisto: el tiempo de clase es el
+// efectivo (sin pausas) y la hora de fin prevista se corre lo que dure la
+// pausa. F.pausada_ms = desde cuándo está en pausa (null si no); F.pausa_ms =
+// pausas ya terminadas. Las horas que se guardan son las reales.
+const pausaTotal = F => (F.pausa_ms || 0) + (F.pausada_ms ? Math.max(0, Date.now() - F.pausada_ms) : 0);
+const msEfectivos = F => Math.max(0, (F.pausada_ms || Date.now()) - F.inicio_ms - (F.pausa_ms || 0));
+const minEfectivos = F => Math.max(1, Math.round(msEfectivos(F) / 60000));
+const finPrevistoMs = F => F.inicio_ms + (F.duracion_min || 45) * 60000 + pausaTotal(F);
+const horaFinPrevista = F => hhmm(new Date(finPrevistoMs(F)));
+function pausarPractica() {
+  const F = S.flujo; if (!F || F.pausada_ms) return;
+  F.pausada_ms = Date.now(); guardarFlujo(); renderCurso();
+  if (typeof avisosPractica === 'function') avisosPractica('pausa');
+}
+function reanudarPractica() {
+  const F = S.flujo; if (!F || !F.pausada_ms) return;
+  F.pausa_ms = (F.pausa_ms || 0) + Math.max(0, Date.now() - F.pausada_ms); F.pausada_ms = null;
+  guardarFlujo(); renderCurso();
+  if (typeof avisosPractica === 'function') avisosPractica('reanudar');
+}
 function pararTimerSiNoCurso(vista) { if (vista !== 'curso') pararTimer(); }
 function tiempoTxt(seg) { const m = Math.floor(seg / 60), s = seg % 60; return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'); }
 function renderCurso() {
   const F = S.flujo; if (!F || !F.practica_id) { go('hoy'); return; }
   const dur = F.duracion_min || 45;
+  const enPausa = !!F.pausada_ms;
   document.getElementById('v-curso').innerHTML = `
-    <div class="cab"><span class="curso-et"><span class="pill-dot"></span>EN CURSO</span><button class="cab-atras" style="color:#F3F2EE" onclick="menuCurso()" aria-label="Más opciones">${ic('menu', 26)}</button></div>
+    <div class="cab">${enPausa ? `<span class="curso-et pausa">${ic('pausa', 14)} EN PAUSA</span>` : '<span class="curso-et"><span class="pill-dot"></span>EN CURSO</span>'}<button class="cab-atras" style="color:#F3F2EE" onclick="menuCurso()" aria-label="Más opciones">${ic('menu', 26)}</button></div>
     <div class="ahora-quien" style="margin-top:6px"><span class="ini" style="background:#2A2D35;color:#F3F2EE;width:54px;height:54px">${esc(iniciales(F.alumno_nombre))}</span><div><div class="ahora-nom">${esc(F.alumno_nombre)}</div><div class="ahora-sub">${esc(claseTxt(F))}${F.zonas && F.zonas.length ? ' · ' + esc(zonasTxt(F.zonas)) : ''}</div></div></div>
-    <div class="crono" id="crono"><span id="crono-t">00:00</span><small>/ ${tiempoTxt(dur * 60)}</small></div>
+    <div class="crono ${enPausa ? 'pausado' : ''}" id="crono"><span id="crono-t">00:00</span><small>/ ${tiempoTxt(dur * 60)}</small></div>
     <div class="barra-tiempo"><i id="barra-t" style="width:0%"></i></div>
-    <div class="curso-horas"><span>Empezó a las <b>${esc(F.hora_inicio)}</b></span><span>Termina a las <b>${esc(sumaMin(F.hora_inicio, dur))}</b></span></div>
+    <div class="curso-horas"><span>Empezó a las <b>${esc(F.hora_inicio)}</b></span><span>Termina a las <b id="fin-previsto">${esc(horaFinPrevista(F))}</b></span></div>
+    ${enPausa ? `<div class="pausa-lin">${ic('pausa', 16)} En pausa desde las ${esc(hhmm(new Date(F.pausada_ms)))}: el tiempo no corre</div>` : (F.pausa_ms ? `<div class="pausa-lin">${ic('reloj', 16)} ${Math.round(F.pausa_ms / 60000)} min en pausa: la hora de fin se ha corrido</div>` : '')}
     <div class="mini2"><div class="mini"><span class="etq2">KM INICIAL</span><span class="val">${miles(F.km_inicial)}</span></div>
       <div class="mini"><span class="etq2">VEHÍCULO</span><span>${placa(F.matricula) || esc(F.vehiculo_nombre)}</span></div></div>
     ${zonasCurso().length ? `<div class="etq" style="color:#A3A6AE">Zonas recorridas</div>
@@ -1433,16 +1610,19 @@ function renderCurso() {
     <div class="chips chips-osc">${TRABAJADO.map(t => `<button class="chip ${F.trabajado.includes(t) ? 'on' : ''}" onclick="toggleTrabajado('${t}',this)">${F.trabajado.includes(t) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(t)}</button>`).join('')}</div>
     <button class="dash-btn" id="btn-obs" onclick="abrirObservacion()">${ic('lapiz', 18)} ${F.observacion ? 'Editar observación' : 'Añadir observación'}</button>
     <div id="obs-vista" style="margin-top:10px;color:#C9CBD1;font-size:15px">${F.observacion ? esc(F.observacion) : ''}</div>
-    <div class="barra-fija"><button class="btn btn-pri btn-lg" onclick="abrirKmFinal()">${ic('stop', 16)} Finalizar práctica</button></div>`;
+    <div class="barra-fija"><div class="acciones-curso">${enPausa
+      ? `<button class="btn btn-pri btn-lg" onclick="reanudarPractica()">${ic('play', 18)} Reanudar</button><button class="btn btn-lg btn-sec-osc" onclick="abrirKmFinal()">${ic('stop', 16)} Finalizar</button>`
+      : `<button class="btn btn-lg btn-pausa" onclick="pausarPractica()" aria-label="Pausar la práctica">${ic('pausa', 18)} Pausar</button><button class="btn btn-pri btn-lg" onclick="abrirKmFinal()">${ic('stop', 16)} Finalizar práctica</button>`}</div></div>`;
   actualizaTrabN();
   pararTimer(); tickCrono();
   S.timer = setInterval(tickCrono, 1000);
 }
 function tickCrono() {
   const F = S.flujo; if (!F || S.vista !== 'curso') { pararTimer(); return; }
-  const seg = Math.max(0, Math.floor((Date.now() - F.inicio_ms) / 1000));
+  const seg = Math.floor(msEfectivos(F) / 1000);
   const t = document.getElementById('crono-t'); if (!t) return;
   t.textContent = tiempoTxt(seg);
+  const fin = document.getElementById('fin-previsto'); if (fin) fin.textContent = horaFinPrevista(F);
   const dur = (F.duracion_min || 45) * 60;
   document.getElementById('crono').classList.toggle('pasado', seg > dur);
   document.getElementById('barra-t').style.width = Math.min(100, (seg / dur) * 100) + '%';
@@ -1489,6 +1669,7 @@ async function cancelarCurso() {
     const res = await postJSON('/api/cancelar-practica', { practica_id: S.flujo.practica_id });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cancelar');
+    await avisosPractica('cancelar');
     S.flujo = null; guardarFlujo(); pararTimer(); toast('Práctica cancelada');
     await cargarBase(); await cargarJornada(); go('hoy');
   } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message); }
@@ -1551,7 +1732,7 @@ function fijarModoCantidad(quien, modo) {
   const o = objCantidad(quien); if (!o) return;
   o.modo = modo; localStorage.setItem(MODO_CLASES_KEY, modo);
   // Minutos: se propone lo que marca el cronómetro (o lo de las clases elegidas)
-  if (modo === 'minutos' && !o.minutos) o.minutos = String(quien === 'flujo' && o.inicio_ms ? Math.max(1, Math.round((Date.now() - o.inicio_ms) / 60000)) : Math.round((o.n_clases || 1) * durClase()));
+  if (modo === 'minutos' && !o.minutos) o.minutos = String(quien === 'flujo' && o.inicio_ms ? minEfectivos(o) : Math.round((o.n_clases || 1) * durClase()));
   if (quien === 'flujo') { guardarFlujo(); renderKmFinal(); } else renderAnotar();
 }
 function tecleaMinutos(inp, quien) {
@@ -1603,7 +1784,7 @@ function renderKmFinal() {
   const auto = F.kmModo === 'auto';
   const kf = parseInt(S.kmFinal) || 0;
   const rec = kf ? kf - F.km_inicial : 0;
-  const minutos = Math.max(1, Math.round((Date.now() - F.inicio_ms) / 60000));
+  const minutos = minEfectivos(F);
   if (F.modo === 'minutos' && !F.minutos) F.minutos = String(minutos);
   const n = F.n_clases || 1;
   const sugeridas = Math.min(MAX_CLASES, Math.max(0.25, aCuartos(minutos / durClase())));
@@ -1645,10 +1826,12 @@ async function continuarFirma() {
       throw new Error(data.error || 'No se pudo cerrar la práctica');
     }
     if (auto) kf = parseInt(data.km_final) || F.km_inicial;
+    F.min_efectivos = minEfectivos(F); F.pausada_ms = null;
     F.km_final = kf; F.km_auto = auto; F.hora_fin = hhmm(); F.cerrada = true; F.resumen = data.alumno; F.recorridos = data.recorridos; F.campos_guardados = data.campos_guardados;
     F.practica_ids = Array.isArray(data.practica_ids) && data.practica_ids.length ? data.practica_ids : [F.practica_id];
     F.n_clases = data.clases || cantidadDe(F);
     guardarFlujo();
+    avisosPractica('fin');
     // refresca datos locales del alumno y del vehículo
     const al = alumno(F.alumno_id); if (al && data.alumno) { al.clases = data.alumno.clases; al.km = data.alumno.km; }
     if (al && data.minutos_sobrantes !== undefined) {
@@ -1672,7 +1855,7 @@ function renderFirma() {
     <div class="card rev-grid">
       <div><div class="etq2">Fecha</div><div class="val">${esc(fechaCorta(F.fecha || S.hoy))} ${partes(F.fecha || S.hoy).y}</div></div>
       <div><div class="etq2">Horario</div><div class="val mono">${F.hora_inicio ? `${esc(F.hora_inicio)} - ${esc(F.hora_fin || hhmm())}` : '—'}</div></div>
-      <div><div class="etq2">${(F.n_clases || 1) > 1 ? 'Clases' : 'Clase'}</div><div class="val">${esc(claseTxt(F).replace(/^Clases? /, 'Nº '))} · ${F.hora_inicio ? Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio)))) : Math.round((F.n_clases || 1) * durClase())} min</div></div>
+      <div><div class="etq2">${(F.n_clases || 1) > 1 ? 'Clases' : 'Clase'}</div><div class="val">${esc(claseTxt(F).replace(/^Clases? /, 'Nº '))} · ${F.min_efectivos && F.pausa_ms ? F.min_efectivos : F.hora_inicio ? Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio)))) : Math.round((F.n_clases || 1) * durClase())} min</div></div>
       <div><div class="etq2">Profesor</div><div class="val">${esc(F.profesor_nombre || (S.perfil && S.perfil.nombre !== 'Sin profesor' ? S.perfil.nombre : '—'))}</div></div>
       <div><div class="etq2">Km ${F.matricula ? '(' + esc(F.matricula) + ')' : ''}${F.km_auto ? ' · calculados' : ''}</div><div class="val mono">${miles(F.km_inicial)} → ${miles(F.km_final)}</div></div>
       <div><div class="etq2">Recorridos</div><div class="val mono" style="font-size:24px">${F.km_final - F.km_inicial} km</div></div>

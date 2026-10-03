@@ -154,7 +154,7 @@ function leerArchivoTabla(ruta) {
   try { buf = fs.readFileSync(ruta); } catch (e) { return { ok: false, error: `No se pudo abrir «${archivo}»: ${e.message}` }; }
   if (!buf.length) return { ok: false, error: `«${archivo}» está vacío.` };
   if (['.mdb', '.accdb'].includes(ext)) {
-    return { ok: false, error: 'Es una base de datos de Access: ábrela con Access (o pide a tu programa un «Exportar a Excel») y guarda la tabla de alumnos como Excel o CSV.' };
+    return { ok: false, error: 'Es una base de datos de Access: tráela desde «Traer de otro programa», que la lee directamente (Ariauto se reconoce solo).' };
   }
   if (ext === '.pdf') return { ok: false, error: 'Un PDF no sirve para importar: es un listado para imprimir. Busca en tu programa «Exportar» a Excel o CSV, o copia la tabla desde la pantalla y pégala aquí.' };
   try {

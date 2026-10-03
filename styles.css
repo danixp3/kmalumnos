@@ -2717,3 +2717,9 @@
 .cuentas-pc { display: flex; flex-wrap: wrap; gap: 6px; }
 .cuentas-pc .btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #conflicto-empresa-botones:not(.hidden) { display: flex; }
+
+/* Traer de otro programa: opciones de Ariauto */
+.mg-ariauto-op { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 22px; margin-top: 4px; }
+.mg-ariauto-op > div { display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+.mg-ariauto-lista { display: flex; flex-direction: column; gap: 4px; }
+.mg-ariauto-lista small, .mg-ariauto-op .mg-nota { color: var(--text-muted); font-size: 12px; }

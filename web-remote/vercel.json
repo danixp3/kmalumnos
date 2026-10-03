@@ -39,6 +39,14 @@
     {
       "source": "/api/firma-profesor",
       "destination": "/api/movil?op=firma-profesor"
+    },
+    {
+      "source": "/api/avisos",
+      "destination": "/api/movil?op=avisos"
+    },
+    {
+      "source": "/api/avisos-enviar",
+      "destination": "/api/movil?op=avisos-enviar"
     }
   ],
   "headers": [
