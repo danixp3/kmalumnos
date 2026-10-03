@@ -920,9 +920,7 @@ function aplicarImportacion(entrada = {}) {
   }
 
   registro.resumen = { ...plan.resumen, creadosAlumnos: registro.creados.alumnos.length, actualizadosAlumnos: registro.actualizados.length, clasesCreadas: registro.creados.practicas.length };
-  if (!d.importaciones) d.importaciones = [];
-  d.importaciones.unshift(registro);
-  d.importaciones = d.importaciones.slice(0, MAX_IMPORTACIONES);
+  registrarImportacion(d, registro);
   const qué = plan.tipo === 'alumnos'
     ? `${registro.creados.alumnos.length} alumnos nuevos y ${registro.actualizados.length} completados`
     : `${registro.creados.practicas.length} clases anteriores y ${registro.creados.alumnos.length} alumnos nuevos`;
@@ -938,12 +936,21 @@ function aplicarImportacion(entrada = {}) {
 
 // ─── HISTORIAL Y DESHACER ───────────────────────────────────────────────────
 
+// Guarda el registro de una importación (también la de Ariauto, db/ariauto.js)
+function registrarImportacion(d, registro) {
+  if (!d.importaciones) d.importaciones = [];
+  d.importaciones.unshift(registro);
+  d.importaciones = d.importaciones.slice(0, MAX_IMPORTACIONES);
+}
+
 function getImportaciones() {
   const d = load();
+  const n = (i, k) => ((i.creados || {})[k] || []).length;
   return (d.importaciones || []).map(i => ({
     id: i.id, fecha: i.fecha, tipo: i.tipo, archivo: i.archivo, deshecha: i.deshecha,
-    alumnos: i.creados.alumnos.length, actualizados: i.actualizados.length, clases: i.creados.practicas.length,
-    profesores: i.creados.profesores.length, vehiculos: i.creados.vehiculos.length
+    alumnos: n(i, 'alumnos'), actualizados: i.actualizados.length, clases: n(i, 'practicas'),
+    profesores: n(i, 'profesores'), vehiculos: n(i, 'vehiculos'),
+    cargos: n(i, 'cargos'), pagos: n(i, 'pagos'), examenes: n(i, 'presentaciones')
   }));
 }
 
@@ -971,6 +978,19 @@ function deshacerImportacion(id) {
   }
   const cids = new Set(imp.creados.cargos);
   for (const c of d.cargos || []) if (cids.has(c.id) && !c.deleted) { c.deleted = true; c.updated_at = new Date().toISOString(); res.cargos++; marcarBorrado('cargos', [c.id]); }
+  // Lo que trae la importación de Ariauto: pagos, exámenes, tasas y caducidades
+  const quitar = (tabla, ids, sincronizada) => {
+    const set = new Set(ids || []);
+    if (!set.size || !Array.isArray(d[tabla])) return 0;
+    const fuera = d[tabla].filter(x => set.has(x.id)).map(x => x.id);
+    d[tabla] = d[tabla].filter(x => !set.has(x.id));
+    if (sincronizada) marcarBorrado(tabla, fuera);
+    return fuera.length;
+  };
+  res.pagos = quitar('pagos', imp.creados.pagos, true);
+  res.examenes = quitar('presentaciones', imp.creados.presentaciones);
+  res.tasas = quitar('tasas', imp.creados.tasas);
+  res.vencimientos = quitar('vencimientos', imp.creados.vencimientos);
 
   const usado = aid => d.practicas.some(p => p.alumno_id === aid && !p.deleted) ||
     (d.pagos || []).some(p => p.alumno_id === aid && !p.deleted) ||
@@ -995,7 +1015,8 @@ function deshacerImportacion(id) {
     if (algo) { res.restaurados++; if (s) s.markDirty('alumnos', a.id); }
   }
   const profUsado = pid => d.alumnos.some(a => a.profesor_id === pid) || d.practicas.some(p => p.profesor_id === pid);
-  const vehUsado = vid => d.alumnos.some(a => a.vehiculo_id === vid) || d.practicas.some(p => p.vehiculo_id === vid);
+  const vehUsado = vid => d.alumnos.some(a => a.vehiculo_id === vid) || d.practicas.some(p => p.vehiculo_id === vid) ||
+    (d.vencimientos || []).some(v => v.entidad_tipo === 'vehiculo' && v.entidad_id === vid && !v.deleted);
   const profFuera = imp.creados.profesores.filter(x => d.profesores.some(p => p.id === x) && !profUsado(x));
   const vehFuera = imp.creados.vehiculos.filter(x => d.vehiculos.some(v => v.id === x) && !vehUsado(x));
   d.profesores = d.profesores.filter(p => !profFuera.includes(p.id));
@@ -1035,6 +1056,8 @@ module.exports = {
   detectarTablaMigracion: detectarTabla,
   analizarImportacion, aplicarImportacion, getImportaciones, deshacerImportacion,
   buscarAlumnoPorTexto,
+  // para db/ariauto.js (mismo emparejamiento, registro e historial)
+  _interno: { indices, buscarAlumno, nombreDe, limpiarMatricula, registrarImportacion },
   // utilidades de normalización (también para pruebas)
   _norm: {
     normTexto, claveNombre, capitalizarNombre, partirApellidos, partirNombreCompleto, limpiarDni, limpiarTelefono, limpiarEmail,

@@ -19,6 +19,22 @@ export function getSupabase(token) {
   );
 }
 
+// Cliente sin sesión de usuario (anon): solo para /api/avisos-enviar, que llama
+// a funciones SECURITY DEFINER protegidas por un secreto compartido.
+export function getSupabaseAnon() {
+  return createClient(process.env.SUPABASE_URL || '', process.env.SUPABASE_ANON_KEY || '', {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+}
+
+// Quita los avisos del móvil que quedaban por enviar de esas prácticas (al
+// cerrarlas o cancelarlas). Sin la tabla (migración sin aplicar) no hace nada.
+export async function borrarAvisosPractica(supabase, empresaId, ids) {
+  try {
+    await supabase.from('avisos_push').delete().eq('empresa_id', empresaId).in('practica_id', ids).is('enviado_en', null);
+  } catch { /* los avisos son un extra: nunca impiden cerrar la práctica */ }
+}
+
 // Extrae el empresa_id (uid del usuario de Supabase Auth) del JWT, leyendo
 // el claim `sub` del payload. No se verifica la firma aquí: PostgREST ya
 // rechaza tokens con firma inválida al ejecutar la consulta. Esto es solo

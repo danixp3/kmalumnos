@@ -17,7 +17,7 @@ import {
   hhmmValido, kmEntero, conFallbackColumnas, kmDePractica, limpiarZonas,
   partirEnClases, insertarPractica, sesionDePractica, cantidadClases, minutosValidos,
   clasesPorMinutos, leerDuracionClase, leerMinutosAlumno, guardarMinutosAlumno, clasesDe, fmtClases,
-  leerKmAuto, kmFinalAutomatico, topeKmSiguiente, MARCA_KM_AUTO
+  leerKmAuto, kmFinalAutomatico, topeKmSiguiente, MARCA_KM_AUTO, borrarAvisosPractica
 } from '../../api/_utils.js';
 
 export default async function handler(req, res) {
@@ -169,6 +169,9 @@ export default async function handler(req, res) {
   if (veh && kmVal.value > (veh.km_actual || 0)) {
     await supabase.from('vehiculos').update({ km_actual: kmVal.value, updated_at: new Date().toISOString() }).eq('id', practica.vehiculo_id);
   }
+
+  // Los avisos del móvil que quedaban («quedan 5 min», «sigue abierta») sobran
+  await borrarAvisosPractica(supabase, auth.empresaId, [practica.id, ...nuevas]);
 
   // Minutos que no llegan a ¼ de clase: quedan acumulados para la próxima
   let errMinutos = null;

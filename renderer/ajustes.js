@@ -492,11 +492,7 @@ const AJ_SECCIONES = [
 async function estadoCuadroAjustes(id) {
   try {
     if (id === 'cuenta') { const e = await window.api.getEstadoCuenta(); return e && e.conectado ? (e.email ? 'Conectada · ' + e.email : 'Conectada') : 'Sin iniciar sesión'; }
-    if (id === 'clases') {
-      const r = getRangoPref();
-      let m = null; try { m = await window.api.getKmAutoMovil(); } catch (e) {}
-      return `${r.min}–${r.max} km por práctica${m ? ` · móvil ${m.min}–${m.max} km cada 2 clases` : ''} · ${getDuracionClaseMin()} min por clase`;
-    }
+    if (id === 'clases') { const r = getRangoPref(); return `${r.min}–${r.max} km por práctica · ${getDuracionClaseMin()} min por clase`; }
     if (id === 'zonas') { const z = await window.api.getZonasPractica(); return z.length ? `${z.length} ${z.length === 1 ? 'zona' : 'zonas'}: ${z.slice(0, 3).join(', ')}${z.length > 3 ? '…' : ''}` : 'Sin zonas (la web no las pide)'; }
     if (id === 'menu') { const n = getMenuOculto().length; return n ? `${n} ${n === 1 ? 'función oculta' : 'funciones ocultas'}` : 'Se ve todo'; }
     if (id === 'panel') { const p = getDashboardPref(); const n = Object.values(p).filter(Boolean).length; return `${n} elementos visibles`; }

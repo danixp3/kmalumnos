@@ -4,7 +4,9 @@
 //    sin cobertura se abre la última copia guardada.
 //  - Fuentes e iconos: desde la caché (no cambian).
 //  - /api y Supabase: nunca se guardan (datos vivos y privados).
-const VERSION = 'aulamovil-v1';
+//  - Avisos de la práctica (Web Push): los manda el servidor a su hora y aquí
+//    se muestran aunque la app esté cerrada; al tocarlos se abre la app.
+const VERSION = 'aulamovil-v2';
 const BASICOS = ['/', '/manifest.webmanifest', '/logo.png', '/icons/icon-192.png', '/icons/maskable-192.png'];
 
 self.addEventListener('install', e => {
@@ -40,4 +42,21 @@ self.addEventListener('fetch', e => {
       return res;
     })));
   }
+});
+
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { cuerpo: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.titulo || 'AulaMovil', {
+    body: d.cuerpo || '', tag: d.etiqueta || 'aulamovil', renotify: true, requireInteraction: d.tipo !== 'prueba',
+    icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', vibrate: [200, 100, 200], data: { url: '/' }
+  }));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(lista => {
+    const abierta = lista.find(c => 'focus' in c);
+    return abierta ? abierta.focus() : self.clients.openWindow((e.notification.data && e.notification.data.url) || '/');
+  }));
 });

@@ -25,6 +25,8 @@ export default async function handler(req, res) {
   return res.status(200).json({
     ok: true, zonas: limpiarZonas(zonas ? zonas.valor : []),
     duracion_clase_min: duracionClaseValida(duracion ? duracion.valor : 45),
-    km_auto: kmAutoValido(kmAuto ? kmAuto.valor : null)
+    km_auto: kmAutoValido(kmAuto ? kmAuto.valor : null),
+    // Clave pública para los avisos del móvil (Web Push); null = sin configurar
+    vapid_public: process.env.VAPID_PUBLIC_KEY || null
   });
 }

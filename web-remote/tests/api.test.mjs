@@ -518,3 +518,77 @@ test('kmFinalAutomatico: 2 clases siempre entre min y max; ½ clase, la cuarta p
   assert.equal(kmFinalAutomatico(1000, 0.5, { min: 40, max: 50 }, null, () => 0), 1010);
   assert.equal(kmFinalAutomatico(1000, 3, { min: 40, max: 50 }, null, () => 0.999), 1075);
 });
+
+// ─── AVISOS DEL MÓVIL (Web Push) ────────────────────────────────────────────
+const { PUSH, reiniciarPush } = await import('./fake-web-push.mjs');
+const EP = 'https://push.example.com/abc';
+async function llamarAvisos(op, body, headers) {
+  const mod = await import('../lib/movil/avisos.js');
+  const fn = op === 'enviar' ? mod.enviarAvisos : mod.default;
+  let status = 200, json;
+  const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
+  await fn({ method: 'POST', headers: headers || { authorization: 'Bearer ' + TOKEN }, body }, res);
+  return { status, json };
+}
+const enMin = m => new Date(Date.now() + m * 60000).toISOString();
+const sus = { endpoint: EP, keys: { p256dh: 'BPclave', auth: 'secreto' } };
+
+test('avisos: suscribir, programar (sustituye los pendientes) y quitar al finalizar la práctica', async () => {
+  reiniciar(base()); reiniciarPush();
+  assert.equal((await llamarAvisos('avisos', { accion: 'suscribir', suscripcion: sus, profesor_id: 1 })).status, 200);
+  assert.equal(BD.tablas.push_suscripciones.length, 1);
+  // Otra vez el mismo teléfono: no se duplica
+  await llamarAvisos('avisos', { accion: 'suscribir', suscripcion: sus, profesor_id: 1 });
+  assert.equal(BD.tablas.push_suscripciones.length, 1);
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini() });
+  const lista = [{ tipo: 'antes', enviar_en: enMin(40), titulo: 'Quedan 5 min', cuerpo: 'Pablo' }, { tipo: 'fin', enviar_en: enMin(45), titulo: 'Hora de terminar' }];
+  assert.equal((await llamarAvisos('avisos', { accion: 'programar', endpoint: EP, practica_id, avisos: lista })).json.programados, 2);
+  // Pausa: se quitan; al reanudar se vuelven a poner con otra hora
+  await llamarAvisos('avisos', { accion: 'programar', endpoint: EP, practica_id, avisos: [] });
+  assert.equal(BD.tablas.avisos_push.length, 0);
+  await llamarAvisos('avisos', { accion: 'programar', endpoint: EP, practica_id, avisos: lista });
+  assert.equal(BD.tablas.avisos_push.length, 2);
+  // Avisos fuera de plazo o de tipo desconocido: rechazados
+  assert.equal((await llamarAvisos('avisos', { accion: 'programar', endpoint: EP, practica_id, avisos: [{ tipo: 'fin', enviar_en: enMin(60 * 24) }] })).status, 400);
+  assert.equal((await llamarAvisos('avisos', { accion: 'programar', endpoint: EP, practica_id, avisos: [{ tipo: 'otro', enviar_en: enMin(5) }] })).status, 400);
+  // Al cerrar la práctica ya no hacen falta
+  await llamar('finalizar-practica', { body: { practica_id, km_final: 1030, hora_fin: '10:48' } });
+  assert.equal(BD.tablas.avisos_push.length, 0);
+});
+
+test('avisos: al cancelar la práctica se quitan los pendientes', async () => {
+  reiniciar(base()); reiniciarPush();
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini() });
+  await llamarAvisos('avisos', { accion: 'programar', endpoint: EP, practica_id, avisos: [{ tipo: 'fin', enviar_en: enMin(45), titulo: 'Hora' }] });
+  assert.equal(BD.tablas.avisos_push.length, 1);
+  await llamar('cancelar-practica', { body: { practica_id } });
+  assert.equal(BD.tablas.avisos_push.length, 0);
+});
+
+test('avisos: probar envía al teléfono; sin claves VAPID avisa de que no está configurado', async () => {
+  reiniciar(base()); reiniciarPush();
+  await llamarAvisos('avisos', { accion: 'suscribir', suscripcion: sus });
+  delete process.env.VAPID_PUBLIC_KEY; delete process.env.VAPID_PRIVATE_KEY;
+  assert.equal((await llamarAvisos('avisos', { accion: 'probar', endpoint: EP })).json.codigo, 'avisos_no_configurados');
+  process.env.VAPID_PUBLIC_KEY = 'pub'; process.env.VAPID_PRIVATE_KEY = 'priv';
+  assert.equal((await llamarAvisos('avisos', { accion: 'probar', endpoint: EP })).status, 200);
+  assert.equal(PUSH.enviados.length, 1); assert.equal(PUSH.enviados[0].datos.tipo, 'prueba');
+  // config publica la clave pública para suscribirse
+  assert.equal((await llamar('config', { method: 'GET' })).json.vapid_public, 'pub');
+});
+
+test('avisos-enviar: solo con el secreto; envía los vencidos y borra las suscripciones caducadas', async () => {
+  reiniciar(base()); reiniciarPush();
+  process.env.VAPID_PUBLIC_KEY = 'pub'; process.env.VAPID_PRIVATE_KEY = 'priv'; process.env.AVISOS_SECRETO = 's3cr3t';
+  assert.equal((await llamarAvisos('enviar', {}, { 'x-avisos-secreto': 'mal' })).status, 401);
+  const quitadas = [];
+  BD.funciones.tomar_avisos_vencidos = ({ p_secreto }) => ({ data: p_secreto === 's3cr3t' ? [
+    { endpoint: EP, p256dh: 'k', auth: 'a', titulo: 'Quedan 5 min', cuerpo: 'Pablo', etiqueta: 'practica-en-curso', tipo: 'antes', practica_id: 7 },
+    { endpoint: 'https://push.example.com/viejo', p256dh: 'k', auth: 'a', titulo: 'Hora', cuerpo: '', tipo: 'fin', practica_id: 8 }] : [], error: null });
+  BD.funciones.quitar_suscripcion = ({ p_endpoint }) => { quitadas.push(p_endpoint); return { data: null, error: null }; };
+  PUSH.caducadas.add('https://push.example.com/viejo');
+  const r = await llamarAvisos('enviar', {}, { 'x-avisos-secreto': 's3cr3t' });
+  assert.deepEqual([r.status, r.json.enviados, r.json.caducadas], [200, 1, 1]);
+  assert.equal(PUSH.enviados[0].datos.titulo, 'Quedan 5 min');
+  assert.deepEqual(quitadas, ['https://push.example.com/viejo']);
+});
