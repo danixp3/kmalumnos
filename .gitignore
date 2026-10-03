@@ -5,3 +5,8 @@ dist2/
 .hermes/
 dogfood-output/
 __pycache__/
+
+# Bases de datos de otros programas (datos personales de alumnos): nunca al repositorio
+BD/
+*.accdb
+*.mdb
