@@ -117,6 +117,8 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     if (page === 'ajustes') loadAjustes();
     if (page === 'puesta-en-marcha') loadPuestaEnMarcha();
     if (page === 'migracion') loadMigracion();
+    // Historial para los botones laterales del ratón (historial-pantallas.js)
+    if (typeof navRegistrar === 'function') navRegistrar();
     dashboardListo.then(() => comprobarTutorial(page));
   });
 });

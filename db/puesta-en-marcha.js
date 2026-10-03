@@ -16,6 +16,14 @@
 
 const { load, save, nextId, _sync, addLog, crearBackup } = require('./core');
 const { contarClasesAnteriores } = require('./clases-anteriores');
+const { siguienteNRegistro, alumnoConNRegistro } = require('./campos-extra');
+
+// Los que ya terminaron no se listan aquí (tras traer los de otro programa
+// serían cientos): esta pantalla es para los que están dando clase.
+const TERMINADOS = ['baja', 'apto', 'aprobado', 'inactivo'];
+const sinAcentos = t => String(t == null ? '' : t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const claveNombre = (...partes) => sinAcentos(partes.filter(Boolean).join(' ')).replace(/[^a-z0-9ñ]+/g, ' ').trim().split(' ').filter(Boolean).sort().join(' ');
+const nombreCompleto = a => [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
 
 const entero = (v, max = 2000000) => {
   const n = Math.round(Number(v));
@@ -55,10 +63,11 @@ function getPuestaEnMarcha() {
     id: v.id, nombre: v.nombre, matricula: v.matricula || '', km_actual: Math.round(v.km_actual || 0),
     practicas: (porVehiculo.get(v.id) || {}).n || 0, km_max_practicas: (porVehiculo.get(v.id) || {}).maxKm || 0
   })).sort((a, b) => a.nombre.localeCompare(b.nombre));
-  const profesores = d.profesores.filter(p => !p.deleted).map(p => ({ id: p.id, nombre: p.nombre }))
+  const profesores = d.profesores.filter(p => !p.deleted).map(p => ({ id: p.id, nombre: p.nombre, vehiculo_id: p.vehiculo_id || null }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
-  const alumnos = d.alumnos.filter(a => !a.deleted).map(a => ({
-    id: a.id, nombre: a.nombre || '', primer_apellido: a.primer_apellido || '', segundo_apellido: a.segundo_apellido || '',
+  const vivos = d.alumnos.filter(a => !a.deleted);
+  const alumnos = vivos.filter(a => !TERMINADOS.includes(a.estado)).map(a => ({
+    id: a.id, n_registro: a.n_registro || '', nombre: a.nombre || '', primer_apellido: a.primer_apellido || '', segundo_apellido: a.segundo_apellido || '',
     permiso: a.permiso || 'B', profesor_id: a.profesor_id || null, vehiculo_id: a.vehiculo_id || null,
     clases_previas: a.clases_previas || 0, km_previos: a.km_previos || 0,
     anteriores: anteriores.get(a.id) || 0,
@@ -68,8 +77,11 @@ function getPuestaEnMarcha() {
   const porCrear = alumnos.filter(a => a.clases_previas > 0 && !(a.km_previos > 0));
   return {
     vehiculos, profesores, alumnos,
+    // Siguiente nº de registro (para las filas nuevas; null si aún no hay numeración)
+    siguiente_n_registro: siguienteNRegistro(d.alumnos),
     resumen: {
       vehiculos: vehiculos.length, profesores: profesores.length, alumnos: alumnos.length,
+      alumnos_terminados: vivos.length - alumnos.length,
       practicas: practicas.length,
       alumnos_sin_profesor: alumnos.filter(a => !a.profesor_id).length,
       alumnos_sin_vehiculo: alumnos.filter(a => !a.vehiculo_id).length,
@@ -108,10 +120,30 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
     }
   });
   const anteriores = contarClasesAnteriores(d);
+  // Alumnos ya en la app por su nombre completo (para no darlos de alta dos veces)
+  const porNombre = new Map();
+  for (const x of d.alumnos) {
+    if (x.deleted) continue;
+    const k = claveNombre(x.nombre, x.primer_apellido, x.segundo_apellido);
+    if (k && !porNombre.has(k)) porNombre.set(k, x);
+  }
   alumnos.forEach((a, i) => {
     const nombre = texto(a.nombre);
     const hayDatos = texto(a.primer_apellido) || entero(a.clases_previas) || entero(a.km_previos);
     if (!a.id && !nombre && hayDatos) errores.push(`Alumno de la fila ${i + 1}: falta el nombre.`);
+    if (!a.id && nombre) {
+      const k = claveNombre(nombre, texto(a.primer_apellido), texto(a.segundo_apellido));
+      const ya = porNombre.get(k);
+      if (ya) {
+        errores.push(`${nombre}: ya está en la app como «${nombreCompleto(ya)}»${ya.n_registro ? ` (nº ${ya.n_registro})` : ''}${TERMINADOS.includes(ya.estado) ? ', entre los terminados (búscalo en Alumnos y cámbiale el estado)' : ''}. No lo añadas otra vez; si es otra persona con el mismo nombre, pon su segundo apellido.`);
+      } else if (k) porNombre.set(k, { nombre, primer_apellido: texto(a.primer_apellido), segundo_apellido: texto(a.segundo_apellido) });
+    }
+    const nReg = texto(a.n_registro, 40);
+    const nRegAntes = a.id ? String((d.alumnos.find(x => x.id === a.id) || {}).n_registro || '') : '';
+    if (nReg && nReg !== nRegAntes) {
+      const otro = alumnoConNRegistro(d.alumnos, nReg, a.id || null);
+      if (otro) errores.push(`${nombre || 'Alumno de la fila ' + (i + 1)}: el nº de registro ${nReg} ya lo tiene ${nombreCompleto(otro)}.`);
+    }
     const creadas = a.id ? anteriores.get(a.id) || 0 : 0;
     if (creadas && entero(a.clases_previas, 500) < creadas) {
       errores.push(`${nombre || 'Alumno de la fila ' + (i + 1)}: ya tiene ${creadas} clases anteriores creadas; para poner menos, borra antes algunas en «Anotar».`);
@@ -141,19 +173,26 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
     }
   });
 
+  const vehiculoId = v => (typeof v === 'string' && idVehiculoNuevo.has(v) ? idVehiculoNuevo.get(v) : idONull(v));
   profesores.forEach(p => {
     const nombre = texto(p.nombre, 80);
+    // Coche habitual: solo si la fila lo trae
+    const conCoche = 'vehiculo_id' in p;
+    const coche = conCoche ? vehiculoId(p.vehiculo_id) : null;
     if (p.id) {
       const x = d.profesores.find(y => y.id === p.id);
-      if (x && nombre && x.nombre !== nombre) { x.nombre = nombre; dirty.profesores.push(x.id); actualizados.profesores++; }
+      if (!x) return;
+      let cambia = false;
+      if (nombre && x.nombre !== nombre) { x.nombre = nombre; cambia = true; }
+      if (conCoche && (x.vehiculo_id || null) !== coche) { x.vehiculo_id = coche; cambia = true; }
+      if (cambia) { dirty.profesores.push(x.id); actualizados.profesores++; }
     } else if (nombre) {
       const id = nextId('pf');
-      d.profesores.push({ id, nombre, nota: '', sucursal_id: null, dni: null });
+      d.profesores.push({ id, nombre, nota: '', sucursal_id: null, dni: null, vehiculo_id: coche });
       dirty.profesores.push(id); creados.profesores++;
     }
   });
 
-  const vehiculoId = v => (typeof v === 'string' && idVehiculoNuevo.has(v) ? idVehiculoNuevo.get(v) : idONull(v));
   alumnos.forEach(a => {
     const nombre = texto(a.nombre);
     const campos = {
@@ -165,20 +204,30 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
       clases_previas: Math.max(0, entero(a.clases_previas, 500) - (a.id ? anteriores.get(a.id) || 0 : 0)),
       km_previos: entero(a.km_previos, 100000)
     };
+    // Nº de registro: solo si la fila lo trae; en las nuevas sin número, el siguiente
+    const conNReg = 'n_registro' in a;
+    const nReg = texto(a.n_registro, 40) || null;
     if (a.id) {
       const x = d.alumnos.find(y => y.id === a.id);
       if (!x) return;
-      const antes = JSON.stringify([x.nombre, x.primer_apellido || null, x.segundo_apellido || null, x.permiso, x.profesor_id || null, x.vehiculo_id || null, x.clases_previas || 0, x.km_previos || 0]);
+      const antes = JSON.stringify([x.nombre, x.primer_apellido || null, x.segundo_apellido || null, x.permiso, x.profesor_id || null, x.vehiculo_id || null, x.clases_previas || 0, x.km_previos || 0, x.n_registro || null]);
       if (nombre) x.nombre = nombre;
       Object.assign(x, campos);
-      const despues = JSON.stringify([x.nombre, x.primer_apellido, x.segundo_apellido, x.permiso, x.profesor_id, x.vehiculo_id, x.clases_previas, x.km_previos]);
+      if (conNReg) x.n_registro = nReg;
+      const despues = JSON.stringify([x.nombre, x.primer_apellido, x.segundo_apellido, x.permiso, x.profesor_id, x.vehiculo_id, x.clases_previas, x.km_previos, x.n_registro || null]);
       if (antes !== despues) { dirty.alumnos.push(x.id); actualizados.alumnos++; }
     } else if (nombre) {
       const id = nextId('a');
       const hoy = new Date();
       const pad = n => String(n).padStart(2, '0');
+      // Sin coche elegido: el coche habitual de su profesor
+      if (!campos.vehiculo_id && campos.profesor_id) {
+        const pr = d.profesores.find(y => y.id === campos.profesor_id);
+        const v = pr && pr.vehiculo_id ? d.vehiculos.find(y => y.id === pr.vehiculo_id && !y.deleted && y.activo !== false) : null;
+        if (v) campos.vehiculo_id = v.id;
+      }
       d.alumnos.push({
-        id, nombre, ...campos, sucursal_id: null, email: null, n_inscripcion: null,
+        id, nombre, ...campos, n_registro: nReg || siguienteNRegistro(d.alumnos), sucursal_id: null, email: null, n_inscripcion: null,
         permisos_posee: null, fecha_inicio: null, fecha_fin: null, resultado: null, permisos: [],
         estado: 'en_practicas', fecha_alta: `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-${pad(hoy.getDate())}`
       });

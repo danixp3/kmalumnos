@@ -16,6 +16,7 @@ function verPracticas(alumnoId, vehiculoId, nombre) {
   document.getElementById('view-alumnos').style.display = 'none';
   document.getElementById('view-practicas').style.display = 'block';
   document.getElementById('content').scrollTop = 0;
+  if (typeof navRegistrar === 'function') navRegistrar();
   loadPracticas();
 }
 
@@ -25,6 +26,7 @@ function volverAlumnos() {
   fdEditando = false;
   document.getElementById('view-alumnos').style.display = 'block';
   document.getElementById('view-practicas').style.display = 'none';
+  if (typeof navRegistrar === 'function') navRegistrar();
   loadAlumnos();
 }
 

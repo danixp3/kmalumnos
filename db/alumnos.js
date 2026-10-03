@@ -2,7 +2,7 @@
 // CRUD de alumnos y anotaciones de alumno (notas guardadas en sus prácticas).
 
 const { load, save, nextId, _sync, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, clasesDePractica } = require('./core');
-const { extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
+const { extraerCamposExtra, camposExtraVacios, siguienteNRegistro, alumnoConNRegistro } = require('./campos-extra');
 
 // sucursalId opcional: sin argumento devuelve todos los alumnos (modo clásico
 // o "Todas las sucursales") — ver filtrarPorSucursal en core.js.
@@ -271,6 +271,12 @@ function _normalizarPermisos(permisos) {
 
 function addAlumno(nombre, permiso, vehiculo_id, profesor_id = null, sucursal_id = null, email = null, datos = null, libro = null, permisos = null) {
   const d = load();
+  // Nº de registro: si no viene (ni vacío a propósito), el siguiente de la
+  // numeración que ya haya (db/campos-extra.js → siguienteNRegistro)
+  if (!datos || !('n_registro' in datos)) {
+    const n = siguienteNRegistro(d.alumnos);
+    if (n) datos = { ...(datos || {}), n_registro: n };
+  }
   const id = nextId('a');
   d.alumnos.push({
     id, nombre, permiso: permiso || 'B', vehiculo_id: vehiculo_id ? parseInt(vehiculo_id) : null,
@@ -323,6 +329,17 @@ function updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id = null, emai
     save();
     const s = _sync(); if (s) s.markDirty('alumnos', id);
   }
+}
+
+// ─── Nº DE REGISTRO ─────────────────────────────────────────────────────────
+// El siguiente número libre (para proponerlo en el alta) y quién tiene ya un
+// número (para avisar de repetidos al guardar). Solo lectura.
+function getSiguienteNRegistro() {
+  return siguienteNRegistro(load().alumnos);
+}
+function getAlumnoConNRegistro(n, exceptoId = null) {
+  const a = alumnoConNRegistro(load().alumnos, n, exceptoId != null ? parseInt(exceptoId) : null);
+  return a ? { id: a.id, nombre: [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' '), estado: a.estado || null } : null;
 }
 
 // ─── BUSCADOR DE LA BARRA SUPERIOR ──────────────────────────────────────────
@@ -489,4 +506,5 @@ module.exports = {
   RESULTADOS_ALUMNO_VALIDOS,
   PERMISOS_VALIDOS,
   getSiguienteNumInscripcion, asignarNumInscripcion, backfillNumInscripcion, getLibroRegistro,
+  getSiguienteNRegistro, getAlumnoConNRegistro,
 };

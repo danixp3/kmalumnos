@@ -372,8 +372,9 @@ function mgAriautoPintar() {
   const r = p.resumen, f = p.fiabilidadCobros || {};
   const chk = (k, texto, on = o[k]) => `<label class="mg-chk"><input type="checkbox" ${on ? 'checked' : ''} onchange="mgAriautoOpcion('${k}', this.checked)"> ${texto}</label>`;
   const secciones = p.secciones.map(s => `<label class="mg-chk"><input type="checkbox" ${s.elegida ? 'checked' : ''} onchange="mgAriautoOpcion('seccion', { seccion: ${s.seccion}, on: this.checked })"> ${esc(s.nombre)} <small>(${fmtMiles(s.alumnos)}${s.curso ? ' · cursos' : ''})</small></label>`).join('');
-  const pills = [[r.nuevos, r.nuevos === 1 ? 'alumno nuevo' : 'alumnos nuevos', 'pill-ok'], [r.completar, r.completar === 1 ? 'se completa' : 'se completan', 'pill-info'],
-    [r.revisar, 'no se tocan (nombre repetido)', 'pill-warn'], [r.clases, 'clases ya hechas', 'pill-line'], [r.examenes, 'exámenes', 'pill-line'],
+  const pills = [[r.nuevos, r.nuevos === 1 ? 'alumno nuevo' : 'alumnos nuevos', 'pill-ok'], [r.completar, r.completar === 1 ? 'ya está en la app: se completa' : 'ya están en la app: se completan', 'pill-info'],
+    [r.revisar, r.revisar === 1 ? 'no se toca (dudoso)' : 'no se tocan (dudosos)', 'pill-warn'], [r.clases, 'clases ya hechas', 'pill-line'],
+    [r.clasesConFecha, 'de ellas con su día', 'pill-line'], [r.clasesYaEnApp, 'clases que ya tienes anotadas (no se repiten)', 'pill-line'], [r.examenes, 'exámenes', 'pill-line'],
     [r.tasas, 'tasas', 'pill-line'], [r.vencimientos, 'caducidades', 'pill-line'], [r.profesoresNuevos, r.profesoresNuevos === 1 ? 'profesor nuevo' : 'profesores nuevos', 'pill-line'],
     [r.vehiculosNuevos, r.vehiculosNuevos === 1 ? 'coche nuevo' : 'coches nuevos', 'pill-line'],
     [r.profesoresCompletar, r.profesoresCompletar === 1 ? 'profesor se completa' : 'profesores se completan', 'pill-line'],
@@ -381,18 +382,37 @@ function mgAriautoPintar() {
     ...(o.economia ? [[r.cargos, 'cargos', 'pill-line'], [r.pagos, 'pagos', 'pill-line']] : [])]
     .filter(([n], i) => n || i === 0).map(([n, t, c]) => `<span class="pill ${c}"><b>${fmtMiles(n)}</b>&nbsp;${t}</span>`).join('');
   const estados = { matriculado: 'Matriculado', en_practicas: 'En prácticas', apto: 'Aprobado', baja: 'Baja', apto_teorico: 'Teórico aprobado', inactivo: 'Inactivo' };
+  const fechaCorta = iso => iso ? iso.split('-').reverse().join('/') : '';
+  const coma = n => String(n).replace('.', ',');
   const filas = p.filas.map(x => {
-    const [cls, txt] = MG_ACCIONES[x.accion] || (x.accion === 'revisar' ? ['pill-warn', 'No se toca'] : ['pill-line', x.accion]);
-    return `<tr><td><span class="pill ${cls}">${txt}</span></td><td>${esc(x.nombre)}</td><td class="num-mono">${esc(x.dni || '')}</td><td>${esc(x.permiso || '')}</td>
-      <td>${esc(estados[x.estado] || x.estado || '')}</td><td class="col-num">${x.clases ? String(x.clases).replace('.', ',') : ''}</td>
-      ${o.economia ? `<td class="col-num num-mono">${x.saldo == null ? '' : esc(String(x.saldo).replace('.', ','))}</td>` : ''}<td class="col-num">${x.examenes || ''}</td>
-      <td class="mg-det">${x.accion === 'actualizar' ? (x.cambios ? `<small>${mgPl(x.cambios, 'dato nuevo', 'datos nuevos')}</small>` : '<small>Ya está al día</small>') : ''}${x.avisos.length ? `<div class="mg-avisos">${x.avisos.map(esc).join('<br>')}</div>` : ''}</td></tr>`;
+    const [cls, txt] = x.accion === 'actualizar' ? ['pill-info', 'Ya está: se completa'] : (MG_ACCIONES[x.accion] || (x.accion === 'revisar' ? ['pill-warn', 'No se toca'] : ['pill-line', x.accion]));
+    // Qué les pasa a los que ya están en la app (lo que hay que poder revisar)
+    const det = [];
+    if (x.accion === 'actualizar') {
+      if (x.nombreApp && x.nombreApp !== x.nombre) det.push(`En la app: «${esc(x.nombreApp)}»${x.nombreNuevo ? ' → se escribe como en Ariauto' : ''}`);
+      if (x.registroNuevo) det.push(`Nº de registro ${esc(x.registroNuevo)}`);
+      if (x.altaNueva) det.push(`Alta real: ${fechaCorta(x.altaNueva)}`);
+      if (x.clasesYaEnApp) det.push(`${coma(x.clasesYaEnApp)} ${x.clasesYaEnApp === 1 ? 'clase' : 'clases'} de Ariauto ya ${x.clasesYaEnApp === 1 ? 'está anotada' : 'están anotadas'} en la app${x.primeraApp ? ` (desde el ${fechaCorta(x.primeraApp)})` : ''}: no se repiten`);
+      if (x.clases) det.push(`+${coma(x.clases)} ${x.clases === 1 ? 'clase' : 'clases'} de antes${x.primeraApp ? ` del ${fechaCorta(x.primeraApp)}` : ''}`);
+      const otros = x.cambios - (x.nombreNuevo ? 1 : 0) - (x.registroNuevo ? 1 : 0) - (x.altaNueva ? 1 : 0) - (x.clases && !x.clasesConFecha ? 1 : 0);
+      if (otros > 0) det.push(mgPl(otros, 'dato que le falta', 'datos que le faltan'));
+      if (!det.length) det.push('Ya está al día');
+    } else if (x.accion === 'nuevo' && x.clasesConFecha) det.push(`${coma(x.clasesConFecha)} ${x.clasesConFecha === 1 ? 'clase' : 'clases'} con su día`);
+    return `<tr><td><span class="pill ${cls}">${txt}</span>${x.parecido ? ' <span class="pill pill-warn" title="Mismo nombre de pila y apellidos casi iguales: se toma como el mismo alumno">Nombre parecido</span>' : ''}</td><td class="num-mono">${esc(x.n_registro || '')}</td><td>${esc(x.nombre)}</td><td class="num-mono">${esc(x.dni || '')}</td><td>${esc(x.permiso || '')}</td>
+      <td>${esc(estados[x.estado] || x.estado || '')}</td><td class="col-num">${x.clases ? coma(x.clases) : ''}</td>
+      ${o.economia ? `<td class="col-num num-mono">${x.saldo == null ? '' : esc(coma(x.saldo))}</td>` : ''}<td class="col-num">${x.examenes || ''}</td>
+      <td class="mg-det">${det.length ? `<small>${det.join(' · ')}</small>` : ''}${x.avisos.length ? `<div class="mg-avisos">${x.avisos.map(esc).join('<br>')}</div>` : ''}</td></tr>`;
   }).join('');
-  const hay = r.nuevos + r.conCambios + r.examenes + r.tasas + r.vencimientos + r.profesoresNuevos + r.vehiculosNuevos + (r.examenesCompletar || 0) + r.profesoresCompletar + r.vehiculosCompletar;
-  // Al volver a abrir el mismo archivo: qué se completa en los que ya están
-  const yaTraidos = r.completar ? `<div class="alert alert-info" style="margin-top:12px"><span><b>${fmtMiles(r.completar)} de estos alumnos ya están en la app.</b>
-      ${r.conCambios ? `Se completarán con los datos que les faltan (nº de registro, sexo, nacionalidad, provincia, tutor, centro médico…)${r.limpiarObservaciones ? `, sus observaciones quedarán solo con las de Ariauto (${fmtMiles(r.limpiarObservaciones)})` : ''}${r.pasanAInactivo ? ` y ${mgPl(r.pasanAInactivo, 'alumno antiguo sin actividad pasa', 'alumnos antiguos sin actividad pasan')} a «Inactivo»` : ''}.` : 'Ya tienen todos sus datos.'}
-      ${r.examenes ? `Se añaden ${mgPl(r.examenes, 'examen', 'exámenes')} con su examinador y sus fallos.` : ''} Lo que ya tenga cada alumno en la app no se toca ni se duplica.</span></div>` : '';
+  const hay = r.nuevos + r.conCambios + r.examenes + r.tasas + r.vencimientos + r.profesoresNuevos + r.vehiculosNuevos + (r.examenesCompletar || 0) + r.profesoresCompletar + r.vehiculosCompletar + (r.cochesProfesor || 0) + (r.clasesConFecha || 0);
+  // Los que ya están en la app (los de Puesta en marcha o de una importación
+  // anterior): qué se les hace y qué se respeta
+  const yaTraidos = r.completar ? `<div class="alert alert-info" style="margin-top:12px"><span><b>${fmtMiles(r.completar)} de estos alumnos ya están en la app${r.parecidos ? ` (${fmtMiles(r.parecidos)} con el nombre algo distinto: salen marcados «Nombre parecido»)` : ''}.</b>
+      No se duplican ni se les borra nada: sus clases anotadas se quedan como están${r.clasesYaEnApp ? ` y ${mgPl(r.clasesYaEnApp, 'clase', 'clases')} de Ariauto que ya tienen anotadas no se vuelven a contar` : ''}.
+      ${r.conCambios ? `Se completan con lo que les falta (nº de registro, DNI, teléfono, dirección, tutor…)${r.altasCorregidas ? `, la fecha de alta pasa a ser la real de Ariauto (${fmtMiles(r.altasCorregidas)})` : ''}${r.nombresCorregidos ? `, el nombre se escribe como en Ariauto donde estaba todo en mayúsculas o con una errata (${fmtMiles(r.nombresCorregidos)})` : ''}${r.limpiarObservaciones ? `, sus observaciones quedarán solo con las de Ariauto (${fmtMiles(r.limpiarObservaciones)})` : ''}${r.pasanAInactivo ? ` y ${mgPl(r.pasanAInactivo, 'alumno antiguo sin actividad pasa', 'alumnos antiguos sin actividad pasan')} a «Inactivo»` : ''}.` : 'Ya tienen todos sus datos.'}
+      ${r.examenes ? `Se añaden ${mgPl(r.examenes, 'examen', 'exámenes')} con su examinador y sus fallos.` : ''} Lo que ya tenga cada alumno en la app no se cambia.</span></div>` : '';
+  // Coche habitual de cada profesor (lo que la web del móvil le propone)
+  const coches = (p.cochesProfesor || []).length ? `<div class="alert alert-info" style="margin-top:12px"><span><b>Coche habitual de cada profesor</b> (la web del móvil se lo propondrá al empezar sus clases; se puede cambiar en Profesores):
+      ${p.cochesProfesor.map(c => `${esc(c.profesor.nombre)} → <b>${esc(c.coche)}</b> <small>(${c.fuente === 'app' ? 'el que más usa en la app' : 'el de sus exámenes en Ariauto'})</small>`).join(' · ')}</span></div>` : '';
   el.innerHTML = `<div class="pm-paso-cab"><span class="pm-num">2</span><div><h3>Ariauto: elige qué traer</h3>
       <p>La app ya sabe dónde guarda Ariauto cada dato. <b>Todavía no se ha guardado nada</b>: cambia lo que quieras y la vista previa se actualiza.</p></div></div>
     <div class="mg-ariauto-op">
@@ -405,10 +425,10 @@ function mgAriautoPintar() {
     </div>
     <div class="alert ${f.fiable ? 'alert-info' : 'alert-warn'}" style="margin-top:12px"><span>${chk('economia', '<b>Traer también los cargos y pagos de Ariauto</b>')}
       ${f.fiable ? 'Su saldo pasará a ser el de Ariauto.' : `<br>No recomendado: en Ariauto no constan la mayoría de los cobros (de ${fmtMiles(f.aptosRecientes)} alumnos aprobados en los dos últimos años, ${fmtMiles(f.aptosConDeuda)} aparecen debiendo). Si los traes, la app los mostraría como morosos. Mejor empezar a cero y apuntar en la app lo que cobres desde ahora.`}</span></div>
-    ${yaTraidos}
+    ${yaTraidos}${coches}
     <div class="pm-resumen" style="margin-top:14px">${pills}</div>
-    <div class="table-wrap mg-prev-wrap"><table class="mg-prev"><thead><tr><th>Qué pasa</th><th>Alumno</th><th>DNI</th><th>Permiso</th><th>Estado</th><th class="col-num">Clases hechas</th>${o.economia ? '<th class="col-num">Saldo €</th>' : ''}<th class="col-num">Exámenes</th><th>Avisos</th></tr></thead>
-      <tbody>${filas || '<tr><td colspan="9" class="mg-vacio">Ningún alumno con estas opciones.</td></tr>'}${p.masFilas ? `<tr><td colspan="9" class="mg-vacio">… y ${fmtMiles(p.masFilas)} alumnos más</td></tr>` : ''}</tbody></table></div>
+    <div class="table-wrap mg-prev-wrap"><table class="mg-prev"><thead><tr><th>Qué pasa</th><th>Nº</th><th>Alumno</th><th>DNI</th><th>Permiso</th><th>Estado</th><th class="col-num" title="Clases ya hechas que entran en la app (las que ya tiene anotadas no se cuentan)">Clases que entran</th>${o.economia ? '<th class="col-num">Saldo €</th>' : ''}<th class="col-num">Exámenes</th><th>Detalle</th></tr></thead>
+      <tbody>${filas || '<tr><td colspan="10" class="mg-vacio">Ningún alumno con estas opciones.</td></tr>'}${p.masFilas ? `<tr><td colspan="10" class="mg-vacio">… y ${fmtMiles(p.masFilas)} alumnos más</td></tr>` : ''}</tbody></table></div>
     <div class="mg-acciones"><span>${hay ? 'Antes se guarda una copia de seguridad y se puede deshacer.' : ''}</span>
       <button class="btn btn-primary" id="mg-ariauto-btn" onclick="mgAriautoImportar()" ${hay ? '' : 'disabled'}>${!hay ? 'Ya está todo en la app' : r.nuevos ? `Importar ${fmtMiles(r.nuevos)} ${r.nuevos === 1 ? 'alumno' : 'alumnos'}${r.conCambios ? ` y completar ${fmtMiles(r.conCambios)}` : ''}` : r.conCambios ? `Completar ${fmtMiles(r.conCambios)} ${r.conCambios === 1 ? 'alumno' : 'alumnos'}` : 'Traer lo que falta'}</button></div>`;
 }
@@ -416,7 +436,7 @@ function mgAriautoPintar() {
 async function mgAriautoImportar() {
   const r = mga.plan && mga.plan.ok ? mga.plan.resumen : null;
   if (!r) return;
-  const ok = await confirmar(`${r.nuevos ? `Entrarán ${mgPl(r.nuevos, 'alumno nuevo', 'alumnos nuevos')}` : 'No entra ningún alumno nuevo'}${r.conCambios ? ` y se completarán ${mgPl(r.conCambios, 'alumno', 'alumnos')}` : ''}${r.examenes ? `, con ${mgPl(r.examenes, 'examen', 'exámenes')}` : ''}${mga.opciones.economia ? ', cargos y pagos' : ''}.\n\nAntes se guarda una copia de seguridad, y podrás deshacer esta importación desde esta misma pantalla.`, { titulo: 'Importar de Ariauto', textoAceptar: r.nuevos ? 'Importar' : 'Completar' });
+  const ok = await confirmar(`${r.nuevos ? `Entrarán ${mgPl(r.nuevos, 'alumno nuevo', 'alumnos nuevos')}` : 'No entra ningún alumno nuevo'}${r.conCambios ? ` y se completarán ${mgPl(r.conCambios, 'alumno', 'alumnos')} que ya tienes (sin tocar sus clases anotadas)` : ''}${r.clasesConFecha ? `, ${mgPl(r.clasesConFecha, 'clase', 'clases')} con su día` : ''}${r.examenes ? `, ${mgPl(r.examenes, 'examen', 'exámenes')}` : ''}${mga.opciones.economia ? ', cargos y pagos' : ''}.\n\nAntes se guarda una copia de seguridad, y podrás deshacer esta importación desde esta misma pantalla.`, { titulo: 'Importar de Ariauto', textoAceptar: r.nuevos ? 'Importar' : 'Completar' });
   if (!ok) return;
   const btn = document.getElementById('mg-ariauto-btn');
   btn.disabled = true; btn.textContent = 'Importando…';
@@ -442,7 +462,7 @@ async function mgAriautoImportar() {
   const el = document.getElementById('mg-paso-hecho');
   el.innerHTML = `<div class="pm-paso-cab"><span class="pm-num mg-num-ok">✓</span><div><h3>Hecho: ${mgPl(x.creadosAlumnos, 'alumno nuevo', 'alumnos nuevos')}${x.actualizadosAlumnos ? ` y ${mgPl(x.actualizadosAlumnos, 'completado', 'completados')}` : ''} desde Ariauto</h3>
       <p>Se están subiendo a la nube: en unos segundos los profesores los verán en el móvil.${res.copia ? ' Copia de seguridad previa guardada.' : ''}${centro ? ' Los datos del centro que faltaban se han rellenado con los de Ariauto (Ajustes → Datos del centro).' : ''}
-      Cada dato está en su sitio de la ficha del alumno (nº de registro, sexo, nacionalidad, tutor…); los exámenes, con su examinador y sus fallos, en Exámenes.</p></div></div>
+      Cada dato está en su sitio de la ficha del alumno (nº de registro, sexo, nacionalidad, tutor…); sus clases de Ariauto, con su día, en su ficha y en la ficha DGT (como las anotadas en Puesta en marcha); los exámenes, con su examinador y sus fallos, en Exámenes.${x.creadosAlumnos ? ' Los alumnos nuevos que des de alta a partir de ahora siguen la numeración (nº de registro) de Ariauto.' : ''}</p></div></div>
     <div class="mg-siguientes"><button class="btn btn-outline" onclick="navegarA('alumnos')">Ver los alumnos</button>
       <button class="btn btn-outline" onclick="navegarA('puesta-en-marcha')">Puesta en marcha: km de los coches y clases ya hechas</button>
       <button class="btn btn-outline" onclick="navegarA('vencimientos')">Ver caducidades (ITV, seguros, DNI)</button></div>`;

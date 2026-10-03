@@ -41,6 +41,11 @@ function pmPintar() {
   const tbA = document.querySelector('#pm-alumnos tbody');
   tbA.innerHTML = d.alumnos.map((a, i) => pmFilaAlumno(a, i)).join('');
   pmAnadirFila('alumnos', d.alumnos.length ? 3 : 8, false);
+  const term = document.getElementById('pm-terminados');
+  if (term) {
+    term.hidden = !r.alumnos_terminados;
+    term.textContent = r.alumnos_terminados ? `No se muestran ${r.alumnos_terminados} ${r.alumnos_terminados === 1 ? 'alumno terminado' : 'alumnos terminados'} (aprobados, bajas o inactivos): están en Alumnos.` : '';
+  }
   document.getElementById('pm-barra').hidden = true;
   pmEstadoAnteriores();
 }
@@ -59,6 +64,7 @@ function pmFilaVehiculo(v, i) {
 function pmFilaProfesor(p, i) {
   return `<tr data-id="${p.id || ''}" data-fila="${i}">
     <td><input type="text" data-c="nombre" value="${esc(p.nombre || '')}" placeholder="Nombre y apellidos" style="width:320px" oninput="pmMarcarSucio()"></td>
+    <td><select data-c="vehiculo_id" onchange="pmMarcarSucio()" title="El coche que la web del móvil le propone al empezar o anotar sus clases">${pmOpciones(pmDatos.vehiculos, p.vehiculo_id, '— Sin coche fijo —')}</select></td>
     <td>${p.id ? '' : '<button class="btn btn-sm btn-ghost" title="Quitar fila" onclick="this.closest(\'tr\').remove()">×</button>'}</td></tr>`;
 }
 function pmOpciones(lista, sel, vacio) {
@@ -66,18 +72,30 @@ function pmOpciones(lista, sel, vacio) {
 }
 function pmFilaAlumno(a, i) {
   const permisos = ['B', 'A', 'A1', 'A2', 'AM', 'C', 'C1', 'D', 'BE', 'CE'];
+  const nReg = a.id ? (a.n_registro || '') : '';
   return `<tr data-id="${a.id || ''}" data-fila="${i}">
+    <td><input type="text" data-c="n_registro" value="${esc(nReg)}" placeholder="${a.id ? '' : (pmDatos.siguiente_n_registro ? 'auto' : '')}" title="${a.id ? 'Nº de registro' : 'Vacío: se pone solo el siguiente nº'}" class="num-mono pm-nreg" oninput="pmMarcarSucio()"></td>
     <td><input type="text" data-c="nombre" value="${esc(a.nombre || '')}" placeholder="Nombre" oninput="pmMarcarSucio()" onpaste="pmPegar(event)"></td>
     <td><input type="text" data-c="primer_apellido" value="${esc(a.primer_apellido || '')}" oninput="pmMarcarSucio()"></td>
     <td><input type="text" data-c="segundo_apellido" value="${esc(a.segundo_apellido || '')}" oninput="pmMarcarSucio()"></td>
     <td><select data-c="permiso" onchange="pmMarcarSucio()">${permisos.map(p => `<option ${p === (a.permiso || 'B') ? 'selected' : ''}>${p}</option>`).join('')}</select></td>
-    <td><select data-c="profesor_id" onchange="pmMarcarSucio()">${pmOpciones(pmDatos.profesores, a.profesor_id, '— Sin asignar —')}</select></td>
+    <td><select data-c="profesor_id" onchange="pmMarcarSucio();pmProfesorElegido(this)">${pmOpciones(pmDatos.profesores, a.profesor_id, '— Sin asignar —')}</select></td>
     <td><select data-c="vehiculo_id" onchange="pmMarcarSucio()">${pmOpciones(pmDatos.vehiculos, a.vehiculo_id, '— Sin asignar —')}</select></td>
     <td class="col-num"><input type="number" data-c="clases_previas" min="0" max="500" value="${pmNum((a.clases_previas || 0) + (a.anteriores || 0))}" placeholder="0" class="num-mono" style="width:80px;text-align:right" oninput="pmMarcarSucio()"></td>
     <td class="col-num"><input type="number" data-c="km_previos" min="0" value="${pmNum(a.km_previos)}" placeholder="vacío" title="Déjalo vacío para que la app cree las clases con sus km (paso 4)" class="num-mono" style="width:90px;text-align:right" oninput="pmMarcarSucio()"></td>
     <td>${a.id ? `<button type="button" class="btn btn-sm btn-outline pm-anotar${a.anteriores ? ' hecho' : ''}" onclick="pmAnotar(${a.id})" title="Anotar las fechas (y km) de sus clases anteriores">${a.anteriores ? `${a.anteriores} ${a.anteriores === 1 ? 'creada' : 'creadas'} · ver` : 'Anotar'}</button>` : '<span style="color:var(--text-faint);font-size:12px">al guardar</span>'}</td>
     <td class="col-num num-mono">${a.id ? `${a.practicas} · ${fmtMiles(a.km_practicas)} km` : '—'}</td>
     <td>${a.id ? '' : '<button class="btn btn-sm btn-ghost" title="Quitar fila" onclick="this.closest(\'tr\').remove()">×</button>'}</td></tr>`;
+}
+
+// Al elegir el profesor de un alumno sin coche, se pone el coche habitual del
+// profesor (el que esté elegido ahora en la tabla de profesores).
+function pmProfesorElegido(sel) {
+  const tr = sel.closest('tr'); const coche = tr && tr.querySelector('[data-c="vehiculo_id"]');
+  if (!coche || coche.value || !sel.value) return;
+  const filaProf = document.querySelector(`#pm-profesores tbody tr[data-id="${sel.value}"] [data-c="vehiculo_id"]`);
+  const vid = filaProf ? filaProf.value : ((pmDatos.profesores.find(p => String(p.id) === sel.value) || {}).vehiculo_id || '');
+  if (vid && [...coche.options].some(o => o.value === String(vid))) coche.value = String(vid);
 }
 
 function pmAnadirFila(tipo, n = 1, sucio = true) {
@@ -134,7 +152,9 @@ async function guardarPuestaEnMarchaUI() {
 }
 
 async function vaciarDatosPruebaUI() {
-  const r = pmDatos ? pmDatos.resumen : { alumnos: 0, practicas: 0 };
+  const r0 = pmDatos ? pmDatos.resumen : { alumnos: 0, practicas: 0 };
+  // Se borran todos, también los terminados que no salen en la tabla
+  const r = { ...r0, alumnos: (r0.alumnos || 0) + (r0.alumnos_terminados || 0) };
   const vehiculos = document.getElementById('pm-borrar-vehiculos').checked;
   const profesores = document.getElementById('pm-borrar-profesores').checked;
   const que = `${r.alumnos} alumnos y ${r.practicas} prácticas${vehiculos ? `, ${r.vehiculos} vehículos` : ''}${profesores ? `, ${r.profesores} profesores` : ''}`;

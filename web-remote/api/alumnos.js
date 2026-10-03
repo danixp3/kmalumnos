@@ -15,17 +15,22 @@ export default async function handler(req, res) {
 
   const supabase = getSupabase(auth.token);
 
-  const consulta = cols => withRetry(() => supabase
+  // Paginado: tras traer los alumnos del programa anterior puede haber miles
+  // (PostgREST corta en 1.000 filas).
+  const consulta = cols => withRetry(() => traerTodo(() => supabase
     .from('alumnos')
     .select(cols)
     .eq('deleted', false)
     .eq('empresa_id', auth.empresaId)
-    .order('nombre'));
+    .order('nombre')
+    .order('id')));
 
   // Columnas de la ficha ampliada (existen en producción; si faltan, se cae al
-  // básico). minutos_sobrantes: lo acumulado de clases por minutos (migración 2026-10-02).
+  // básico). minutos_sobrantes: lo acumulado de clases por minutos (migración
+  // 2026-10-02); n_registro: el nº de registro del alumno (2026-10-03).
   const COLS = 'id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta, clases_previas, km_previos';
-  let { data, error } = await consulta(COLS + ', minutos_sobrantes');
+  let { data, error } = await consulta(COLS + ', minutos_sobrantes, n_registro');
+  if (error && esErrorColumnaInexistente(error)) ({ data, error } = await consulta(COLS + ', minutos_sobrantes'));
   if (error && esErrorColumnaInexistente(error)) ({ data, error } = await consulta(COLS));
   if (error && esErrorColumnaInexistente(error)) {
     ({ data, error } = await consulta('id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta'));

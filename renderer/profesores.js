@@ -4,15 +4,23 @@
 // ─── PROFESORES ───────────────────────────────────────────────────────────────
 async function loadProfesores() {
   cargarDirector();
-  profesoresCache = await window.api.getProfesores(getSucursalActual());
+  const [lista, coches] = await Promise.all([window.api.getProfesores(getSucursalActual()), window.api.getVehiculos()]);
+  profesoresCache = lista;
+  vehiculosCache = coches;
+  llenarSelectCocheProfesor('pf-vehiculo', document.getElementById('pf-vehiculo')?.value || '');
   const tbody = document.querySelector('#tabla-profesores tbody');
   if (!profesoresCache.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty">No hay profesores registrados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No hay profesores registrados</td></tr>';
     return;
   }
   tbody.innerHTML = profesoresCache.map(p => `<tr>
       <td><strong>${esc(p.nombre)}</strong>${[p.telefono, p.n_certificado && 'certificado ' + p.n_certificado, p.fecha_baja && 'de baja desde ' + fmtFecha(p.fecha_baja)].filter(Boolean).length
         ? `<div class="al-sub">${[p.telefono, p.n_certificado && 'certificado ' + p.n_certificado, p.fecha_baja && 'de baja desde ' + fmtFecha(p.fecha_baja)].filter(Boolean).map(esc).join(' · ')}</div>` : ''}</td>
+      <td>${p.vehiculo_nombre
+        ? `${esc(p.vehiculo_nombre)}${p.vehiculo_matricula ? '<div class="al-sub">' + placaHTML(p.vehiculo_matricula) + '</div>' : ''}${p.vehiculo_retirado ? '<div class="al-sub">retirado</div>' : ''}`
+        : p.vehiculo_sugerido
+          ? `<span class="al-sub" style="margin:0">Suele usar ${esc(p.vehiculo_sugerido.nombre)}</span><button type="button" class="btn btn-outline btn-sm" style="margin-top:4px" onclick="usarCocheSugerido(${p.id}, ${p.vehiculo_sugerido.id})" title="Ponerlo como su coche habitual: la web del móvil se lo propondrá al empezar sus clases">Ponerlo como el suyo</button>`
+          : `<button type="button" class="btn btn-outline btn-sm" onclick="openEditProfesor(${p.id})" title="El coche que la web del móvil le propone al empezar o anotar sus clases">Elegir coche</button>`}</td>
       <td>${esc(p.nota) || '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${p.num_practicas}</td>
       <td>${p.tiene_firma
@@ -29,12 +37,32 @@ async function addProfesor() {
   const nombre = document.getElementById('pf-nombre').value.trim();
   const nota = document.getElementById('pf-nota').value.trim();
   const dni = document.getElementById('pf-dni')?.value.trim() || null;
+  const coche = document.getElementById('pf-vehiculo')?.value || '';
   if (!nombre) { alert('Introduce un nombre para el profesor.'); return; }
-  await window.api.addProfesor(nombre, nota, getSucursalActual(), dni);
+  await window.api.addProfesor(nombre, nota, getSucursalActual(), dni, { vehiculo_id: coche });
   document.getElementById('pf-nombre').value = '';
   document.getElementById('pf-nota').value = '';
   document.getElementById('pf-dni').value = '';
+  if (document.getElementById('pf-vehiculo')) document.getElementById('pf-vehiculo').value = '';
   loadProfesores();
+}
+
+async function usarCocheSugerido(profesorId, vehiculoId) {
+  const r = await window.api.setCocheProfesor(profesorId, vehiculoId);
+  if (!r || !r.ok) { await avisar((r && r.error) || 'No se pudo guardar el coche.'); return; }
+  loadProfesores();
+}
+
+// Selector del coche habitual: los coches en uso (y el que ya tenga, aunque
+// esté retirado, para no perderlo al guardar sin tocarlo).
+function llenarSelectCocheProfesor(selectId, valor) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const actual = valor ? String(valor) : '';
+  const coches = (vehiculosCache || []).filter(v => v.activo !== false || String(v.id) === actual);
+  sel.innerHTML = '<option value="">Sin coche fijo</option>' + coches.map(v =>
+    `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}${v.activo === false ? ' · retirado' : ''}</option>`).join('');
+  sel.value = coches.some(v => String(v.id) === actual) ? actual : '';
 }
 
 async function deleteProfesor(id, nombre) {
@@ -44,10 +72,11 @@ async function deleteProfesor(id, nombre) {
 }
 
 // Datos del profesor además de nombre, nota y DNI (los mismos que guarda Ariauto)
-const CAMPOS_PROFESOR_MODAL = ['telefono', 'email', 'direccion', 'codigo_postal', 'poblacion', 'fecha_nacimiento', 'fecha_alta', 'fecha_baja', 'n_certificado', 'fecha_certificado'];
+const CAMPOS_PROFESOR_MODAL = ['telefono', 'email', 'direccion', 'codigo_postal', 'poblacion', 'fecha_nacimiento', 'fecha_alta', 'fecha_baja', 'n_certificado', 'fecha_certificado', 'vehiculo_id'];
 function openEditProfesor(id) {
   const p = profesoresCache.find(x => x.id === id);
   if (!p) return;
+  llenarSelectCocheProfesor('edit-pf-vehiculo_id', p.vehiculo_id);
   document.getElementById('edit-pf-id').value = id;
   document.getElementById('edit-pf-nombre').value = p.nombre || '';
   document.getElementById('edit-pf-nota').value = p.nota || '';

@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, validators, getSupabase, handleSupabaseError, cargarCobrosAlta } from './_utils.js';
+import { setCorsHeaders, requireAuth, validators, getSupabase, handleSupabaseError, cargarCobrosAlta, esErrorColumnaInexistente, traerTodo, siguienteNRegistro } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -60,17 +60,38 @@ export default async function handler(req, res) {
     }
     profesorIdFinal = pidVal.value;
 
-    const { data: profesor, error: errP } = await supabase
+    let { data: profesor, error: errP } = await supabase
       .from('profesores')
-      .select('id')
+      .select('id, vehiculo_id')
       .eq('id', profesorIdFinal)
       .eq('deleted', false)
       .eq('empresa_id', auth.empresaId)
       .single();
+    // Sin la columna del coche habitual (migración 2026-10-03 sin aplicar)
+    if (errP && esErrorColumnaInexistente(errP)) {
+      ({ data: profesor, error: errP } = await supabase.from('profesores').select('id')
+        .eq('id', profesorIdFinal).eq('deleted', false).eq('empresa_id', auth.empresaId).single());
+    }
 
     if (errP || !profesor) {
       return res.status(400).json({ error: 'El profesor especificado no existe' });
     }
+    // Sin coche elegido: el coche habitual de su profesor
+    if (!vehiculoIdFinal && profesor.vehiculo_id) {
+      const { data: coche } = await supabase.from('vehiculos').select('id')
+        .eq('id', profesor.vehiculo_id).eq('deleted', false).neq('activo', false).maybeSingle();
+      if (coche) vehiculoIdFinal = coche.id;
+    }
+  }
+
+  // Nº de registro: el siguiente de la numeración del programa anterior (si
+  // ya hay alguno; si no, se deja vacío). Sin la columna, no se pone.
+  let nRegistro = null, conNRegistro = true;
+  {
+    const { data: numeros, error: errN } = await traerTodo(() => supabase.from('alumnos')
+      .select('id, n_registro').eq('empresa_id', auth.empresaId).eq('deleted', false).order('id'));
+    if (errN && esErrorColumnaInexistente(errN)) conNRegistro = false;
+    else if (!errN) nRegistro = siguienteNRegistro(numeros);
   }
 
   // Insertar alumno (Supabase genera el ID automáticamente si la tabla tiene SERIAL).
@@ -83,7 +104,8 @@ export default async function handler(req, res) {
     vehiculo_id: vehiculoIdFinal,
     profesor_id: profesorIdFinal,
     empresa_id: auth.empresaId,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    ...(conNRegistro && nRegistro ? { n_registro: nRegistro } : {})
   };
   let { data: newAlumno, error: errInsert } = await supabase
     .from('alumnos')
@@ -113,6 +135,8 @@ export default async function handler(req, res) {
     ok: true,
     mensaje: `Alumno "${nombreVal.value}" creado correctamente`,
     alumno_id: newAlumno.id,
+    n_registro: nuevoAlumno.n_registro || null,
+    vehiculo_id: vehiculoIdFinal,
     cobros_alta: cobros.cargados,
     ...(cobros.error ? { cobros_error: cobros.error } : {})
   });
