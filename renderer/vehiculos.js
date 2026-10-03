@@ -4,6 +4,8 @@
 // ─── VEHÍCULOS ───────────────────────────────────────────────────────────────
 // Tarjetas por vehículo (odómetro, km del mes, ITV), línea de continuidad del
 // cuentakilómetros de hoy y resumen del mes. Datos: db.getPanelVehiculos.
+// Los coches retirados (activo = false) salen aparte, abajo: conservan su
+// historial pero no se ofrecen para dar clase ni cuentan en las estadísticas.
 let panelVehiculosCache = null;
 
 async function loadVehiculos() {
@@ -32,6 +34,7 @@ async function loadVehiculos() {
   const panel = await window.api.getPanelVehiculos(undefined, getSucursalActual(), getDuracionClaseMin());
   panelVehiculosCache = panel;
   pintarTarjetasVehiculos(panel);
+  pintarRetiradosVehiculos();
   pintarContinuidadVehiculos(panel);
   pintarResumenVehiculos(panel);
   loadAnalisisVehiculos();
@@ -40,7 +43,10 @@ async function loadVehiculos() {
 function pintarTarjetasVehiculos(panel) {
   const [y, m] = panel.hoy.split('-').map(Number);
   const mesTxt = new Date(y, m - 1, 1).toLocaleDateString('es-ES', { month: 'long' }).toUpperCase();
-  document.getElementById('veh-tarjetas').innerHTML = panel.vehiculos.map(v => {
+  const porId = new Map(vehiculosCache.map(v => [v.id, v]));
+  const enUso = panel.vehiculos.filter(v => (porId.get(v.id) || {}).activo !== false);
+  document.getElementById('veh-tarjetas').innerHTML = (enUso.length ? '' : '<div class="card vacio-panel" style="grid-column:1/-1">Todos los vehículos están retirados. Vuelve a poner en uso alguno desde «Retirados».</div>') + enUso.map(v => {
+    const datos = porId.get(v.id) || {};
     const estado = v.en_practica
       ? '<span class="pill pill-dark"><span class="pill-dot"></span>En práctica</span>'
       : '<span class="pill pill-line">Libre</span>';
@@ -62,14 +68,15 @@ function pintarTarjetasVehiculos(panel) {
           <details class="menu-fila">
             <summary class="btn btn-gray btn-sm btn-icon" title="Más acciones" aria-label="Más acciones de ${nombreArg}"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
             <div class="menu-fila-lista">
-              <button type="button" onclick="openEditVehiculo(${v.id},'${nombreArg}','${matArg}',${v.km_actual})">${svgMini('editar')} Editar</button>
+              <button type="button" onclick="openEditVehiculo(${v.id})">${svgMini('editar')} Editar datos</button>
+              <button type="button" onclick="retirarVehiculo(${v.id}, false)" title="Deja de salir para dar clase (registro rápido, móvil, estadísticas); su historial se conserva">${svgMini('retirar')} Retirar</button>
               <button type="button" class="menu-fila-borrar" onclick="deleteVehiculo(${v.id},'${nombreArg}')">${svgMini('borrar')} Borrar</button>
             </div>
           </details>
         </div>
       </div>
       <h3 class="veh-nombre">${esc(v.nombre)}</h3>
-      <div class="veh-sub">${v.profesor_habitual ? esc(v.profesor_habitual) + ' · profesor habitual' : 'Sin profesor habitual'}</div>
+      <div class="veh-sub">${[[datos.marca, datos.modelo].filter(Boolean).map(esc).join(' '), datos.cambio === 'automatico' ? 'automático' : '', v.profesor_habitual ? esc(v.profesor_habitual) + ' · profesor habitual' : 'Sin profesor habitual'].filter(Boolean).join(' · ')}</div>
       <div class="veh-odo"><span class="num-mono">${fmtMiles(v.km_actual)}</span><span class="veh-odo-u">km</span>${v.registro_hora ? `<span class="veh-odo-r">registro de las ${esc(v.registro_hora)}</span>` : ''}</div>
       <div class="veh-kpis">
         <div><span class="eyebrow">${mesTxt}</span><b class="num-mono">${fmtMiles(v.recorridos_mes)} km</b></div>
@@ -201,6 +208,32 @@ async function seleccionarRellenoVehiculo(id) {
   if (sel && [...sel.options].some(o => o.value === String(id))) { sel.value = String(id); gkCambioVehiculo(); }
 }
 
+// Coches retirados: lista aparte, con «Volver a usar»
+function pintarRetiradosVehiculos() {
+  const cont = document.getElementById('veh-retirados');
+  if (!cont) return;
+  const retirados = vehiculosCache.filter(v => v.activo === false);
+  if (!retirados.length) { cont.hidden = true; cont.innerHTML = ''; return; }
+  cont.hidden = false;
+  cont.innerHTML = `<div class="card-head"><h2>Retirados <span class="card-note">· ${retirados.length}</span></h2>
+      <span class="card-note">No salen para dar clase ni en las estadísticas; sus prácticas siguen en el historial.</span></div>
+    <div class="veh-retirados-lista">${retirados.map(v => `<div class="veh-retirado">
+      ${v.matricula ? placaHTML(v.matricula) : '<span class="pill">Sin matrícula</span>'}
+      <div class="veh-retirado-txt"><b>${esc(v.nombre)}</b><small>${[[v.marca, v.modelo].filter(Boolean).map(esc).join(' '), v.fecha_baja ? 'retirado el ' + fmtFecha(v.fecha_baja) : 'retirado', fmtMiles(v.km_actual) + ' km'].filter(Boolean).join(' · ')}</small></div>
+      <div class="fd-acciones"><button type="button" class="btn btn-outline btn-sm" onclick="retirarVehiculo(${v.id}, true)">Volver a usar</button>
+        <button type="button" class="btn btn-gray btn-sm" onclick="openEditVehiculo(${v.id})">Editar</button>
+        <button type="button" class="btn btn-gray btn-sm btn-borrar" onclick="deleteVehiculo(${v.id},'${esc(v.nombre)}')">Borrar</button></div>
+    </div>`).join('')}</div>`;
+}
+
+async function retirarVehiculo(id, enUso) {
+  const v = vehiculosCache.find(x => x.id === id);
+  if (!enUso && !await confirmar(`¿Retirar «${v ? v.nombre : 'el vehículo'}»? Dejará de salir para dar clase (registro rápido, móvil, estadísticas). Sus prácticas se conservan y puedes volver a ponerlo en uso cuando quieras.`, { textoAceptar: 'Retirar' })) return;
+  const r = await window.api.setVehiculoActivo(id, enUso);
+  if (!r || !r.ok) { avisar((r && r.error) || 'No se pudo cambiar.'); return; }
+  loadVehiculos();
+}
+
 function abrirNuevoVehiculo() {
   ['v-nombre', 'v-matricula', 'v-km'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   openModal('modal-vehiculo-nuevo');
@@ -308,11 +341,16 @@ async function deleteVehiculo(id, nombre) {
   loadVehiculos();
 }
 
-function openEditVehiculo(id, nombre, matricula, km) {
+const CAMPOS_VEHICULO_MODAL = ['marca', 'modelo', 'cambio', 'fecha_alta', 'itv_ultima', 'aseguradora', 'poliza', 'observaciones'];
+function openEditVehiculo(id) {
+  const v = vehiculosCache.find(x => x.id === id);
+  if (!v) return;
   document.getElementById('edit-v-id').value = id;
-  document.getElementById('edit-v-nombre').value = nombre;
-  document.getElementById('edit-v-matricula').value = matricula || '';
-  document.getElementById('edit-v-km').value = km;
+  document.getElementById('edit-v-nombre').value = v.nombre || '';
+  document.getElementById('edit-v-matricula').value = v.matricula || '';
+  document.getElementById('edit-v-km').value = v.km_actual || 0;
+  for (const c of CAMPOS_VEHICULO_MODAL) { const el = document.getElementById('edit-v-' + c); if (el) el.value = v[c] || ''; }
+  document.getElementById('edit-v-activo').checked = v.activo !== false;
   openModal('modal-vehiculo');
 }
 
@@ -323,7 +361,11 @@ async function saveVehiculo() {
   const km = parseFloat(document.getElementById('edit-v-km').value);
   if (!nombre) { alert('Introduce un nombre para el vehículo.'); return; }
   if (isNaN(km)) { alert('Introduce un km válido.'); return; }
-  await window.api.updateVehiculo(id, nombre, matricula);
+  const datos = { activo: document.getElementById('edit-v-activo').checked };
+  for (const c of CAMPOS_VEHICULO_MODAL) { const el = document.getElementById('edit-v-' + c); if (el) datos[c] = el.value.trim(); }
+  const antes = vehiculosCache.find(x => x.id === id) || {};
+  await window.api.updateVehiculo(id, nombre, matricula, datos);
+  if ((antes.activo !== false) !== datos.activo) await window.api.setVehiculoActivo(id, datos.activo);
   await window.api.updateVehiculoKm(id, km);
   closeModal('modal-vehiculo');
   loadVehiculos();

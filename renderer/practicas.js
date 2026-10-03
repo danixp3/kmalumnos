@@ -9,6 +9,7 @@
 let fichaCache = null;
 
 function verPracticas(alumnoId, vehiculoId, nombre) {
+  if (currentAlumnoId !== alumnoId) fdEditando = false;
   currentAlumnoId = alumnoId;
   currentAlumnoVehiculoId = vehiculoId;
   document.getElementById('practicas-titulo').textContent = nombre;
@@ -21,6 +22,7 @@ function verPracticas(alumnoId, vehiculoId, nombre) {
 function volverAlumnos() {
   currentAlumnoId = null;
   fichaCache = null;
+  fdEditando = false;
   document.getElementById('view-alumnos').style.display = 'block';
   document.getElementById('view-practicas').style.display = 'none';
   loadAlumnos();
@@ -67,7 +69,7 @@ function pintarCabeceraFicha(f) {
   const minutos = m.clases * getDuracionClaseMin();
   const horas = `${Math.floor(minutos / 60)} h ${String(minutos % 60).padStart(2, '0')}`;
 
-  const linea1 = [`Permiso ${esc(a.permiso)}`, a.fecha_alta ? 'Alta el ' + fmtFecha(a.fecha_alta) : '', a.profesor_nombre ? 'Profesor: ' + esc(a.profesor_nombre) : ''].filter(Boolean).join(' · ');
+  const linea1 = [a.n_registro ? `Nº ${esc(a.n_registro)}` : '', `Permiso ${esc(a.permiso)}`, a.fecha_alta ? 'Alta el ' + fmtFecha(a.fecha_alta) : '', a.profesor_nombre ? 'Profesor: ' + esc(a.profesor_nombre) : ''].filter(Boolean).join(' · ');
   const contacto = [
     a.telefono ? `<span class="ficha-dato">${fichaSvg('<path d="M5 3.5h3.5l2 5-2.5 1.5a11 11 0 0 0 6 6l1.5-2.5 5 2V19a2 2 0 0 1-2 2A16.5 16.5 0 0 1 3 5.5a2 2 0 0 1 2-2z"/>', 16)}${esc(a.telefono)}</span>` : '',
     a.email ? `<span class="ficha-dato">${fichaSvg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/>', 16)}${esc(a.email)}</span>` : '',
@@ -100,9 +102,9 @@ function pintarCabeceraFicha(f) {
 
   document.getElementById('ficha-cab').innerHTML = `
     <div class="ficha-cab-fila">
-      <span class="avatar-ini avatar-ini-lg" aria-hidden="true">${esc(iniciales(nombreCompleto))}</span>
+      <span class="avatar-ini avatar-ini-lg" aria-hidden="true" data-ini="${esc(iniciales(nombreCompleto))}">${esc(iniciales(nombreCompleto))}</span>
       <div class="ficha-quien">
-        <h1>${esc(nombreCompleto)}${estado === 'baja' ? ' <span class="pill pill-err" style="vertical-align:middle">Baja</span>' : ''}</h1>
+        <h1>${esc(nombreCompleto)}${estado === 'baja' ? ' <span class="pill pill-err" style="vertical-align:middle">Baja</span>' : estado === 'inactivo' ? ' <span class="pill pill-line" style="vertical-align:middle">Inactivo</span>' : ''}</h1>
         <span class="ficha-linea">${linea1}</span>
         <div class="ficha-contacto">${contacto}</div>
       </div>
@@ -283,6 +285,8 @@ async function loadPracticas() {
   fichaCache = f;
   currentAlumnoVehiculoId = f.alumno.vehiculo_id || null;
   pintarCabeceraFicha(f);
+  // «Editar datos» desde la lista: se abre editando
+  if (fdAbrirEditando) { fdAbrirEditando = false; editarDatosFicha(); } else pintarDatosFicha(f);
   pintarKmClase(f);
   pintarCalendarioFicha(f);
   pintarTrabajadoFicha(f);

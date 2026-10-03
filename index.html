@@ -19,7 +19,7 @@
   <div id="tb-search-wrap">
     <div class="cir-search" id="cir-search" role="combobox" aria-expanded="false" aria-haspopup="listbox">
       <svg class="cir-search__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input class="cir-search__field" id="cir-search-input" type="text" placeholder="Buscar en la aplicación…" autocomplete="off" spellcheck="false" aria-label="Buscar en la aplicación">
+      <input class="cir-search__field" id="cir-search-input" type="text" placeholder="Buscar alumnos o funciones…" autocomplete="off" spellcheck="false" aria-label="Buscar alumnos o funciones de la aplicación">
     </div>
     <div id="cir-search-results" class="hidden" role="listbox"></div>
   </div>
@@ -536,6 +536,8 @@
 
       <div class="veh-tarjetas" id="veh-tarjetas"></div>
 
+      <section class="card" id="veh-retirados" hidden aria-label="Vehículos retirados"></section>
+
       <section class="card" id="veh-continuidad" aria-labelledby="h-continuidad">
         <div class="card-head" style="align-items:flex-start">
           <div>
@@ -821,6 +823,7 @@
             <div class="page-subtitle" id="alumnos-resumen">Gestión de alumnos y sus prácticas</div>
           </div>
           <div class="page-actions">
+            <button class="btn btn-outline" onclick="exportarAlumnosUI()" title="Guardar en un archivo (Excel/CSV) los alumnos que se ven, con todos sus datos"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Exportar</button>
             <button class="btn btn-outline" onclick="imprimirLibroRegistro()" title="Libro de registro de alumnos (RD 1295/2003 art. 39)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Libro de registro (art. 39)</button>
             <button class="btn btn-primary" onclick="abrirNuevoAlumno()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>Nuevo alumno</button>
           </div>
@@ -849,13 +852,13 @@
               <option value="presentado">Presentado a examen</option>
               <option value="apto">Apto (aprobado)</option>
               <option value="no_apto">No apto</option>
-              <option value="baja">Baja</option>
+              <option value="baja">Baja</option><option value="inactivo">Inactivo (dejó de venir)</option>
               <option value="activo">Activo (legacy)</option>
               <option value="aprobado">Aprobado (legacy)</option>
             </select>
             <div class="search-box">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
-              <input type="text" id="f-alumnos-nombre" placeholder="Buscar por nombre, DNI o teléfono" oninput="renderAlumnosTabla()" aria-label="Buscar alumno">
+              <input type="text" id="f-alumnos-nombre" placeholder="Nombre, DNI, nº de registro o teléfono" oninput="filtrarAlumnosPronto()" aria-label="Buscar alumno">
             </div>
             <button class="btn btn-gray btn-sm" onclick="limpiarFiltrosAlumnos()" title="Limpiar filtros">Limpiar</button>
           </div>
@@ -898,8 +901,6 @@
             <details class="menu-fila">
               <summary class="btn btn-outline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Documentos</summary>
               <div class="menu-fila-lista">
-                <button type="button" onclick="imprimirFichaAlumno(currentAlumnoId)">Ficha del alumno (imprimir / PDF)</button>
-                <button type="button" onclick="imprimirFichaPracticas(currentAlumnoId)">Ficha de prácticas firmable</button>
                 <button type="button" onclick="abrirFichaDGT(currentAlumnoId)">Ficha oficial DGT</button>
               </div>
             </details>
@@ -908,7 +909,9 @@
           </div>
         </div>
 
-        <section class="card ficha-cab" id="ficha-cab" aria-label="Datos del alumno"></section>
+        <section class="card ficha-cab" id="ficha-cab" aria-label="Resumen del alumno"></section>
+
+        <section class="card ficha-datos" id="ficha-datos" aria-labelledby="h-ficha-datos"></section>
 
         <div class="ficha-grid">
           <div class="ficha-col">
@@ -1148,26 +1151,71 @@
       <div class="page-header">
         <div>
           <div class="page-title">Exámenes</div>
-          <div class="page-subtitle">Presentaciones a convocatoria, tasas y estadísticas de aprobados</div>
+          <div class="page-subtitle">Busca los exámenes de todos los alumnos, sus resultados y las tasas</div>
         </div>
-        <button class="btn btn-primary" onclick="abrirNuevaPresentacion()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Registrar presentación
-        </button>
+        <div class="page-actions">
+          <button class="btn btn-outline" onclick="exportarExamenesUI()" title="Guardar para Excel los exámenes que se ven con estos filtros"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Exportar</button>
+          <button class="btn btn-primary" onclick="abrirNuevaPresentacion()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Registrar examen
+          </button>
+        </div>
       </div>
 
-      <div id="examenes-stats" class="card" style="margin-bottom:16px"></div>
+      <div class="toolbar">
+        <div class="seg seg-tabs" id="ex-tabs" role="group" aria-label="Qué exámenes">
+          <button type="button" data-tab="todos" aria-pressed="true" onclick="cambiarTabExamenes('todos')">Todos</button>
+          <button type="button" data-tab="proximos" aria-pressed="false" onclick="cambiarTabExamenes('proximos')">Próximos</button>
+          <button type="button" data-tab="hechos" aria-pressed="false" onclick="cambiarTabExamenes('hechos')">Ya hechos</button>
+        </div>
+        <div class="toolbar-filtros">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+            <input type="text" id="ex-buscar" placeholder="Alumno, DNI, nº de registro, examinador…" oninput="buscarExamenesPronto()" aria-label="Buscar exámenes">
+          </div>
+          <button class="btn btn-gray btn-sm" onclick="limpiarFiltrosExamenes()" title="Limpiar filtros">Limpiar</button>
+        </div>
+      </div>
 
-      <div id="presentaciones-lista"></div>
+      <div class="filtros-linea">
+        <label class="filtro-inline">Desde <input type="date" id="ex-desde" onchange="buscarExamenesUI()"></label>
+        <label class="filtro-inline">Hasta <input type="date" id="ex-hasta" onchange="buscarExamenesUI()"></label>
+        <label class="filtro-inline">Tipo <select id="ex-tipo" onchange="buscarExamenesUI()">
+          <option value="">Todos</option><option value="teorico">Teórico</option><option value="maniobras">Maniobras</option><option value="circulacion">Circulación</option>
+        </select></label>
+        <label class="filtro-inline">Resultado <select id="ex-resultado" onchange="buscarExamenesUI()">
+          <option value="">Todos</option><option value="pendiente">Pendiente</option><option value="apto">Apto</option><option value="no_apto">No apto</option><option value="aplazado">Aplazado</option><option value="no_presentado">No presentado</option>
+        </select></label>
+        <label class="filtro-inline">Permiso <select id="ex-permiso" onchange="buscarExamenesUI()"><option value="">Todos</option></select></label>
+        <label class="filtro-inline">Profesor <select id="ex-profesor" onchange="buscarExamenesUI()"><option value="">Todos</option></select></label>
+        <label class="filtro-inline">Examinador <select id="ex-examinador" onchange="buscarExamenesUI()"><option value="">Todos</option></select></label>
+      </div>
+
+      <div class="ex-resumen" id="ex-resumen" aria-live="polite"></div>
+      <div class="table-wrap con-menus" id="presentaciones-lista">
+        <table id="tabla-examenes" class="tabla-examenes">
+          <thead><tr><th>Fecha</th><th>Alumno</th><th>Examen</th><th>Conv.</th><th>Profesor</th><th>Examinador</th><th>Resultado</th><th>Fallos</th><th aria-label="Acciones"></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="tabla-pie" id="ex-pie"></div>
+
+      <div id="examenes-stats" class="card" style="margin-top:20px"></div>
 
       <div class="page-header" style="margin-top:24px">
         <div>
           <div class="page-title" style="font-size:16px">Tasas</div>
         </div>
-        <button class="btn btn-primary" onclick="abrirNuevaTasa()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Añadir tasa
-        </button>
+        <div class="page-actions">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+            <input type="text" id="tasas-buscar" placeholder="Alumno, concepto o justificante" oninput="filtrarTasasPronto()" aria-label="Buscar tasas">
+          </div>
+          <button class="btn btn-primary" onclick="abrirNuevaTasa()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Añadir tasa
+          </button>
+        </div>
       </div>
 
       <div id="tasas-lista"></div>
@@ -1889,36 +1937,25 @@
           <div class="card-title-icon" style="background:var(--accent-light);color:var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg></div>
           Datos del centro (DGT)
         </div>
-        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">Cabecera del impreso oficial de formación práctica (ficha DGT). Todos los campos son opcionales.</p>
-        <div class="form-group">
-          <label>Número de autoescuela</label>
-          <input type="text" id="centro-numero" style="width:150px" onchange="guardarCentroDatosDesdeAjustes()">
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">Cabecera del impreso oficial de formación práctica (ficha DGT) y datos de la autoescuela. Todos los campos son opcionales.</p>
+        <div class="fd-form">
+          <div class="form-group"><label for="centro-numero">Número de autoescuela</label><input type="text" id="centro-numero" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-seccion">Sección</label><input type="text" id="centro-seccion" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-digito">Dígito de control</label><input type="text" id="centro-digito" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group fd-campo-ancho"><label for="centro-denominacion">Denominación del centro</label><input type="text" id="centro-denominacion" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-razon_social">Razón social</label><input type="text" id="centro-razon_social" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-cif">CIF / NIF</label><input type="text" id="centro-cif" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-titular">Titular</label><input type="text" id="centro-titular" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group fd-campo-ancho"><label for="centro-direccion">Dirección</label><input type="text" id="centro-direccion" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-cp">Código postal</label><input type="text" id="centro-cp" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-poblacion">Población</label><input type="text" id="centro-poblacion" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-provincia">Provincia</label><input type="text" id="centro-provincia" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-telefono">Teléfono</label><input type="text" id="centro-telefono" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-email">Email</label><input type="text" id="centro-email" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-jefatura">Jefatura de Tráfico</label><input type="text" id="centro-jefatura" onchange="guardarCentroDatosDesdeAjustes()"></div>
+          <div class="form-group"><label for="centro-centro_examen">Centro de examen</label><input type="text" id="centro-centro_examen" onchange="guardarCentroDatosDesdeAjustes()"></div>
         </div>
-        <div class="form-group">
-          <label>Sección</label>
-          <input type="text" id="centro-seccion" style="width:150px" onchange="guardarCentroDatosDesdeAjustes()">
-        </div>
-        <div class="form-group">
-          <label>Dígito de control</label>
-          <input type="text" id="centro-digito" style="width:100px" onchange="guardarCentroDatosDesdeAjustes()">
-        </div>
-        <div class="form-group">
-          <label>Denominación del centro</label>
-          <input type="text" id="centro-denominacion" style="width:100%" onchange="guardarCentroDatosDesdeAjustes()">
-        </div>
-        <div class="form-group">
-          <label>Dirección</label>
-          <input type="text" id="centro-direccion" style="width:100%" onchange="guardarCentroDatosDesdeAjustes()">
-        </div>
-        <div class="form-group">
-          <label>Código postal</label>
-          <input type="text" id="centro-cp" style="width:120px" onchange="guardarCentroDatosDesdeAjustes()">
-        </div>
-        <div class="form-group">
-          <label>Población</label>
-          <input type="text" id="centro-poblacion" style="width:200px" onchange="guardarCentroDatosDesdeAjustes()">
-        </div>
-        <div class="form-group" style="margin-top:6px">
+        <div class="form-group" style="margin-top:12px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
             <input type="checkbox" id="centro-rellenar-fecha" checked onchange="guardarCentroDatosDesdeAjustes()" style="width:auto">
             Rellenar la fecha del documento (pie «a __ de __ de __») en la ficha DGT
@@ -2606,24 +2643,27 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
     </div>
 
 <div class="overlay" id="modal-vehiculo">
-  <div class="modal">
+  <div class="modal modal-ancho">
     <div class="modal-header">
       <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>
       <h3>Editar vehículo</h3>
     </div>
     <input type="hidden" id="edit-v-id">
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Nombre</label>
-      <input type="text" id="edit-v-nombre" style="width:100%">
+    <div class="fd-form">
+      <div class="form-group"><label for="edit-v-nombre">Nombre</label><input type="text" id="edit-v-nombre"></div>
+      <div class="form-group"><label for="edit-v-matricula">Matrícula</label><input type="text" id="edit-v-matricula"></div>
+      <div class="form-group"><label for="edit-v-km">Km actual del odómetro</label><input type="number" id="edit-v-km" min="0"></div>
+      <div class="form-group"><label for="edit-v-marca">Marca</label><input type="text" id="edit-v-marca" placeholder="Seat"></div>
+      <div class="form-group"><label for="edit-v-modelo">Modelo</label><input type="text" id="edit-v-modelo" placeholder="Ibiza"></div>
+      <div class="form-group"><label for="edit-v-cambio">Cambio</label><select id="edit-v-cambio"><option value="">—</option><option value="manual">Manual</option><option value="automatico">Automático</option></select></div>
+      <div class="form-group"><label for="edit-v-fecha_alta">En la autoescuela desde</label><input type="date" id="edit-v-fecha_alta"></div>
+      <div class="form-group"><label for="edit-v-itv_ultima">Última ITV</label><input type="date" id="edit-v-itv_ultima"></div>
+      <div class="form-group"><label for="edit-v-aseguradora">Aseguradora</label><input type="text" id="edit-v-aseguradora"></div>
+      <div class="form-group"><label for="edit-v-poliza">Nº de póliza</label><input type="text" id="edit-v-poliza"></div>
+      <div class="form-group fd-campo-ancho"><label for="edit-v-observaciones">Observaciones</label><textarea id="edit-v-observaciones" rows="2"></textarea></div>
+      <label class="fd-campo-ancho veh-activo-check"><input type="checkbox" id="edit-v-activo"> En uso para dar clase <small>(desmárcalo si es un coche viejo o que ya no se usa: no saldrá en el registro rápido, el móvil ni las estadísticas)</small></label>
     </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Matrícula</label>
-      <input type="text" id="edit-v-matricula" style="width:100%">
-    </div>
-    <div class="form-group">
-      <label>Km actual del odómetro</label>
-      <input type="number" id="edit-v-km" min="0" style="width:100%">
-    </div>
+    <p class="aj-intro" style="margin-top:8px">La próxima ITV y el vencimiento del seguro se avisan desde Caducidades.</p>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-vehiculo')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveVehiculo()">Guardar cambios</button>
@@ -2684,7 +2724,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
                 <option value="presentado">Presentado a examen</option>
                 <option value="apto">Apto (aprobado)</option>
                 <option value="no_apto">No apto</option>
-                <option value="baja">Baja</option>
+                <option value="baja">Baja</option><option value="inactivo">Inactivo (dejó de venir)</option>
                 <option value="activo">Activo (legacy)</option>
                 <option value="aprobado">Aprobado (legacy)</option>
               </select>
@@ -2787,185 +2827,6 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
         </div>
       </div>
     </div>
-
-<div class="overlay" id="modal-alumno">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-      <h3>Editar alumno</h3>
-    </div>
-    <input type="hidden" id="edit-a-id">
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Nombre</label>
-      <input type="text" id="edit-a-nombre" style="width:100%">
-    </div>
-    <div class="form-row" style="margin-bottom:14px">
-      <div class="form-group" style="flex:1">
-        <label>Primer apellido</label>
-        <input type="text" id="edit-a-primer-apellido" style="width:100%">
-      </div>
-      <div class="form-group" style="flex:1">
-        <label>Segundo apellido</label>
-        <input type="text" id="edit-a-segundo-apellido" style="width:100%">
-      </div>
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Permiso</label>
-      <select id="edit-a-permiso" style="width:100%">
-        <option value="B">B (Coche)</option>
-        <option value="A">A (Moto)</option>
-        <option value="A2">A2</option>
-        <option value="AM">AM</option>
-        <option value="C">C (Camión)</option>
-      </select>
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Vehículo</label>
-      <select id="edit-a-vehiculo" style="width:100%"><option value="">— Sin asignar —</option></select>
-    </div>
-    <div class="form-group">
-      <label>Profesor</label>
-      <select id="edit-a-profesor" style="width:100%"><option value="">— Sin profesor —</option></select>
-    </div>
-    <div class="form-group" style="margin-top:14px">
-      <label>Email (para el portal del alumno)</label>
-      <input type="email" id="edit-a-email" placeholder="alumno@email.com" style="width:100%">
-    </div>
-    <div class="form-group" style="margin-top:14px">
-      <label>Estado</label>
-      <select id="edit-a-estado" style="width:100%">
-        <option value="matriculado">Matriculado</option>
-        <option value="en_teorica">En teórica</option>
-        <option value="apto_teorico">Apto teórico</option>
-        <option value="en_practicas">En prácticas</option>
-        <option value="presentado">Presentado a examen</option>
-        <option value="apto">Apto (aprobado)</option>
-        <option value="no_apto">No apto</option>
-        <option value="baja">Baja</option>
-        <option value="activo">Activo (legacy)</option>
-        <option value="aprobado">Aprobado (legacy)</option>
-      </select>
-    </div>
-    <div class="form-group" style="margin-top:14px">
-      <label>Otros permisos que cursa</label>
-      <div id="edit-a-permisos" class="permisos-checks">
-        <label><input type="checkbox" value="AM"> AM</label>
-        <label><input type="checkbox" value="A1"> A1</label>
-        <label><input type="checkbox" value="A2"> A2</label>
-        <label><input type="checkbox" value="A"> A</label>
-        <label><input type="checkbox" value="B"> B</label>
-        <label><input type="checkbox" value="BE"> BE</label>
-        <label><input type="checkbox" value="C1"> C1</label>
-        <label><input type="checkbox" value="C"> C</label>
-        <label><input type="checkbox" value="D1"> D1</label>
-        <label><input type="checkbox" value="D"> D</label>
-        <label><input type="checkbox" value="CAP"> CAP</label>
-        <label><input type="checkbox" value="ADR"> ADR</label>
-      </div>
-    </div>
-    <div class="form-row" style="margin-top:14px">
-      <div class="form-group" style="flex:1">
-        <label>Teléfono</label>
-        <input type="text" id="edit-a-telefono" placeholder="600 123 456" style="width:100%">
-      </div>
-      <div class="form-group" style="flex:1">
-        <label>DNI/NIE</label>
-        <input type="text" id="edit-a-dni" placeholder="12345678A" style="width:100%">
-      </div>
-    </div>
-    <div class="form-row" style="margin-top:14px">
-      <div class="form-group" style="flex:1">
-        <label>Fecha de nacimiento</label>
-        <input type="date" id="edit-a-fecha-nacimiento" style="width:100%">
-      </div>
-      <div class="form-group" style="flex:1">
-        <label>Fecha de alta</label>
-        <input type="date" id="edit-a-fecha-alta" style="width:100%">
-      </div>
-    </div>
-    <div class="form-group" style="margin-top:14px">
-      <label>Dirección</label>
-      <input type="text" id="edit-a-direccion" placeholder="Calle, número, ciudad" style="width:100%">
-    </div>
-    <div class="form-row" style="margin-top:14px">
-      <div class="form-group" style="flex:1">
-        <label>Código postal</label>
-        <input type="text" id="edit-a-cp" placeholder="28001" style="width:100%">
-      </div>
-      <div class="form-group" style="flex:2">
-        <label>Población</label>
-        <input type="text" id="edit-a-poblacion" placeholder="Población" style="width:100%">
-      </div>
-    </div>
-    <div class="form-group" style="margin-top:14px">
-      <label>Observaciones</label>
-      <textarea id="edit-a-observaciones" rows="2" style="width:100%" placeholder="Notas sobre el alumno..."></textarea>
-    </div>
-    <!-- Punto de partida (db/puesta-en-marcha.js: setPuntoDePartidaAlumno) -->
-    <div class="form-row" style="margin-top:14px;gap:12px;align-items:flex-end">
-      <div class="form-group" style="margin:0">
-        <label for="edit-a-clases-previas">Clases hechas antes de la app</label>
-        <input type="number" id="edit-a-clases-previas" min="0" max="500" style="width:130px" placeholder="0">
-      </div>
-      <div class="form-group" style="margin:0">
-        <label for="edit-a-km-previos">Km hechos antes de la app</label>
-        <input type="number" id="edit-a-km-previos" min="0" style="width:130px" placeholder="0">
-      </div>
-    </div>
-    <p class="aj-intro" style="margin-top:6px">Punto de partida: la numeración de clases y los totales continúan desde aquí (no se crean prácticas).</p>
-    <div class="form-group" style="margin-top:14px">
-      <label>Foto</label>
-      <div style="display:flex;align-items:center;gap:12px">
-        <img id="edit-a-foto-preview" src="" alt="Sin foto" style="width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--bg-alt,#eee);display:none">
-        <div id="edit-a-foto-placeholder" style="width:64px;height:64px;border-radius:8px;background:var(--bg-alt,#eee);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-muted)">Sin foto</div>
-        <input type="file" id="edit-a-foto-input" accept="image/*" style="display:none" onchange="cambiarFotoAlumno(parseInt(document.getElementById('edit-a-id').value), this.files[0])">
-        <button type="button" class="btn btn-gray btn-sm" onclick="document.getElementById('edit-a-foto-input').click()">Cambiar foto</button>
-        <button type="button" class="btn btn-gray btn-sm" onclick="quitarFotoAlumno(parseInt(document.getElementById('edit-a-id').value))">Quitar foto</button>
-      </div>
-    </div>
-    <div class="form-group" style="margin-top:14px">
-      <label>Documentos</label>
-      <div id="edit-a-documentos-lista" style="margin-bottom:8px;font-size:13px"></div>
-      <input type="file" id="edit-a-doc-input" style="display:none" onchange="adjuntarDocAlumno(parseInt(document.getElementById('edit-a-id').value), this.files[0])">
-      <button type="button" class="btn btn-gray btn-sm" onclick="document.getElementById('edit-a-doc-input').click()">Adjuntar documento</button>
-    </div>
-    <!-- Libro de registro de alumnos (RD 1295/2003 art. 39) -->
-    <div class="form-row" style="margin-top:14px">
-      <div class="form-group" style="flex:1">
-        <label>Permisos que posee</label>
-        <input type="text" id="edit-a-permisos-posee" placeholder="Ej. B, A2" style="width:100%">
-      </div>
-      <div class="form-group" style="flex:1">
-        <label>Resultado</label>
-        <select id="edit-a-resultado" style="width:100%">
-          <option value="">—</option>
-          <option value="apto">Apto</option>
-          <option value="no_apto">No apto</option>
-          <option value="baja">Baja</option>
-        </select>
-      </div>
-    </div>
-    <div class="form-row" style="margin-top:14px">
-      <div class="form-group" style="flex:1">
-        <label>Inicio enseñanza</label>
-        <input type="date" id="edit-a-fecha-inicio" style="width:100%">
-      </div>
-      <div class="form-group" style="flex:1">
-        <label>Fin enseñanza</label>
-        <input type="date" id="edit-a-fecha-fin" style="width:100%">
-      </div>
-    </div>
-    <p id="edit-a-n-inscripcion" style="font-size:12px;color:var(--text-muted);margin-top:8px"></p>
-    <div id="edit-a-foto-alert" class="hidden" style="margin-top:12px"></div>
-    <div class="modal-actions">
-      <button class="btn btn-gray" onclick="imprimirFichaAlumno(parseInt(document.getElementById('edit-a-id').value))">🖨️ Imprimir ficha</button>
-      <button class="btn btn-gray" onclick="imprimirFichaPracticas(parseInt(document.getElementById('edit-a-id').value))" title="Ficha de clases prácticas firmable (RD 1295/2003 art. 40)">🖨️ Ficha de prácticas (firmable)</button>
-      <button class="btn btn-gray" onclick="abrirFichaDGT(parseInt(document.getElementById('edit-a-id').value))" title="Ficha oficial DGT de formación práctica">🖨️ Ficha DGT</button>
-      <button class="btn btn-gray" onclick="closeModal('modal-alumno')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveAlumno()">Guardar cambios</button>
-    </div>
-  </div>
-</div>
 
 <!-- ═══ MODAL FICHA DGT (elegir destreza/circulación) ═══════ -->
 <div class="overlay" id="modal-ficha-dgt">
@@ -3253,7 +3114,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 
 <!-- ═══ MODAL PRESENTACIÓN A EXAMEN ══════════════════════════════ -->
 <div class="overlay" id="modal-presentacion">
-  <div class="modal">
+  <div class="modal modal-ancho">
     <div class="modal-header">
       <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></div>
       <h3 id="pres-modal-titulo">Registrar presentación</h3>
@@ -3299,9 +3160,18 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
         </select>
       </div>
     </div>
+    <div class="fd-form" style="margin-top:14px">
+      <div class="form-group"><label for="pres-permiso">Permiso</label><select id="pres-permiso"><option value="">—</option><option>AM</option><option>A1</option><option>A2</option><option>A</option><option>B</option><option>BE</option><option>C1</option><option>C1E</option><option>C</option><option>CE</option><option>D1</option><option>D</option><option>DE</option><option>CAP</option></select></div>
+      <div class="form-group"><label for="pres-examinador">Examinador</label><input type="text" id="pres-examinador" list="ex-examinadores-lista" placeholder="Nombre del examinador"></div>
+      <div class="form-group"><label for="pres-vehiculo">Coche del examen</label><input type="text" id="pres-vehiculo" placeholder="Matrícula"></div>
+      <div class="form-group"><label for="pres-n_solicitud">Nº de solicitud</label><input type="number" id="pres-n_solicitud" min="1"></div>
+      <div class="form-group"><label for="pres-fallos">Nº de fallos</label><input type="number" id="pres-fallos" min="0"></div>
+      <div class="form-group fd-campo-ancho"><label for="pres-fallos_detalle">Detalle de los fallos</label><textarea id="pres-fallos_detalle" rows="2" placeholder="Eliminatoria: … · Leves: …"></textarea></div>
+    </div>
+    <datalist id="ex-examinadores-lista"></datalist>
     <div class="form-group" style="margin-top:14px">
       <label>Nota</label>
-      <textarea id="pres-nota" rows="3" style="width:100%"></textarea>
+      <textarea id="pres-nota" rows="2" style="width:100%"></textarea>
     </div>
     <div id="presentacion-alert" class="hidden" style="margin-top:12px"></div>
     <div class="modal-actions">
@@ -3356,6 +3226,16 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
     <div class="form-group" style="margin-top:14px">
       <label>Nota</label>
       <textarea id="tasa-nota" rows="3" style="width:100%"></textarea>
+    </div>
+    <div class="form-row" style="margin-top:14px">
+      <div class="form-group" style="flex:2">
+        <label for="tasa-n-justificante">Nº de justificante</label>
+        <input type="text" id="tasa-n-justificante" style="width:100%" placeholder="Código de la tasa de Tráfico">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label for="tasa-tipo">Tipo de tasa</label>
+        <input type="text" id="tasa-tipo" style="width:100%" placeholder="2.1">
+      </div>
     </div>
     <div id="tasa-alert" class="hidden" style="margin-top:12px"></div>
     <div class="modal-actions">
@@ -3485,23 +3365,26 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 
 <!-- ═══ MODAL EDITAR PROFESOR ═══════════════════════════════ -->
 <div class="overlay" id="modal-profesor">
-  <div class="modal">
+  <div class="modal modal-ancho">
     <div class="modal-header">
       <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></div>
       <h3>Editar profesor</h3>
     </div>
     <input type="hidden" id="edit-pf-id">
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Nombre</label>
-      <input type="text" id="edit-pf-nombre" style="width:100%">
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Nota</label>
-      <input type="text" id="edit-pf-nota" style="width:100%">
-    </div>
-    <div class="form-group">
-      <label>DNI/NIE</label>
-      <input type="text" id="edit-pf-dni" placeholder="12345678A" style="width:100%">
+    <div class="fd-form">
+      <div class="form-group fd-campo-ancho"><label for="edit-pf-nombre">Nombre y apellidos</label><input type="text" id="edit-pf-nombre"></div>
+      <div class="form-group"><label for="edit-pf-dni">DNI/NIE</label><input type="text" id="edit-pf-dni" placeholder="12345678A"></div>
+      <div class="form-group"><label for="edit-pf-telefono">Teléfono</label><input type="tel" id="edit-pf-telefono"></div>
+      <div class="form-group"><label for="edit-pf-email">Email</label><input type="email" id="edit-pf-email"></div>
+      <div class="form-group fd-campo-ancho"><label for="edit-pf-direccion">Dirección</label><input type="text" id="edit-pf-direccion"></div>
+      <div class="form-group"><label for="edit-pf-codigo_postal">Código postal</label><input type="text" id="edit-pf-codigo_postal"></div>
+      <div class="form-group"><label for="edit-pf-poblacion">Población</label><input type="text" id="edit-pf-poblacion"></div>
+      <div class="form-group"><label for="edit-pf-fecha_nacimiento">Fecha de nacimiento</label><input type="date" id="edit-pf-fecha_nacimiento"></div>
+      <div class="form-group"><label for="edit-pf-n_certificado">Nº certificado de profesor</label><input type="text" id="edit-pf-n_certificado"></div>
+      <div class="form-group"><label for="edit-pf-fecha_certificado">Expedición del certificado</label><input type="date" id="edit-pf-fecha_certificado"></div>
+      <div class="form-group"><label for="edit-pf-fecha_alta">Alta en la autoescuela</label><input type="date" id="edit-pf-fecha_alta"></div>
+      <div class="form-group"><label for="edit-pf-fecha_baja">Baja</label><input type="date" id="edit-pf-fecha_baja"></div>
+      <div class="form-group fd-campo-ancho"><label for="edit-pf-nota">Nota</label><input type="text" id="edit-pf-nota"></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-profesor')">Cancelar</button>

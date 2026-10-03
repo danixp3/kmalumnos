@@ -64,7 +64,11 @@ test('vista previa: solo los alumnos en curso de las secciones de autoescuela, c
     direccion: 'Calle Mayor nº 5 2º B', poblacion: 'Xinzo de Limia', codigo_postal: '32630', permiso: 'B', permisos_posee: 'AM',
     fecha_alta: '2026-06-01', estado: 'en_practicas', clases_previas: 14
   });
-  expect(maria.datos.observaciones).toMatch(/^Prefiere tardes\nDatos de Ariauto: Nº 4001 \(sección XINZO\) · Sexo: mujer · Nacionalidad: Española · Provincia: Ourense · Otro teléfono: 988111222/);
+  // Cada dato en su campo; en las observaciones, solo las de Ariauto
+  expect(maria.datos.observaciones).toBe('Prefiere tardes');
+  expect(maria.datos).toMatchObject({
+    n_registro: '4001', sexo: 'M', nacionalidad: 'España', provincia: 'Ourense', telefono2: '988111222', dni_caducidad: '2028-05-01'
+  });
   expect(ivan.dni).toBe('Y1234567X'); // NIE con la letra que Ariauto guarda aparte
   expect(maria.avisos).toEqual([]);
   // Exámenes: teórico aprobado y circulación pendiente; tasa usada
@@ -91,8 +95,60 @@ test('«También los terminados» y otras secciones', () => {
   const p = db.planAriauto(tablas(), { hoy: HOY, alcance: 'todos', secciones: [1, 11] });
   expect(p.filas.map(f => [f.datos.nombre, f.estado])).toEqual([['Maria Jose', 'en_practicas'], ['Ivan', 'matriculado'], ['Luis', 'apto'], ['Ana', 'baja'], ['Pedro', 'matriculado']]);
   const luis = p.filas.find(f => f.datos.nombre === 'Luis');
-  expect(luis.presentaciones).toEqual([]); // de los terminados, solo sus datos
+  expect(luis.presentaciones).toEqual([]); // no tiene exámenes en Ariauto
   expect(p.filas.find(f => f.datos.nombre === 'Pedro').permiso).toBe('CAP');
+});
+
+test('alumno antiguo sin archivar en Ariauto: entra como inactivo, con su historial de exámenes', () => {
+  const t = tablas();
+  t.ALUMNOS.push({ 'Nº ALUMNO': '1500', SECCION: 1, NOMBREALUMNO: 'ROSA', 'PRIMER APELLIDO': 'ANTIGUA', 'FECHA DE ALTA': '2005-01-01', Teorico_Apto: true, PERMISO: 4, motivo_archivado: null });
+  t.ALUMNOS.push({ 'Nº ALUMNO': '1501', SECCION: 1, NOMBREALUMNO: 'OTRO', 'PRIMER APELLIDO': 'ARCHIVADO', 'FECHA DE ALTA': '2006-01-01', PERMISO: 4, motivo_archivado: 'INACTIVO' });
+  t['FECHA DE EXAMEN'].push({ 'Nº ALUMNO': '1500', SECCIONEX: 1, 'F EXAMEN': '2005-06-01', 'TIPO DE EXAMEN': 5, 'RESULTADO DE EXAMEN': 2, PERMISO: 4, CONVOCATORIA: 1 });
+  const p = db.planAriauto(t, { hoy: HOY, alcance: 'todos' });
+  const rosa = p.filas.find(f => f.datos.nombre === 'Rosa');
+  expect(rosa.estado).toBe('inactivo');
+  expect(p.filas.find(f => f.datos.nombre === 'Otro').estado).toBe('inactivo');
+  expect(rosa.presentaciones.map(e => [e.fecha, e.resultado])).toEqual([['2005-06-01', 'no_apto']]);
+});
+
+test('exámenes: examinador, coche del examen y fallos traducidos', () => {
+  const t = tablas();
+  t.EXAMINADORES = [{ 'Nº EXAMINADOR': 3, 'NOMBRE EXAMINADOR': 'PEDRO', 'PRIMER APELLIDO EXAM': null }, { 'Nº EXAMINADOR': 2, 'NOMBRE EXAMINADOR': 'NO ACTIVO', 'PRIMER APELLIDO EXAM': 'DAVID' }];
+  t.Errores_Examen_Circulacion = [{ Id_error: '11.4', Mensaje_Error: 'OBEDIENCIA DE LAS SEÑALES: Verticales.' }, { Id_error: '13.2', Mensaje_Error: 'ADELANTAMIENTO: Ejecución.' }];
+  t['FECHA DE EXAMEN'][1] = { ...t['FECHA DE EXAMEN'][1], 'F EXAMEN': '2026-09-20', 'RESULTADO DE EXAMEN': 2, EXAMINADOR: 3, VEHICULO: 1, FALLOS_PRACTICO: '11.4;0;13.2.2 - 13.2.2 - 7.1' };
+  const maria = db.planAriauto(t, { hoy: HOY }).filas[0];
+  const circ = maria.presentaciones.find(e => e.tipo === 'circulacion');
+  expect(circ).toMatchObject({ resultado: 'no_apto', examinador: 'Pedro', vehiculo: '1234KLM', permiso: 'B', fallos: 4 });
+  expect(circ.fallos_detalle).toBe('Eliminatoria: 11.4 Obediencia de las señales: verticales · Leves: 13.2.2 Adelantamiento: ejecución (×2), 7.1');
+  const { detalleFallos, paisDe } = require('../db/ariauto')._ariauto;
+  expect(detalleFallos('A#0;0;0#B#0;1;2#', 'maniobras', 'A2', { circulacion: new Map(), pista: new Map([['A1A2|B', 'Circular por una franja de anchura limitada.']]) }))
+    .toEqual({ detalle: 'Maniobra B (Circular por una franja de anchura limitada): 1 deficiente, 2 leves', n: 3 });
+  expect([paisDe('ESPAÑOLA'), paisDe('venezolano'), paisDe('Moldavia'), paisDe('')]).toEqual(['España', 'Venezuela', 'Moldavia', null]);
+});
+
+test('completar los traídos con la versión 1.25: cada dato a su campo, observaciones limpias, antiguos a inactivo; deshacer lo devuelve', () => {
+  const t = tablas();
+  t.ALUMNOS.push({ 'Nº ALUMNO': '1500', SECCION: 1, NOMBREALUMNO: 'ROSA', 'PRIMER APELLIDO': 'ANTIGUA', 'FECHA DE ALTA': '2005-01-01', Teorico_Apto: true, PERMISO: 4, SEXO: '2' });
+  // Como los dejó la 1.25: el bloque en las observaciones y Rosa «en prácticas»
+  const mariaId = db.addAlumno('Maria Jose', 'B', null, null, null, null, { dni: '12345678Z', primer_apellido: 'Garcia', estado: 'en_practicas',
+    observaciones: 'Prefiere tardes\nDatos de Ariauto: Nº 4001 (sección XINZO) · Sexo: mujer · Nacionalidad: Española · Provincia: Ourense' });
+  const rosaId = db.addAlumno('Rosa', 'B', null, null, null, null, { primer_apellido: 'Antigua', estado: 'en_practicas',
+    observaciones: 'Datos de Ariauto: Nº 1500 (sección XINZO) · Sexo: mujer' });
+  const plan = db.planAriauto(t, { hoy: HOY, alcance: 'todos' });
+  expect(plan.resumen).toMatchObject({ limpiarObservaciones: 2, pasanAInactivo: 1 });
+  const res = db.aplicarAriauto(t, { hoy: HOY, alcance: 'todos' }, 'Datos Ariauto.accdb');
+  expect(res.ok).toBe(true);
+  const maria = db.getAlumnos().find(a => a.id === mariaId);
+  expect(maria).toMatchObject({ observaciones: 'Prefiere tardes', n_registro: '4001', sexo: 'M', nacionalidad: 'España', estado: 'en_practicas' });
+  const rosa = db.getAlumnos().find(a => a.id === rosaId);
+  expect(rosa).toMatchObject({ observaciones: null, n_registro: '1500', estado: 'inactivo' });
+  db.deshacerImportacion(res.id);
+  const rosa2 = db.getAlumnos().find(a => a.id === rosaId);
+  expect(rosa2).toMatchObject({ estado: 'en_practicas', observaciones: 'Datos de Ariauto: Nº 1500 (sección XINZO) · Sexo: mujer', n_registro: null });
+  // Un estado que alguien cambió a mano no se toca
+  db.updateAlumnoCampos(rosaId, { estado: 'baja' });
+  db.aplicarAriauto(t, { hoy: HOY, alcance: 'todos' }, 'Datos Ariauto.accdb');
+  expect(db.getAlumnos().find(a => a.id === rosaId).estado).toBe('baja');
 });
 
 test('importar: crea alumnos, profesor, coche, exámenes, tasas y caducidades; no duplica al que ya está; deshacer lo quita', () => {

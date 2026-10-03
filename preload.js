@@ -16,16 +16,17 @@ contextBridge.exposeInMainWorld('api', {
 
   // Vehículos
   getVehiculos:     (sucursalId)             => ipcRenderer.invoke('get-vehiculos', sucursalId),
-  addVehiculo:      (n, m, km, sucursalId)   => ipcRenderer.invoke('add-vehiculo', n, m, km, sucursalId),
+  addVehiculo:      (n, m, km, sucursalId, datos) => ipcRenderer.invoke('add-vehiculo', n, m, km, sucursalId, datos),
   deleteVehiculo:   (id)                     => ipcRenderer.invoke('delete-vehiculo', id),
   updateVehiculoKm: (id, km)                 => ipcRenderer.invoke('update-vehiculo-km', id, km),
-  updateVehiculo:   (id, n, m)               => ipcRenderer.invoke('update-vehiculo', id, n, m),
+  updateVehiculo:   (id, n, m, datos)        => ipcRenderer.invoke('update-vehiculo', id, n, m, datos),
+  setVehiculoActivo: (id, activo)            => ipcRenderer.invoke('set-vehiculo-activo', id, activo),
 
   // Profesores
   getProfesores:    (sucursalId)             => ipcRenderer.invoke('get-profesores', sucursalId),
-  addProfesor:      (n, nota, sucursalId, dni) => ipcRenderer.invoke('add-profesor', n, nota, sucursalId, dni),
+  addProfesor:      (n, nota, sucursalId, dni, datos) => ipcRenderer.invoke('add-profesor', n, nota, sucursalId, dni, datos),
   deleteProfesor:   (id)                     => ipcRenderer.invoke('delete-profesor', id),
-  updateProfesor:   (id, n, nota, dni)       => ipcRenderer.invoke('update-profesor', id, n, nota, dni),
+  updateProfesor:   (id, n, nota, dni, datos) => ipcRenderer.invoke('update-profesor', id, n, nota, dni, datos),
   getFirmaProfesor: (id)                     => ipcRenderer.invoke('get-firma-profesor', id),
   setFirmaProfesor: (id, firma)              => ipcRenderer.invoke('set-firma-profesor', id, firma),
   getDirector:      ()                       => ipcRenderer.invoke('get-director'),
@@ -45,6 +46,8 @@ contextBridge.exposeInMainWorld('api', {
   setNotaPractica: (id, nota)                => ipcRenderer.invoke('set-nota-practica', id, nota),
   addAlumno:    (n, p, vid, profId, sucursalId, email, datos, libro, permisos) => ipcRenderer.invoke('add-alumno', n, p, vid, profId, sucursalId, email, datos, libro, permisos),
   deleteAlumno: (id)                         => ipcRenderer.invoke('delete-alumno', id),
+  updateAlumnoCampos: (id, campos)           => ipcRenderer.invoke('update-alumno-campos', id, campos),
+  buscarAlumnosRapido: (texto, limite)       => ipcRenderer.invoke('buscar-alumnos-rapido', texto, limite),
   updateAlumno: (id, n, p, vid, profId, email, datos, libro, permisos) => ipcRenderer.invoke('update-alumno', id, n, p, vid, profId, email, datos, libro, permisos),
 
   // Libro de registro de alumnos (RD 1295/2003 art. 39)
@@ -150,6 +153,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Exportación y comparación CSV
   exportarCsv:       (opciones)              => ipcRenderer.invoke('exportar-csv', opciones),
+  exportarTabla:     (tipo, opciones)        => ipcRenderer.invoke('exportar-tabla', tipo, opciones),
   compararCsvs:      (pathA, pathB, opts)    => ipcRenderer.invoke('comparar-csvs', pathA, pathB, opts),
   openCsvDialogMulti: ()                     => ipcRenderer.invoke('open-csv-dialog-multi'),
 
@@ -222,6 +226,7 @@ contextBridge.exposeInMainWorld('api', {
   updatePresentacion:           (id, campos)                 => ipcRenderer.invoke('update-presentacion', id, campos),
   setResultadoPresentacion:     (id, resultado)              => ipcRenderer.invoke('set-resultado-presentacion', id, resultado),
   deletePresentacion:           (id)                         => ipcRenderer.invoke('delete-presentacion', id),
+  buscarExamenes:               (filtros, sucursalId)        => ipcRenderer.invoke('buscar-examenes', filtros, sucursalId),
   getTasas:                     (sucursalId)                 => ipcRenderer.invoke('get-tasas', sucursalId),
   getTasasAlumno:               (alumnoId)                   => ipcRenderer.invoke('get-tasas-alumno', alumnoId),
 

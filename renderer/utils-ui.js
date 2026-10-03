@@ -111,6 +111,61 @@ const cerrarMenusFila = () => document.querySelectorAll('details.menu-fila[open]
 window.addEventListener('scroll', e => { if (!(e.target.closest && e.target.closest('.menu-fila-lista'))) cerrarMenusFila(); }, true);
 window.addEventListener('resize', cerrarMenusFila);
 
+// ─── LISTAS LARGAS ───────────────────────────────────────────────────────────
+// Con miles de alumnos (o de exámenes) pintar todas las filas de golpe tarda
+// segundos. pintarPorTandas pinta las primeras al momento y añade las demás
+// cuando el usuario se acerca al final (una fila «centinela» vigilada con
+// IntersectionObserver). Cada llamada sustituye a la anterior de esa tabla.
+const sinTildes = t => String(t == null ? '' : t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const COLLATOR_ES = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
+// Ejecuta fn cuando se deja de llamar durante `ms` (teclear en un buscador).
+function retrasar(fn, ms = 140) {
+  let t = null;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+function pintarPorTandas(tbody, items, filaHTML, { tanda = 80, columnas = 1 } = {}) {
+  if (tbody._tandas) tbody._tandas.disconnect();
+  tbody._tandas = null;
+  let hechas = 0;
+  const siguiente = () => {
+    const trozo = items.slice(hechas, hechas + tanda);
+    hechas += trozo.length;
+    const viejo = tbody.querySelector('tr.fila-centinela');
+    if (viejo) viejo.remove();
+    tbody.insertAdjacentHTML('beforeend', trozo.map(filaHTML).join('') +
+      (hechas < items.length ? `<tr class="fila-centinela"><td colspan="${columnas}">Cargando ${Math.min(tanda, items.length - hechas)} más…</td></tr>` : ''));
+    const centinela = tbody.querySelector('tr.fila-centinela');
+    if (centinela && tbody._tandas) tbody._tandas.observe(centinela);
+  };
+  tbody.innerHTML = '';
+  if (typeof IntersectionObserver === 'function' && items.length > tanda) {
+    const obs = new IntersectionObserver(entradas => {
+      if (entradas.some(e => e.isIntersecting)) { obs.unobserve(entradas[0].target); siguiente(); }
+    }, { rootMargin: '600px 0px' });
+    tbody._tandas = obs;
+  }
+  siguiente();
+  if (!tbody._tandas) while (hechas < items.length) siguiente();
+}
+
+// Desplegables de alumnos (agenda, exámenes, bonos…): con miles de fichas,
+// «Apellidos, Nombre» ordenado, primero los que están en curso y los
+// terminados (aprobados, bajas, inactivos) aparte, al final.
+const ESTADOS_ALUMNO_TERMINADO = ['baja', 'aprobado', 'apto', 'no_apto', 'inactivo'];
+function nombreAlumnoLista(a) {
+  const ap = [a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
+  return ap ? `${ap}, ${a.nombre}` : (a.nombre || '');
+}
+function opcionesAlumnosHTML(alumnos, seleccionado) {
+  const ord = (alumnos || []).filter(a => !a.deleted).slice().sort((x, y) => COLLATOR_ES.compare(nombreAlumnoLista(x), nombreAlumnoLista(y)));
+  const sel = seleccionado == null ? '' : String(seleccionado);
+  const op = a => `<option value="${a.id}"${String(a.id) === sel ? ' selected' : ''}>${esc(nombreAlumnoLista(a))}${a.n_registro ? ' · nº ' + esc(a.n_registro) : ''}</option>`;
+  const fuera = a => ESTADOS_ALUMNO_TERMINADO.includes(a.estado);
+  const terminados = ord.filter(fuera);
+  return ord.filter(a => !fuera(a)).map(op).join('') +
+    (terminados.length ? `<optgroup label="Terminados (aprobados, bajas e inactivos)">${terminados.map(op).join('')}</optgroup>` : '');
+}
+
 // ─── UTILS ───────────────────────────────────────────────────────────────────
 function fmt(num) {
   return new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(num);

@@ -340,15 +340,14 @@ function getCentroDatos() {
   return {};
 }
 
+// Clave guardada → casilla de Ajustes (id «centro-…»)
+const CENTRO_CAMPOS = { numero: 'numero', seccion: 'seccion', digito_control: 'digito', denominacion: 'denominacion', razon_social: 'razon_social',
+  cif: 'cif', titular: 'titular', direccion: 'direccion', codigo_postal: 'cp', poblacion: 'poblacion', provincia: 'provincia', telefono: 'telefono',
+  email: 'email', jefatura: 'jefatura', centro_examen: 'centro_examen' };
+
 function guardarCentroDatosDesdeAjustes() {
   const centro = {
-    numero: document.getElementById('centro-numero')?.value.trim() || '',
-    seccion: document.getElementById('centro-seccion')?.value.trim() || '',
-    digito_control: document.getElementById('centro-digito')?.value.trim() || '',
-    denominacion: document.getElementById('centro-denominacion')?.value.trim() || '',
-    direccion: document.getElementById('centro-direccion')?.value.trim() || '',
-    codigo_postal: document.getElementById('centro-cp')?.value.trim() || '',
-    poblacion: document.getElementById('centro-poblacion')?.value.trim() || '',
+    ...Object.fromEntries(Object.entries(CENTRO_CAMPOS).map(([k, id]) => [k, document.getElementById('centro-' + id)?.value.trim() || ''])),
     // Preferencia ficha DGT: rellenar la fecha del documento (pie "a __ de __
     // de __"); por defecto true, false = se deja en blanco para rellenar a mano.
     rellenar_fecha: document.getElementById('centro-rellenar-fecha')?.checked !== false
@@ -419,20 +418,7 @@ async function loadAjustes() {
   const elIva = document.getElementById('pref-iva');
   if (elIva) elIva.value = getIvaPorcentaje();
   const centroDatos = getCentroDatos();
-  const elCentroNumero = document.getElementById('centro-numero');
-  if (elCentroNumero) elCentroNumero.value = centroDatos.numero || '';
-  const elCentroSeccion = document.getElementById('centro-seccion');
-  if (elCentroSeccion) elCentroSeccion.value = centroDatos.seccion || '';
-  const elCentroDigito = document.getElementById('centro-digito');
-  if (elCentroDigito) elCentroDigito.value = centroDatos.digito_control || '';
-  const elCentroDenominacion = document.getElementById('centro-denominacion');
-  if (elCentroDenominacion) elCentroDenominacion.value = centroDatos.denominacion || '';
-  const elCentroDireccion = document.getElementById('centro-direccion');
-  if (elCentroDireccion) elCentroDireccion.value = centroDatos.direccion || '';
-  const elCentroCp = document.getElementById('centro-cp');
-  if (elCentroCp) elCentroCp.value = centroDatos.codigo_postal || '';
-  const elCentroPoblacion = document.getElementById('centro-poblacion');
-  if (elCentroPoblacion) elCentroPoblacion.value = centroDatos.poblacion || '';
+  for (const [k, id] of Object.entries(CENTRO_CAMPOS)) { const el = document.getElementById('centro-' + id); if (el) el.value = centroDatos[k] || ''; }
   const elCentroRellenarFecha = document.getElementById('centro-rellenar-fecha');
   if (elCentroRellenarFecha) elCentroRellenarFecha.checked = centroDatos.rellenar_fecha !== false;
   const dashPref = getDashboardPref();

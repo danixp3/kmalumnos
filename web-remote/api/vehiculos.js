@@ -11,12 +11,17 @@ export default async function handler(req, res) {
 
   const supabase = getSupabase(auth.token);
 
-  const { data, error } = await withRetry(() => supabase
-    .from('vehiculos')
-    .select('id, nombre, matricula, km_actual')
-    .eq('deleted', false)
-    .eq('empresa_id', auth.empresaId)
-    .order('nombre'));
+  // Los coches retirados en el escritorio (activo = false) no se ofrecen para
+  // dar clase. Si la base aún no tiene la columna, se piden todos como antes.
+  const pedir = conActivo => withRetry(() => {
+    let q = supabase.from('vehiculos').select('id, nombre, matricula, km_actual')
+      .eq('deleted', false)
+      .eq('empresa_id', auth.empresaId);
+    if (conActivo) q = q.neq('activo', false);
+    return q.order('nombre');
+  });
+  let { data, error } = await pedir(true);
+  if (error && /activo/.test(`${error.message || ''} ${error.details || ''}`)) ({ data, error } = await pedir(false));
 
   if (handleSupabaseError(error, res, 'Error al obtener vehículos')) return;
   const vehiculos = data || [];

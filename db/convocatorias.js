@@ -12,6 +12,27 @@ const RESULTADOS_VALIDOS = ['pendiente', 'apto', 'no_apto', 'aplazado', 'no_pres
 const ESTADOS_TASA_VALIDOS = ['vigente', 'usada', 'caducada'];
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Datos del examen que también guarda Ariauto (2026-10-03): permiso al que se
+// presenta, examinador, coche del examen (matrícula o nombre), nº de fallos y
+// su detalle (p. ej. «Eliminatoria: 11.4 Obediencia de las señales…») y nº de
+// solicitud del expediente en Tráfico. Todos opcionales.
+const CAMPOS_EXAMEN_EXTRA = ['permiso', 'examinador', 'vehiculo', 'fallos', 'fallos_detalle', 'n_solicitud'];
+function _examenExtra(campos, soloPresentes) {
+  const out = {};
+  for (const c of CAMPOS_EXAMEN_EXTRA) {
+    if (soloPresentes && !(c in campos)) continue;
+    const v = campos[c];
+    if (c === 'fallos' || c === 'n_solicitud') {
+      const n = parseInt(v, 10);
+      out[c] = Number.isFinite(n) && n >= 0 && v !== '' && v != null ? n : null;
+    } else {
+      const t = v == null ? '' : String(v).trim();
+      out[c] = t ? (c === 'permiso' ? t.toUpperCase().slice(0, 10) : t.slice(0, c === 'fallos_detalle' ? 2000 : 120)) : null;
+    }
+  }
+  return out;
+}
+
 function _validarFecha(fecha, campo) {
   if (!fecha || !FECHA_RE.test(fecha)) {
     throw new Error(`${campo || 'Fecha'} no válida: "${fecha}". Debe tener formato YYYY-MM-DD.`);
@@ -46,7 +67,8 @@ function getPresentaciones(sucursalId) {
     .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
 }
 
-function addPresentacion({ alumno_id, tipo, fecha, profesor_id, n_convocatoria, resultado, sucursal_id, nota } = {}) {
+function addPresentacion(campos = {}) {
+  const { alumno_id, tipo, fecha, profesor_id, n_convocatoria, resultado, sucursal_id, nota } = campos;
   _validarTipo(tipo);
   _validarFecha(fecha, 'Fecha de presentación');
   const res = resultado || 'pendiente';
@@ -63,7 +85,8 @@ function addPresentacion({ alumno_id, tipo, fecha, profesor_id, n_convocatoria, 
     n_convocatoria: n_convocatoria != null && n_convocatoria !== '' ? parseInt(n_convocatoria) : 1,
     resultado: res,
     sucursal_id: sucursal_id ? parseInt(sucursal_id) : null,
-    nota: nota || ''
+    nota: nota || '',
+    ..._examenExtra(campos, false)
   };
   d.presentaciones.push(p);
   addLog('presentacion', 'Añadida presentación a examen ' + tipo, [fecha]);
@@ -93,6 +116,7 @@ function updatePresentacion(id, campos = {}) {
       }
     }
   }
+  Object.assign(p, _examenExtra(campos, true));
   save();
 }
 
@@ -133,7 +157,7 @@ function getTasasAlumno(alumnoId) {
   return d.tasas.filter(t => !t.deleted && t.alumno_id === aid);
 }
 
-function addTasa({ alumno_id, concepto, fecha_compra, fecha_caducidad, importe, estado, sucursal_id, nota } = {}) {
+function addTasa({ alumno_id, concepto, fecha_compra, fecha_caducidad, importe, estado, sucursal_id, nota, n_justificante, tipo_tasa } = {}) {
   if (fecha_compra) _validarFecha(fecha_compra, 'Fecha de compra');
   if (fecha_caducidad) _validarFecha(fecha_caducidad, 'Fecha de caducidad');
   const est = estado || 'vigente';
@@ -150,7 +174,10 @@ function addTasa({ alumno_id, concepto, fecha_compra, fecha_caducidad, importe, 
     importe: importe != null && importe !== '' ? Number(importe) : null,
     estado: est,
     sucursal_id: sucursal_id ? parseInt(sucursal_id) : null,
-    nota: nota || ''
+    nota: nota || '',
+    // Nº del justificante (el código de la tasa) y tipo (2.1, 4.1...)
+    n_justificante: n_justificante ? String(n_justificante).trim().slice(0, 40) || null : null,
+    tipo_tasa: tipo_tasa ? String(tipo_tasa).trim().slice(0, 20) || null : null
   };
   d.tasas.push(t);
   addLog('tasa', 'Añadida tasa ' + (concepto || ''), [fecha_compra]);
@@ -166,10 +193,12 @@ function updateTasa(id, campos = {}) {
   if ('fecha_compra' in campos && campos.fecha_compra) _validarFecha(campos.fecha_compra, 'Fecha de compra');
   if ('fecha_caducidad' in campos && campos.fecha_caducidad) _validarFecha(campos.fecha_caducidad, 'Fecha de caducidad');
   if ('estado' in campos) _validarEstadoTasa(campos.estado);
-  const CAMPOS_EDITABLES = ['alumno_id', 'concepto', 'fecha_compra', 'fecha_caducidad', 'importe', 'estado', 'sucursal_id', 'nota'];
+  const CAMPOS_EDITABLES = ['alumno_id', 'concepto', 'fecha_compra', 'fecha_caducidad', 'importe', 'estado', 'sucursal_id', 'nota', 'n_justificante', 'tipo_tasa'];
   for (const campo of CAMPOS_EDITABLES) {
     if (campo in campos) {
-      if (campo === 'alumno_id') {
+      if (campo === 'n_justificante' || campo === 'tipo_tasa') {
+        t[campo] = campos[campo] ? String(campos[campo]).trim() || null : null;
+      } else if (campo === 'alumno_id') {
         t.alumno_id = campos.alumno_id != null && campos.alumno_id !== '' ? parseInt(campos.alumno_id) : null;
       } else if (campo === 'importe') {
         t.importe = campos.importe != null && campos.importe !== '' ? Number(campos.importe) : null;
@@ -188,6 +217,72 @@ function deleteTasa(id) {
   if (!d.tasas) d.tasas = [];
   d.tasas = d.tasas.filter(x => x.id !== id);
   save();
+}
+
+// ─── BUSCADOR DE EXÁMENES ───────────────────────────────────────────────────
+// Exámenes de todos los alumnos con filtros (pantalla Exámenes): texto
+// (alumno, DNI, nº de registro, examinador, notas), tipo, resultado, profesor,
+// permiso, examinador, fechas y «próximos / ya hechos». Devuelve las filas
+// con el nombre del alumno ya puesto, el resumen de lo filtrado (aptos, no
+// aptos, % de aprobados) y las opciones de los desplegables.
+const sinTildes = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+function buscarExamenes(filtros = {}, sucursalId) {
+  const d = load();
+  const hoy = filtros.hoy || (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; })();
+  const alumnos = new Map((d.alumnos || []).map(a => [a.id, a]));
+  const profes = new Map((d.profesores || []).map(p => [p.id, p]));
+  const todos = filtrarPorSucursal((d.presentaciones || []).filter(p => !p.deleted), sucursalId);
+  const texto = sinTildes(filtros.texto).trim();
+  const palabras = texto ? texto.split(/\s+/) : [];
+  const filas = [];
+  const permisos = new Set(), examinadores = new Set(), profesIds = new Set();
+  for (const p of todos) {
+    const a = alumnos.get(p.alumno_id) || null;
+    const permiso = p.permiso || (a ? a.permiso : null) || null;
+    if (permiso) permisos.add(permiso);
+    if (p.examinador) examinadores.add(p.examinador);
+    if (p.profesor_id != null) profesIds.add(p.profesor_id);
+    if (filtros.tipo && p.tipo !== filtros.tipo) continue;
+    if (filtros.resultado && p.resultado !== filtros.resultado) continue;
+    if (filtros.profesor_id && String(p.profesor_id || '') !== String(filtros.profesor_id)) continue;
+    if (filtros.permiso && permiso !== filtros.permiso) continue;
+    if (filtros.examinador && p.examinador !== filtros.examinador) continue;
+    if (filtros.desde && (p.fecha || '') < filtros.desde) continue;
+    if (filtros.hasta && (p.fecha || '') > filtros.hasta) continue;
+    if (filtros.cuando === 'proximos' && !((p.fecha || '') >= hoy && p.resultado === 'pendiente')) continue;
+    if (filtros.cuando === 'hechos' && !((p.fecha || '') < hoy || p.resultado !== 'pendiente')) continue;
+    const nombre = a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '—';
+    if (palabras.length) {
+      const pajar = sinTildes([nombre, a && a.dni, a && a.n_registro, a && a.telefono, p.examinador, p.nota, p.fallos_detalle, p.vehiculo].filter(Boolean).join(' '));
+      if (!palabras.every(w => pajar.includes(w))) continue;
+    }
+    const prof = p.profesor_id != null ? profes.get(p.profesor_id) : null;
+    filas.push({
+      ...p, permiso,
+      alumno_nombre: nombre, alumno_dni: a ? a.dni || null : null, alumno_n_registro: a ? a.n_registro || null : null,
+      alumno_estado: a ? a.estado || null : null, alumno_vehiculo_id: a ? a.vehiculo_id || null : null,
+      profesor_nombre: prof ? prof.nombre : null
+    });
+  }
+  const asc = filtros.cuando === 'proximos' || filtros.orden === 'asc';
+  filas.sort((x, y) => (asc ? 1 : -1) * ((x.fecha || '').localeCompare(y.fecha || '') || x.id - y.id));
+  const resumen = { total: filas.length, aptos: 0, no_aptos: 0, pendientes: 0, otros: 0 };
+  for (const f of filas) {
+    if (f.resultado === 'apto') resumen.aptos++;
+    else if (f.resultado === 'no_apto') resumen.no_aptos++;
+    else if (f.resultado === 'pendiente') resumen.pendientes++;
+    else resumen.otros++;
+  }
+  resumen.ratio = resumen.aptos + resumen.no_aptos > 0 ? resumen.aptos / (resumen.aptos + resumen.no_aptos) : null;
+  return {
+    filas, resumen, totalExamenes: todos.length,
+    opciones: {
+      permisos: [...permisos].sort(),
+      examinadores: [...examinadores].sort((x, y) => x.localeCompare(y, 'es')),
+      profesores: [...profesIds].map(id => ({ id, nombre: profes.get(id) ? profes.get(id).nombre : `Profesor ${id}` })).sort((x, y) => x.nombre.localeCompare(y.nombre, 'es'))
+    }
+  };
 }
 
 // ─── ESTADÍSTICAS DE APROBADOS ──────────────────────────────────────────────
@@ -241,7 +336,7 @@ function getEstadisticasAprobados(sucursalId) {
 }
 
 module.exports = {
-  getPresentaciones, addPresentacion, updatePresentacion, setResultadoPresentacion, deletePresentacion,
+  getPresentaciones, addPresentacion, updatePresentacion, setResultadoPresentacion, deletePresentacion, buscarExamenes,
   getTasas, getTasasAlumno, addTasa, updateTasa, deleteTasa,
   getEstadisticasAprobados,
 };

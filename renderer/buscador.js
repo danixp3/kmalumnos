@@ -114,7 +114,7 @@ function renderResultadosBuscador() {
   } else {
     cont.innerHTML = buscadorResultados.map((d, i) => (
       '<div class="cir-res' + (i === buscadorIndiceActivo ? ' active' : '') + '" role="option" data-idx="' + i + '">' +
-        '<div class="cir-res-icon">' + ICONO_BUSCADOR_RES + '</div>' +
+        '<div class="cir-res-icon">' + (d.alumno ? ICONO_BUSCADOR_ALUMNO : ICONO_BUSCADOR_RES) + '</div>' +
         '<div class="cir-res-text">' +
           '<span class="cir-res-title">' + esc(d.titulo) + '</span>' +
           '<span class="cir-res-sub">' + esc(d.sub) + '</span>' +
@@ -129,14 +129,33 @@ function renderResultadosBuscador() {
   if (wrap) wrap.setAttribute('aria-expanded', 'true');
 }
 
+// Alumnos (por nombre, DNI, nº de registro o teléfono): salen primero y
+// abren su ficha. Se piden aparte; la respuesta vieja de una tecla anterior
+// se descarta.
+let buscadorTurno = 0;
+const ICONO_BUSCADOR_ALUMNO = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>';
+const ESTADO_BUSCADOR = { apto: 'aprobado', aprobado: 'aprobado', baja: 'de baja', inactivo: 'inactivo', no_apto: 'no apto' };
+
 function abrirBuscador() {
   const input = document.getElementById('cir-search-input');
   const q = input ? input.value : '';
   // Solo mostramos resultados a partir de la primera letra escrita.
   if (!normalizarBuscador(q).trim()) { cerrarBuscador(); return; }
+  const turno = ++buscadorTurno;
   buscadorResultados = filtrarDestinos(q);
   buscadorIndiceActivo = -1;
   renderResultadosBuscador();
+  if (normalizarBuscador(q).trim().length < 2 || !window.api.buscarAlumnosRapido) return;
+  window.api.buscarAlumnosRapido(q, 6).then(alumnos => {
+    if (turno !== buscadorTurno || !alumnos || !alumnos.length) return;
+    const deAlumnos = alumnos.map(a => ({
+      titulo: a.nombre,
+      sub: ['Alumno', a.n_registro && 'nº ' + a.n_registro, a.dni, ESTADO_BUSCADOR[a.estado]].filter(Boolean).join(' · '),
+      alumno: a
+    }));
+    buscadorResultados = [...deAlumnos, ...filtrarDestinos(q)];
+    renderResultadosBuscador();
+  }).catch(() => {});
 }
 
 function cerrarBuscador() {
@@ -168,6 +187,13 @@ function resaltarDestino(anchor) {
 
 function irADestinoBuscador(d) {
   if (!d) return;
+  if (d.alumno) {
+    verFichaDesdePracticas(d.alumno.id, d.alumno.vehiculo_id, d.alumno.nombre);
+    const input = document.getElementById('cir-search-input');
+    if (input) { input.value = ''; input.blur(); }
+    cerrarBuscador();
+    return;
+  }
   navegarA(d.page, d.tab);
   if (d.page === 'pagos' && d.tab && typeof cambiarTabPagos === 'function') cambiarTabPagos(d.tab);
   resaltarDestino(d.anchor);

@@ -145,6 +145,16 @@ test('vehiculos: incluye la última práctica cerrada de cada coche (para compro
   assert.equal(r.status, 200); assert.equal(r.json[0].ultimo.km_final, 1000); assert.equal(r.json[0].ultimo.alumno, 'Lucía Martín');
 });
 
+test('vehiculos: los coches retirados en el escritorio no se ofrecen para dar clase', async () => {
+  const t = base();
+  t.vehiculos.push({ id: 2, nombre: 'Corsa viejo', matricula: '1111 AAA', km_actual: 300000, deleted: false, empresa_id: 'emp1', activo: false });
+  t.vehiculos.push({ id: 3, nombre: 'Clio', matricula: '2222 BBB', km_actual: 5000, deleted: false, empresa_id: 'emp1', activo: true });
+  reiniciar(t);
+  const r = await llamar('vehiculos', { method: 'GET' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json.map(v => v.id).sort(), [1, 3]);
+});
+
 test('alumnos?resumen=1: clases, km y última fecha por alumno', async () => {
   reiniciar(base());
   const r = await llamar('alumnos', { method: 'GET', query: { resumen: '1' } });

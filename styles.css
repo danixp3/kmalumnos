@@ -2109,7 +2109,66 @@
     color: var(--text); display: inline-flex; align-items: center; justify-content: center;
     font-family: var(--font-display); font-size: 14px; font-weight: 700;
   }
-  .avatar-ini-lg { width: 76px; height: 76px; background: var(--accent); color: var(--accent-ink); font-size: 30px; }
+  .avatar-ini-lg { width: 76px; height: 76px; background: var(--accent); color: var(--accent-ink); font-size: 30px; overflow: hidden; }
+  .avatar-foto { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* ── Ficha del alumno: tarjeta «Datos del alumno» (ver y editar en el sitio) ── */
+  .ficha-datos { margin-bottom: 20px; }
+  .fd-grupos { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px 28px; align-items: start; }
+  .fd-resumen { margin-top: 8px; font-size: 14px; color: var(--text-muted); overflow-wrap: anywhere; }
+  .fd-grupo { min-width: 0; margin: 0; padding: 0; border: 0; }
+  .fd-grupo h3, .fd-grupo legend { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); margin: 0 0 8px; padding: 0; }
+  .fd-ancho { grid-column: 1 / -1; }
+  .fd-lista { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 14px; margin: 0; font-size: 14px; }
+  .fd-lista dt { color: var(--text-muted); }
+  .fd-lista dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .fd-vacio, .fd-lista dd.fd-vacio { color: var(--text-faint); font-weight: 400; }
+  .fd-obs { display: block; white-space: normal; line-height: 1.5; font-size: 14px; }
+  .fd-mal { color: var(--danger-fg); }
+  .fd-aviso { color: var(--warn-fg); }
+  .fd-editando .fd-grupo { border-top: 1px solid var(--border); padding-top: 12px; }
+  .fd-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 14px; }
+  .fd-form .form-group { margin: 0; min-width: 0; }
+  .fd-form input, .fd-form select, .fd-form textarea { width: 100%; box-sizing: border-box; }
+  .fd-form .fd-campo-ancho { grid-column: 1 / -1; }
+  .fd-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+  .fd-pie { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-faint); }
+  .fd-foto-docs { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+  .fd-foto-fila { display: flex; align-items: center; gap: 12px; }
+  .fd-foto { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
+  .fd-foto-vacia { display: flex; align-items: center; justify-content: center; background: var(--btn-gray-bg); color: var(--text-muted); font-size: 11px; }
+  .fd-foto-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .fd-docs { display: flex; flex-direction: column; gap: 6px; width: 100%; font-size: 13px; }
+  .fd-doc { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .fd-doc span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fd-doc small { color: var(--text-muted); flex-shrink: 0; }
+
+  /* Vehículos retirados (activo = false) */
+  #veh-retirados { margin-top: 20px; }
+  .veh-retirados-lista { display: flex; flex-direction: column; gap: 8px; }
+  .veh-retirado { display: flex; align-items: center; gap: 14px; padding: 8px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .veh-retirado-txt { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 2px; }
+  .veh-retirado-txt small { color: var(--text-muted); }
+  .veh-activo-check { display: flex; align-items: baseline; gap: 8px; font-weight: 600; color: var(--text); }
+  .fd-form .veh-activo-check input[type="checkbox"] { width: auto; flex: none; margin: 0; align-self: center; }
+  .veh-activo-check { align-items: center; flex-wrap: wrap; }
+  .veh-activo-check small { font-weight: 400; color: var(--text-muted); }
+
+  /* Exámenes: buscador */
+  .ex-resumen { font-size: 14px; color: var(--text-muted); margin: -4px 0 10px; min-height: 20px; }
+  .ex-resumen b { color: var(--text); }
+  .ex-r-ok { color: var(--success-fg); font-weight: 600; }
+  .ex-r-mal { color: var(--danger-fg); font-weight: 600; }
+  .tabla-examenes td { vertical-align: middle; }
+  .tabla-examenes tr.ex-proximo td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+  .ex-resultado { height: 32px; padding: 0 8px; font-size: 13px; font-weight: 600; }
+  .ex-res-apto { color: var(--success-fg); }
+  .ex-res-no_apto { color: var(--danger-fg); }
+  .ex-fallos { cursor: pointer; border: none; white-space: nowrap; }
+  .ex-stats-tablas { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+
+  /* Listas largas pintadas por tandas (pintarPorTandas) */
+  tr.fila-centinela td { text-align: center; color: var(--text-faint); font-size: 13px; padding: 14px; }
 
   /* ── Cifras y textos técnicos ── */
   .num-mono { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }

@@ -70,7 +70,7 @@ function renderBonosLista() {
 function _rellenarSelectorAlumnoBono(alumnoIdSeleccionado) {
   const select = document.getElementById('bono-alumno-id');
   if (!select) return;
-  select.innerHTML = bonoAlumnosCache.map(a => `<option value="${a.id}">${esc(a.nombre)}</option>`).join('');
+  select.innerHTML = opcionesAlumnosHTML(bonoAlumnosCache);
   if (alumnoIdSeleccionado != null) select.value = alumnoIdSeleccionado;
 }
 

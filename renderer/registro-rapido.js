@@ -13,8 +13,8 @@ let rrProfesorActual = null;
 let rrTipoActual = 'circulacion';
 
 async function loadRegistroRapidoInit() {
-  // Cargar vehículos en el selector
-  const vehiculos = await window.api.getVehiculos();
+  // Cargar vehículos en el selector (los retirados no se usan para dar clase)
+  const vehiculos = (await window.api.getVehiculos()).filter(v => v.activo !== false);
   const sel = document.getElementById('rr-vehiculo');
   sel.innerHTML = vehiculos.length
     ? vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('')

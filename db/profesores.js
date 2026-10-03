@@ -2,6 +2,7 @@
 // CRUD de profesores; getProfesores añade el nº de prácticas impartidas.
 
 const { load, save, nextId, _sync, filtrarPorSucursal, firmaValida, addLog } = require('./core');
+const { extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
 
 // sucursalId opcional: sin argumento devuelve todos los profesores (modo
 // clásico o "Todas las sucursales") — ver filtrarPorSucursal en core.js.
@@ -15,23 +16,28 @@ function getProfesores(sucursalId) {
 }
 
 // dni (tarea "Ficha alumno – formación práctica" DGT): string opcional,
-// nullable, al final para no romper llamadas existentes.
-function addProfesor(nombre, nota, sucursal_id = null, dni = null) {
+// nullable, al final para no romper llamadas existentes. datos (opcional):
+// teléfono, email, dirección, fechas, nº de certificado... (db/campos-extra.js).
+function addProfesor(nombre, nota, sucursal_id = null, dni = null, datos = null) {
   const d = load();
   const id = nextId('pf');
-  d.profesores.push({ id, nombre, nota: nota || '', sucursal_id: sucursal_id ? parseInt(sucursal_id) : null, dni: dni ? String(dni).trim() : null });
+  d.profesores.push({
+    id, nombre, nota: nota || '', sucursal_id: sucursal_id ? parseInt(sucursal_id) : null, dni: dni ? String(dni).trim() : null,
+    ...camposExtraVacios('profesores'), ...extraerCamposExtra('profesores', datos)
+  });
   save();
   const s = _sync(); if (s) s.markDirty('profesores', id);
   return id;
 }
 
-function updateProfesor(id, nombre, nota, dni = null) {
+function updateProfesor(id, nombre, nota, dni = null, datos = null) {
   const d = load();
   const p = d.profesores.find(x => x.id === id);
   if (p) {
     p.nombre = nombre;
     p.nota = nota || '';
     p.dni = dni ? String(dni).trim() : null;
+    Object.assign(p, extraerCamposExtra('profesores', datos));
     save();
     const s = _sync(); if (s) s.markDirty('profesores', id);
   }

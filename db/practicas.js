@@ -275,8 +275,12 @@ function getAlumnosPorVehiculo(vehiculo_id, fecha) {
   const d = load();
   const vid = parseInt(vehiculo_id);
 
+  // Los que ya terminaron (aprobados, bajas, inactivos) no llenan la lista,
+  // salvo que tengan clase ese día
+  const TERMINADOS = ['baja', 'aprobado', 'apto', 'no_apto', 'inactivo'];
+  const conClase = new Set(d.practicas.filter(p => p.fecha === fecha && p.vehiculo_id === vid && !p.deleted).map(p => p.alumno_id));
   const alumnos = d.alumnos
-    .filter(a => a.vehiculo_id === vid)
+    .filter(a => a.vehiculo_id === vid && !a.deleted && (!TERMINADOS.includes(a.estado) || conClase.has(a.id)))
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
   return alumnos.map(a => {

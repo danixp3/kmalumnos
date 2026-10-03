@@ -2004,7 +2004,7 @@ async function terminarFlujo(msg) {
 // Alumnos que ya terminaron (de baja o aprobados): no llenan las listas del
 // profesor (p. ej. tras traer el histórico de otro programa); se ven en el
 // filtro «Terminados» y el buscador del selector los sigue encontrando.
-const alumnoTerminado = a => ['baja', 'apto', 'aprobado'].includes(a && a.estado);
+const alumnoTerminado = a => ['baja', 'apto', 'aprobado', 'inactivo'].includes(a && a.estado);
 const alumnosEnCurso = () => S.alumnos.filter(a => !alumnoTerminado(a));
 function renderAlumnos() {
   const enCurso = alumnosEnCurso(), terminados = S.alumnos.length - enCurso.length;
