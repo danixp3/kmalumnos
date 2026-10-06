@@ -3,7 +3,7 @@
 // (usado en la pantalla de registro rápido de km).
 
 const { load, save, nextId, _sync, addLog, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, hoyLocalISO,
-  clasesDePractica, fmtClases, firmaValida } = require('./core');
+  clasesDePractica, fmtClases, firmaValida, nombreCorto } = require('./core');
 const { directorResuelto } = require('./ajustes-empresa');
 const { mapaContinuidad, getHuecosRevisados, TOLERANCIA_HUECO } = require('./cuadre-km');
 
@@ -227,7 +227,7 @@ function getTodasPracticas(filtros = {}) {
         id: p.id,
         fecha: p.fecha,
         alumno_id: p.alumno_id,
-        alumno_nombre: a ? a.nombre : '—',
+        alumno_nombre: a ? nombreCorto(a) : '—',
         vehiculo_id: p.vehiculo_id,
         vehiculo_nombre: v ? v.nombre : '—',
         vehiculo_matricula: v ? v.matricula || null : null,
@@ -252,7 +252,7 @@ function getTodasPracticas(filtros = {}) {
         // Continuidad con la práctica anterior del mismo coche (null si es la primera o no hay km).
         km_incoherente: cont.incoherente || null,
         continuidad: (pv && !sinKm && !sinCerrar) ? {
-          alumno: pvAlumno ? pvAlumno.nombre : '—',
+          alumno: pvAlumno ? nombreCorto(pvAlumno) : '—',
           fecha: pv.fecha, hora_inicio: pv.hora_inicio || null,
           km_final_anterior: pv.km_final,
           diferencia: p.km_inicial - pv.km_final,
@@ -292,7 +292,7 @@ function getAlumnosPorVehiculo(vehiculo_id, fecha) {
     const nota = practicasHoy.length > 0 ? (practicasHoy[0].nota || '') : '';
     return {
       id: a.id,
-      nombre: a.nombre,
+      nombre: nombreCorto(a),
       permiso: a.permiso,
       num_practicas: practicasHoy.length,
       nota: nota

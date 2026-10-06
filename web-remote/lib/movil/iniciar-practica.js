@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   if (!auth) return;
   const supabase = getSupabase(auth.token);
 
-  const { alumno_id, vehiculo_id, km_inicial, tipo, tipo_detalle, fecha, hora_inicio, profesor_id, zonas } = req.body || {};
+  const { alumno_id, vehiculo_id, km_inicial, tipo, tipo_detalle, fecha, hora_inicio, profesor_id, zonas, forzar } = req.body || {};
 
   const alumnoIdVal = validators.positiveInt(alumno_id, 'alumno_id');
   if (!alumnoIdVal.valid) return res.status(400).json({ error: alumnoIdVal.error });
@@ -62,12 +62,31 @@ export default async function handler(req, res) {
   }
 
   // Continuidad con la práctica anterior del mismo coche (por km final más alto conocido)
-  const { data: previas, error: errP } = await supabase
-    .from('practicas').select('km_final')
+  const ultimas = () => supabase
+    .from('practicas').select('km_final, hora_inicio, fecha, alumno_id')
     .eq('vehiculo_id', vehiculo.id).eq('deleted', false).eq('empresa_id', auth.empresaId)
-    .gt('km_final', 0).order('km_final', { ascending: false }).limit(1);
+    .gt('km_final', 0);
+  const [{ data: previas, error: errP }, { data: recientes }] = await Promise.all([
+    ultimas().order('km_final', { ascending: false }).limit(1),
+    // la última clase del coche en el tiempo: es la que ve el profesor como «último km» (igual que /api/vehiculos)
+    ultimas().order('fecha', { ascending: false }).order('km_final', { ascending: false }).limit(1)
+  ]);
   if (handleSupabaseError(errP, res, 'Error al comprobar los km')) return;
   const kmAnterior = previas && previas.length ? previas[0].km_final : (vehiculo.km_actual || 0);
+
+  // El km inicial no puede ser menor que donde ya terminó el coche: es lo que pasa cuando el teléfono
+  // se quedó con datos viejos (otra clase se guardó o se canceló desde otro móvil) y deja el
+  // cuentakilómetros con dos clases «encima» de los mismos km. El móvil lo confirma (`forzar`).
+  const ultima = recientes && recientes.length ? recientes[0] : null;
+  if (forzar !== true && ultima && kmVal.value < ultima.km_final) {
+    let quien = null;
+    const { data: al } = await supabase.from('alumnos').select('nombre').eq('id', ultima.alumno_id).maybeSingle();
+    if (al) quien = al.nombre;
+    return res.status(409).json({
+      codigo: 'km_menor_anterior', km_final_anterior: ultima.km_final, alumno: quien, hora: ultima.hora_inicio || null, fecha: ultima.fecha,
+      error: `Este coche ya marca el km ${ultima.km_final}${quien ? ` (última clase: ${quien}${ultima.hora_inicio ? ', ' + ultima.hora_inicio : ''})` : ''} y has puesto ${kmVal.value}, que es menos. Puede que este teléfono tenga datos viejos.`
+    });
+  }
 
   const fila = {
     alumno_id: alumno.id, vehiculo_id: vehiculo.id, fecha: fechaVal.value,

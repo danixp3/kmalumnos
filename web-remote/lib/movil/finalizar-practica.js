@@ -53,7 +53,12 @@ export default async function handler(req, res) {
     .from('practicas').select('id, alumno_id, vehiculo_id, fecha, km_inicial, km_final, nota, tipo, profesor_id, hora_inicio')
     .eq('id', idVal.value).eq('deleted', false).eq('empresa_id', auth.empresaId).maybeSingle();
   if (errFind && isAuthError(errFind)) return res.status(401).json({ error: 'Sesión expirada. Inicia sesión de nuevo.' });
-  if (errFind || !practica) return res.status(404).json({ error: 'Práctica no encontrada' });
+  if (errFind || !practica) {
+    // ¿Se canceló desde otro teléfono? El móvil ofrece guardarla igualmente con sus km, en vez de perderla.
+    const { data: borrada } = await supabase.from('practicas').select('id, deleted').eq('id', idVal.value).eq('empresa_id', auth.empresaId).maybeSingle();
+    if (borrada && borrada.deleted) return res.status(409).json({ codigo: 'practica_cancelada', error: 'Esta clase se canceló desde otro teléfono.' });
+    return res.status(404).json({ error: 'Práctica no encontrada' });
+  }
 
   // Envío repetido desde la cola sin conexión (`reintento`): si la clase ya está
   // cerrada se devuelve tal cual, sin volver a partirla ni a añadir la observación.
@@ -82,6 +87,18 @@ export default async function handler(req, res) {
         alumno: await resumenAlumno(supabase, auth.empresaId, practica.alumno_id), campos_guardados: true
       });
     }
+  }
+
+  // Ya la cerró otro teléfono (o este mismo, y la respuesta no llegó): no se vuelven a cambiar sus km,
+  // que a lo mejor ya están firmados. Se devuelve tal como está guardada.
+  if (practica.km_final > 0) {
+    const sesion = await sesionDePractica(supabase, auth.empresaId, practica, 'id, km_inicial, km_final, hora_inicio, hora_fin, firmada, fraccion');
+    return res.status(200).json({
+      ok: true, ya_cerrada: true, practica_ids: sesion.map(x => x.id), clases: sesion.reduce((n, x) => n + clasesDe(x), 0),
+      recorridos: sesion[sesion.length - 1].km_final - sesion[0].km_inicial,
+      km_final: sesion[sesion.length - 1].km_final, km_inicial: sesion[0].km_inicial, firmada: sesion.every(x => x.firmada),
+      alumno: await resumenAlumno(supabase, auth.empresaId, practica.alumno_id), campos_guardados: true
+    });
   }
 
   // Clases por minutos: lo acumulado del alumno + los minutos de hoy

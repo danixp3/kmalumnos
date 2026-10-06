@@ -469,3 +469,138 @@ describe('Cuadrar km · quitar los km de una clase mal', () => {
     expect(new Set(km).size).toBeGreaterThan(3);
   });
 });
+
+describe('Cuadrar km · encajar a continuación de la clase anterior', () => {
+  // El caso real del 06/10: Hugo empezó con un km antiguo (17.883) mientras Cristina ya había llegado a 17.928
+  function dia6() {
+    const { vid, aid } = escenarioBase();
+    const bob = db.addAlumno('Hugo', 'B', vid);
+    const c1 = clase(aid, vid, '2026-10-06', '16:03', 17883, 17906, { source: 'web-remote' });
+    const c2 = clase(aid, vid, '2026-10-06', '16:48', 17906, 17928, { source: 'web-remote' });
+    const h1 = clase(bob, vid, '2026-10-06', '17:46', 17883, 17907, { source: 'web-remote' });
+    const h2 = clase(bob, vid, '2026-10-06', '18:32', 17907, 17928, { source: 'web-remote' });
+    const m1 = clase(aid, vid, '2026-10-06', '19:04', 17928, 17950, { source: 'web-remote' });
+    const m2 = clase(aid, vid, '2026-10-06', '19:46', 17950, 17972, { source: 'web-remote' });
+    return { vid, aid, bob, c1, c2, h1, h2, m1, m2 };
+  }
+
+  test('detecta la clase que empieza por debajo del final de la anterior', () => {
+    const { vid, h1 } = dia6();
+    const e = db.getEncajesKm(vid);
+    expect(e).toHaveLength(1);
+    expect(e[0]).toMatchObject({ practica_id: h1, km_inicial: 17883, solape: 45, previa: { km_final: 17928, hora_inicio: '16:48' } });
+  });
+
+  test('la clase de Hugo empieza donde acabó Cristina y las siguientes se recalculan con el baremo, encadenadas', () => {
+    const { vid, c1, c2, h1, h2, m1, m2 } = dia6();
+    const r = db.proponerEncajeKm(vid, h1, { kmMin: 40, kmMax: 45 });
+    expect(r.errores).toEqual([]);
+    expect(r.previa).toMatchObject({ km_final: 17928, hora_inicio: '16:48' });
+    // la primera conserva lo que recorrió (24 km); las demás, el baremo (Math.random = 0.5 → 43 km)
+    expect(r.cambios.map(c => [c.practica_id, c.despues.km_inicial, c.despues.km_final, c.tipo])).toEqual([
+      [h1, 17928, 17952, 'encajar'], [h2, 17952, 17995, 'encajar'], [m1, 17995, 18038, 'encajar'], [m2, 18038, 18081, 'encajar']
+    ]);
+    expect(r.clases).toBe(4); expect(r.km_inicio).toBe(17928); expect(r.km_fin).toBe(18081);
+    // previsualizar no toca nada
+    expect(kmDe(h1)).toEqual([17883, 17907]);
+
+    const ap = db.aplicarCuadreKm(vid, r.cambios);
+    expect(ap).toMatchObject({ aplicados: 4, omitidos: 0 });
+    expect(kmDe(c1)).toEqual([17883, 17906]); expect(kmDe(c2)).toEqual([17906, 17928]);   // las buenas no se tocan
+    expect(kmDe(h1)).toEqual([17928, 17952]); expect(kmDe(m2)).toEqual([18038, 18081]);
+    expect(db.getSolapamientos()).toHaveLength(0);
+    expect(db.getEncajesKm(vid)).toHaveLength(0);
+    // el odómetro del coche sube
+    expect(require('../db/core').load().vehiculos.find(v => v.id === vid).km_actual).toBe(18081);
+    // y se puede deshacer
+    expect(db.deshacerCuadreKm()).toMatchObject({ deshechos: 4 });
+    expect(kmDe(h1)).toEqual([17883, 17907]); expect(kmDe(m2)).toEqual([17950, 17972]);
+  });
+
+  test('nunca cambia fecha, hora, alumno ni profesor y marca como calculados los km nuevos', () => {
+    const { vid, h1, m2 } = dia6();
+    const antes = require('../db/core').load().practicas.map(p => ({ id: p.id, f: p.fecha, h: p.hora_inicio, a: p.alumno_id, pr: p.profesor_id }));
+    db.aplicarCuadreKm(vid, db.proponerEncajeKm(vid, h1).cambios);
+    const d = require('../db/core').load();
+    expect(d.practicas.map(p => ({ id: p.id, f: p.fecha, h: p.hora_inicio, a: p.alumno_id, pr: p.profesor_id }))).toEqual(antes);
+    expect(d.practicas.find(p => p.id === m2).tipo_detalle).toBe('km_auto');
+  });
+
+  test('sin conservar la primera, también ella usa el baremo; el km de partida se puede escribir a mano', () => {
+    const { vid, h1 } = dia6();
+    const r = db.proponerEncajeKm(vid, h1, { kmMin: 30, kmMax: 30, conservarPrimera: false, kmInicio: 17950 });
+    expect(r.cambios[0].despues).toEqual({ km_inicial: 17950, km_final: 17980 });
+    expect(r.cambios[1].despues).toEqual({ km_inicial: 17980, km_final: 18010 });
+  });
+
+  test('una fracción de clase recibe la parte de km que le toca', () => {
+    const { vid, bob, h1 } = dia6();
+    const media = clase(bob, vid, '2026-10-06', '20:30', 17972, 17990, { fraccion: 0.5 });
+    const r = db.proponerEncajeKm(vid, h1, { kmMin: 40, kmMax: 40 });
+    const c = r.cambios.find(x => x.practica_id === media);
+    expect(c.despues.km_final - c.despues.km_inicial).toBe(20);
+  });
+
+  test('por defecto solo rehace ese día; con «todas» sigue por los días siguientes', () => {
+    const { vid, aid, h1 } = dia6();
+    const manana = clase(aid, vid, '2026-10-07', '09:00', 18200, 18230, { source: 'web-remote' });
+    let r = db.proponerEncajeKm(vid, h1);
+    expect(r.cambios.map(c => c.practica_id)).not.toContain(manana);
+    expect(r.avisos).toHaveLength(0);
+    r = db.proponerEncajeKm(vid, h1, { hasta: 'todas' });
+    const ultima = r.cambios[r.cambios.length - 1];
+    expect(ultima).toMatchObject({ practica_id: manana, despues: { km_inicial: 18081, km_final: 18124 } });
+  });
+
+  test('avisa si lo recalculado pisa la clase conocida que viene después', () => {
+    const { vid, aid, h1 } = dia6();
+    clase(aid, vid, '2026-10-07', '09:00', 18050, 18080, { source: 'web-remote' });
+    const r = db.proponerEncajeKm(vid, h1);
+    expect(r.avisos).toHaveLength(1);
+    expect(r.avisos[0]).toMatchObject({ tipo: 'pisa_siguiente', km: 31 });
+  });
+
+  test('las clases sin km del tramo también reciben km y una clase en curso corta el tramo', () => {
+    const { vid, aid, h1 } = dia6();
+    const blanca = clase(aid, vid, '2026-10-06', '20:30', 0, 0);
+    const hoy = require('../db/core').hoyLocalISO();
+    const abierta = clase(aid, vid, hoy, '23:00', 18500, 0);
+    const r = db.proponerEncajeKm(vid, h1, { hasta: 'todas' });
+    expect(r.cambios.map(c => c.practica_id)).toContain(blanca);
+    expect(r.cambios.map(c => c.practica_id)).not.toContain(abierta);
+    expect(kmDe(abierta)).toEqual([18500, 0]);
+  });
+
+  test('errores claros: coche o clase que no existen, sin clase anterior, clase en curso y baremo mal', () => {
+    const { vid, aid, c1, h1 } = dia6();
+    expect(db.proponerEncajeKm(999, h1).errores[0]).toMatch(/Vehículo/);
+    expect(db.proponerEncajeKm(vid, 99999).errores[0]).toMatch(/No se encuentra/);
+    expect(db.proponerEncajeKm(vid, c1).errores[0]).toMatch(/ninguna anterior/);
+    expect(db.proponerEncajeKm(vid, c1, { kmInicio: 17000 }).cambios[0].despues.km_inicial).toBe(17000);
+    const hoy = require('../db/core').hoyLocalISO();
+    const abierta = clase(aid, vid, hoy, '23:00', 18500, 0);
+    expect(db.proponerEncajeKm(vid, abierta).errores[0]).toMatch(/en curso/);
+    expect(db.proponerEncajeKm(vid, h1, { kmMin: 50, kmMax: 40 }).errores[0]).toMatch(/baremo/);
+  });
+
+  test('la lista de clases para elegir a mano trae las más recientes primero y sin la clase en curso', () => {
+    const { vid, aid, m2 } = dia6();
+    const hoy = require('../db/core').hoyLocalISO();
+    clase(aid, vid, hoy, '23:00', 18500, 0);
+    const l = db.getClasesCocheKm(vid, 3);
+    expect(l).toHaveLength(3);
+    expect(l[0].practica_id).toBe(m2);
+  });
+});
+
+describe('Cuadrar km · sugerencias de «Encajar»', () => {
+  test('un solape pequeño (lo arregla el recorte normal) no se sugiere; uno grande sí', () => {
+    const { vid, aid } = escenarioBase();
+    clase(aid, vid, '2026-10-06', '09:00', 1000, 1040, { source: 'web-remote' });
+    clase(aid, vid, '2026-10-06', '10:00', 1036, 1076, { source: 'web-remote' });   // 4 km de solape
+    expect(db.getEncajesKm(vid)).toHaveLength(0);
+    const grande = clase(aid, vid, '2026-10-06', '11:00', 1020, 1060, { source: 'web-remote' });   // 56 km de solape con la anterior
+    const e = db.getEncajesKm(vid);
+    expect(e).toHaveLength(1); expect(e[0].practica_id).toBe(grande); expect(e[0].solape).toBe(56);
+  });
+});

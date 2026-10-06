@@ -37,73 +37,79 @@ export default async function handler(req, res) {
 
   const filtrarProfesor = q => (profesorId ? q.eq('profesor_id', profesorId) : q);
 
-  // Prácticas del día
-  const { res: rDia } = await conFallbackColumnas(conOpc => withRetry(() => filtrarProfesor(supabase
+  // Las consultas que no dependen unas de otras se lanzan a la vez (antes eran seis
+  // viajes a la base de datos uno detrás de otro y «Hoy» tardaba varios segundos).
+  const pedirPracticas = cond => conFallbackColumnas(conOpc => withRetry(() => cond(filtrarProfesor(supabase
     .from('practicas')
     .select(COLUMNAS_PRACTICA_BASE + (conOpc ? ', ' + COLUMNAS_PRACTICA_LISTA : ''))
-    .eq('fecha', fecha)
     .eq('deleted', false)
-    .eq('empresa_id', auth.empresaId))
-    .order('hora_inicio', { ascending: true, nullsFirst: false })
-    .order('id')));
+    .eq('empresa_id', auth.empresaId)))));
+
+  // Prácticas del día · sin cerrar de los últimos 7 días (solo si se mira el día de hoy) ·
+  // reservas del día (agenda del profesor)
+  const [{ res: rDia }, rPendiente, rReservas] = await Promise.all([
+    pedirPracticas(q => q.eq('fecha', fecha).order('hora_inicio', { ascending: true, nullsFirst: false }).order('id')),
+    fecha === hoyCliente
+      ? pedirPracticas(q => q.eq('km_final', 0).gt('km_inicial', 0).lt('fecha', fecha).gte('fecha', sumarDias(fecha, -7)).order('fecha', { ascending: false }))
+      : Promise.resolve(null),
+    profesorId
+      ? withRetry(() => supabase
+        .from('reservas')
+        .select('id, hora_inicio, duracion_min, estado, alumno_id, vehiculo_id, nota')
+        .eq('profesor_id', profesorId)
+        .eq('fecha', fecha)
+        .eq('deleted', false)
+        .neq('estado', 'cancelada')
+        .order('hora_inicio'))
+      : Promise.resolve(null)
+  ]);
   if (handleSupabaseError(rDia.error, res, 'Error al obtener las prácticas de hoy')) return;
   const delDia = rDia.data || [];
-
-  // Sin cerrar de los últimos 7 días (solo si se mira el día de hoy)
   let sinCerrar = [];
-  if (fecha === hoyCliente) {
-    const { res: rPend } = await conFallbackColumnas(conOpc => withRetry(() => filtrarProfesor(supabase
-      .from('practicas')
-      .select(COLUMNAS_PRACTICA_BASE + (conOpc ? ', ' + COLUMNAS_PRACTICA_LISTA : ''))
-      .eq('deleted', false)
-      .eq('empresa_id', auth.empresaId)
-      .eq('km_final', 0)
-      .gt('km_inicial', 0)
-      .lt('fecha', fecha)
-      .gte('fecha', sumarDias(fecha, -7)))
-      .order('fecha', { ascending: false })));
-    if (handleSupabaseError(rPend.error, res, 'Error al obtener las prácticas sin cerrar')) return;
-    sinCerrar = rPend.data || [];
+  if (rPendiente) {
+    if (handleSupabaseError(rPendiente.res.error, res, 'Error al obtener las prácticas sin cerrar')) return;
+    sinCerrar = rPendiente.res.data || [];
   }
-
-  // Reservas del día (agenda del profesor)
   let reservas = [];
-  if (profesorId) {
-    const { data: rs, error: errR } = await withRetry(() => supabase
-      .from('reservas')
-      .select('id, hora_inicio, duracion_min, estado, alumno_id, vehiculo_id, nota')
-      .eq('profesor_id', profesorId)
-      .eq('fecha', fecha)
-      .eq('deleted', false)
-      .neq('estado', 'cancelada')
-      .order('hora_inicio'));
-    if (handleSupabaseError(errR, res, 'Error al obtener la agenda')) return;
-    reservas = rs || [];
+  if (rReservas) {
+    if (handleSupabaseError(rReservas.error, res, 'Error al obtener la agenda')) return;
+    reservas = rReservas.data || [];
   }
 
-  // Nombres de alumnos y vehículos (una consulta por tabla, sin N+1)
+  // Nombres de alumnos y vehículos (una consulta por tabla, sin N+1) y, para el nº de
+  // clase, las prácticas de esos alumnos: las tres a la vez.
   const todas = [...delDia, ...sinCerrar];
   const alumnoIds = [...new Set([...todas.map(p => p.alumno_id), ...reservas.map(r => r.alumno_id)].filter(v => v != null))];
   const vehiculoIds = [...new Set([...todas.map(p => p.vehiculo_id), ...reservas.map(r => r.vehiculo_id)].filter(v => v != null))];
   let alumnosPorId = {}, vehiculosPorId = {}, totalesPorAlumno = {};
-  if (alumnoIds.length) {
-    let { data, error } = await supabase.from('alumnos').select('id, nombre, primer_apellido, segundo_apellido, clases_previas').in('id', alumnoIds);
-    if (error && esErrorColumnaInexistente(error)) ({ data, error } = await supabase.from('alumnos').select('id, nombre').in('id', alumnoIds));
-    if (handleSupabaseError(error, res, 'Error al obtener los alumnos')) return;
-    alumnosPorId = Object.fromEntries((data || []).map(a => [a.id, a]));
-    // Nº de clase: clases previas (antes de usar la app) + prácticas anteriores + 1
+  const pedirAlumnos = async () => {
+    let r = await supabase.from('alumnos').select('id, nombre, primer_apellido, segundo_apellido, clases_previas').in('id', alumnoIds);
+    if (r.error && esErrorColumnaInexistente(r.error)) r = await supabase.from('alumnos').select('id, nombre').in('id', alumnoIds);
+    return r;
+  };
+  // Nº de clase: clases previas (antes de usar la app) + prácticas anteriores + 1
+  const pedirHistorial = async () => {
     const historial = cols => traerTodo(() => supabase
       .from('practicas').select(cols)
       .in('alumno_id', alumnoIds).eq('deleted', false).eq('empresa_id', auth.empresaId).order('id'));
-    let { data: hist, error: errH } = await historial('id, alumno_id, fecha, hora_inicio, fraccion');
-    if (errH && esErrorColumnaInexistente(errH)) ({ data: hist, error: errH } = await historial('id, alumno_id, fecha, hora_inicio'));
-    if (handleSupabaseError(errH, res, 'Error al contar las prácticas')) return;
-    for (const h of hist || []) (totalesPorAlumno[h.alumno_id] ||= []).push(h);
+    let r = await historial('id, alumno_id, fecha, hora_inicio, fraccion');
+    if (r.error && esErrorColumnaInexistente(r.error)) r = await historial('id, alumno_id, fecha, hora_inicio');
+    return r;
+  };
+  const [rAlumnos, rHistorial, rVehiculos] = await Promise.all([
+    alumnoIds.length ? pedirAlumnos() : null,
+    alumnoIds.length ? pedirHistorial() : null,
+    vehiculoIds.length ? supabase.from('vehiculos').select('id, nombre, matricula').in('id', vehiculoIds) : null
+  ]);
+  if (rAlumnos) {
+    if (handleSupabaseError(rAlumnos.error, res, 'Error al obtener los alumnos')) return;
+    alumnosPorId = Object.fromEntries((rAlumnos.data || []).map(a => [a.id, a]));
+    if (handleSupabaseError(rHistorial.error, res, 'Error al contar las prácticas')) return;
+    for (const h of rHistorial.data || []) (totalesPorAlumno[h.alumno_id] ||= []).push(h);
   }
-  if (vehiculoIds.length) {
-    const { data, error } = await supabase.from('vehiculos').select('id, nombre, matricula').in('id', vehiculoIds);
-    if (handleSupabaseError(error, res, 'Error al obtener los vehículos')) return;
-    vehiculosPorId = Object.fromEntries((data || []).map(v => [v.id, v]));
+  if (rVehiculos) {
+    if (handleSupabaseError(rVehiculos.error, res, 'Error al obtener los vehículos')) return;
+    vehiculosPorId = Object.fromEntries((rVehiculos.data || []).map(v => [v.id, v]));
   }
 
   const claseN = p => {

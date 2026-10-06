@@ -18,7 +18,7 @@ async function loadBonos() {
 
 function _nombreAlumnoBono(b) {
   const al = bonoAlumnosCache.find(x => x.id === b.alumno_id);
-  return al ? al.nombre : '—';
+  return al ? nombreCortoAlumno(al) : '—';
 }
 
 function renderBonosLista() {

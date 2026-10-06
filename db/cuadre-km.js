@@ -18,13 +18,16 @@
  *     usuario puede dar por revisado: no son errores, es otro uso del coche).
  *  5. Opcional: rellenar las clases sin km anteriores a la primera conocida
  *     (hacia atrás) o posteriores a la última (hacia delante).
+ *  6. «Encajar desde aquí» (proponerEncajeKm): cuando una clase se empezó con un km
+ *     antiguo y todas las siguientes se encadenaron mal, se coloca a continuación de
+ *     la clase anterior y se recalculan las siguientes con el baremo de km por clase.
  *
  * Todo se PREVISUALIZA (proponerCuadreKm) y se guarda EXACTAMENTE lo mostrado
  * (aplicarCuadreKm), con registro para poder deshacerlo (deshacerCuadreKm).
  * Las claves de huecos revisados viajan en ajustes_empresa (sincronizan solas).
  */
 
-const { load, save, addLog, _sync, hoyLocalISO, esPracticaEnCurso, esPracticaSinCerrar, clasesDePractica, fmtFechaLog } = require('./core');
+const { load, save, addLog, _sync, hoyLocalISO, esPracticaEnCurso, esPracticaSinCerrar, clasesDePractica, fmtFechaLog, nombreCorto } = require('./core');
 const { getAjusteEmpresa, setAjusteEmpresa } = require('./ajustes-empresa');
 
 const TOLERANCIA_HUECO = 15;     // km entre dos clases que son «normales» (el coche vuelve a la autoescuela, etc.)
@@ -37,7 +40,7 @@ const RECORTE_MAX = 0.4;         // un solape solo se recorta si quita como much
 const sinKm = p => !(p.km_inicial > 0) && !(p.km_final > 0);
 const ordenTiempo = (a, b) => (a.fecha || '').localeCompare(b.fecha || '') ||
   (a.hora_inicio || '99:99').localeCompare(b.hora_inicio || '99:99') || a.id - b.id;
-const nombreDe = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '?';
+const nombreDe = a => a ? nombreCorto(a) : '?';
 const mediana = xs => { if (!xs.length) return 0; const s = xs.slice().sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
 // Cuánto nos fiamos de los km de una clase (para decidir cuál ceder si chocan)
@@ -348,6 +351,151 @@ function proponerCuadreKm(vehiculo_id, opciones = {}) {
   return { vehiculo: { id: v.id, nombre: v.nombre, matricula: v.matricula || null }, cambios, huecos, avisos, resumen, errores: [] };
 }
 
+// ─── encajar a continuación de la clase anterior ────────────────────────────
+/**
+ * Caso típico: una clase se empezó con un km ANTIGUO (el móvil no sabía aún lo que habían
+ * hecho otros teléfonos, o se canceló una clase y otra siguió) y las clases de después se
+ * encadenaron desde ahí. Resultado: dos clases «ocupan» los mismos km y todas las siguientes
+ * quedan desplazadas.
+ *
+ * `proponerEncajeKm` coloca la clase elegida a continuación de la clase anterior del coche
+ * (su km inicial = el km final de la anterior) y recalcula con el baremo de km por clase las
+ * clases que vienen detrás, encadenadas. Solo cambia km: nunca fecha, hora, alumno ni profesor.
+ * Se previsualiza y se guarda con aplicarCuadreKm (con vista previa exacta y deshacer).
+ *
+ * opciones: { kmMin, kmMax, kmInicio, hasta: 'dia' | 'todas', conservarPrimera }
+ *   kmInicio  km donde empieza la clase elegida (por defecto, el final de la clase anterior)
+ *   hasta     'dia' = solo ese día (por defecto) · 'todas' = también los días siguientes
+ *   conservarPrimera  la clase elegida conserva lo que recorrió (por defecto sí)
+ */
+// Clase con km utilizables como referencia (aunque la cadena fiable la haya dejado fuera)
+const claseConKm = it => it.estado === 'valida' || it.estado === 'enorme' || it.estado === 'fuera';
+
+function proponerEncajeKm(vehiculo_id, practica_id, opciones = {}) {
+  const vacio = errores => ({ cambios: [], errores, avisos: [], clases: 0, km_total: 0 });
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  const v = d.vehiculos.find(x => x.id === vid);
+  if (!v) return vacio(['Vehículo no encontrado']);
+  const pid = parseInt(practica_id);
+  const opt = { kmMin: 40, kmMax: 45, kmInicio: null, hasta: 'dia', conservarPrimera: true, ...opciones };
+  const kmMin = Math.round(Number(opt.kmMin)), kmMax = Math.round(Number(opt.kmMax));
+  if (!(kmMin >= 1) || !(kmMax >= kmMin)) return vacio(['El baremo de km por clase no es válido: el máximo no puede ser menor que el mínimo.']);
+
+  const A = analizarCoche(d, vid);
+  const { items, lim } = A;
+  const pos = items.findIndex(it => it.id === pid);
+  if (pos < 0) return vacio(['No se encuentra esa clase en este coche.']);
+  const primera = items[pos];
+  if (primera.estado === 'abierta') return vacio(['Esa clase está en curso o sin cerrar: ciérrala antes de tocar sus km.']);
+
+  // Clase anterior con km coherentes (la más cercana en el tiempo)
+  let previa = null;
+  for (let i = pos - 1; i >= 0; i--) {
+    const it = items[i];
+    if (claseConKm(it) && it.ki0 > 0 && it.kf0 > it.ki0) { previa = it; break; }
+  }
+  let kmInicio = opt.kmInicio === null || opt.kmInicio === '' || opt.kmInicio === undefined ? null : Math.round(Number(opt.kmInicio));
+  if (kmInicio !== null && !(kmInicio > 0)) return vacio(['El km de partida no es válido.']);
+  if (kmInicio === null) {
+    if (!previa) return vacio(['Esta clase no tiene ninguna anterior con km en este coche: indica el km donde debe empezar.']);
+    kmInicio = previa.kf0;
+  }
+
+  // Clases que se rehacen: la elegida y las que van detrás (ese día o todas), hasta una clase abierta
+  const tramo = [];
+  for (let i = pos; i < items.length; i++) {
+    const it = items[i];
+    if (it.estado === 'abierta') break;
+    if (opt.hasta !== 'todas' && it.fecha !== primera.fecha) break;
+    tramo.push(it);
+  }
+
+  const cambios = [];
+  const alumno = id => nombreDe(d.alumnos.find(a => a.id === id));
+  let cursor = kmInicio;
+  tramo.forEach((it, i) => {
+    let km;
+    const propios = it.kf0 - it.ki0;
+    if (i === 0 && opt.conservarPrimera && claseConKm(it) && it.ki0 > 0 && propios > 0 && propios / it.peso <= lim.max) km = propios;
+    else km = Math.max(1, Math.round(Math.round(Math.random() * (kmMax - kmMin) + kmMin) * it.peso));
+    const ki = cursor, kf = cursor + km;
+    cursor = kf;
+    if (ki === it.ki0 && kf === it.kf0) return;
+    cambios.push({
+      practica_id: it.id, alumno: alumno(it.p.alumno_id), fecha: it.fecha, hora_inicio: it.hora,
+      antes: { km_inicial: it.ki0, km_final: it.kf0 }, despues: { km_inicial: ki, km_final: kf },
+      tipo: 'encajar',
+      motivo: i === 0
+        ? `Empieza en el km ${kmInicio}${previa && kmInicio === previa.kf0 ? ', donde terminó la clase anterior' : ''}`
+        : 'Sigue a la clase anterior con el baremo de km por clase'
+    });
+  });
+
+  // ¿Se pasa del km donde empieza la clase conocida que viene después?
+  const ultimaPos = pos + tramo.length - 1;
+  const avisos = [];
+  let siguiente = null;
+  for (let i = ultimaPos + 1; i < items.length; i++) {
+    const it = items[i];
+    if ((claseConKm(it) || it.estado === 'abierta') && it.ki0 > 0) { siguiente = it; break; }
+  }
+  if (siguiente && cursor > siguiente.ki0) {
+    avisos.push({
+      tipo: 'pisa_siguiente', km: cursor - siguiente.ki0,
+      texto: `Con el baremo, la última clase acabaría en el km ${cursor}, pero la siguiente clase del coche (${alumno(siguiente.p.alumno_id)}, ${fmtFechaLog(siguiente.fecha)}${siguiente.hora ? ' ' + siguiente.hora : ''}) empieza en el km ${siguiente.ki0}: se pisarían ${cursor - siguiente.ki0} km. `
+        + (opt.hasta === 'todas' ? 'Revisa esa clase después.' : 'Puedes rehacer también los días siguientes o revisar esa clase después.')
+    });
+  }
+
+  return {
+    vehiculo: { id: v.id, nombre: v.nombre, matricula: v.matricula || null },
+    cambios, avisos, errores: [],
+    clases: tramo.length, km_total: cursor - kmInicio, km_inicio: kmInicio, km_fin: cursor,
+    previa: previa ? { practica_id: previa.id, alumno: alumno(previa.p.alumno_id), fecha: previa.fecha, hora_inicio: previa.hora, km_final: previa.kf0 } : null,
+    elegida: { practica_id: primera.id, alumno: alumno(primera.p.alumno_id), fecha: primera.fecha, hora_inicio: primera.hora, km_inicial: primera.ki0, km_final: primera.kf0 }
+  };
+}
+
+/**
+ * Clases que empiezan POR DEBAJO del km donde terminó la clase anterior del coche (en el tiempo):
+ * lo habitual cuando una clase se empezó con un km antiguo. Son los candidatos a «Encajar desde aquí».
+ * Solo lectura. [{ practica_id, alumno, fecha, hora_inicio, km_inicial, solape, previa:{...} }]
+ */
+function getEncajesKm(vehiculo_id) {
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  if (!d.vehiculos.some(x => x.id === vid)) return [];
+  const { items } = analizarCoche(d, vid);
+  const alumno = id => nombreDe(d.alumnos.find(a => a.id === id));
+  const out = [];
+  let ant = null;
+  for (const it of items) {
+    if (!(claseConKm(it) && it.ki0 > 0 && it.kf0 > it.ki0)) continue;
+    // Los solapes pequeños los recorta el cuadre normal; aquí solo los que no se arreglan recortando
+    if (ant && it.ki0 < ant.kf0 && ant.kf0 - it.ki0 > RECORTE_MAX * Math.min(ant.kf0 - ant.ki0, it.kf0 - it.ki0)) {
+      out.push({
+        practica_id: it.id, alumno: alumno(it.p.alumno_id), fecha: it.fecha, hora_inicio: it.hora, km_inicial: it.ki0, km_final: it.kf0,
+        solape: ant.kf0 - it.ki0,
+        previa: { practica_id: ant.id, alumno: alumno(ant.p.alumno_id), fecha: ant.fecha, hora_inicio: ant.hora, km_final: ant.kf0 }
+      });
+    }
+    ant = it;
+  }
+  return out;
+}
+
+/** Últimas clases del coche (para elegir a mano desde cuál encajar). Más recientes primero. */
+function getClasesCocheKm(vehiculo_id, limite = 80) {
+  const d = load();
+  const vid = parseInt(vehiculo_id);
+  if (!d.vehiculos.some(x => x.id === vid)) return [];
+  const hoy = hoyLocalISO();
+  return d.practicas.filter(p => !p.deleted && p.vehiculo_id === vid && !esPracticaEnCurso(p, hoy) && !esPracticaSinCerrar(p, hoy))
+    .sort((a, b) => ordenTiempo(b, a)).slice(0, Math.max(1, limite))
+    .map(p => ({ practica_id: p.id, alumno: nombreDe(d.alumnos.find(a => a.id === p.alumno_id)), fecha: p.fecha, hora_inicio: p.hora_inicio || null, km_inicial: p.km_inicial || 0, km_final: p.km_final || 0 }));
+}
+
 // ─── aplicar / deshacer ─────────────────────────────────────────────────────
 /**
  * Guarda EXACTAMENTE los cambios previsualizados. Solo toca las clases que
@@ -519,6 +667,7 @@ function getResumenCuadreKm() {
 
 module.exports = {
   proponerCuadreKm, aplicarCuadreKm, deshacerCuadreKm, getCuadresKm, quitarKmClase,
+  proponerEncajeKm, getEncajesKm, getClasesCocheKm,
   marcarHuecoRevisado, getHuecosRevisados: getRevisados, getResumenCuadreKm,
   mapaContinuidad, TOLERANCIA_HUECO,
   _analizarCoche: analizarCoche, _repartirKm: repartirKm,

@@ -29,6 +29,20 @@ export default async function handler(req, res) {
   // básico). minutos_sobrantes: lo acumulado de clases por minutos (migración
   // 2026-10-02); n_registro: el nº de registro del alumno (2026-10-03).
   const COLS = 'id, nombre, permiso, vehiculo_id, profesor_id, primer_apellido, segundo_apellido, estado, fecha_alta, clases_previas, km_previos';
+  // Con ?resumen=1 las prácticas se piden a la vez que los alumnos (antes, una detrás de otra)
+  const conResumen = !!(req.query && req.query.resumen);
+  const practicas = cols => traerTodo(() => supabase
+    .from('practicas')
+    .select(cols)
+    .eq('deleted', false).eq('empresa_id', auth.empresaId)
+    .order('id'));
+  const pedirPracticas = async () => {
+    let r = await practicas('id, alumno_id, fecha, km_inicial, km_final, fraccion');
+    if (r.error && esErrorColumnaInexistente(r.error)) r = await practicas('id, alumno_id, fecha, km_inicial, km_final');
+    return r;
+  };
+  const promesaPracticas = conResumen ? pedirPracticas() : null;
+  if (promesaPracticas) promesaPracticas.catch(() => {});   // si los alumnos fallan antes, no queda un rechazo suelto
   let { data, error } = await consulta(COLS + ', minutos_sobrantes, n_registro');
   if (error && esErrorColumnaInexistente(error)) ({ data, error } = await consulta(COLS + ', minutos_sobrantes'));
   if (error && esErrorColumnaInexistente(error)) ({ data, error } = await consulta(COLS));
@@ -41,16 +55,10 @@ export default async function handler(req, res) {
   if (handleSupabaseError(error, res, 'Error al obtener alumnos')) return;
   let alumnos = data || [];
 
-  if (req.query && req.query.resumen && alumnos.length) {
+  if (conResumen && alumnos.length) {
     // Paginado: PostgREST corta en 1.000 filas y antes los recuentos salían
     // mal en cuanto la empresa pasaba de 1.000 prácticas.
-    const practicas = cols => traerTodo(() => supabase
-      .from('practicas')
-      .select(cols)
-      .eq('deleted', false).eq('empresa_id', auth.empresaId)
-      .order('id'));
-    let { data: prs, error: errP } = await practicas('id, alumno_id, fecha, km_inicial, km_final, fraccion');
-    if (errP && esErrorColumnaInexistente(errP)) ({ data: prs, error: errP } = await practicas('id, alumno_id, fecha, km_inicial, km_final'));
+    const { data: prs, error: errP } = await promesaPracticas;
     if (handleSupabaseError(errP, res, 'Error al resumir las prácticas')) return;
     const resumen = {};
     for (const p of prs || []) {

@@ -79,6 +79,8 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   body { font-family: var(--font); background: var(--bg); color: var(--ink); min-height: 100dvh; -webkit-font-smoothing: antialiased; overscroll-behavior-y: none; font-size: 16px; line-height: 1.35; }
   body.oscuro { background: var(--curso-bg); color: #F3F2EE; }
   button { font-family: inherit; color: inherit; cursor: pointer; }
+  /* Sin el retraso ni el zoom del doble toque: un botón responde al primer toque */
+  button, a, label, select, summary, input[type=checkbox], input[type=radio] { touch-action: manipulation; }
   input, select, textarea { font-family: inherit; font-size: 16px; color: var(--ink); }
   [hidden] { display: none !important; }
   .mono { font-family: var(--font-mono); font-weight: 500; }
@@ -138,7 +140,8 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .cab-tit h1 { font-family: var(--font-display); font-size: 32px; font-weight: 700; line-height: 1; }
   .cab-atras { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; background: none; border: none; flex-shrink: 0; }
   .fecha-lin { font-size: 15px; color: var(--muted); font-weight: 500; display: flex; align-items: center; gap: 4px; }
-  .fecha-lin button { background: none; border: none; color: var(--muted); padding: 2px 4px; display: inline-flex; }
+  .fecha-lin button { background: none; border: none; color: var(--muted); padding: 12px 14px; margin: -12px -6px; display: inline-flex; border-radius: 12px; }
+  .fecha-lin button:active { background: var(--soft); color: var(--ink); transform: scale(.92); }
   .grande { font-family: var(--font-display); font-size: 44px; font-weight: 700; line-height: 1; }
   .avatar { width: 44px; height: 44px; border-radius: 999px; background: var(--oscura); color: var(--amber); border: none; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 19px; font-weight: 700; flex-shrink: 0; }
   .ini { width: 44px; height: 44px; border-radius: 999px; background: var(--soft); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 18px; font-weight: 700; flex-shrink: 0; }
@@ -335,6 +338,12 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .vacio { text-align: center; color: var(--muted); padding: 26px 14px; font-size: 16px; }
   .vacio small { display: block; margin-top: 4px; color: var(--faint); font-size: 14px; }
   .cargando { text-align: center; color: var(--muted); padding: 24px; }
+  /* Mientras llega el día que se acaba de pedir: filas grises que laten (Hoy se pinta al instante) */
+  .esqueleto { display: grid; gap: 10px; margin-top: 18px; }
+  .esqueleto i { display: block; height: 62px; border-radius: 16px; background: var(--soft); animation: latido 1s ease-in-out infinite alternate; }
+  .esqueleto i:nth-child(2) { animation-delay: .15s; } .esqueleto i:nth-child(3) { animation-delay: .3s; }
+  @keyframes latido { from { opacity: .45; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .esqueleto i { animation: none; } }
 
   /* ── HISTORIAL EN CALENDARIO ── */
   .cal-hist .cal-dias { row-gap: 4px; column-gap: 2px; }
@@ -709,7 +718,7 @@ async function vaciarCola(manual = false) {
   if (r.enviadas) {
     toast(r.enviadas === 1 ? 'Enviada 1 operación pendiente.' : `Enviadas ${r.enviadas} operaciones pendientes.`, 3200);
     if (S.cal) S.cal.cache = {};
-    await cargarBase(); await cargarJornada();
+    await cargarTodo();
     if (S.vista === 'hoy') renderHoy(); else if (S.vista === 'alumnos') renderAlumnos();
     renderRiel();
   }
@@ -818,7 +827,7 @@ async function hojaPendientes() {
 async function descartarOp(id) {
   if (!confirm('Esta clase no se enviará y se perderá. ¿Descartarla?')) return;
   await OFF.cola.quitar(id); await refrescarPendientes();
-  await cargarBase(); await cargarJornada(); if (S.vista === 'hoy') renderHoy(); renderRiel();
+  await cargarTodo(); if (S.vista === 'hoy') renderHoy(); renderRiel();
   hojaPendientes();
 }
 async function reintentarOp(id) {
@@ -1279,17 +1288,39 @@ async function pedirJornada(fecha) {
   if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar la jornada');
   return { practicas: data.practicas, sin_cerrar: data.sin_cerrar || [], reservas: data.reservas };
 }
+// Jornadas ya vistas, por perfil y día: al cambiar de día se enseña al instante lo último
+// que se sabía de él y se refresca detrás (antes cada toque en una flecha esperaba 4-5 s).
+S.cacheDia = new Map(); S.cargaJ = 0; S.cargaDia = 0;
+const jornadaVacia = cargando => ({ practicas: [], sin_cerrar: [], reservas: [], cargando: !!cargando });
+const claveDia = f => (S.perfil && S.perfil.id ? S.perfil.id : 'sin') + '|' + f;
+const copiaJornada = j => JSON.parse(JSON.stringify(j));
+function guardarDiaEnCache(fecha, j) {
+  S.cacheDia.set(claveDia(fecha), { t: Date.now(), data: copiaJornada(j) });
+  while (S.cacheDia.size > 40) S.cacheDia.delete(S.cacheDia.keys().next().value);
+}
+const diaEnCache = fecha => { const c = S.cacheDia.get(claveDia(fecha)); return c ? copiaJornada(c.data) : null; };
 async function cargarJornada() {
   actualizarHoy();
+  const fecha = S.fecha, hoy = S.hoy, mio = ++S.cargaJ, verHoy = fecha === hoy;
   try {
-    S.jornada = await pedirJornada(S.fecha);
-    S.jornadaHoy = S.fecha === S.hoy ? S.jornada : await pedirJornada(S.hoy);
-  } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message || 'No se pudo cargar la jornada'); }
+    // El día que se mira y el de hoy (el del riel) se piden a la vez, no uno detrás de otro
+    const [dia, delHoy] = await Promise.all([pedirJornada(fecha), verHoy ? null : pedirJornada(hoy)]);
+    guardarDiaEnCache(fecha, dia); if (!verHoy) guardarDiaEnCache(hoy, delHoy);
+    if (mio !== S.cargaJ) return;   // se pidió otra carga más reciente: la suya manda
+    S.jornadaHoy = verHoy ? dia : delHoy;
+    if (fecha === S.fecha) S.jornada = verHoy ? S.jornadaHoy : dia;
+  } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message || 'No se pudo cargar la jornada'); if (S.jornada.cargando) S.jornada.cargando = false; }
   sobreponerJornada();
   // Una práctica en curso que este teléfono no empezó (la del profesor en su
   // propia tablet, vista desde el perfil de ese profesor en otro teléfono) NO
   // se adopta sola: antes se metía aquí, bloqueaba el cambio de perfil y traía
   // sus avisos. Sale en Hoy con «Seguir en este teléfono».
+}
+// Datos base y jornada a la vez (antes, una carga detrás de otra)
+const cargarTodo = () => Promise.all([cargarBase(), cargarJornada()]);
+// Los datos base se refrescan detrás: quien mira la pantalla no espera
+function cargarBaseDetras() {
+  cargarBase().then(() => { if (S.vista === 'hoy') renderHoy(); else if (S.vista === 'alumnos') renderAlumnos(); renderRiel(); }).catch(() => {});
 }
 function flujoDesdePractica(p) {
   const inicioMs = (() => { if (!p.hora_inicio || p.fecha !== S.hoy) return Date.now(); const [h, m] = p.hora_inicio.split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); return d.getTime(); })();
@@ -1335,8 +1366,9 @@ const zonasTxt = z => (z && z.length ? z.join(' · ') : '');
 // cambiar de día: datos nuevos del escritorio (alumnos, asignaciones, zonas).
 async function refrescar({ silencioso = true } = {}) {
   if (!S.perfil) return;
-  await cargarBase(); await cargarJornada();
+  await cargarTodo();
   vaciarCola();
+  comprobarFlujoRemoto();
   if (S.vista === 'hoy') renderHoy();
   else if (S.vista === 'alumnos') renderAlumnos();
   else if (S.vista === 'historial') { if (S.cal) S.cal.cache = {}; cargarCalendario(); }
@@ -1394,11 +1426,11 @@ async function entrarApp() {
   history.replaceState({ vista: 'hoy' }, '');
   go('hoy', { sinHistorial: true });
   await refrescarPendientes();
-  await cargarBase();
-  await cargarJornada();
+  await cargarTodo();
   if (S.vista === 'hoy') renderHoy();
   renderRiel();
   cargarMiFirma().then(() => { if (S.vista === 'hoy' && S.miFirma === false) renderHoy(); });
+  comprobarFlujoRemoto();
   refrescarSuscripcion().then(() => { if (flujoActivo() && S.flujo.practica_id) avisosPractica('reprogramar'); });
   vaciarCola();
   // Atajo «Nueva práctica» del icono de la app (mantener pulsado el icono)
@@ -1441,6 +1473,7 @@ function cardVehiculo(sel = true) {
 function renderHoy() {
   const r = resumenJornada();
   const esHoy = S.fecha === S.hoy;
+  const cargando = !!S.jornada.cargando;
   const perfilIni = iniciales(S.perfil ? S.perfil.nombre : '?');
   let html = `<div class="cab"><div>
       <div class="fecha-lin"><button onclick="cambiarDia(-1)" aria-label="Día anterior">${ic('chevIzq', 18)}</button>${esc(fechaLarga(S.fecha))}<button onclick="cambiarDia(1)" aria-label="Día siguiente">${ic('chev', 18)}</button></div>
@@ -1459,7 +1492,8 @@ function renderHoy() {
   html += cardVehiculo(esHoy);
   html += `<div style="margin-top:16px"><div class="prog-lin"><span>${r.cerradas.length} de ${r.total} ${r.total === 1 ? 'clase' : 'clases'} ${r.cerradas.length === 1 ? 'hecha' : 'hechas'}</span><span><b class="mono">${miles(r.km)}</b> <span style="font-weight:500;color:var(--muted)">km ${esHoy ? 'hoy' : ''}</span></span></div>${segmentos(r)}</div>`;
 
-  if (esHoy) {
+  if (cargando) html += '<div class="esqueleto" aria-busy="true" aria-label="Cargando el día"><i></i><i></i><i></i></div>';
+  else if (esHoy) {
     // Sin cerrar de días anteriores y práctica en curso
     const enCurso = r.enCurso[0];
     const sinCerrar = S.jornada.sin_cerrar[0];
@@ -1484,18 +1518,18 @@ function renderHoy() {
   }
 
   const resto = esHoy && !r.enCurso.length && !S.jornada.sin_cerrar.length ? r.pend.slice(1) : r.pend;
-  if (resto.length) {
+  if (!cargando && resto.length) {
     html += `<div class="grupo-tit"><span>${esHoy ? 'Más tarde' : 'Agenda'}</span></div><div class="card">` + resto.map(rv =>
       `<button class="fila" ${esHoy ? `onclick="abrirIniciar({alumno_id:${rv.alumno_id},vehiculo_id:${rv.vehiculo_id || 'null'},n_clases:${nDeReserva(rv)}})"` : ''}><span class="fila-hora">${esc(rv.hora_inicio || '--:--')}</span>
         <div style="flex:1;min-width:0"><div class="fila-tit">${esc(rv.alumno_nombre || 'Alumno')}</div><div class="fila-sub">${esc(rv.nota || (rv.matricula ? rv.matricula : 'Práctica'))}${rv.duracion_min ? ' · ' + rv.duracion_min + ' min' : ''}</div></div>${esHoy ? ic('chev', 20, 'style="color:var(--faint)"') : ''}</button>`).join('') + '</div>';
   }
-  if (r.cerradas.length) {
+  if (!cargando && r.cerradas.length) {
     html += `<div class="grupo-tit"><span>Completadas</span><button onclick="go('historial')">Ver calendario</button></div><div class="card">` + agruparSesiones(r.cerradas).reverse().map(p =>
       `<button class="fila" onclick="${p.local ? 'hojaPendientes()' : p.firmada ? `abrirDetalle(${p.id})` : `continuarPractica(${p.id})`}"><span class="fila-hora">${esc(p.hora_inicio || '--:--')}</span>
         <div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div><div class="fila-sub mono">${p.n !== 1 ? `<b style="color:var(--ink)">${clasesTxt(p.n)}</b> · ` : ''}${miles(p.km_inicial)} → ${miles(p.km_final)} · ${p.km} km</div></div>
         ${p.local ? `<span class="pill pill-info">${ic('reloj', 14)} Por enviar${p.firmada ? '' : ' · sin firma'}</span>` : p.firmada ? `<span class="pill pill-ok">${ic('ok', 14, 'style="stroke-width:2.6"')} Firmada</span>` : '<span class="pill pill-warn">Sin firmar</span>'}</button>`).join('') + '</div>';
   }
-  if (!r.total && !S.jornada.sin_cerrar.length && !esHoy) html += '<div class="vacio">Sin clases este día.</div>';
+  if (!cargando && !r.total && !S.jornada.sin_cerrar.length && !esHoy) html += '<div class="vacio">Sin clases este día.</div>';
   if (!esHoy && S.fecha < S.hoy && S.fecha >= sumaDias(S.hoy, -DIAS_ANOTAR)) html += `<button class="btn btn-sec" style="margin-top:14px" onclick="abrirAnotar({fecha:'${S.fecha}',volverA:'hoy'})">${ic('mas', 20)} Anotar una clase de este día</button>`;
   else if (esHoy) html += `<button class="lnk lnk-suave lnk-olvido" onclick="abrirAnotar({volverA:'hoy'})">${ic('hist', 18)} ¿Se te olvidó anotar una clase? Anotar clase pasada</button>`;
   document.getElementById('v-hoy').innerHTML = html;
@@ -1513,11 +1547,48 @@ function agruparSesiones(lista) {
   }
   return grupos.map(g => ({ ...g[0], ids: g.map(x => x.id), n: g.reduce((t, x) => t + (x.nLocal || x.fraccion || 1), 0), km_final: g[g.length - 1].km_final, hora_fin: g[g.length - 1].hora_fin, km: g.reduce((t, x) => t + (x.km || 0), 0) }));
 }
-async function cambiarDia(n) {
+// Las flechas del día responden al instante: la fecha cambia y se pinta lo último que se sabía de ese
+// día (o filas grises); los datos nuevos llegan detrás. Con varios toques seguidos solo se pide el
+// último día y una respuesta antigua nunca pisa a una más reciente.
+function cambiarDia(n) {
   actualizarHoy();
   S.fecha = n === 0 ? S.hoy : sumaDias(S.fecha, n);
-  document.getElementById('v-hoy').querySelector('.grande')?.classList.add('opaco');
-  await cargarJornada(); renderHoy(); renderRiel();
+  const guardado = S.fecha === S.hoy && S.jornadaHoy && !S.jornadaHoy.cargando ? S.jornadaHoy : diaEnCache(S.fecha);
+  S.jornada = guardado || jornadaVacia(true);
+  if (S.vista === 'hoy') renderHoy();
+  clearTimeout(S.tDia);
+  S.tDia = setTimeout(cargarDia, guardado ? 0 : 140);
+}
+async function cargarDia() {
+  const fecha = S.fecha, mio = ++S.cargaDia;
+  try {
+    const j = await pedirJornada(fecha);
+    guardarDiaEnCache(fecha, j);
+    if (mio !== S.cargaDia || fecha !== S.fecha) return;   // se tocó otra flecha mientras llegaba
+    S.jornada = j; if (fecha === S.hoy) S.jornadaHoy = j;
+    sobreponerJornada();
+    if (S.vista === 'hoy') renderHoy();
+    renderRiel();
+    precargarDias(fecha);
+    // La jornada de hoy (la del riel) se renueva detrás si lleva un rato sin actualizarse
+    if (fecha !== S.hoy) { const c = S.cacheDia.get(claveDia(S.hoy)); if (!c || Date.now() - c.t > 60000) pedirJornada(S.hoy).then(h => { guardarDiaEnCache(S.hoy, h); S.jornadaHoy = h; sobreponerJornada(); renderRiel(); }).catch(() => {}); }
+  } catch (e) {
+    if (mio !== S.cargaDia) return;
+    if (S.jornada.cargando) { S.jornada.cargando = false; if (S.vista === 'hoy') renderHoy(); }
+    if (e.message !== 'Sesión expirada') toast(e.message || 'No se pudo cargar la jornada');
+  }
+}
+// Los días de al lado se piden con calma, para que la flecha siguiente también sea instantánea
+function precargarDias(fecha) {
+  clearTimeout(S.tPre);
+  S.tPre = setTimeout(() => {
+    if (!hayRed() || document.hidden || S.fecha !== fecha) return;
+    for (const f of [sumaDias(fecha, -1), sumaDias(fecha, 1)]) {
+      const c = S.cacheDia.get(claveDia(f));
+      if (c && Date.now() - c.t < 60000) continue;
+      pedirJornada(f).then(j => guardarDiaEnCache(f, j)).catch(() => {});
+    }
+  }, 600);
 }
 
 function menuPerfil() {
@@ -1620,6 +1691,7 @@ function abrirIniciar(op = {}) {
     zonas: [], n_clases: Math.min(MAX_CLASES, op.n_clases || nClasesGuardado())
   };
   go('iniciar');
+  actualizarKmCoches();
   // Sin alumno elegido (no viene de una reserva o de su ficha), la lista sale
   // ya abierta: es lo primero que hay que hacer y así no se olvida.
   if (!S.iniciar.alumno_id && S.alumnos.length) elegirAlumnoIniciar();
@@ -1670,12 +1742,45 @@ function renderIniciar() {
       <button class="lnk lnk-suave" onclick="abrirAnotar({alumno_id:S.iniciar.alumno_id,volverA:'hoy'})">¿Ya la diste otro día y se te olvidó? Anotar clase pasada</button></div>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-empezar" onclick="empezarPractica()" ${al && v && parseInt(I.km) > 0 ? '' : 'disabled'}>${ic('play', 18)} Empezar práctica</button></div>`;
 }
+function pintarMsgContinuidad() {
+  const c = msgContinuidad(S.iniciar.vehiculo_id, S.iniciar.km);
+  const m = document.getElementById('msg-cont'); if (m) { m.className = 'msg ' + c.cls; m.innerHTML = (c.ok ? ic('ok', 20) : '') + `<span>${c.txt}</span>`; }
+}
+// El teléfono puede tener datos viejos (otro móvil guardó o canceló una clase mientras tanto): al abrir
+// «Iniciar» se vuelve a pedir el último km de los coches y, si no se ha tocado, se pone el correcto.
+async function actualizarKmCoches() {
+  const I = S.iniciar;
+  if (!I || !hayRed()) return;
+  try {
+    const res = await apiFetch('/api/vehiculos');
+    if (!res.ok || res.headers.get('x-desde-cache')) return;
+    const lista = await res.json(); if (!Array.isArray(lista)) return;
+    const antes = kmSugerido(I.vehiculo_id);
+    S.vehiculos = lista;
+    for (const op of S.pend) {   // lo pendiente de enviar también cuenta en el último km del coche
+      const e = op.etiqueta; if (!e || op.fallida || (op.tipo !== 'registrar' && op.tipo !== 'finalizar') || !e.km_final) continue;
+      const v = vehiculo(e.vehiculo_id); if (v) { v.km_actual = Math.max(v.km_actual || 0, e.km_final); v.ultimo = { km_final: e.km_final, hora: e.hora_inicio || null, alumno: e.alumno || null, fecha: e.fecha }; }
+    }
+    if (S.vista !== 'iniciar' || S.iniciar !== I) return;
+    const ahora = kmSugerido(I.vehiculo_id);
+    const tecleando = document.activeElement && document.activeElement.id === 'km-ini';
+    if (ahora !== antes && String(I.km) === String(antes || '') && !tecleando) { I.km = String(ahora || ''); renderIniciar(); toast(`Km del coche al día: ${miles(ahora)}`, 3000); }
+    else pintarMsgContinuidad();
+  } catch { /* sin datos nuevos se sigue con los que había */ }
+}
+function hojaKmMenor(d, km) {
+  abrirHoja(`<div class="hoja-tit"><h3>El km no encaja</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
+    <div class="card card-pad"><div class="msg msg-warn" style="margin-top:0">${ic('aviso', 20)}<span>${esc(d.error)}</span></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+        <button class="btn btn-pri btn-lg" onclick="cerrarHoja();S.iniciar.km='${parseInt(d.km_final_anterior) || ''}';empezarPractica()">${ic('play', 18)} Empezar en el km ${miles(d.km_final_anterior)}</button>
+        <button class="btn btn-sec" onclick="cerrarHoja();empezarPractica(true)">Empezar con el km ${miles(km)} (lo marca el coche)</button>
+        <button class="lnk" onclick="cerrarHoja()">Revisar el número</button></div></div>`);
+}
 function tecleaKmIni(inp) {
   inp.value = inp.value.replace(/\D/g, '').slice(0, 7);
   S.iniciar.km = inp.value;
   document.querySelector('#v-iniciar .odo').firstElementChild.outerHTML = digitos(inp.value);
-  const c = msgContinuidad(S.iniciar.vehiculo_id, inp.value);
-  const m = document.getElementById('msg-cont'); m.className = 'msg ' + c.cls; m.innerHTML = (c.ok ? ic('ok', 20) : '') + `<span>${c.txt}</span>`;
+  pintarMsgContinuidad();
   document.getElementById('btn-empezar').disabled = !(S.iniciar.alumno_id && S.iniciar.vehiculo_id && parseInt(inp.value) > 0);
 }
 function toggleZonaIniciar(i) {
@@ -1694,15 +1799,18 @@ function elegirAlumnoIniciar() {
   });
   elegirAlumnoIniciar._orden = orden;
   abrirHoja(`<div class="hoja-tit"><h3>Alumno</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
-    <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca-al" placeholder="Buscar por nombre o nº" oninput="filtrarHojaAlumnos(this.value)" autocomplete="off"></div>
+    <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca-al" placeholder="Buscar por nombre o nº" oninput="clearTimeout(window._tHoja);window._tHoja=setTimeout(()=>filtrarHojaAlumnos(this.value),70)" autocomplete="off"></div>
     <div class="hoja-lista card" id="hoja-alumnos"></div>`);
   filtrarHojaAlumnos('');
 }
 function filtrarHojaAlumnos(q) {
   q = (q || '').trim();
-  const lista = (elegirAlumnoIniciar._orden || []).filter(a => q ? coincideAlumno(a, q) : !alumnoTerminado(a));
-  document.getElementById('hoja-alumnos').innerHTML = lista.length ? lista.map(a =>
+  const todos = (elegirAlumnoIniciar._orden || []).filter(a => q ? coincideAlumno(a, q) : !alumnoTerminado(a));
+  const lista = todos.slice(0, 60), resto = todos.length - lista.length;
+  const caja = document.getElementById('hoja-alumnos'); if (!caja) return;
+  caja.innerHTML = lista.length ? lista.map(a =>
     `<button class="fila-alumno" onclick="fijarAlumnoIniciar(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">${nRegTxt(a)}Permiso ${esc(a.permiso)} · ${fmtC(clasesAlumno(a))} ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'}</div></div>${S.perfil && a.profesor_id === S.perfil.id ? '<span class="pill">Tuyo</span>' : ''}</button>`).join('')
+      + (resto > 0 ? `<div class="vacio"><small>Hay ${resto} alumnos más: escribe su nombre o nº para buscarlos.</small></div>` : '')
     : '<div class="vacio">Ningún alumno coincide.</div>';
 }
 function fijarAlumnoIniciar(id) {
@@ -1718,12 +1826,13 @@ function fijarAlumnoIniciar(id) {
   renderIniciar();
 }
 
-async function empezarPractica() {
+async function empezarPractica(forzar = false) {
   const I = S.iniciar; const btn = document.getElementById('btn-empezar');
   const km = parseInt(I.km);
   if (!I.alumno_id || !I.vehiculo_id || !(km > 0)) return;
   const c = msgContinuidad(I.vehiculo_id, km);
-  if (c.cls === 'msg-err' && !confirm('El km inicial es menor que el final de la práctica anterior. ¿Empezar igualmente?')) return;
+  // Con cobertura lo comprueba el servidor con los datos al día (y pregunta con opciones); sin ella, solo se puede avisar aquí
+  if (!forzar && !hayRed() && c.cls === 'msg-err' && !confirm('El km inicial es menor que el final de la práctica anterior. ¿Empezar igualmente?')) return;
   // Un dígito de más al teclear dejaría el cuentakilómetros del coche roto: se pide confirmar los saltos grandes
   const ult = (vehiculo(I.vehiculo_id) || {}).ultimo;
   if (ult && ult.km_final && km - ult.km_final > 300 && !confirm(`El km que has puesto (${miles(km)}) es ${miles(km - ult.km_final)} km más que el final de la última práctica de este coche (${miles(ult.km_final)}). ¿Es correcto?`)) return;
@@ -1733,11 +1842,12 @@ async function empezarPractica() {
   try {
     const res = await postJSON('/api/iniciar-practica', {
       alumno_id: I.alumno_id, vehiculo_id: I.vehiculo_id, km_inicial: km, tipo: 'circulacion', zonas: I.zonas,
-      fecha: fechaLocal(ahora), hora_inicio: hhmm(ahora), profesor_id: S.perfil ? S.perfil.id : null
+      fecha: fechaLocal(ahora), hora_inicio: hhmm(ahora), profesor_id: S.perfil ? S.perfil.id : null, ...(forzar ? { forzar: true } : {})
     });
     const data = await res.json();
     if (!res.ok || !data.ok) {
       if (res.status === 409 && data.practica_id) { toast(data.error); await cargarJornada(); go('hoy'); return; }
+      if (res.status === 409 && data.codigo === 'km_menor_anterior') { btn.disabled = false; btn.innerHTML = ic('play', 18) + ' Empezar práctica'; hojaKmMenor(data, km); return; }
       throw new Error(data.error || 'No se pudo empezar la práctica');
     }
     const al = alumno(I.alumno_id), v = vehiculo(I.vehiculo_id);
@@ -2037,8 +2147,14 @@ async function continuarPractica(id) {
   if (S.flujo && S.flujo.local) { toast('Termina primero la práctica en curso.'); go(S.flujo.cerrada ? 'firma' : 'curso'); return; }
   if (!S.flujo || S.flujo.practica_id !== id) {
     if (flujoActivo()) { toast('Termina primero la práctica en curso.'); go('curso'); return; }
-    if (!p.km_final && deOtroProfesor(p) && !confirm(`Esta clase es de ${nombreProfesor(p.profesor_id) || 'otro profesor'} y se está dando desde otro teléfono. ¿Seguirla en este? (No recibirás sus avisos.)`)) return;
-    S.flujo = flujoDesdePractica(p); guardarFlujo();
+    // Una clase en marcha en otro teléfono (cronómetro, km y firma están allí): tomarla aquí es posible, pero
+    // el otro teléfono no se entera. Se avisa siempre, y la clase solo debe cerrarse en uno de los dos.
+    const enMarcha = !p.km_final && !p.sin_cerrar && !p.local;
+    if (enMarcha) {
+      const de = deOtroProfesor(p) ? ` de ${nombreProfesor(p.profesor_id) || 'otro profesor'}` : '';
+      if (!confirm(`Esta clase${de} está en marcha en OTRO teléfono (el cronómetro, el km y la firma están allí).\n\nSi la sigues en este, el otro no lo sabrá: ciérrala solo en uno de los dos. No recibirás sus avisos.\n\n¿Seguirla en este teléfono?`)) return;
+    } else if (!p.km_final && deOtroProfesor(p) && !confirm(`Esta clase es de ${nombreProfesor(p.profesor_id) || 'otro profesor'} y se está dando desde otro teléfono. ¿Seguirla en este? (No recibirás sus avisos.)`)) return;
+    S.flujo = flujoDesdePractica(p); if (enMarcha) S.flujo.deOtroTelefono = true; guardarFlujo();
   }
   if (p.km_final) {
     const J = S.jornada.practicas.some(x => x.id === id) ? S.jornada : S.jornadaHoy;
@@ -2053,6 +2169,74 @@ async function continuarPractica(id) {
   avisosPractica('reprogramar');
 }
 function pararTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } }
+
+// ─── DOS TELÉFONOS CON LA MISMA CLASE ────────────────────────────────────────
+// Si otro teléfono cancela o cierra la clase que este tiene en marcha, hay que enterarse ANTES de seguir:
+// el cronómetro seguiría corriendo sobre algo que ya no existe y los km acabarían mal. Se comprueba al
+// volver a la app, cada minuto con la clase abierta y al pulsar «Finalizar». Si la cancelaron, se ofrece
+// guardarla igualmente con los km de este teléfono (pasa a ser una clase «local», como las de sin cobertura).
+async function comprobarFlujoRemoto() {
+  const F = S.flujo;
+  if (!flujoActivo() || F.local || !F.practica_id || F.cancelada || !hayRed() || S.comprobandoFlujo) return;
+  S.comprobandoFlujo = true;
+  try {
+    const res = await apiFetch('/api/estado-practica?id=' + F.practica_id);
+    if (!res.ok || res.headers.get('x-desde-cache')) return;
+    const d = await res.json();
+    if (S.flujo !== F || !flujoActivo() || F.local) return;   // mientras tanto cambió la situación aquí
+    if (d.estado === 'cancelada' || d.estado === 'no_existe') { F.cancelada = true; guardarFlujo(); if (S.vista === 'curso') renderCurso(); hojaClaseCancelada(); }
+    else if (d.estado === 'cerrada') hojaClaseCerradaFuera(d);
+  } catch { /* sin red no se puede saber: se sigue como hasta ahora */ }
+  finally { S.comprobandoFlujo = false; }
+}
+function hojaClaseCancelada() {
+  const F = S.flujo; if (!F) return;
+  abrirHoja(`<div class="hoja-tit"><h3>Clase cancelada desde otro teléfono</h3></div>
+    <div class="card card-pad"><div class="msg msg-err" style="margin-top:0">${ic('aviso', 20)}<span>La clase de <b>${esc(F.alumno_nombre || 'el alumno')}</b> (empezada a las ${esc(F.hora_inicio || '--:--')} en el km ${miles(F.km_inicial)}) ya no existe en la nube: otro teléfono la canceló. Este teléfono seguía con el cronómetro.</span></div>
+      <p class="fila-sub" style="margin:12px 2px 0;font-size:15.5px">Si la clase se dio, guárdala igualmente: cuando acabes, se registra de nuevo con tus km y tu firma.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+        <button class="btn btn-pri btn-lg" onclick="recuperarClaseCancelada()">${ic('ok', 20, 'style="stroke-width:2.6"')} Guardarla igualmente</button>
+        <button class="btn btn-sec" onclick="descartarClaseCancelada()">No se dio: descartarla</button></div></div>`);
+}
+function recuperarClaseCancelada() {
+  const F = S.flujo; cerrarHoja(); if (!F) return;
+  cerrarEnVivo().catch(() => {});
+  // Pasa a ser una clase de este teléfono (sin practica_id): al cerrarla nace UNA operación «registrar» con todos sus datos
+  Object.assign(F, { local: true, cid: Offline.nuevoId(), practica_id: null, practica_ids: [], cancelada: false, recuperada: true, deOtroTelefono: false });
+  guardarFlujo();
+  toast('Sigue la clase: al terminarla se guardará de nuevo con sus km.', 4200);
+  if (S.vista === 'curso') renderCurso(); else if (S.vista === 'kmfinal') renderKmFinal(); else go('curso');
+}
+async function descartarClaseCancelada() {
+  cerrarHoja();
+  await avisosPractica('cancelar');
+  S.flujo = null; guardarFlujo(); pararTimer();
+  toast('Clase descartada');
+  await cargarJornada(); go('hoy');
+}
+function hojaClaseCerradaFuera(d) {
+  const F = S.flujo; if (!F) return;
+  abrirHoja(`<div class="hoja-tit"><h3>Clase cerrada desde otro teléfono</h3></div>
+    <div class="card card-pad"><div class="msg msg-warn" style="margin-top:0">${ic('aviso', 20)}<span>La clase de <b>${esc(F.alumno_nombre || 'el alumno')}</b> ya la cerraron en otro teléfono (km ${miles(d.km_inicial)} → ${miles(d.km_final)})${d.firmada ? ' y está firmada' : ': falta la firma del alumno'}. Se conservan esos km; no hace falta cerrarla otra vez.</span></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+        ${d.firmada ? `<button class="btn btn-pri btn-lg" onclick="cerrarClaseCerradaFuera(false)">Entendido</button>` : `<button class="btn btn-pri btn-lg" onclick="cerrarClaseCerradaFuera(true, ${parseInt(d.km_inicial) || 0}, ${parseInt(d.km_final) || 0})">Ir a la firma</button><button class="btn btn-sec" onclick="cerrarClaseCerradaFuera(false)">Firmará el otro teléfono</button>`}</div></div>`);
+}
+async function cerrarClaseCerradaFuera(firmar, kmIni, kmFin) {
+  const F = S.flujo; cerrarHoja(); if (!F) return;
+  const id = F.practica_id;
+  await avisosPractica('cancelar');
+  await cargarJornada();
+  if (firmar) {
+    const hay = [...S.jornada.practicas, ...S.jornadaHoy.practicas, ...S.jornada.sin_cerrar, ...S.jornadaHoy.sin_cerrar].some(p => p.id === id && p.km_final > 0);
+    if (hay) { continuarPractica(id); return; }
+    // No sale en la lista de este perfil: se firma con los datos que dio el servidor
+    Object.assign(F, { cerrada: true, km_inicial: kmIni || F.km_inicial, km_final: kmFin, practica_ids: [id], hora_fin: F.hora_fin || hhmm(), deOtroTelefono: false });
+    guardarFlujo(); go('firma'); return;
+  }
+  S.flujo = null; guardarFlujo(); pararTimer(); go('hoy');
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) comprobarFlujoRemoto(); });
+setInterval(() => { if (!document.hidden && ['curso', 'kmfinal'].includes(S.vista)) comprobarFlujoRemoto(); }, 60000);
 // ─── PAUSA ───────────────────────────────────────────────────────────────────
 // «Pausar» detiene el cronómetro por un imprevisto: el tiempo de clase es el
 // efectivo (sin pausas) y la hora de fin prevista se corre lo que dure la
@@ -2082,6 +2266,7 @@ function renderCurso() {
   const enPausa = !!F.pausada_ms;
   document.getElementById('v-curso').innerHTML = `
     <div class="cab">${enPausa ? `<span class="curso-et pausa">${ic('pausa', 14)} EN PAUSA</span>` : '<span class="curso-et"><span class="pill-dot"></span>EN CURSO</span>'}<button class="cab-atras" style="color:#F3F2EE" onclick="menuCurso()" aria-label="Más opciones">${ic('menu', 26)}</button></div>
+    ${F.cancelada ? `<button class="msg msg-err" style="width:100%;text-align:left;margin:10px 0 0" onclick="hojaClaseCancelada()">${ic('aviso', 20)}<span><b>Otro teléfono canceló esta clase.</b> Toca para guardarla igualmente o descartarla.</span></button>` : ''}
     <div class="ahora-quien" style="margin-top:6px"><span class="ini" style="background:#2A2D35;color:#F3F2EE;width:54px;height:54px">${esc(iniciales(F.alumno_nombre))}</span><div><div class="ahora-nom">${esc(F.alumno_nombre)}</div><div class="ahora-sub">${esc(claseTxt(F))}${F.zonas && F.zonas.length ? ' · ' + esc(zonasTxt(F.zonas)) : ''}</div></div></div>
     <div class="crono ${enPausa ? 'pausado' : ''}" id="crono"><span id="crono-t">00:00</span><small>/ ${tiempoTxt(dur * 60)}</small></div>
     <div class="barra-tiempo"><i id="barra-t" style="width:0%"></i></div>
@@ -2149,12 +2334,16 @@ function menuCurso() {
 }
 async function cancelarCurso() {
   cerrarHoja();
-  if (!confirm('¿Cancelar esta práctica? Se elimina de la agenda y de los km.')) return;
   const F = S.flujo;
-  const terminar = async msg => { S.flujo = null; guardarFlujo(); pararTimer(); toast(msg); await cargarBase(); await cargarJornada(); go('hoy'); };
+  // Una clase que se tomó de otro teléfono puede seguir abierta allí: cancelarla la deja sin guardar en ese móvil
+  const deOtro = !!(F.deOtroTelefono && !F.local && F.practica_id);
+  if (!confirm(deOtro
+    ? `Esta clase la empezó OTRO teléfono${F.profesor_nombre ? ' (de ' + F.profesor_nombre + ')' : ''} y puede seguir abierta allí.\n\nSi la cancelas, ese teléfono no podrá guardarla tal cual y los km pueden quedar mal. Lo normal es cerrarla aquí con su km final.\n\n¿Cancelarla igualmente?`
+    : '¿Cancelar esta práctica? Se elimina de la agenda y de los km.')) return;
+  const terminar = async msg => { S.flujo = null; guardarFlujo(); pararTimer(); toast(msg); await cargarJornada(); go('hoy'); cargarBaseDetras(); };
   if (F.local) { await terminar('Práctica cancelada'); return; }   // nunca llegó a la nube
   try {
-    const res = await postJSON('/api/cancelar-practica', { practica_id: F.practica_id });
+    const res = await postJSON('/api/cancelar-practica', { practica_id: F.practica_id, profesor_id: F.profesor_id === undefined ? (S.perfil ? S.perfil.id : null) : F.profesor_id, ...(deOtro ? { forzar: true } : {}) });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cancelar');
     await avisosPractica('cancelar');
@@ -2168,7 +2357,12 @@ async function cancelarCurso() {
 }
 
 // ─── KM FINAL ────────────────────────────────────────────────────────────────
-function abrirKmFinal() { const F = S.flujo; S.kmFinal = ''; pararTimer(); go('kmfinal'); }
+function abrirKmFinal() {
+  const F = S.flujo;
+  if (F && F.cancelada) { hojaClaseCancelada(); return; }   // ya se sabe que otro teléfono la canceló
+  S.kmFinal = ''; pararTimer(); go('kmfinal');
+  comprobarFlujoRemoto();   // por si otro teléfono la canceló o la cerró: avisa encima, sin hacer esperar
+}
 // ─── CANTIDAD DE CLASES: de ¼ en ¼ o por minutos ────────────────────────────
 // «Clases»: clases enteras (− / +) y, si hace falta, ¼, ½ o ¾ más.
 // «Minutos»: se escriben los minutos y se calculan las clases sumando los que
@@ -2336,7 +2530,16 @@ async function continuarFirma() {
     if (!res.ok || !data.ok) {
       // No caben los km automáticos (la siguiente práctica del coche empieza muy cerca): a escribirlos
       if (data.codigo === 'km_no_caben') { F.kmModo = 'manual'; guardarFlujo(); renderKmFinal(); toast(data.error, 5000); return; }
+      // Otro teléfono canceló la clase: se ofrece guardarla igualmente con los km escritos aquí
+      if (data.codigo === 'practica_cancelada') { F.cancelada = true; guardarFlujo(); btn.disabled = false; btn.innerHTML = 'Continuar a la firma ' + ic('flecha', 20); hojaClaseCancelada(); return; }
       throw new Error(data.error || 'No se pudo cerrar la práctica');
+    }
+    // Otro teléfono ya la había cerrado: se conservan SUS km (pueden estar ya firmados)
+    if (data.ya_cerrada) {
+      const escrito = kf;
+      kf = parseInt(data.km_final) || kf; if (data.km_inicial) F.km_inicial = data.km_inicial;
+      if (!auto && kf !== escrito) toast(`Esta clase ya estaba cerrada desde otro teléfono (km ${miles(F.km_inicial)} → ${miles(kf)}): se conservan esos km.`, 6000);
+      if (data.firmada) { F.practica_ids = data.practica_ids; await terminarFlujo('Esta clase ya estaba cerrada y firmada desde otro teléfono.'); return; }
     }
     if (auto) kf = parseInt(data.km_final) || F.km_inicial;
     F.min_efectivos = minEfectivos(F); F.pausada_ms = null;
@@ -2516,7 +2719,7 @@ async function terminarFlujo(msg) {
   const volverA = S.flujo && S.flujo.volverA; const alumnoId = S.flujo && S.flujo.alumno_id;
   S.flujo = null; guardarFlujo(); pararTimer(); toast(msg);
   if (S.cal) S.cal.cache = {};
-  await cargarBase(); await cargarJornada();
+  if (volverA) await cargarTodo(); else { await cargarJornada(); cargarBaseDetras(); }
   if (volverA === 'ficha' && alumnoId) abrirFicha(alumnoId);
   else go(volverA === 'historial' ? 'historial' : 'hoy');
 }
@@ -2540,10 +2743,18 @@ function renderAlumnos() {
   document.getElementById('v-alumnos').innerHTML = `
     <div class="cab"><div><div class="fecha-lin">${S.perfil && S.perfil.id ? `Asignados a ti · ${mios.length}` : `${enCurso.length} alumnos`}</div><div class="grande" style="margin-top:4px">Alumnos</div></div>
       <button class="avatar" style="background:var(--boton);color:var(--ink);border:1px solid var(--line-2)" onclick="go('nuevo')" aria-label="Nuevo alumno">${ic('usuarioMas', 24)}</button></div>
-    <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca" placeholder="Buscar por nombre o nº" value="${esc(S.busqueda)}" oninput="S.busqueda=this.value;pintarListaAlumnos()" autocomplete="off"></div>
-    <div class="chips" style="margin-bottom:12px">${visibles.map(([id, tx, n]) => `<button class="chip ${S.filtroAlumnos === id ? 'on' : ''}" style="height:42px;font-size:15.5px" onclick="S.filtroAlumnos='${id}';S.filtroElegido=true;renderAlumnos()">${tx} · ${n}</button>`).join('')}</div>
+    <div class="buscar">${ic('buscar', 20)}<input class="campo" id="busca" placeholder="Buscar por nombre o nº" value="${esc(S.busqueda)}" oninput="buscarAlumnos(this.value)" autocomplete="off"></div>
+    <div class="chips" style="margin-bottom:12px">${visibles.map(([id, tx, n]) => `<button class="chip ${S.filtroAlumnos === id ? 'on' : ''}" style="height:42px;font-size:15.5px" onclick="S.filtroAlumnos='${id}';S.filtroElegido=true;S.alumnosMax=ALUMNOS_TANDA;renderAlumnos()">${tx} · ${n}</button>`).join('')}</div>
     <div class="card" id="lista-alumnos"></div>`;
   pintarListaAlumnos();
+}
+// Con cientos de alumnos la lista se pinta por tandas (y la búsqueda espera un instante a que se
+// deje de teclear): pintarlos todos en cada letra hacía que el teléfono fuera a trompicones.
+const ALUMNOS_TANDA = 60;
+S.alumnosMax = ALUMNOS_TANDA;
+function buscarAlumnos(v) {
+  S.busqueda = v; S.alumnosMax = ALUMNOS_TANDA;
+  clearTimeout(S.tBusca); S.tBusca = setTimeout(pintarListaAlumnos, 70);
 }
 function pintarListaAlumnos() {
   const q = S.busqueda.trim();
@@ -2553,10 +2764,14 @@ function pintarListaAlumnos() {
     if (S.filtroAlumnos === 'nuevos' && clasesAlumno(a) > 0) return false;
     return !q || coincideAlumno(a, q);
   });
-  document.getElementById('lista-alumnos').innerHTML = lista.length ? lista.map(a =>
+  const resto = Math.max(0, lista.length - S.alumnosMax);
+  if (resto) lista = lista.slice(0, S.alumnosMax);
+  const caja = document.getElementById('lista-alumnos'); if (!caja) return;
+  caja.innerHTML = lista.length ? lista.map(a =>
     `<button class="fila-alumno" onclick="abrirFicha(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span>
       <div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">${nRegTxt(a)}<b style="color:var(--ink)">${fmtC(clasesAlumno(a))}</b> ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'} · <span class="mono">${miles(kmAlumno(a))}</span> km</div></div>
       ${clasesAlumno(a) > 0 ? '' : '<span class="pill pill-info">Nuevo</span>'}${ic('chev', 20, 'style="color:var(--faint)"')}</button>`).join('')
+      + (resto ? `<button class="fila-alumno" style="justify-content:center;font-weight:600" onclick="S.alumnosMax+=ALUMNOS_TANDA;pintarListaAlumnos()">Ver ${Math.min(resto, ALUMNOS_TANDA)} más · quedan ${resto}</button>` : '')
     : (S.filtroAlumnos === 'mios' && !q
       ? `<div class="vacio">Todavía no tienes alumnos asignados.<small>Se asignan en la app de escritorio (ficha del alumno → Profesor).</small><button class="btn btn-sec btn-peq" style="margin-top:12px" onclick="S.filtroAlumnos='todos';S.filtroElegido=true;renderAlumnos()">Ver todos</button></div>`
       : '<div class="vacio">Ningún alumno coincide.<small>Prueba con otro nombre o cambia el filtro.</small></div>');
@@ -2830,13 +3045,18 @@ async function cancelarPractica(id) {
   const p = S.detalle;
   if (!confirm(`¿Cancelar la práctica de ${p ? p.alumno_nombre : 'este alumno'}? Se quita del historial y de los km.`)) return;
   try {
-    const res = await postJSON('/api/cancelar-practica', { practica_id: id });
-    const data = await res.json();
+    const cuerpo = { practica_id: id, profesor_id: S.perfil ? S.perfil.id : null };
+    let res = await postJSON('/api/cancelar-practica', cuerpo);
+    let data = await res.json();
+    if (res.status === 409 && data.codigo === 'clase_en_curso_de_otro') {
+      if (!confirm(`${data.error}\n\n¿Cancelarla igualmente?`)) return;
+      res = await postJSON('/api/cancelar-practica', { ...cuerpo, forzar: true }); data = await res.json();
+    }
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo cancelar');
     if (S.flujo && S.flujo.practica_id === id) { S.flujo = null; guardarFlujo(); }
     cerrarHoja(); toast('Práctica cancelada');
     if (S.cal) S.cal.cache = {};
-    await cargarBase(); await cargarJornada();
+    await cargarTodo();
     if (S.vista === 'historial') cargarCalendario();
     else if (S.vista === 'ficha' && S.ficha) abrirFicha(S.ficha.id);
     else if (S.vista === 'hoy') renderHoy();

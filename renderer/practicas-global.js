@@ -153,7 +153,7 @@ function detallePracticaGlobal(p) {
       else if (c.pequeno) km += `<div class="cont-suave">El coche hizo ${fmtMiles(c.diferencia)} km entre las dos clases (anterior: ${cuando}, km ${fmtMiles(c.km_final_anterior)}).</div>`;
       else if (c.revisado) km += `<div class="cont-suave">Hueco de ${fmtMiles(c.diferencia)} km dado por revisado (otro uso del coche o clases fuera de la app). <a href="#" onclick="cuadreRevisarDesdeLista('${c.clave_hueco}', false);return false">Volver a avisar</a></div>`;
       else km += `<div class="cont-aviso">${c.diferencia > 0 ? `Hueco de ${fmtMiles(c.diferencia)} km` : `Se solapa ${fmtMiles(-c.diferencia)} km`} respecto al final anterior (${cuando}: ${fmtMiles(c.km_final_anterior)}). `
-        + `<a href="#" onclick="cuadreIrA(${p.vehiculo_id});return false">Cuadrar km de este coche</a>${c.diferencia > 0 ? ` · <a href="#" onclick="cuadreRevisarDesdeLista('${c.clave_hueco}', true);return false">Dar por revisado</a>` : ''}</div>`;
+        + `<a href="#" onclick="cuadreIrA(${p.vehiculo_id});return false">Cuadrar km de este coche</a>${c.diferencia > 0 ? ` · <a href="#" onclick="cuadreRevisarDesdeLista('${c.clave_hueco}', true);return false">Dar por revisado</a>` : ` · <a href="#" onclick="cuadreIrA(${p.vehiculo_id}, ${p.id});return false">Encajar esta clase a continuación de la anterior</a>`}</div>`;
     }
   }
   return `<div class="pg-detalle">
@@ -165,6 +165,7 @@ function detallePracticaGlobal(p) {
       <button class="btn btn-outline btn-sm" onclick="verClasePractica(${p.id})">${svgMini('ficha')} Ver clase${p.firmada ? ' y firma' : ''}</button>
       <button class="btn btn-outline btn-sm" onclick="editarPracticaGlobal(${p.id})">${svgMini('editar')} Editar</button>
       <button class="btn btn-outline btn-sm" onclick="verFichaDesdePracticas(${p.alumno_id},${p.vehiculo_id || 'null'},'${esc(p.alumno_nombre)}')">${svgMini('ficha')} Ficha del alumno</button>
+      ${p.vehiculo_id && !p.en_curso && !p.sin_cerrar && !p.sin_km ? `<button class="btn btn-outline btn-sm" onclick="cuadreIrA(${p.vehiculo_id}, ${p.id})" title="Esta clase empieza donde terminó la anterior del coche y las siguientes se recalculan con el baremo">${svgMini('editar')} Encajar km desde aquí</button>` : ''}
     </div>
   </div>`;
 }

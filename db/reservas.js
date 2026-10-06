@@ -6,7 +6,7 @@
 // migraciones/2026-08-05_reservas.sql; hasta entonces d.reservas se guarda y
 // lee igual en local, simplemente no sincroniza (ver sync.js/_reservasDisponible).
 
-const { load, save, nextId, _sync, filtrarPorSucursal } = require('./core');
+const { load, save, nextId, _sync, filtrarPorSucursal, nombreCorto } = require('./core');
 
 const ESTADOS_VALIDOS = ['solicitada', 'confirmada', 'cancelada', 'realizada'];
 
@@ -24,7 +24,7 @@ function getReservas(sucursalId) {
       const v = d.vehiculos.find(x => x.id === r.vehiculo_id);
       return {
         ...r,
-        alumno_nombre: al ? al.nombre : '',
+        alumno_nombre: al ? nombreCorto(al) : '',
         profesor_nombre: prof ? prof.nombre : '',
         vehiculo_nombre: v ? v.nombre : ''
       };
