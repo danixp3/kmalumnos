@@ -418,7 +418,7 @@ async function savePractica() {
   const horaInicio = document.getElementById('edit-p-hora-inicio').value || null;
   const fraccion = parseFloat(document.getElementById('edit-p-fraccion').value) || null;
   if (!fecha || isNaN(ki) || isNaN(kf)) { alert('Rellena todos los campos.'); return; }
-  if (kf <= ki) { alert('El km final debe ser mayor que el inicial.'); return; }
+  if (kf <= ki && !(ki === 0 && kf === 0)) { alert('El km final debe ser mayor que el inicial (o deja los dos en 0 para dejar la clase sin km).'); return; }
 
   // Validación cruzada: comprobar solapamiento con otras prácticas del mismo vehículo
   const vid = currentAlumnoVehiculoId;

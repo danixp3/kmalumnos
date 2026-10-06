@@ -116,13 +116,29 @@ const TOLERANCIA_HUECO_UI = 15;
 
 function cuadreHuecoHTML(h, revisado) {
   const lado = (x) => `${fmtFecha(x.fecha)}${x.hora_inicio ? ' ' + esc(x.hora_inicio) : ''} · ${esc(x.alumno)} (km ${fmtMiles(x.km)})`;
+  // Si una de las dos lecturas está mal (p. ej. un km traído del otro programa que es de otro coche), se quitan sus km
+  const quitar = (x, texto) => `<button class="btn btn-outline btn-sm" onclick="cuadreQuitarKm(${x.practica_id}, '${String(x.alumno).replace(/[^\p{L}\p{N} .-]/gu, '')}', '${fmtFecha(x.fecha)}${x.hora_inicio ? ' ' + esc(x.hora_inicio) : ''}', ${x.km})" title="La clase se queda sin km (con su fecha y hora); se puede deshacer">${texto}</button>`;
   return `<div class="cuadre-hueco${h.sospechoso ? ' sospechoso' : ''}">
     <div style="flex:1;min-width:240px">
       <div><b class="num-mono">${fmtMiles(h.km)} km</b> ${h.sospechoso ? '<span class="pill pill-warn">¿error al teclear?</span>' : ''} <span class="al-sub" style="display:inline">≈ ${fmtMiles(h.clases_aprox)} ${h.clases_aprox === 1 ? 'clase' : 'clases'} de media${h.clases_sin_km ? ` · ${h.clases_sin_km} sin km en medio` : ''}</span></div>
       <div class="al-sub" style="white-space:normal">${lado(h.desde)}<br>→ ${lado(h.hasta)}</div>
     </div>
-    <button class="btn btn-outline btn-sm" onclick="cuadreRevisar('${h.clave}', ${revisado ? 'false' : 'true'})">${revisado ? 'Volver a avisar' : 'Dar por revisado'}</button>
+    <div style="display:flex;flex-direction:column;gap:6px;align-items:stretch">
+      <button class="btn btn-outline btn-sm" onclick="cuadreRevisar('${h.clave}', ${revisado ? 'false' : 'true'})">${revisado ? 'Volver a avisar' : 'Dar por revisado'}</button>
+      ${revisado ? '' : quitar(h.desde, 'Quitar los km de la 1.ª clase') + quitar(h.hasta, 'Quitar los km de la 2.ª clase')}
+    </div>
   </div>`;
+}
+
+async function cuadreQuitarKm(id, alumno, cuando, km) {
+  if (!await confirmar(`Se quitarán los km de la clase de ${alumno} del ${cuando} (km ${fmtMiles(km)}).\n\nLa clase se queda donde está, con su fecha y hora, solo que sin km. Después Cuadrar km podrá repartir los km de las clases de alrededor.\n\nSe puede deshacer con «Deshacer el último cuadre».\n\n¿Quitar los km?`)) return;
+  const res = await window.api.quitarKmClase(id);
+  if (res.errores && res.errores.length) {
+    document.getElementById('cuadre-cuerpo').insertAdjacentHTML('afterbegin', `<div class="alert alert-err" style="margin-bottom:14px">${esc(res.errores.join(' '))}</div>`);
+    return;
+  }
+  gkActualizarContador();
+  cuadreCargar(`✓ Quitados los km de la clase de ${esc(alumno)} (${esc(cuando)}). Mira abajo cómo queda el coche; si hay clases sin km anteriores a la primera con km, marca «Rellenar también las clases sin km anteriores».`);
 }
 
 async function cuadreRevisar(clave, revisado) {

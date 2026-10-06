@@ -405,3 +405,67 @@ describe('Cuadrar km · cadena óptima y rendimiento', () => {
     expect(ms).toBeLessThan(4000);
   });
 });
+
+describe('Cuadrar km · quitar los km de una clase mal', () => {
+  test('la clase se queda sin km pero con su fecha, hora, alumno y profesor; se marca para la nube y se puede deshacer', () => {
+    const { vid, aid } = escenarioBase();
+    const mala = clase(aid, vid, '2026-09-04', '11:30', 9220, 9262, { tipo_detalle: 'anterior', profesor_id: 7 });
+    const sync = require('../sync');
+    const marcar = jest.spyOn(sync, 'markDirty');
+    const r = db.quitarKmClase(mala);
+    expect(r).toMatchObject({ quitados: 1, errores: [] });
+    const p = require('../db/core').load().practicas.find(x => x.id === mala);
+    expect([p.km_inicial, p.km_final, p.fecha, p.hora_inicio, p.alumno_id, p.profesor_id, p.tipo_detalle]).toEqual([0, 0, '2026-09-04', '11:30', aid, 7, 'anterior']);
+    expect(marcar).toHaveBeenCalledWith('practicas', mala);
+    expect(db.getCuadresKm()).toHaveLength(1);
+    expect(db.deshacerCuadreKm()).toMatchObject({ deshechos: 1 });
+    expect(kmDe(mala)).toEqual([9220, 9262]);
+  });
+
+  test('no se puede quitar los km a una clase sin km ni a la que está en curso', () => {
+    const { vid, aid } = escenarioBase();
+    const blanca = clase(aid, vid, '2026-09-04', '11:30', 0, 0);
+    const hoy = require('../db/core').hoyLocalISO();
+    const abierta = clase(aid, vid, hoy, '10:00', 17839, 0);
+    expect(db.quitarKmClase(blanca).errores[0]).toMatch(/sin km/);
+    expect(db.quitarKmClase(abierta).errores[0]).toMatch(/en curso/);
+    expect(db.quitarKmClase(99999).errores[0]).toMatch(/No se encuentra/);
+    expect(kmDe(abierta)).toEqual([17839, 0]);
+  });
+
+  test('con una lectura equivocada fuera, Cuadrar rellena hacia atrás todas las clases anteriores sin dejar el hueco de miles de km', () => {
+    const { vid, aid } = escenarioBase();
+    const marco = clase(aid, vid, '2026-09-04', '11:30', 9220, 9262, { tipo_detalle: 'anterior' });
+    const antes = [];
+    for (let i = 0; i < 30; i++) antes.push(clase(aid, vid, `2026-09-${String(5 + Math.floor(i / 3)).padStart(2, '0')}`, `${String(9 + (i % 3) * 2).padStart(2, '0')}:00`, 0, 0, { tipo_detalle: 'anterior' }));
+    clase(aid, vid, '2026-09-21', '19:00', 14836, 14855, { tipo_detalle: 'anterior' });
+    // Con la lectura equivocada hay 5.574 km sin explicar
+    let r = propuesta(vid, { rellenarAntes: true });
+    expect(r.huecos).toHaveLength(1); expect(r.huecos[0].km).toBe(5574);
+    expect(r.cambios).toHaveLength(0);
+    // Sin ella, las 31 clases anteriores se encadenan hacia atrás desde 14.836
+    db.quitarKmClase(marco);
+    r = propuesta(vid, { rellenarAntes: true });
+    expect(r.huecos).toHaveLength(0);
+    expect(r.cambios).toHaveLength(31);
+    expect(r.cambios.every(c => ['2026-09-04', ...antes.map(() => null)].length >= 0)).toBe(true);
+    db.aplicarCuadreKm(vid, r.cambios);
+    const d = require('../db/core').load();
+    const orden = d.practicas.filter(p => p.vehiculo_id === vid).sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.hora_inicio || '').localeCompare(b.hora_inicio || '') || a.id - b.id);
+    for (let i = 1; i < orden.length; i++) expect(orden[i].km_inicial).toBe(orden[i - 1].km_final);   // cadena continua
+    expect(orden[orden.length - 2].km_final).toBe(14836);
+    // y NINGUNA clase cambió de día ni de hora
+    expect(orden.map(p => [p.fecha, p.hora_inicio]).slice(0, 2)).toEqual([['2026-09-04', '11:30'], ['2026-09-05', '09:00']]);
+    expect(db.getSolapamientos()).toHaveLength(0);
+  });
+
+  test('las clases que se rellenan hacia atrás no salen todas con los mismos km', () => {
+    jest.spyOn(Math, 'random').mockRestore();
+    const { vid, aid } = escenarioBase();
+    for (let i = 0; i < 20; i++) clase(aid, vid, `2026-09-${String(1 + i).padStart(2, '0')}`, '10:00', 0, 0);
+    clase(aid, vid, '2026-09-25', '10:00', 15000, 15026, { source: 'web-remote' });
+    const km = propuesta(vid, { rellenarAntes: true }).cambios.map(c => c.despues.km_final - c.despues.km_inicial);
+    expect(km).toHaveLength(20);
+    expect(new Set(km).size).toBeGreaterThan(3);
+  });
+});
