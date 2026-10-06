@@ -4,8 +4,19 @@
 // Va SEGUNDO: lo usan prácticamente todos los demás módulos.
 
 // ─── MODALES ─────────────────────────────────────────────────────────────────
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id) {
+  const m = document.getElementById(id);
+  // Avisos de validación de la vez anterior (otro alumno, otro profesor…) fuera
+  m.querySelectorAll('.val-msg').forEach(x => x.remove());
+  m.querySelectorAll('.val-ok, .val-aviso, .val-mal').forEach(x => { x.classList.remove('val-ok', 'val-aviso', 'val-mal'); x._valMsg = null; });
+  m.querySelectorAll('.dp-msg').forEach(x => x.remove());
+  m.querySelectorAll('.dp-error').forEach(x => x.classList.remove('dp-error'));
+  m.classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  if (typeof cerrarDatepicker === 'function') cerrarDatepicker();
+}
 
 // Cerrar modal al hacer click fuera.
 // Se exige que el clic EMPIECE y TERMINE en el fondo: si se pulsa dentro del

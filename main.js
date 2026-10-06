@@ -491,6 +491,8 @@ ipcMain.handle('generar-km-hasta-maximo', (_, vehiculo_id, kmMin, kmMax, kmMaxim
 ipcMain.handle('generar-km-por-rango', (_, vehiculo_id, kmDesde, kmHasta, variacion, aplicar) => db.generarKmPorRango(vehiculo_id, kmDesde, kmHasta, variacion, aplicar));
 ipcMain.handle('aplicar-plan-km', (_, vehiculo_id, asignaciones) => db.aplicarPlanKm(vehiculo_id, asignaciones));
 ipcMain.handle('proponer-cuadre-km', (_, vehiculo_id, opciones) => db.proponerCuadreKm(vehiculo_id, opciones));
+ipcMain.handle('get-companeros-km', (_, vehiculo_id) => db.getCompanerosKm(vehiculo_id));
+ipcMain.handle('set-companeros-km', (_, vehiculo_id, lista) => db.setCompanerosKm(vehiculo_id, lista));
 ipcMain.handle('aplicar-cuadre-km', (_, vehiculo_id, cambios) => db.aplicarCuadreKm(vehiculo_id, cambios));
 ipcMain.handle('deshacer-cuadre-km', (_, id) => db.deshacerCuadreKm(id));
 ipcMain.handle('get-cuadres-km', () => db.getCuadresKm());
@@ -658,6 +660,68 @@ ipcMain.handle('importar-csv', (_, filePath, kmMin, kmMax) => {
 });
 
 // Handlers para exportar y comparar CSV - para añadir a main.js
+
+// ─── EXPORTAR TODOS LOS DATOS (Importar y exportar → Exportar) ──────────────
+// Excel (una hoja por tipo), CSV (un archivo por tipo, en una carpeta nueva) o
+// copia completa en JSON. Con alumnoId: solo lo de ese alumno (derecho de
+// acceso / portabilidad). Cada exportación queda en el historial.
+const _exportados = new Set(); // rutas escritas por la app: las únicas que se dejan mostrar
+ipcMain.handle('catalogo-exportacion', () => db.catalogoExportacion());
+ipcMain.handle('exportar-datos', async (_, opciones = {}) => {
+  try {
+    const o = opciones || {};
+    const formato = ['xlsx', 'csv', 'json'].includes(o.formato) ? o.formato : 'xlsx';
+    const hoy = new Date().toISOString().slice(0, 10);
+    const base = (o.nombreBase ? String(o.nombreBase).replace(/[^\w\-áéíóúñüÁÉÍÓÚÑÜ ]+/g, '').trim().replace(/\s+/g, '_').slice(0, 60) : '') || 'aulamovil_datos';
+    const filtros = { conjuntos: o.conjuntos, desde: o.desde || null, hasta: o.hasta || null, alumnoId: o.alumnoId != null ? o.alumnoId : null, sucursalId: o.sucursalId || null };
+    if (formato === 'json') {
+      const r = await dialog.showSaveDialog(mainWin, { title: 'Guardar copia de los datos', defaultPath: `${base}_${hoy}.json`, filters: [{ name: 'JSON', extensions: ['json'] }] });
+      if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+      const copia = db.copiaJSON({ conFirmas: !!o.conFirmas, alumnoId: filtros.alumnoId });
+      fs.writeFileSync(r.filePath, JSON.stringify(copia, null, 1), 'utf-8');
+      const total = Object.values(copia.tablas).reduce((n, l) => n + l.length, 0);
+      db.registrarExportacion(`Exportación JSON${filtros.alumnoId != null ? ' de un alumno' : ''}`, [path.basename(r.filePath), `${total} registros`]);
+      _exportados.add(r.filePath);
+      return { ok: true, path: r.filePath, total, archivos: [r.filePath] };
+    }
+    const tablas = db.datosExportacion(filtros);
+    if (!tablas.length) return { ok: false, msg: 'No hay nada que exportar con lo elegido.' };
+    const total = tablas.reduce((n, t) => n + t.filas.length, 0);
+    const resumen = tablas.map(t => `${t.titulo}: ${t.filas.length}`);
+    if (formato === 'xlsx') {
+      const r = await dialog.showSaveDialog(mainWin, { title: 'Guardar para abrir con Excel', defaultPath: `${base}_${hoy}.xlsx`, filters: [{ name: 'Excel', extensions: ['xlsx'] }] });
+      if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+      fs.writeFileSync(r.filePath, db.libroExcel(tablas));
+      db.registrarExportacion('Exportación a Excel', [path.basename(r.filePath), ...resumen]);
+      _exportados.add(r.filePath);
+      return { ok: true, path: r.filePath, total, tablas: tablas.length, archivos: [r.filePath] };
+    }
+    const r = await dialog.showOpenDialog(mainWin, { title: 'Elige dónde crear la carpeta con los CSV', properties: ['openDirectory', 'createDirectory'] });
+    if (r.canceled || !r.filePaths || !r.filePaths[0]) return { ok: false, canceled: true };
+    let carpeta = path.join(r.filePaths[0], `${base}_${hoy}`);
+    for (let i = 2; fs.existsSync(carpeta); i++) carpeta = path.join(r.filePaths[0], `${base}_${hoy}_${i}`);
+    fs.mkdirSync(carpeta, { recursive: true });
+    const archivos = tablas.map(t => {
+      const f = path.join(carpeta, `${t.clave}.csv`);
+      fs.writeFileSync(f, db.tablaACSV(t), 'utf-8');
+      _exportados.add(f);
+      return f;
+    });
+    _exportados.add(carpeta);
+    db.registrarExportacion('Exportación a CSV', [path.basename(carpeta), ...resumen]);
+    return { ok: true, path: carpeta, total, tablas: tablas.length, archivos };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+});
+ipcMain.handle('mostrar-exportado', (_, ruta) => {
+  if (!_exportados.has(ruta)) return false; // solo lo que acaba de escribir la app
+  shell.showItemInFolder(ruta);
+  return true;
+});
+
+// Código postal → provincia y poblaciones (lista de GeoNames, sin conexión)
+ipcMain.handle('buscar-codigo-postal', (_, cp) => db.buscarCodigoPostal(cp));
 
 // Exportar listas (alumnos con todos sus datos, exámenes filtrados) a CSV para Excel
 ipcMain.handle('exportar-tabla', async (_, tipo, opciones) => {

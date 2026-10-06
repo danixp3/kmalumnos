@@ -84,7 +84,7 @@ function pmFilaAlumno(a, i) {
     <td class="col-num"><input type="text" inputmode="decimal" data-c="clases_previas" value="${clasesEnCasilla((a.clases_previas || 0) + (a.anteriores || 0))}" placeholder="0" class="num-mono" style="width:80px;text-align:right" title="De ¼ en ¼: 12 · 12,25 · 12,5 · 12,75 (o 12 ½)" oninput="pmMarcarSucio();pmValidarClases(this)"></td>
     <td class="col-num"><input type="number" data-c="km_previos" min="0" value="${pmNum(a.km_previos)}" placeholder="vacío" title="Déjalo vacío para que la app cree las clases con sus km (paso 4)" class="num-mono" style="width:90px;text-align:right" oninput="pmMarcarSucio()"></td>
     <td>${a.id ? `<button type="button" class="btn btn-sm btn-outline pm-anotar${a.anteriores ? ' hecho' : ''}" onclick="pmAnotar(${a.id})" title="Anotar las fechas (y km) de sus clases anteriores">${a.anteriores ? `${fmtClases(a.anteriores)} ${a.anteriores > 0 && a.anteriores <= 1 ? 'creada' : 'creadas'} · ver` : 'Anotar'}</button>` : '<span style="color:var(--text-faint);font-size:12px">al guardar</span>'}</td>
-    <td class="col-num num-mono">${a.id ? `${a.practicas} · ${fmtMiles(a.km_practicas)} km` : '—'}</td>
+    <td class="col-num pm-enapp" title="Clases que ya tiene en la app y sus km">${a.id ? `<b class="num-mono">${fmtClases(a.practicas || 0)}</b> ${(a.practicas || 0) > 0 && (a.practicas || 0) <= 1 ? 'clase' : 'clases'}<small class="num-mono">${fmtMiles(a.km_practicas || 0)} km</small>` : '<span class="pm-tenue">—</span>'}</td>
     <td>${a.id ? '' : '<button class="btn btn-sm btn-ghost" title="Quitar fila" onclick="this.closest(\'tr\').remove()">×</button>'}</td></tr>`;
 }
 
@@ -253,9 +253,9 @@ async function pmAnotar(alumnoId) {
   pmAnot = datos;
   const fila = (c = {}) => `<tr data-ids="${(c.ids || []).join(',')}"${c.revisar ? ' class="pm-anot-revisar" title="La IA no estaba segura de esta fecha: revísala"' : ''}>
       <td class="num-mono" style="color:var(--text-faint);width:34px"></td>
-      <td><input type="text" data-c="fecha" placeholder="dd/mm/aaaa" value="${c.fecha ? (/^\d{4}-/.test(c.fecha) ? fmtFecha(c.fecha) : esc(c.fecha)) : ''}" oninput="pmAnotCuenta()" onpaste="pmAnotPegar(event)" onkeydown="pmAnotTecla(event)"></td>
+      <td><input type="text" data-c="fecha" data-mascara="fecha" maxlength="10" placeholder="dd/mm/aaaa" value="${c.fecha ? (/^\d{4}-/.test(c.fecha) ? fmtFecha(c.fecha) : esc(c.fecha)) : ''}" oninput="pmAnotCuenta()" onpaste="pmAnotPegar(event)" onkeydown="pmAnotTecla(event)"></td>
       <td><select data-c="clases" class="num-mono" title="Clases seguidas ese día (también ¼, ½ o ¾)" onchange="pmAnotCuenta()" onkeydown="pmAnotTecla(event)">${PM_CANTIDADES.map(v => `<option value="${v}"${v === (c.clases || 1) ? ' selected' : ''}>${fmtClases(v)}</option>`).join('')}</select></td>
-      <td><input type="text" data-c="hora_inicio" placeholder="hh:mm" value="${esc(c.hora_inicio || '')}" onkeydown="pmAnotTecla(event)"></td>
+      <td><input type="text" data-c="hora_inicio" data-mascara="hora" maxlength="5" placeholder="hh:mm" value="${esc(c.hora_inicio || '')}" onkeydown="pmAnotTecla(event)"></td>
       <td><input type="text" data-c="km_inicial" inputmode="numeric" placeholder="opcional" class="num-mono" value="${c.km_final ? c.km_inicial : ''}" onkeydown="pmAnotTecla(event)"></td>
       <td><input type="text" data-c="km_final" inputmode="numeric" placeholder="opcional" class="num-mono" value="${c.km_final ? c.km_final : ''}" onkeydown="pmAnotTecla(event)"></td>
       <td style="white-space:nowrap"><button type="button" class="btn btn-sm btn-ghost" title="Otra clase el mismo día, a otra hora" onclick="pmAnotMismoDia(this)">+ mismo día</button>

@@ -39,6 +39,7 @@ async function addProfesor() {
   const dni = document.getElementById('pf-dni')?.value.trim() || null;
   const coche = document.getElementById('pf-vehiculo')?.value || '';
   if (!nombre) { alert('Introduce un nombre para el profesor.'); return; }
+  if (!await confirmarDatosDudosos([['DNI', dni, 'documento']])) return;
   await window.api.addProfesor(nombre, nota, getSucursalActual(), dni, { vehiculo_id: coche });
   document.getElementById('pf-nombre').value = '';
   document.getElementById('pf-nota').value = '';
@@ -94,6 +95,8 @@ async function saveProfesor() {
   const datos = {};
   for (const c of CAMPOS_PROFESOR_MODAL) { const el = document.getElementById('edit-pf-' + c); if (el) datos[c] = el.value.trim(); }
   if (datos.email && !emailValido(datos.email)) { alert('El email no tiene un formato válido.'); return; }
+  if (!await confirmarDatosDudosos([['DNI', dni, 'documento'], ['Teléfono', datos.telefono, 'telefono'], ['Código postal', datos.codigo_postal, 'cp'],
+    ['Nacimiento', datos.fecha_nacimiento, 'nacimiento']])) return;
   await window.api.updateProfesor(id, nombre, nota, dni, datos);
   closeModal('modal-profesor');
   loadProfesores();

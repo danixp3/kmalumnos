@@ -110,6 +110,7 @@
       </a>
       <!-- Hermana de Kilómetros: se llega desde sus pestañas (renderer/menu.js) -->
       <a data-page="generar-km" data-hermano-de="kilometros" class="nav-hermano">Cuadrar y generar km</a>
+      <a data-page="cuadre-avanzado" data-hermano-de="kilometros" class="nav-hermano">Cuadrar km · modo avanzado</a>
 
       <div class="nav-sep"></div>
       <div class="nav-section" data-grupo="1" role="button" tabindex="0" aria-expanded="true" title="Mostrar u ocultar el grupo">Agenda<svg class="nav-section-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
@@ -910,6 +911,7 @@
                 <button type="button" onclick="abrirFichaDGT(currentAlumnoId)">Ficha oficial DGT</button>
                 <button type="button" onclick="this.closest('details').open=false;abrirSepararNombres([currentAlumnoId])">Separar nombre y apellidos</button>
                 <button type="button" onclick="this.closest('details').open=false;abrirJuntarConOtro(currentAlumnoId)">Juntar con otra ficha (repetido)…</button>
+                <button type="button" onclick="this.closest('details').open=false;exportarDatosAlumnoActual()">Exportar sus datos (derecho de acceso)…</button>
               </div>
             </details>
             <button class="btn btn-outline" onclick="abrirNuevaReservaAlumno()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Programar clase</button>
@@ -1386,6 +1388,45 @@
     </div>
 
     <!-- ── GENERAR KM (sección unificada de generación de kilómetros) ──── -->
+    <!-- CUADRAR KM · MODO AVANZADO (renderer/cuadre-avanzado.js) -->
+    <div id="page-cuadre-avanzado" class="page">
+      <div class="page-header">
+        <div class="ficha-miga">
+          <a class="lnk" onclick="cavVolver()" role="button" tabindex="0">Cuadrar km</a>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          <strong id="cav-titulo">Modo avanzado</strong>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-outline" onclick="cavVolver()">Volver</button>
+          <button class="btn btn-success" id="cav-aplicar" onclick="cavAplicar()" disabled>Aplicar</button>
+        </div>
+      </div>
+      <p class="page-intro">Aquí ves el <strong>planning entero</strong> del coche tal como quedaría. Si otros alumnos también usaban el coche y no están en la app (por ejemplo, los que ya aprobaron), añádelos como <strong>compañeros sin registrar</strong>: ocupan sus km entre clase y clase en las fechas que elijas, para que el cuentakilómetros refleje que el coche lo compartían varios. No se crean alumnos ni clases: solo cambian los km de las clases de la app.</p>
+      <div id="cav-mensaje" class="hidden" style="margin-bottom:12px"></div>
+      <div class="cav-layout">
+        <aside class="card cav-panel">
+          <div class="card-title">Compañeros sin registrar</div>
+          <p class="cav-ayuda">Elige un compañero y marca su rango: con las fechas, con <b>Desde aquí ↓ / ↑ Hasta aquí</b> en una clase o <b>arrastrando su barra</b> de color a la izquierda del planning.</p>
+          <div id="cav-companeros" class="cav-companeros"></div>
+          <button type="button" class="btn btn-outline btn-sm" id="cav-anadir" onclick="cavAnadir()" style="width:100%;margin-top:8px">+ Añadir compañero</button>
+          <div class="cav-opciones">
+            <label><input type="checkbox" id="cav-opc-rehacer" onchange="cavOpcion('rehacerCalculados', this.checked)"> Volver a calcular los km que puso la app dentro de los rangos</label>
+            <label><input type="checkbox" id="cav-opc-antes" onchange="cavOpcion('rellenarAntes', this.checked)"> Rellenar las clases sin km anteriores a la primera con km (hacia atrás)</label>
+            <label><input type="checkbox" id="cav-opc-despues" onchange="cavOpcion('rellenarDespues', this.checked)"> Rellenar las clases sin km posteriores a la última con km</label>
+          </div>
+          <div id="cav-resumen" class="cav-resumen"></div>
+        </aside>
+        <section class="card cav-plan-card">
+          <div class="cav-plan-cab">
+            <div class="card-title" style="margin:0">Planning del coche</div>
+            <label class="filtro-inline">Resaltar alumno <select id="cav-resaltar" onchange="cavResaltar(this.value)"></select></label>
+          </div>
+          <div class="cav-leyenda"><span><i class="cav-l-cambia"></i>cambia</span><span><i class="cav-l-fant"></i>km de compañeros entre dos clases</span><span><i class="cav-l-sinexp"></i>km sin explicar</span></div>
+          <div id="cav-plan" class="cav-plan"><p class="empty">Calculando…</p></div>
+        </section>
+      </div>
+    </div>
+
     <div id="page-generar-km" class="page">
       <div class="page-header">
         <div>
@@ -2109,7 +2150,7 @@
           <p><b>Clases ya hechas</b> = las que el alumno hizo antes de usar la app (con papel u otro programa). <b>Km ya hechos</b> es opcional: déjalo <b>vacío</b> y la app podrá crear esas clases con su fecha y sus km en el paso 4; si lo rellenas, las clases se quedan solo como número (la numeración y los totales continúan donde iban).
           <br><span class="pm-consejo">Consejo: puedes copiar varias filas de Excel (Nombre · 1er apellido · 2º apellido · Clases · Km) y pegarlas en la casilla «Nombre» de una fila vacía.</span></p></div></div>
         <div class="table-wrap"><table class="pm-tabla" id="pm-alumnos">
-          <thead><tr><th title="Nº de registro del alumno (el de tu programa anterior). En las filas nuevas sale solo el siguiente.">Nº</th><th>Nombre</th><th>1er apellido</th><th>2º apellido</th><th>Permiso</th><th>Profesor</th><th>Vehículo</th><th class="col-num">Clases ya hechas</th><th class="col-num">Km ya hechos <small>(opcional)</small></th><th>Clases anteriores</th><th class="col-num">En la app</th><th></th></tr></thead>
+          <thead><tr><th title="Nº de registro del alumno (el de tu programa anterior). En las filas nuevas sale solo el siguiente.">Nº</th><th>Nombre</th><th>1er apellido</th><th>2º apellido</th><th>Permiso</th><th>Profesor</th><th>Vehículo</th><th class="col-num">Clases ya hechas</th><th class="col-num">Km ya hechos <small>(opcional)</small></th><th>Clases anteriores</th><th class="col-num pm-enapp">En la app</th><th></th></tr></thead>
           <tbody></tbody>
         </table></div>
         <button class="btn btn-outline btn-sm" onclick="pmAnadirFila('alumnos', 5)">+ Añadir 5 filas</button>
@@ -2236,7 +2277,7 @@
       <div class="page-header">
         <div>
           <div class="page-title">Importar y exportar</div>
-          <div class="page-subtitle">Carga masiva, exportación y comparación de prácticas</div>
+          <div class="page-subtitle">Trae datos, sácalos a Excel o compara listados</div>
         </div>
       </div>
 
@@ -2300,12 +2341,44 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 
       <!-- EXPORTAR -->
       <div class="tab-content" id="tab-datos-exportar">
+        <div class="card" id="exp-card">
+          <div class="card-title">
+            <div class="card-title-icon" style="background:var(--success-bg);color:var(--success-fg)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            Exportar datos
+          </div>
+          <p class="exp-intro">Saca cualquier dato de la app para abrirlo en Excel, pasarlo a la gestoría o guardarlo aparte. Cada exportación queda anotada en el Historial de cambios.</p>
+          <div class="exp-cab">
+            <span class="exp-sub">Qué datos</span>
+            <span><button type="button" class="btn btn-sm btn-gray" onclick="expMarcarTodos(true)">Todo</button> <button type="button" class="btn btn-sm btn-gray" onclick="expMarcarTodos(false)">Nada</button></span>
+          </div>
+          <div id="exp-conjuntos" class="exp-conjuntos"></div>
+          <div class="exp-fila" id="exp-fechas">
+            <span class="exp-sub">Fechas <small>(opcional)</small></span>
+            <label class="filtro-inline">Desde <input type="date" id="exp-desde" onchange="expPintarResumen()"></label>
+            <label class="filtro-inline">Hasta <input type="date" id="exp-hasta" onchange="expPintarResumen()"></label>
+          </div>
+          <div class="exp-fila">
+            <span class="exp-sub">Formato</span>
+            <label class="exp-formato"><input type="radio" name="exp-formato" value="xlsx" checked onchange="expPintarFormato()"> <b>Excel</b> <small>una hoja por tipo de dato</small></label>
+            <label class="exp-formato"><input type="radio" name="exp-formato" value="csv" onchange="expPintarFormato()"> <b>CSV</b> <small>un archivo por tipo, en una carpeta</small></label>
+            <label class="exp-formato"><input type="radio" name="exp-formato" value="json" onchange="expPintarFormato()"> <b>Copia completa (JSON)</b> <small>para otro programa</small></label>
+            <label class="exp-formato" id="exp-firmas-wrap" hidden><input type="checkbox" id="exp-firmas"> Incluir las firmas (imágenes)</label>
+          </div>
+          <div class="exp-pie">
+            <span id="exp-resumen" class="exp-resumen"></span>
+            <button type="button" class="btn btn-primary" id="exp-boton" onclick="exportarDatosUI()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Exportar
+            </button>
+          </div>
+          <div id="exp-resultado" class="hidden" style="margin-top:12px"></div>
+        </div>
         <div class="card">
           <div class="card-title">
-            <div class="card-title-icon" style="background:#ecfdf5;color:#059669"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
-            Exportar prácticas a CSV
+            <div class="card-title-icon" style="background:var(--surface-2);color:var(--text-muted)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            Prácticas para volver a importar
           </div>
-          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Exporta todas las prácticas en formato compatible para re-importar o analizar.</p>
+          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">CSV de las prácticas con las mismas columnas que la importación (para pasarlas a otro PC o comparar dos listados).</p>
           <button class="btn btn-success" onclick="exportarCSV()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Exportar CSV
@@ -3693,6 +3766,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/ventana.js"></script>
 <script src="renderer/graficos.js"></script>
 <script src="renderer/datepicker.js"></script>
+<script src="renderer/validaciones.js"></script>
 <script src="renderer/buscador.js"></script>
 <script src="renderer/reservas.js"></script>
 <script src="renderer/jornada.js"></script>
@@ -3705,11 +3779,13 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/agenda-visual.js"></script>
 <script src="renderer/generar-km.js"></script>
 <script src="renderer/cuadrar-km.js"></script>
+<script src="renderer/cuadre-avanzado.js"></script>
 <script src="renderer/menu.js"></script>
 <script src="renderer/puesta-en-marcha.js"></script>
 <script src="renderer/migracion.js"></script>
 <script src="renderer/historial-pantallas.js"></script>
 <script src="renderer/alumnos-repetidos.js"></script>
+<script src="renderer/exportar-datos.js"></script>
 <script src="renderer/arranque.js"></script>
 </body>
 </html>

@@ -62,9 +62,11 @@ async function cuadreCargar(mensaje) {
       ${chip(s.incoherentes, 'con km que no encajan', true)}
       ${chip(s.huecos, `hueco${s.huecos === 1 ? '' : 's'} sin explicar${s.km_en_huecos ? ' · ' + fmtMiles(s.km_en_huecos) + ' km' : ''}`, true)}
     </div>
+    ${s.companeros ? `<p class="cuadre-estado">Este coche tiene <b>${s.companeros} ${s.companeros === 1 ? 'compañero' : 'compañeros'} sin registrar</b> (${fmtMiles(s.km_companeros)} km entre clases). Se cambian en el <a href="#" onclick="abrirCuadreAvanzado();return false">modo avanzado</a>.</p>` : ''}
     <p class="cuadre-estado">${nada
       ? '<b style="color:var(--success-fg)">✓ El cuentakilómetros de este coche está cuadrado.</b> Las clases con km siguen un orden coherente y no hay tramos sin explicar.'
       : `Cada clase se coloca por su <b>fecha y hora</b>; los km solo pueden subir. Una clase con ${fmtMiles(s.km_tipico_clase)} km de media es lo normal en esta autoescuela.`}</p>
+    <div style="margin-top:10px"><button class="btn btn-outline btn-sm" onclick="abrirCuadreAvanzado()">Modo avanzado: planning entero y compañeros sin registrar…</button></div>
   </div>`;
 
   html += '<div id="cuadre-encaje"></div>';
@@ -95,8 +97,9 @@ async function cuadreCargar(mensaje) {
       <p class="cuadre-nota">Revisa los km y pulsa <b>Aplicar</b>: se guardan tal como se muestran. Se puede <b>deshacer</b> después.${vaciar ? ` <b>${vaciar}</b> ${vaciar === 1 ? 'clase tiene' : 'clases tienen'} km imposibles y no hay sitio donde colocarlas: se dejan sin km para repartirlos cuando lleguen las clases que faltan.` : ''}</p>
       <div class="cuadre-tabla"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Alumno</th><th>Ahora</th><th>Quedaría</th><th>Qué se hace</th></tr></thead><tbody>${filas}</tbody></table></div>
       ${r.cambios.length > MAX ? `<p class="cuadre-nota">… y ${r.cambios.length - MAX} más (se aplican igual).</p>` : ''}
-      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-success" onclick="cuadreAplicar()">Aplicar ${r.cambios.length} ${r.cambios.length === 1 ? 'cambio' : 'cambios'}</button>
+        <button class="btn btn-outline" onclick="abrirCuadreAvanzado()" title="Planning entero del coche y compañeros sin registrar que también lo usaban">Modo avanzado…</button>
       </div>
     </div>`;
   }

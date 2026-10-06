@@ -5,7 +5,7 @@
 const { load, save, nextId, _sync, addLog, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, hoyLocalISO,
   clasesDePractica, fmtClases, firmaValida, nombreCorto } = require('./core');
 const { directorResuelto } = require('./ajustes-empresa');
-const { mapaContinuidad, getHuecosRevisados, TOLERANCIA_HUECO } = require('./cuadre-km');
+const { mapaContinuidad, getHuecosRevisados, TOLERANCIA_HUECO, getCompanerosKm, huecoDeCompaneros } = require('./cuadre-km');
 
 // Profesor que firma una clase: el que la dio; si no consta, el del alumno; y
 // si tampoco, el profesor de la autoescuela cuando solo hay uno.
@@ -203,6 +203,12 @@ function getTodasPracticas(filtros = {}) {
   // la continuidad del cuentakilómetros; una clase con km incoherentes se señala a sí misma.
   const continuidadKm = mapaContinuidad(d, hoy);
   const huecosRevisados = new Set(getHuecosRevisados());
+  // Huecos que explican los compañeros sin registrar del coche (Cuadrar km → modo avanzado)
+  const companerosDe = new Map();
+  const deCompaneros = (vid, a, b, km) => {
+    if (!companerosDe.has(vid)) companerosDe.set(vid, getCompanerosKm(vid));
+    return huecoDeCompaneros(vid, a, b, km, companerosDe.get(vid));
+  };
 
   return filtrarPorSucursal(d.practicas, sucursal_id)
     .filter(p => !p.deleted)
@@ -259,7 +265,8 @@ function getTodasPracticas(filtros = {}) {
           // un tramo pequeño es el coche volviendo a la autoescuela; uno grande puede darse por revisado
           pequeno: p.km_inicial - pv.km_final > 0 && p.km_inicial - pv.km_final <= TOLERANCIA_HUECO,
           clave_hueco: `${pv.id}-${p.id}`,
-          revisado: huecosRevisados.has(`${pv.id}-${p.id}`)
+          revisado: huecosRevisados.has(`${pv.id}-${p.id}`),
+          companeros: p.km_inicial - pv.km_final > TOLERANCIA_HUECO && deCompaneros(p.vehiculo_id, pv, p, p.km_inicial - pv.km_final)
         } : null
       };
     });

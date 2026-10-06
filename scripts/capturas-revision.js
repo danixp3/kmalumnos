@@ -27,7 +27,8 @@ app.setPath('userData', UD);
 const ventana = () => BrowserWindow.getAllWindows().find(w => { try { return /index\.html/i.test(w.webContents.getURL()); } catch (e) { return false; } });
 const ev = js => ventana().webContents.executeJavaScript(js);
 
-const PASOS = [
+// CAPTURAS_PASOS=ruta/a/pasos.js (module.exports = [[nombre, js], ...]) para no editar este archivo
+const PASOS = process.env.CAPTURAS_PASOS ? require(path.resolve(process.env.CAPTURAS_PASOS)) : [
   ['alumnos-lista', `navegarA('alumnos'); true`],
   ['separar-nombres', `abrirSepararNombres(); true`],
   ['repetidos', `closeModal('modal-separar-nombres'); abrirAlumnosRepetidos(); true`],
@@ -41,7 +42,9 @@ async function principal() {
   await espera(1500);
   await ev(`try{cerrarTutorial(false)}catch(e){}; try{comprobarTutorial=function(){}}catch(e){}; try{comprobarBienvenida=async function(){}}catch(e){};
     try{mostrarAppPorGate()}catch(e){}; document.querySelectorAll('.overlay.open').forEach(o=>o.classList.remove('open')); true`);
-  const v = ventana(); if (v.isMaximized()) v.unmaximize(); v.setContentSize(1366, 768); await espera(600);
+  // CAPTURAS_TAM=1920x1080 para otro tamaño de ventana
+  const [ancho, alto] = (process.env.CAPTURAS_TAM || '1366x768').split('x').map(Number);
+  const v = ventana(); if (v.isMaximized()) v.unmaximize(); v.setContentSize(ancho, alto); await espera(600);
   for (const [nombre, js] of PASOS) {
     try { await ev(js); } catch (e) { console.log(nombre, 'ERROR', e.message); }
     await espera(1400);

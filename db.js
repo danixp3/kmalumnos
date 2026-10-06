@@ -46,6 +46,7 @@ module.exports = {
   ...require('./db/lector-tablas'),
   ...require('./db/ariauto'),
   ...require('./db/exportar'),
+  ...require('./db/codigos-postales'),
 
   getLogs: core.getLogs,
   clearLogs: core.clearLogs,

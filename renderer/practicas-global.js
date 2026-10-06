@@ -151,6 +151,7 @@ function detallePracticaGlobal(p) {
       const cuando = `${esc(c.alumno)}${c.hora_inicio ? ', ' + esc(c.hora_inicio) : ''}`;
       if (c.diferencia === 0) km += `<div class="cont-ok">${svgMini('ficha').replace(SVG_MINI.ficha, '<path d="M5 12.5l4.5 4.5L19 7.5"/>')} Km inicial igual al final anterior (${cuando}).</div>`;
       else if (c.pequeno) km += `<div class="cont-suave">El coche hizo ${fmtMiles(c.diferencia)} km entre las dos clases (anterior: ${cuando}, km ${fmtMiles(c.km_final_anterior)}).</div>`;
+      else if (c.companeros) km += `<div class="cont-suave">Hueco de ${fmtMiles(c.diferencia)} km: clases de compañeros que no están en la app (Cuadrar km → modo avanzado).</div>`;
       else if (c.revisado) km += `<div class="cont-suave">Hueco de ${fmtMiles(c.diferencia)} km dado por revisado (otro uso del coche o clases fuera de la app). <a href="#" onclick="cuadreRevisarDesdeLista('${c.clave_hueco}', false);return false">Volver a avisar</a></div>`;
       else km += `<div class="cont-aviso">${c.diferencia > 0 ? `Hueco de ${fmtMiles(c.diferencia)} km` : `Se solapa ${fmtMiles(-c.diferencia)} km`} respecto al final anterior (${cuando}: ${fmtMiles(c.km_final_anterior)}). `
         + `<a href="#" onclick="cuadreIrA(${p.vehiculo_id});return false">Cuadrar km de este coche</a>${c.diferencia > 0 ? ` · <a href="#" onclick="cuadreRevisarDesdeLista('${c.clave_hueco}', true);return false">Dar por revisado</a>` : ` · <a href="#" onclick="cuadreIrA(${p.vehiculo_id}, ${p.id});return false">Encajar esta clase a continuación de la anterior</a>`}</div>`;
@@ -229,7 +230,7 @@ function renderPracticasGlobalTabla() {
     let aviso = '';
     if (p.km_incoherente) aviso = `<div class="pg-hueco" title="${esc(p.km_incoherente)}">km que no encajan</div>`;
     else if (c && c.diferencia !== 0) {
-      if (c.diferencia > 0 && (c.pequeno || c.revisado)) aviso = `<div class="pg-hueco pg-hueco-suave" title="${c.revisado ? 'Hueco dado por revisado' : 'El coche hizo estos km entre las dos clases'}">+${fmtMiles(c.diferencia)} km${c.revisado ? ' · revisado' : ''}</div>`;
+      if (c.diferencia > 0 && (c.pequeno || c.revisado || c.companeros)) aviso = `<div class="pg-hueco pg-hueco-suave" title="${c.companeros ? 'Clases de compañeros que no están en la app' : c.revisado ? 'Hueco dado por revisado' : 'El coche hizo estos km entre las dos clases'}">+${fmtMiles(c.diferencia)} km${c.companeros ? ' · compañeros' : c.revisado ? ' · revisado' : ''}</div>`;
       else aviso = `<div class="pg-hueco" title="Respecto al final de la práctica anterior de este coche">${c.diferencia > 0 ? '+' + fmtMiles(c.diferencia) + ' km sin asignar' : 'solapa ' + fmtMiles(-c.diferencia) + ' km'}</div>`;
     }
     return `<tr class="fila-pg${abierta ? ' abierta' : ''}" onclick="togglePracticaGlobal(${p.id})"${p.sin_km && !p.en_curso ? ' style="background:var(--warn-bg-soft)"' : ''}>

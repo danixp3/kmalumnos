@@ -21,6 +21,13 @@
  *  6. «Encajar desde aquí» (proponerEncajeKm): cuando una clase se empezó con un km
  *     antiguo y todas las siguientes se encadenaron mal, se coloca a continuación de
  *     la clase anterior y se recalculan las siguientes con el baremo de km por clase.
+ *  7. Modo avanzado: «compañeros sin registrar». Alumnos que también usaban el coche
+ *     y no están en la app (p. ej. los que ya aprobaron) ocupan km del cuentakm entre
+ *     las clases del coche, dentro de su rango de fechas. NO crean alumnos ni clases:
+ *     solo hacen que el reparto deje el hueco que de verdad hubo entre una clase y la
+ *     siguiente (sin ellos, un alumno que sigue en la app parece haber usado el coche
+ *     él solo durante semanas). Se guardan por coche en ajustes_empresa.companeros_km
+ *     y explican los huecos que caen en su rango (no salen como «sin explicar»).
  *
  * Todo se PREVISUALIZA (proponerCuadreKm) y se guarda EXACTAMENTE lo mostrado
  * (aplicarCuadreKm), con registro para poder deshacerlo (deshacerCuadreKm).
@@ -35,6 +42,8 @@ const MAX_CUADRES = 20;          // registros de cuadres guardados para deshacer
 const MAX_REVISADOS = 400;       // huecos dados por revisados que se recuerdan
 const KM_CLASE_DEFECTO = 24;     // km de una clase si aún no hay datos con los que medirlo
 const RECORTE_MAX = 0.4;         // un solape solo se recorta si quita como mucho el 40 % de los km de la clase
+const MAX_COMPANEROS = 8;        // compañeros sin registrar por coche
+const HOLGURA_COMPANEROS = 1.25; // un hueco lo explican los compañeros si no pasa de sus km máximos con un 25 % de margen
 
 // ─── utilidades ─────────────────────────────────────────────────────────────
 const sinKm = p => !(p.km_inicial > 0) && !(p.km_final > 0);
@@ -100,7 +109,7 @@ function repartirKm(total, pesos, variacion = 0.12) {
  * Clasifica y ordena las clases del coche y busca la cadena fiable de km.
  * Solo lectura. Devuelve la «radiografía» que usan el diagnóstico y la propuesta.
  */
-function analizarCoche(d, vid, hoy = hoyLocalISO()) {
+function analizarCoche(d, vid, hoy = hoyLocalISO(), rehacer = null) {
   const med = kmTipicoClase(d);
   const lim = limitesCredibles(med);
   const vivas = d.practicas.filter(p => !p.deleted && p.vehiculo_id === vid).sort(ordenTiempo);
@@ -117,6 +126,7 @@ function analizarCoche(d, vid, hoy = hoyLocalISO()) {
     const p = it.p;
     if (esPracticaEnCurso(p, hoy) || esPracticaSinCerrar(p, hoy)) it.estado = 'abierta';
     else if (sinKm(p)) it.estado = 'sin_km';
+    else if (rehacer && rehacer(it)) { it.estado = 'sin_km'; it.rehacer = true; }
     else if (it.ki > 0 && it.kf > it.ki) {
       it.estado = (it.kf - it.ki) / it.peso > lim.max ? 'enorme' : 'valida';
       if (it.estado === 'enorme') it.motivo = `${Math.round(it.kf - it.ki)} km en una sola clase`;
@@ -174,19 +184,87 @@ function analizarCoche(d, vid, hoy = hoyLocalISO()) {
   return { med, lim, items, cadena, hoy };
 }
 
+// ─── compañeros sin registrar (modo avanzado) ───────────────────────────────
+const fechaISO = v => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+function normalizarCompanero(c, i = 0) {
+  const x = c && typeof c === 'object' ? c : {};
+  let kmMin = Math.round(Number(x.kmMin)), kmMax = Math.round(Number(x.kmMax));
+  if (!(kmMin >= 1)) kmMin = 20;
+  kmMin = Math.min(kmMin, 300);
+  if (!(kmMax >= kmMin)) kmMax = Math.max(kmMin, 30);
+  kmMax = Math.min(kmMax, 300);
+  let desde = fechaISO(x.desde), hasta = fechaISO(x.hasta);
+  if (desde && hasta && desde > hasta) [desde, hasta] = [hasta, desde];
+  const nombre = String(x.nombre == null ? '' : x.nombre).replace(/\s+/g, ' ').trim().slice(0, 40) || `Compañero ${i + 1}`;
+  return {
+    id: String(x.id || `c${i + 1}`).replace(/[^\w-]/g, '').slice(0, 24) || `c${i + 1}`, nombre, desde, hasta,
+    clases: Math.min(6, Math.max(1, Math.round(Number(x.clases) || 1))), kmMin, kmMax,
+    mismoDia: x.mismoDia !== false, activo: x.activo !== false
+  };
+}
+function _todosCompaneros() {
+  const t = getAjusteEmpresa('companeros_km');
+  return t && typeof t === 'object' && !Array.isArray(t) ? t : {};
+}
+/** Compañeros sin registrar guardados para un coche */
+function getCompanerosKm(vehiculo_id) {
+  const l = _todosCompaneros()[String(parseInt(vehiculo_id))];
+  return Array.isArray(l) ? l.slice(0, MAX_COMPANEROS).map(normalizarCompanero) : [];
+}
+/** Guarda (sustituye) los compañeros de un coche. Se sincroniza con los demás PCs. */
+function setCompanerosKm(vehiculo_id, lista) {
+  const vid = String(parseInt(vehiculo_id));
+  if (!/^\d+$/.test(vid)) return [];
+  const limpios = (Array.isArray(lista) ? lista : []).slice(0, MAX_COMPANEROS).map(normalizarCompanero);
+  const vistos = new Set();
+  for (const c of limpios) { while (vistos.has(c.id)) c.id = c.id + 'x'; vistos.add(c.id); }
+  const todos = { ..._todosCompaneros() };
+  if (limpios.length) todos[vid] = limpios; else delete todos[vid];
+  setAjusteEmpresa('companeros_km', todos);
+  return limpios;
+}
+const enRangoCompanero = (c, fecha) => (!c.desde || fecha >= c.desde) && (!c.hasta || fecha <= c.hasta);
+// Clases de los compañeros entre dos clases seguidas del coche (x antes que y): las dos
+// dentro de su rango; nunca entre dos clases seguidas del mismo alumno el mismo día (una sesión).
+function companerosEntre(companeros, x, y) {
+  if (!x || !y || !companeros.length) return [];
+  if (x.alumno_id === y.alumno_id && x.fecha === y.fecha) return [];
+  const out = [];
+  for (const c of companeros) {
+    if (!c.activo || !enRangoCompanero(c, x.fecha) || !enRangoCompanero(c, y.fecha)) continue;
+    if (!c.mismoDia && x.fecha === y.fecha) continue;
+    for (let k = 0; k < c.clases; k++) out.push(c);
+  }
+  return out;
+}
+/** ¿Un hueco de `km` entre dos clases (prácticas) del coche lo explican sus compañeros sin registrar? */
+function huecoDeCompaneros(vehiculo_id, a, b, km, companeros) {
+  const lista = companeros || getCompanerosKm(vehiculo_id);
+  const fz = companerosEntre(lista, a, b);
+  if (!fz.length || !(km > 0)) return false;
+  return km <= fz.reduce((s, c) => s + c.kmMax, 0) * HOLGURA_COMPANEROS + TOLERANCIA_HUECO;
+}
+
 // ─── propuesta ──────────────────────────────────────────────────────────────
 /**
  * Calcula (sin guardar) cómo dejar el coche cuadrado.
- * opciones: { rellenarAntes, rellenarDespues, cerrarHuecosPequenos, rellenarHuecosGrandes }
- * Devuelve { cambios, huecos, avisos, resumen, vehiculo }.
+ * opciones: { rellenarAntes, rellenarDespues, cerrarHuecosPequenos, rellenarHuecosGrandes,
+ *            companeros (lista; sin ella, los guardados del coche), rehacerCalculados }
+ *   rehacerCalculados: las clases con km que puso la app (km_auto) dentro del rango de algún
+ *   compañero se vuelven a calcular (para repartir de nuevo con los compañeros).
+ * Devuelve { cambios, huecos, avisos, resumen, vehiculo, fantasmas, planificacion }.
  */
 function proponerCuadreKm(vehiculo_id, opciones = {}) {
   const d = load();
   const vid = parseInt(vehiculo_id);
   const v = d.vehiculos.find(x => x.id === vid);
   if (!v) return { cambios: [], huecos: [], avisos: [], errores: ['Vehículo no encontrado'], resumen: {} };
-  const opt = { rellenarAntes: false, rellenarDespues: false, cerrarHuecosPequenos: false, rellenarHuecosGrandes: false, ...opciones };
-  const A = analizarCoche(d, vid);
+  const opt = { rellenarAntes: false, rellenarDespues: false, cerrarHuecosPequenos: false, rellenarHuecosGrandes: false, rehacerCalculados: false, ...opciones };
+  const companeros = (Array.isArray(opt.companeros) ? opt.companeros.slice(0, MAX_COMPANEROS).map(normalizarCompanero) : getCompanerosKm(vid)).filter(c => c.activo);
+  const rehacer = opt.rehacerCalculados && companeros.length
+    ? it => it.p.tipo_detalle === 'km_auto' && companeros.some(c => enRangoCompanero(c, it.fecha))
+    : null;
+  const A = analizarCoche(d, vid, undefined, rehacer);
   const { med, lim, items, cadena } = A;
   const alumno = id => nombreDe(d.alumnos.find(a => a.id === id));
   const revisados = new Set(getRevisados());
@@ -194,7 +272,17 @@ function proponerCuadreKm(vehiculo_id, opciones = {}) {
   const cambios = [];     // { practica_id, antes, despues, motivo, tipo }
   const huecos = [];      // huecos que quedan entre clases conocidas
   const avisos = [];      // cosas que no se pueden arreglar solas
+  const fantasmas = [];   // km de los compañeros sin registrar: { despues_de, antes_de, companero_id, nombre, clases, km, explica }
   const cambiada = new Set();
+  // Compañeros entre dos items (clases del coche) y su apunte en la vista previa
+  const fEntre = (x, y) => companerosEntre(companeros, x && { alumno_id: x.p.alumno_id, fecha: x.fecha }, y && { alumno_id: y.p.alumno_id, fecha: y.fecha });
+  const medF = c => (c.kmMin + c.kmMax) / 2;
+  const sortear = c => Math.round(c.kmMin + Math.random() * (c.kmMax - c.kmMin));
+  const anotarFantasma = (x, y, c, km, explica = false) => {
+    const prev = fantasmas.find(f => f.antes_de === y.id && f.companero_id === c.id);
+    if (prev) { prev.km += km; prev.clases += 1; return; }
+    fantasmas.push({ despues_de: x.id, antes_de: y.id, companero_id: c.id, nombre: c.nombre, clases: 1, km, explica });
+  };
   const etq = it => `${alumno(it.p.alumno_id)} (${fmtFechaLog(it.fecha)}${it.hora ? ' ' + it.hora : ''})`;
   const fila = (it, ki, kf, tipo, motivo) => {
     if (cambiada.has(it.id)) return;
@@ -246,6 +334,41 @@ function proponerCuadreKm(vehiculo_id, opciones = {}) {
     if (antes && despues) {
       // ENTRE dos clases conocidas: hay G km para repartir
       const G = despues.ki - antes.kf;
+      // Con compañeros sin registrar en el tramo, sus clases se reparten los km con las de la app
+      const seq = [antes, ...lista, despues];
+      const fant = seq.slice(0, -1).map((x, j) => fEntre(x, seq[j + 1]));
+      if (fant.some(f => f.length)) {
+        const Wf = fant.reduce((s, f) => s + f.reduce((a, c) => a + medF(c) / med, 0), 0);
+        const porClaseF = G / (W + Wf);
+        if (porClaseF >= lim.lo && porClaseF <= lim.hi) {
+          const piezas = [];
+          fant.forEach((f, j) => { for (const c of f) piezas.push({ c, x: seq[j], y: seq[j + 1] }); if (j < lista.length) piezas.push({ it: lista[j] }); });
+          const trozos = repartirKm(G, piezas.map(pz => (pz.it ? pz.it.peso : medF(pz.c) / med)));
+          let cursor = antes.kf;
+          piezas.forEach((pz, i) => {
+            if (pz.it) fila(pz.it, cursor, cursor + trozos[i], tipoPara(pz.it), motivoPara(pz.it, `Reparte los ${G} km entre las clases de la app y las de los compañeros sin registrar`));
+            else anotarFantasma(pz.x, pz.y, pz.c, trozos[i]);
+            cursor += trozos[i];
+          });
+          continue;
+        }
+        if (porClaseF > lim.hi) {
+          // Sobran km aun contando con los compañeros: cada uno con sus km y lo demás queda como hueco
+          let cursor = antes.kf;
+          fant.forEach((f, j) => {
+            for (const c of f) { const km = sortear(c); anotarFantasma(seq[j], seq[j + 1], c, km); cursor += km; }
+            if (j < lista.length) {
+              const it = lista[j];
+              const km = kmTipicoVariado(med, it.peso);
+              fila(it, cursor, cursor + km, tipoPara(it), motivoPara(it, 'Km típicos; los compañeros sin registrar ocupan su parte del tramo'));
+              cursor += km;
+            }
+          });
+          registrarHueco(antes, despues, cursor, despues.ki);
+          continue;
+        }
+        avisos.push({ tipo: 'companeros_no_caben', texto: `Entre ${etq(antes)} y ${etq(despues)} solo hay ${G} km: no caben también las clases de los compañeros sin registrar, se reparten sin ellos.` });
+      }
       const porClase = G / W;
       if (porClase >= lim.lo && porClase <= lim.hi) {
         const trozos = repartirKm(G, pesos);
@@ -286,9 +409,15 @@ function proponerCuadreKm(vehiculo_id, opciones = {}) {
         let cursor = despues.ki;
         for (let i = aTratar.length - 1; i >= 0; i--) {
           const it = aTratar[i];
+          const sig = i + 1 < aTratar.length ? aTratar[i + 1] : despues;
+          // Clases de los compañeros entre esta y la siguiente (hacia atrás: van antes de la siguiente)
+          const fz = fEntre(it, sig).map(c => ({ c, km: sortear(c) }));
+          const kmF = fz.reduce((s, z) => s + z.km, 0);
           const km = kmTipicoVariado(med, it.peso);
-          if (cursor - km < 0) { avisos.push({ tipo: 'sin_sitio', texto: 'Hay más clases anteriores que km hacia atrás: el cuentakilómetros bajaría de 0.' }); break; }
-          fila(it, cursor - km, cursor, tipoPara(it), motivoPara(it, 'Antes de la primera clase con km conocidos, hacia atrás'));
+          if (cursor - kmF - km < 0) { avisos.push({ tipo: 'sin_sitio', texto: 'Hay más clases anteriores que km hacia atrás: el cuentakilómetros bajaría de 0.' }); break; }
+          for (const z of fz) anotarFantasma(it, sig, z.c, z.km);
+          cursor -= kmF;
+          fila(it, cursor - km, cursor, tipoPara(it), motivoPara(it, fz.length ? 'Hacia atrás desde la primera clase con km conocidos, dejando sitio a los compañeros sin registrar' : 'Antes de la primera clase con km conocidos, hacia atrás'));
           cursor -= km;
         }
       }
@@ -299,11 +428,14 @@ function proponerCuadreKm(vehiculo_id, opciones = {}) {
       const rotas = lista.filter(it => it.estado !== 'sin_km');
       const aTratar = opt.rellenarDespues ? lista : rotas;
       let cursor = antes.kf;
-      for (const it of aTratar) {
+      aTratar.forEach((it, i) => {
+        const prev = i > 0 ? aTratar[i - 1] : antes;
+        const fz = fEntre(prev, it);
+        for (const c of fz) { const kmF = sortear(c); anotarFantasma(prev, it, c, kmF); cursor += kmF; }
         const km = kmTipicoVariado(med, it.peso);
-        fila(it, cursor, cursor + km, tipoPara(it), motivoPara(it, 'A continuación de la última clase con km conocidos'));
+        fila(it, cursor, cursor + km, tipoPara(it), motivoPara(it, fz.length ? 'A continuación de la anterior, después de las clases de los compañeros sin registrar' : 'A continuación de la última clase con km conocidos'));
         cursor += km;
-      }
+      });
       const pendientes = lista.length - aTratar.length;
       if (pendientes > 0) avisos.push({ tipo: 'sin_km_despues', clases: pendientes, texto: `${pendientes} clase(s) sin km posteriores a la última con km conocidos (marca «Rellenar también las clases sin km posteriores» para ponérselos hacia delante).` });
     }
@@ -329,6 +461,13 @@ function proponerCuadreKm(vehiculo_id, opciones = {}) {
     const a = cadena[i], b = cadena[i + 1];
     if (tramos.has(i + 1)) continue;               // hay clases por cuadrar entre las dos: ya tratado arriba
     const km = b.ki - a.kf;
+    // Un hueco en el rango de los compañeros sin registrar es suyo (no sale como «sin explicar»)
+    const fz = km > TOLERANCIA_HUECO ? fEntre(a, b) : [];
+    if (fz.length && km <= fz.reduce((s, c) => s + c.kmMax, 0) * HOLGURA_COMPANEROS + TOLERANCIA_HUECO) {
+      const partes = repartirKm(km, fz.map(c => medF(c)), 0);
+      fz.forEach((c, j) => anotarFantasma(a, b, c, partes[j], true));
+      continue;
+    }
     if (km > TOLERANCIA_HUECO) { if (!yaTienenHueco.has(`${a.id}-${b.id}`)) huecos.push(huecoInfo(a, b, km)); }
     else if (km > 0 && opt.cerrarHuecosPequenos && a.estado === 'valida') {
       fila(a, a.ki, b.ki, 'cerrar', `Cierra los ${km} km que quedaban sin asignar con la clase siguiente`);
@@ -346,9 +485,27 @@ function proponerCuadreKm(vehiculo_id, opciones = {}) {
     huecos_revisados: huecos.filter(h => h.revisado).length,
     km_en_huecos: huecos.filter(h => !h.revisado).reduce((s, h) => s + h.km, 0),
     abiertas: items.filter(it => it.estado === 'abierta').length,
-    km_tipico_clase: med
+    km_tipico_clase: med,
+    companeros: companeros.length,
+    km_companeros: fantasmas.reduce((s, f) => s + f.km, 0),
+    clases_companeros: fantasmas.reduce((s, f) => s + f.clases, 0),
+    rehechas: items.filter(it => it.rehacer).length
   };
-  return { vehiculo: { id: v.id, nombre: v.nombre, matricula: v.matricula || null }, cambios, huecos, avisos, resumen, errores: [] };
+  // El planning entero del coche tal como quedaría (modo avanzado)
+  const finales = new Map(cambios.map(c => [c.practica_id, c]));
+  const fantPor = new Map();
+  for (const f of fantasmas) { if (!fantPor.has(f.antes_de)) fantPor.set(f.antes_de, []); fantPor.get(f.antes_de).push(f); }
+  const planificacion = items.map(it => {
+    const c = finales.get(it.id);
+    return {
+      practica_id: it.id, fecha: it.fecha, hora_inicio: it.hora, alumno_id: it.p.alumno_id, alumno: alumno(it.p.alumno_id),
+      antes: { km_inicial: it.ki0, km_final: it.kf0 },
+      km_inicial: c ? c.despues.km_inicial : it.ki0, km_final: c ? c.despues.km_final : it.kf0,
+      cambia: !!c, tipo: c ? c.tipo : null, estado: it.estado, clases: it.peso,
+      fantasmas: fantPor.get(it.id) || []
+    };
+  });
+  return { vehiculo: { id: v.id, nombre: v.nombre, matricula: v.matricula || null }, cambios, huecos, avisos, resumen, errores: [], fantasmas, companeros, planificacion };
 }
 
 // ─── encajar a continuación de la clase anterior ────────────────────────────
@@ -670,5 +827,6 @@ module.exports = {
   proponerEncajeKm, getEncajesKm, getClasesCocheKm,
   marcarHuecoRevisado, getHuecosRevisados: getRevisados, getResumenCuadreKm,
   mapaContinuidad, TOLERANCIA_HUECO,
+  getCompanerosKm, setCompanerosKm, huecoDeCompaneros, normalizarCompanero,
   _analizarCoche: analizarCoche, _repartirKm: repartirKm,
 };

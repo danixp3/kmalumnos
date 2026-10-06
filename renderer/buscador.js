@@ -55,7 +55,7 @@ const BUSCADOR_DESTINOS = [
 
   // Importar y exportar
   { titulo: 'Importar datos', sub: 'Importar y exportar', page: 'datos', tab: 'importar', kw: 'importar datos csv cargar subir' },
-  { titulo: 'Exportar datos', sub: 'Importar y exportar', page: 'datos', tab: 'exportar', kw: 'exportar datos csv descargar copia' },
+  { titulo: 'Exportar datos', sub: 'Importar y exportar', page: 'datos', tab: 'exportar', kw: 'exportar datos csv excel xlsx json descargar copia alumnos profesores pagos examenes jornada gestoria' },
   { titulo: 'Comparar datos', sub: 'Importar y exportar', page: 'datos', tab: 'comparar', kw: 'comparar datos diferencias' },
 
   // Ajustes

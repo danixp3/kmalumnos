@@ -109,6 +109,8 @@ contextBridge.exposeInMainWorld('api', {
   generarKmPorRango:     (vid, desde, hasta, variacion, aplicar) => ipcRenderer.invoke('generar-km-por-rango', vid, desde, hasta, variacion, aplicar),
   aplicarPlanKm:         (vid, asignaciones)     => ipcRenderer.invoke('aplicar-plan-km', vid, asignaciones),
   proponerCuadreKm:      (vid, opciones)         => ipcRenderer.invoke('proponer-cuadre-km', vid, opciones),
+  getCompanerosKm:       (vid)                   => ipcRenderer.invoke('get-companeros-km', vid),
+  setCompanerosKm:       (vid, lista)            => ipcRenderer.invoke('set-companeros-km', vid, lista),
   aplicarCuadreKm:       (vid, cambios)          => ipcRenderer.invoke('aplicar-cuadre-km', vid, cambios),
   deshacerCuadreKm:      (id)                    => ipcRenderer.invoke('deshacer-cuadre-km', id),
   getCuadresKm:          ()                      => ipcRenderer.invoke('get-cuadres-km'),
@@ -175,6 +177,10 @@ contextBridge.exposeInMainWorld('api', {
   // Exportación y comparación CSV
   exportarCsv:       (opciones)              => ipcRenderer.invoke('exportar-csv', opciones),
   exportarTabla:     (tipo, opciones)        => ipcRenderer.invoke('exportar-tabla', tipo, opciones),
+  buscarCodigoPostal: (cp)                   => ipcRenderer.invoke('buscar-codigo-postal', cp),
+  catalogoExportacion: ()                    => ipcRenderer.invoke('catalogo-exportacion'),
+  exportarDatos:     (opciones)              => ipcRenderer.invoke('exportar-datos', opciones),
+  mostrarExportado:  (ruta)                  => ipcRenderer.invoke('mostrar-exportado', ruta),
   compararCsvs:      (pathA, pathB, opts)    => ipcRenderer.invoke('comparar-csvs', pathA, pathB, opts),
   openCsvDialogMulti: ()                     => ipcRenderer.invoke('open-csv-dialog-multi'),
 
