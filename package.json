@@ -23,6 +23,7 @@
       "db/**/*",
       "sync.js",
       "utils-ficheros.js",
+      "date-utils.js",
       "fichas-dgt.js",
       "assets/**/*",
       "fonts/**/*",

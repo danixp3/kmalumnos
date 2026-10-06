@@ -99,6 +99,10 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .campo:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(20,22,27,.12); }
   textarea.campo { height: auto; min-height: 92px; padding: 12px 14px; resize: vertical; }
   .err-txt { color: var(--err); font-size: 14px; min-height: 18px; font-weight: 600; }
+  .aviso-dni { color: var(--err); font-size: 13px; margin-top: 4px; line-height: 1.3; }
+  .aviso-dni:empty { display: none; }
+  .aviso-dni .lnk { font-size: 13px; padding: 0 2px; color: inherit; }
+  .campo.campo-mal { border-color: var(--err); }
   .perfil-op { width: 100%; max-width: 360px; display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; font-size: 18px; font-weight: 600; text-align: left; }
   .perfil-op:active { background: var(--soft); }
   .perfil-op .chev { margin-left: auto; color: var(--faint); }
@@ -2849,7 +2853,7 @@ function renderNuevo() {
         <div><div class="etq" style="margin:0 0 6px">2.º apellido</div><input class="campo" id="n-ape2" autocomplete="off" autocapitalize="words" maxlength="60" placeholder="Si tiene"></div>
       </div>
       <div class="par-campos">
-        <div><div class="etq" style="margin:0 0 6px">DNI / NIE</div><input class="campo" id="n-dni" autocomplete="off" autocapitalize="characters" maxlength="20" placeholder="Opcional"></div>
+        <div><div class="etq" style="margin:0 0 6px">DNI / NIE</div><input class="campo" id="n-dni" autocomplete="off" autocapitalize="characters" maxlength="20" placeholder="Opcional" oninput="pintarAvisoDni(false)" onblur="pintarAvisoDni(true)"><div class="aviso-dni" id="n-dni-aviso" role="status"></div></div>
         <div><div class="etq" style="margin:0 0 6px">Teléfono</div><input class="campo" id="n-tel" type="tel" inputmode="tel" autocomplete="off" maxlength="20" placeholder="Opcional"></div>
       </div>
       <p class="fila-sub" style="margin:-4px 2px 0;font-size:14px">Igual que en el ordenador. Con el DNI, al traer los datos del programa anterior se junta solo con su ficha.</p>
@@ -2860,11 +2864,34 @@ function renderNuevo() {
     </div>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-nuevo" onclick="crearAlumno()">${ic('mas', 20)} Crear alumno</button></div>`;
 }
+// DNI / NIE: la letra de control tiene que cuadrar con el número (como el escritorio)
+const LETRAS_DNI = 'TRWAGMYFPDXBNJZSQVHLCKE';
+function problemaDni(texto) {
+  const d = String(texto || '').toUpperCase().replace(/[\s.\-_/]/g, '');
+  if (!d) return null;
+  let r = d.match(/^(\d{1,8})([A-Z])$/);
+  if (r) { const n = r[1].padStart(8, '0'), l = LETRAS_DNI[parseInt(n, 10) % 23]; return l === r[2] ? null : { msg: `La letra no corresponde: sería ${n}${l}`, bueno: n + l }; }
+  r = d.match(/^(\d{8})$/);
+  if (r) { const l = LETRAS_DNI[parseInt(r[1], 10) % 23]; return { msg: `Falta la letra: sería ${r[1]}${l}`, bueno: r[1] + l }; }
+  r = d.match(/^([XYZ])(\d{7})([A-Z])$/);
+  if (r) { const l = LETRAS_DNI[parseInt('XYZ'.indexOf(r[1]) + r[2], 10) % 23]; return l === r[3] ? null : { msg: `La letra no corresponde: sería ${r[1]}${r[2]}${l}`, bueno: r[1] + r[2] + l }; }
+  return null; // pasaporte u otro documento: no se juzga
+}
+function pintarAvisoDni(alSalir) {
+  const inp = document.getElementById('n-dni'), av = document.getElementById('n-dni-aviso');
+  if (!inp || !av) return;
+  const limpio = inp.value.toUpperCase().replace(/[\s.\-_/]/g, '');
+  const p = (alSalir || limpio.length >= 9) ? problemaDni(inp.value) : null;
+  av.innerHTML = p ? `${esc(p.msg)} <button type="button" class="lnk" onclick="document.getElementById('n-dni').value='${esc(p.bueno)}';pintarAvisoDni(true)">Corregir</button>` : '';
+  inp.classList.toggle('campo-mal', !!p);
+}
 async function crearAlumno(forzar = false) {
   const val = id => document.getElementById(id).value.replace(/\s+/g, ' ').trim();
   const nombre = val('n-nombre'), ape1 = val('n-ape1'), ape2 = val('n-ape2'); const err = document.getElementById('n-error');
   if (!nombre) { err.textContent = 'Introduce el nombre del alumno.'; document.getElementById('n-nombre').focus(); return; }
   if (!ape1) { err.textContent = 'Introduce el primer apellido.'; document.getElementById('n-ape1').focus(); return; }
+  const malDni = problemaDni(val('n-dni'));
+  if (!forzar && malDni && !confirm(`El DNI parece mal escrito: ${malDni.msg}.\n\nPulsa Aceptar para guardarlo tal cual o Cancelar para corregirlo.`)) { pintarAvisoDni(true); document.getElementById('n-dni').focus(); return; }
   // Nombre y apellidos escritos juntos en «Nombre»: se avisa (en el ordenador son campos distintos)
   if (!forzar && nombre.split(' ').length >= 3 && !ape2 && !confirm(`¿«${nombre}» es solo el nombre? Los apellidos van en sus casillas. Pulsa Aceptar si el nombre es así.`)) { document.getElementById('n-nombre').focus(); return; }
   err.textContent = ''; const btn = document.getElementById('btn-nuevo'); btn.disabled = true;

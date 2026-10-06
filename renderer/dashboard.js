@@ -482,5 +482,6 @@ function cambiarTabDatos(tab) {
   document.querySelectorAll('#page-datos .page-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('#page-datos .tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-datos-' + tab));
   if (tab === 'importar') aplicarRangoPref('imp-min', 'imp-max');
+  if (tab === 'exportar' && typeof loadExportarDatos === 'function') loadExportarDatos();
 }
 

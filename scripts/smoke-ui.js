@@ -217,8 +217,9 @@ async function probarCalendario() {
   await espera(1200);
 
   const r = await ev(`(function(){
-    var t = Array.from(document.querySelectorAll('.dp-trigger')).find(b => b.offsetParent !== null);
-    if (!t) return 'sin-campo-fecha';
+    var caja = Array.from(document.querySelectorAll('.dp-trigger')).find(b => b.offsetParent !== null);
+    if (!caja) return 'sin-campo-fecha';
+    var t = caja.querySelector('.dp-btn');
     t.click();
     if (!document.querySelector('.dp-pop')) return 'no-abre';
     var mes1 = (document.querySelector('.dp-mesanio')||{}).textContent;
@@ -226,9 +227,25 @@ async function probarCalendario() {
     if (!document.querySelector('.dp-pop')) return 'SE CIERRA AL CAMBIAR DE MES';
     var mes2 = (document.querySelector('.dp-mesanio')||{}).textContent;
     if (mes1 === mes2) return 'no cambia de mes';
+    // Año de un clic: título del año → rejilla de años → un año → meses
+    var anio = document.querySelector('.dp-pop [data-ir="anios"]');
+    if (!anio) return 'sin selector de año';
+    anio.click();
+    var celda = document.querySelector('.dp-pop [data-anio]');
+    if (!celda) return 'no salen los años';
+    celda.click();
+    if (!document.querySelector('.dp-pop [data-mes]')) return 'no salen los meses tras el año';
+    document.querySelector('.dp-pop [data-mes="3"]').click();
+    if (!document.querySelector('.dp-pop .dp-dia')) return 'no vuelven los días tras el mes';
     document.body.click();
     if (document.querySelector('.dp-pop')) return 'no cierra al pulsar fuera';
-    return 'ok';
+    // Escribir la fecha a mano: las barras salen solas y el campo de verdad cambia
+    var txt = caja.querySelector('.dp-texto'), oculto = caja.parentNode.querySelector('input[type=hidden]');
+    txt.focus(); txt.value = '14042026';
+    txt.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+    if (txt.value !== '14/04/2026') return 'la máscara no pone las barras: ' + txt.value;
+    txt.blur();
+    return new Promise(function (res) { setTimeout(function () { res(oculto.value === '2026-04-14' ? 'ok' : 'no guarda lo escrito: ' + oculto.value); }, 50); });
   })()`);
   if (r === 'ok') info.push('calendario: OK');
   else fallos.push(`[calendario] ${r}`);

@@ -106,6 +106,7 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
       cambiarTabKilometros(activeTab);
     }
     if (page === 'generar-km') loadGenerarKm();
+    if (page === 'cuadre-avanzado') loadCuadreAvanzado();
     if (page === 'datos') {
       const activeTab = document.querySelector('#page-datos .page-tab.active')?.dataset.tab || 'importar';
       cambiarTabDatos(activeTab);

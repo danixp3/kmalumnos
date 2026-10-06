@@ -438,6 +438,8 @@ async function addAlumno() {
     document.getElementById('a-email').focus();
     return;
   }
+  if (!await confirmarDatosDudosos([['DNI', datos.dni, 'documento'], ['Teléfono', datos.telefono, 'telefono'],
+    ['Código postal', datos.codigo_postal, 'cp'], ['Nacimiento', datos.fecha_nacimiento, 'nacimiento']])) return;
   if (nRegistro) {
     const otro = await window.api.getAlumnoConNRegistro(nRegistro);
     if (otro && !await confirmar(`El nº de registro ${nRegistro} ya lo tiene ${otro.nombre}. ¿Darlo de alta con el mismo número?`, { textoAceptar: 'Sí, repetirlo' })) {
@@ -756,6 +758,10 @@ async function guardarDatosFicha() {
   });
   if ('nombre' in cambios && !cambios.nombre) { showToast('fd-alerta', 'El nombre no puede quedar vacío.', 'err'); document.getElementById('fd-nombre')?.focus(); return; }
   if ('email' in cambios && !emailValido(cambios.email)) { showToast('fd-alerta', 'El email no tiene un formato válido.', 'err'); document.getElementById('fd-email')?.focus(); return; }
+  const dudosos = [['DNI', 'dni', 'documento'], ['DNI del tutor', 'tutor_dni', 'documento'], ['NIF de la factura', 'factura_nif', 'documento'],
+    ['Teléfono', 'telefono', 'telefono'], ['Otro teléfono', 'telefono2', 'telefono'], ['Código postal', 'codigo_postal', 'cp'], ['Nacimiento', 'fecha_nacimiento', 'nacimiento']]
+    .filter(([, c]) => c in cambios).map(([l, c, t]) => [l, cambios[c], t]);
+  if (!await confirmarDatosDudosos(dudosos)) return;
   const previasTxt = (document.getElementById('fd-clases_previas')?.value || '').trim();
   if (previasTxt && previasTxt !== '0' && leerClases(previasTxt) == null) { showToast('fd-alerta', `«${previasTxt}» no vale: las clases van de ¼ en ¼ (12 · 12,25 · 12,5 · 12,75 o 12 ½).`, 'err'); document.getElementById('fd-clases_previas')?.focus(); return; }
   if (!Object.keys(cambios).length && !previasCambiadas) { cancelarDatosFicha(); return; }
