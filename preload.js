@@ -105,6 +105,7 @@ contextBridge.exposeInMainWorld('api', {
   aplicarCuadreKm:       (vid, cambios)          => ipcRenderer.invoke('aplicar-cuadre-km', vid, cambios),
   deshacerCuadreKm:      (id)                    => ipcRenderer.invoke('deshacer-cuadre-km', id),
   getCuadresKm:          ()                      => ipcRenderer.invoke('get-cuadres-km'),
+  quitarKmClase:         (id)                    => ipcRenderer.invoke('quitar-km-clase', id),
   marcarHuecoKmRevisado: (clave, revisado)       => ipcRenderer.invoke('marcar-hueco-km-revisado', clave, revisado),
   getResumenCuadreKm:    ()                      => ipcRenderer.invoke('get-resumen-cuadre-km'),
   getZonasPractica:      ()                      => ipcRenderer.invoke('get-zonas-practica'),

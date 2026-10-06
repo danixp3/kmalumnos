@@ -66,6 +66,9 @@ function limitesCredibles(med) {
   return { lo: Math.max(4, Math.round(med * 0.4)), hi: Math.round(med * 2.4), max: Math.max(150, Math.round(med * 6)) };
 }
 
+// Km de una clase «típica» con una pequeña variación (±15 %) para que no salgan todas idénticas
+const kmTipicoVariado = (med, peso) => Math.max(1, Math.round(med * peso * (1 + (Math.random() * 2 - 1) * 0.15)));
+
 // Reparte `total` km en trozos ENTEROS proporcionales a `pesos`, con una variación
 // aleatoria del ± `variacion` (fracción de la media), sumando EXACTAMENTE `total`
 // y con al menos 1 km cada uno.
@@ -252,7 +255,7 @@ function proponerCuadreKm(vehiculo_id, opciones = {}) {
         if (opt.rellenarHuecosGrandes) {
           let cursor = antes.kf;
           lista.forEach(it => {
-            const km = Math.max(1, Math.round(med * it.peso));
+            const km = kmTipicoVariado(med, it.peso);
             fila(it, cursor, cursor + km, tipoPara(it), motivoPara(it, `Km típicos a continuación de la clase anterior (sobran ${G - Math.round(med * W)} km sin clases)`));
             cursor += km;
           });
@@ -280,26 +283,26 @@ function proponerCuadreKm(vehiculo_id, opciones = {}) {
         let cursor = despues.ki;
         for (let i = aTratar.length - 1; i >= 0; i--) {
           const it = aTratar[i];
-          const km = Math.max(1, Math.round(med * it.peso));
+          const km = kmTipicoVariado(med, it.peso);
           if (cursor - km < 0) { avisos.push({ tipo: 'sin_sitio', texto: 'Hay más clases anteriores que km hacia atrás: el cuentakilómetros bajaría de 0.' }); break; }
           fila(it, cursor - km, cursor, tipoPara(it), motivoPara(it, 'Antes de la primera clase con km conocidos, hacia atrás'));
           cursor -= km;
         }
       }
       const pendientes = lista.length - aTratar.length;
-      if (pendientes > 0) avisos.push({ tipo: 'sin_km_antes', clases: pendientes, texto: `${pendientes} clase(s) sin km anteriores a la primera con km conocidos.` });
+      if (pendientes > 0) avisos.push({ tipo: 'sin_km_antes', clases: pendientes, texto: `${pendientes} clase(s) sin km anteriores a la primera con km conocidos (marca «Rellenar también las clases sin km anteriores» para ponérselos hacia atrás).` });
     } else if (antes && !despues) {
       // DESPUÉS de la última conocida: hacia delante
       const rotas = lista.filter(it => it.estado !== 'sin_km');
       const aTratar = opt.rellenarDespues ? lista : rotas;
       let cursor = antes.kf;
       for (const it of aTratar) {
-        const km = Math.max(1, Math.round(med * it.peso));
+        const km = kmTipicoVariado(med, it.peso);
         fila(it, cursor, cursor + km, tipoPara(it), motivoPara(it, 'A continuación de la última clase con km conocidos'));
         cursor += km;
       }
       const pendientes = lista.length - aTratar.length;
-      if (pendientes > 0) avisos.push({ tipo: 'sin_km_despues', clases: pendientes, texto: `${pendientes} clase(s) sin km posteriores a la última con km conocidos.` });
+      if (pendientes > 0) avisos.push({ tipo: 'sin_km_despues', clases: pendientes, texto: `${pendientes} clase(s) sin km posteriores a la última con km conocidos (marca «Rellenar también las clases sin km posteriores» para ponérselos hacia delante).` });
     }
   }
 
@@ -396,6 +399,34 @@ function aplicarCuadreKm(vehiculo_id, cambios) {
   return { aplicados: hechos.length, omitidos, errores: [], cuadre_id: id };
 }
 
+/**
+ * Quita los km de UNA clase (se queda sin km, con su fecha, hora, alumno y profesor). Sirve cuando
+ * una lectura está mal (p. ej. un km traído del otro programa que es de otro coche) y descuadra el
+ * cuentakilómetros: sin ella, «Cuadrar» puede repartir las clases de alrededor. Queda registrado
+ * como un cuadre, así que «Deshacer el último cuadre» devuelve los km.
+ */
+function quitarKmClase(practica_id) {
+  const d = load();
+  const p = d.practicas.find(x => x.id === parseInt(practica_id) && !x.deleted);
+  if (!p) return { quitados: 0, errores: ['No se encuentra la clase.'] };
+  if (!(p.km_inicial > 0) && !(p.km_final > 0)) return { quitados: 0, errores: ['Esa clase ya está sin km.'] };
+  const hoy = hoyLocalISO();
+  if (esPracticaEnCurso(p, hoy) || esPracticaSinCerrar(p, hoy)) return { quitados: 0, errores: ['Esa clase está en curso o sin cerrar: ciérrala antes de tocar sus km.'] };
+  const v = d.vehiculos.find(x => x.id === p.vehiculo_id);
+  const a = d.alumnos.find(x => x.id === p.alumno_id);
+  const antes = { km_inicial: p.km_inicial, km_final: p.km_final };
+  p.km_inicial = 0; p.km_final = 0;
+  const s = _sync(); if (s) s.markDirty('practicas', p.id);
+  const id = Date.now();
+  if (!d.cuadres_km) d.cuadres_km = [];
+  d.cuadres_km.unshift({ id, fecha: new Date().toISOString(), vehiculo_id: p.vehiculo_id, vehiculo: v ? v.nombre : '?',
+    cambios: [{ practica_id: p.id, antes, despues: { km_inicial: 0, km_final: 0 }, marcada: false }] });
+  d.cuadres_km = d.cuadres_km.slice(0, MAX_CUADRES);
+  addLog('correccion', `Quitar km ${v ? v.nombre : '?'}: ${a ? a.nombre : '?'} / ${fmtFechaLog(p.fecha)}`, [`${antes.km_inicial}→${antes.km_final}  ➜  sin km`]);
+  save();
+  return { quitados: 1, errores: [], cuadre_id: id };
+}
+
 function getCuadresKm() {
   return (load().cuadres_km || []).map(c => ({ id: c.id, fecha: c.fecha, vehiculo_id: c.vehiculo_id, vehiculo: c.vehiculo, clases: c.cambios.length }));
 }
@@ -487,7 +518,7 @@ function getResumenCuadreKm() {
 }
 
 module.exports = {
-  proponerCuadreKm, aplicarCuadreKm, deshacerCuadreKm, getCuadresKm,
+  proponerCuadreKm, aplicarCuadreKm, deshacerCuadreKm, getCuadresKm, quitarKmClase,
   marcarHuecoRevisado, getHuecosRevisados: getRevisados, getResumenCuadreKm,
   mapaContinuidad, TOLERANCIA_HUECO,
   _analizarCoche: analizarCoche, _repartirKm: repartirKm,
