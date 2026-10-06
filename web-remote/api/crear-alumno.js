@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, validators, getSupabase, handleSupabaseError, cargarCobrosAlta, esErrorColumnaInexistente, traerTodo, siguienteNRegistro } from './_utils.js';
+import { setCorsHeaders, requireAuth, validators, getSupabase, handleSupabaseError, cargarCobrosAlta, esErrorColumnaInexistente, traerTodo, siguienteNRegistro, limpiarDni, claveNombre, nombreCompleto } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -11,13 +11,19 @@ export default async function handler(req, res) {
 
   const supabase = getSupabase(auth.token);
 
-  const { nombre, permiso, vehiculo_id, profesor_id, hoy } = req.body || {};
+  const { nombre, primer_apellido, segundo_apellido, dni, telefono, permiso, vehiculo_id, profesor_id, hoy, forzar } = req.body || {};
 
-  // Validar nombre
-  const nombreVal = validators.nonEmptyString(nombre, 'Nombre', 100);
+  // Nombre y apellidos por separado, como en el escritorio (antes era una
+  // sola casilla «Nombre y apellidos» y todo acababa en `nombre`)
+  const nombreVal = validators.nonEmptyString(nombre, 'Nombre', 60);
   if (!nombreVal.valid) {
     return res.status(400).json({ error: nombreVal.error });
   }
+  const texto = (v, max) => typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '';
+  const apellido1 = texto(primer_apellido, 60), apellido2 = texto(segundo_apellido, 60);
+  const dniLimpio = limpiarDni(dni);
+  if (dniLimpio && dniLimpio.length > 20) return res.status(400).json({ error: 'El DNI / NIE es demasiado largo' });
+  const tel = texto(telefono, 20).replace(/[^\d+ ]/g, '').trim();
 
   // Validar permiso (opcional, default B)
   let permisoFinal = 'B';
@@ -84,14 +90,37 @@ export default async function handler(req, res) {
     }
   }
 
-  // Nº de registro: el siguiente de la numeración del programa anterior (si
-  // ya hay alguno; si no, se deja vacío). Sin la columna, no se pone.
-  let nRegistro = null, conNRegistro = true;
+  // Alumnos de la autoescuela: para el siguiente nº de registro (el de la
+  // numeración del programa anterior, si ya hay alguno; sin la columna, no se
+  // pone) y para no dar de alta dos veces a la misma persona.
+  let nRegistro = null, conNRegistro = true, existentes = [];
   {
-    const { data: numeros, error: errN } = await traerTodo(() => supabase.from('alumnos')
-      .select('id, n_registro').eq('empresa_id', auth.empresaId).eq('deleted', false).order('id'));
-    if (errN && esErrorColumnaInexistente(errN)) conNRegistro = false;
-    else if (!errN) nRegistro = siguienteNRegistro(numeros);
+    const leer = cols => traerTodo(() => supabase.from('alumnos')
+      .select(cols).eq('empresa_id', auth.empresaId).eq('deleted', false).order('id'));
+    let { data, error: errN } = await leer('id, nombre, primer_apellido, segundo_apellido, dni, permiso, n_registro');
+    if (errN && esErrorColumnaInexistente(errN)) {
+      conNRegistro = false;
+      ({ data, error: errN } = await leer('id, nombre, primer_apellido, segundo_apellido, dni, permiso'));
+      if (errN && esErrorColumnaInexistente(errN)) ({ data, error: errN } = await leer('id, nombre, permiso'));
+    }
+    if (!errN) { existentes = data || []; if (conNRegistro) nRegistro = siguienteNRegistro(existentes); }
+  }
+
+  // ¿Ya está? (mismo DNI, o mismo nombre y apellidos en cualquier orden, sin
+  // tildes). Se avisa y solo se crea si se confirma que es otra persona (o
+  // otro permiso de la misma, que va en un expediente aparte).
+  if (forzar !== true) {
+    const clave = claveNombre(nombreVal.value, apellido1, apellido2);
+    const igual = (dniLimpio && existentes.find(a => limpiarDni(a.dni) === dniLimpio)) ||
+      existentes.find(a => clave && claveNombre(a.nombre, a.primer_apellido, a.segundo_apellido) === clave);
+    if (igual) {
+      const porDni = !!(dniLimpio && limpiarDni(igual.dni) === dniLimpio);
+      return res.status(409).json({
+        codigo: 'posible_duplicado', por_dni: porDni,
+        alumno: { id: igual.id, nombre: nombreCompleto(igual), dni: igual.dni || null, permiso: igual.permiso || null, n_registro: igual.n_registro || null },
+        error: porDni ? `Ya hay un alumno con el DNI ${dniLimpio}: ${nombreCompleto(igual)}.` : `Ya hay un alumno que se llama ${nombreCompleto(igual)}.`
+      });
+    }
   }
 
   // Insertar alumno (Supabase genera el ID automáticamente si la tabla tiene SERIAL).
@@ -100,10 +129,15 @@ export default async function handler(req, res) {
   // reparar_secuencias y se reintenta una vez.
   const nuevoAlumno = {
     nombre: nombreVal.value,
+    primer_apellido: apellido1 || null,
+    segundo_apellido: apellido2 || null,
+    dni: dniLimpio || null,
+    telefono: tel || null,
     permiso: permisoFinal,
     vehiculo_id: vehiculoIdFinal,
     profesor_id: profesorIdFinal,
     empresa_id: auth.empresaId,
+    deleted: false,
     updated_at: new Date().toISOString(),
     ...(conNRegistro && nRegistro ? { n_registro: nRegistro } : {})
   };
@@ -112,6 +146,13 @@ export default async function handler(req, res) {
     .insert(nuevoAlumno)
     .select('id')
     .single();
+
+  // Base sin las columnas de la ficha (muy antigua): los apellidos van en el nombre
+  if (errInsert && esErrorColumnaInexistente(errInsert)) {
+    for (const k of ['primer_apellido', 'segundo_apellido', 'dni', 'telefono']) delete nuevoAlumno[k];
+    nuevoAlumno.nombre = [nombreVal.value, apellido1, apellido2].filter(Boolean).join(' ');
+    ({ data: newAlumno, error: errInsert } = await supabase.from('alumnos').insert(nuevoAlumno).select('id').single());
+  }
 
   if (errInsert && errInsert.code === '23505') {
     await supabase.rpc('reparar_secuencias');
@@ -133,7 +174,7 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     ok: true,
-    mensaje: `Alumno "${nombreVal.value}" creado correctamente`,
+    mensaje: `Alumno "${[nombreVal.value, apellido1, apellido2].filter(Boolean).join(' ')}" creado correctamente`,
     alumno_id: newAlumno.id,
     n_registro: nuevoAlumno.n_registro || null,
     vehiculo_id: vehiculoIdFinal,

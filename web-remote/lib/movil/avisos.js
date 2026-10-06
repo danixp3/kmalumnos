@@ -7,8 +7,9 @@
 //
 // POST /api/avisos (con sesión):
 //   { accion: 'suscribir', suscripcion: {endpoint, keys:{p256dh, auth}}, profesor_id }
-//   { accion: 'programar', endpoint, practica_id, avisos: [{tipo, enviar_en, titulo, cuerpo, etiqueta}] }
-//      (sustituye los pendientes de esa práctica en ese teléfono; [] = quitarlos)
+//   { accion: 'programar', endpoint, practica_id, profesor_id, avisos: [{tipo, enviar_en, titulo, cuerpo, etiqueta}] }
+//      (sustituye los pendientes de esa práctica en ese teléfono; [] = quitarlos;
+//      si la práctica es de otro profesor que el del perfil puesto, no se programa)
 //   { accion: 'probar', endpoint }   → aviso inmediato a este teléfono
 //   { accion: 'baja', endpoint }     → deja de recibir avisos
 // POST /api/avisos-enviar (cabecera x-avisos-secreto = AVISOS_SECRETO): envía los vencidos.
@@ -92,6 +93,20 @@ export default async function avisos(req, res) {
     const { error: errDel } = await supabase.from('avisos_push').delete()
       .eq('empresa_id', auth.empresaId).eq('endpoint', b.endpoint).eq('practica_id', pid.value).is('enviado_en', null);
     if (handleSupabaseError(errDel, res, 'Error al programar los avisos')) return;
+    // Cada teléfono solo recibe los avisos de las clases del profesor que tiene
+    // puesto: la de otro profesor (el teléfono del jefe en el perfil de otro, o
+    // «Sin profesor») no se programa. El perfil del teléfono queda apuntado.
+    if (filas.length && 'profesor_id' in b) {
+      const perfil = b.profesor_id == null ? null : (validators.positiveInt(b.profesor_id, 'profesor_id').value || null);
+      const { data: practica, error: errP } = await supabase.from('practicas').select('id, profesor_id')
+        .eq('id', pid.value).eq('empresa_id', auth.empresaId).maybeSingle();
+      if (handleSupabaseError(errP, res, 'Error al programar los avisos')) return;
+      await supabase.from('push_suscripciones').update({ profesor_id: perfil, actualizada: new Date().toISOString() })
+        .eq('empresa_id', auth.empresaId).eq('endpoint', b.endpoint);
+      if (practica && practica.profesor_id != null && practica.profesor_id !== perfil) {
+        return res.status(200).json({ ok: true, programados: 0, otro_profesor: true });
+      }
+    }
     if (filas.length) {
       const { error } = await supabase.from('avisos_push').insert(filas);
       if (handleSupabaseError(error, res, 'Error al programar los avisos')) return;

@@ -88,7 +88,7 @@ function mgRecordados() {
 function mgRecordar() {
   try {
     const todos = mgRecordados();
-    const { hoy, duracion, sucursal_id, ...opciones } = mg.opciones;
+    const { hoy, duracion, sucursal_id, decisiones, ...opciones } = mg.opciones; // lo decidido fila a fila es de este archivo
     todos[mgFirma()] = { mapeo: mg.mapeo, opciones, fecha: Date.now() };
     const claves = Object.keys(todos).sort((a, b) => (todos[b].fecha || 0) - (todos[a].fecha || 0)).slice(0, 20);
     localStorage.setItem(MG_MAPEOS_KEY, JSON.stringify(Object.fromEntries(claves.map(k => [k, todos[k]]))));
@@ -172,6 +172,22 @@ function mgPintarOpciones() {
 }
 
 function mgOpcion(k, v) { mg.opciones[k] = v; mgAnalizar(); }
+// Fila de alumnos: juntarla a mano con un alumno de la app, que entre como nuevo o no traerla ('' = lo propuesto)
+function mgDecidir(n, valor) {
+  const dec = { ...(mg.opciones.decisiones || {}) };
+  if (valor === '' || valor == null) delete dec[n]; else dec[n] = /^\d+$/.test(String(valor)) ? Number(valor) : valor;
+  mgOpcion('decisiones', dec);
+}
+function mgSelectorFila(f) {
+  const cands = f.candidatos || [];
+  if (!['nuevo', 'actualizar', 'igual', 'omitir'].includes(f.accion) || (!cands.length && !f.manual)) return '';
+  if (f.accion === 'omitir' && !f.manual && /^Repetido|De baja|Ya aprobado/.test(f.motivo || '')) return '';
+  const actual = f.accion === 'actualizar' || f.accion === 'igual' ? String(f.id) : f.accion === 'nuevo' ? 'nuevo' : (f.manual ? 'omitir' : '');
+  const ops = f.accion === 'omitir' && !f.manual ? [['', 'Sin decidir: no entra']] : [];
+  for (const c of cands) ops.push([String(c.id), `Juntar con «${c.nombre}»${c.n_registro ? ' nº ' + c.n_registro : ''}${c.clasesApp ? ` · ${c.clasesApp} ${c.clasesApp === 1 ? 'clase' : 'clases'} en la app` : ''}`]);
+  ops.push(['nuevo', 'Es otra persona: entra como alumno nuevo'], ['omitir', 'No traer esta fila']);
+  return `<div style="margin-top:6px"><select class="mg-decision" aria-label="Qué hacer con esta fila" onchange="mgDecidir(${f.n}, this.value)">${ops.map(([v, t]) => `<option value="${esc(v)}"${v === actual ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></div>${f.manual ? `<button type="button" class="lnk mg-lnk" onclick="mgDecidir(${f.n}, '')">Volver a lo propuesto</button>` : ''}`;
+}
 
 function mgEntrada() {
   const h = mg.hojas[mg.hoja];
@@ -234,7 +250,7 @@ function mgPintarPrevia() {
     if (f.motivo) partes.push(esc(f.motivo));
     if (f.cambios && Object.keys(f.cambios).length) partes.push('Añade: ' + Object.keys(f.cambios).map(nombreCampo).map(esc).join(', '));
     if (f.saldo) partes.push(`Saldo ${f.saldo > 0 ? 'pendiente' : 'a favor'}: ${esc(String(f.saldo).replace('.', ','))} €`);
-    if (f.alumno && (f.alumno.clases_previas || f.alumno.km_previos)) partes.push(`Lleva ${f.alumno.clases_previas || 0} clases${f.alumno.km_previos ? ` y ${fmtMiles(f.alumno.km_previos)} km` : ''}`);
+    if (f.alumno && (f.alumno.clases_previas || f.alumno.km_previos)) partes.push(`Lleva ${fmtClases(f.alumno.clases_previas || 0)} clases${f.alumno.km_previos ? ` y ${fmtMiles(f.alumno.km_previos)} km` : ''}`);
     const av = f.avisos.length ? `<div class="mg-avisos">${f.avisos.map(esc).join('<br>')}</div>` : '';
     return partes.join(' · ') + av;
   };
@@ -243,7 +259,7 @@ function mgPintarPrevia() {
     : '<tr><th class="col-num">Fila</th><th>Qué pasa</th><th>Alumno</th><th>Fecha</th><th>Hora</th><th class="col-num">Clases</th><th>Km</th><th>Detalle</th></tr>';
   const fila = f => {
     const [cls, txt] = MG_ACCIONES[f.accion] || ['pill-line', f.accion];
-    const comun = `<td class="col-num num-mono">${f.n}</td><td><span class="pill ${cls}">${txt}</span></td><td>${esc(f.nombre || '—')}</td>`;
+    const comun = `<td class="col-num num-mono">${f.n}</td><td><span class="pill ${cls}">${txt}</span>${f.manual ? ' <span class="pill pill-line">Elegido a mano</span>' : ''}${alumnos ? mgSelectorFila(f) : ''}</td><td>${esc(f.nombre || '—')}</td>`;
     if (alumnos) {
       return `<tr>${comun}<td class="num-mono">${esc(f.dni || '')}</td><td class="num-mono">${esc(f.telefono || '')}</td><td>${esc(f.permiso || '')}</td>
         <td>${esc([f.profesor, f.vehiculo].filter(Boolean).join(' · '))}</td><td class="mg-det">${detalle(f)}</td></tr>`;
@@ -266,8 +282,11 @@ function mgPintarPrevia() {
 async function mgImportar() {
   const r = mg.plan && mg.plan.ok ? mg.plan.resumen : null;
   if (!r) return;
+  // Antes de importar alumnos: con quién se junta cada fila que ya está en la app
+  const juntadas = mg.plan.tipo === 'alumnos' ? mg.plan.filas.filter(f => f.accion === 'actualizar') : [];
+  const lineas = juntadas.slice(0, 12).map(f => `• Fila ${f.n} → «${f.nombre}» de la app`);
   const que = mg.plan.tipo === 'alumnos'
-    ? `Entrarán ${mgPl(r.nuevos, 'alumno nuevo', 'alumnos nuevos')}${r.actualizar ? ` y se completarán los datos de ${mgPl(r.actualizar, 'alumno', 'alumnos')}` : ''}.`
+    ? `Entrarán ${mgPl(r.nuevos, 'alumno nuevo', 'alumnos nuevos')}${r.actualizar ? ` y se completarán los datos de ${mgPl(r.actualizar, 'alumno', 'alumnos')} que ya tienes (no se duplican):\n${lineas.join('\n')}${juntadas.length > lineas.length ? `\n… y ${fmtMiles(juntadas.length - lineas.length)} más` : ''}` : ''}${r.actualizar ? '' : '.'}`
     : `Entrarán ${mgPl(r.clases, 'clase anterior', 'clases anteriores')}${r.alumnosNuevos ? ` y ${mgPl(r.alumnosNuevos, 'alumno nuevo', 'alumnos nuevos')}` : ''}.`;
   const ok = await confirmar(`${que}\n\nAntes se guarda una copia de seguridad, y podrás deshacer esta importación desde esta misma pantalla.`, { titulo: 'Importar', textoAceptar: 'Importar' });
   if (!ok) return;
@@ -345,11 +364,49 @@ const mga = { archivo: '', plan: null, opciones: {}, turno: 0 };
 function mgAriautoMostrar(r) {
   mga.archivo = r.archivo; mga.plan = r.plan;
   mga.opciones = { alcance: r.plan.opciones.alcance || 'curso', economia: false, examenes: true, tasas: true, profesores: true, vehiculos: true, centro: true,
-    secciones: r.plan.secciones.filter(s => s.elegida).map(s => s.seccion) };
+    secciones: r.plan.secciones.filter(s => s.elegida).map(s => s.seccion), decisiones: {} };
   mgMsg(`<b>${esc(r.archivo)}</b>: base de datos de <b>Ariauto</b> reconocida.`, 'ok');
   ['mg-paso-columnas', 'mg-paso-revisar', 'mg-paso-hecho'].forEach(id => { document.getElementById(id).hidden = true; });
   mgAriautoPintar();
   document.getElementById('mg-paso-ariauto').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Decisión a mano sobre una ficha de Ariauto: id del alumno de la app con el que
+// juntarla, 'nuevo' (es otra persona) u 'omitir' (no traerla); '' = lo automático.
+async function mgAriautoDecidir(clave, valor) {
+  const dec = { ...(mga.opciones.decisiones || {}) };
+  if (valor === '' || valor == null) delete dec[clave]; else dec[clave] = /^\d+$/.test(String(valor)) ? Number(valor) : valor;
+  await mgAriautoOpcion('decisiones', dec);
+}
+// «¿Ya está en la app?»: buscar el alumno con el que juntar una ficha que iba a entrar como nueva
+function mgAriautoBuscarPara(clave, nombre) {
+  pmModal('modal-mg-juntar', `
+    <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <h3 style="margin:0">¿Con quién se junta «${esc(nombre)}»?</h3>
+      <button class="btn btn-outline btn-sm" onclick="closeModal('modal-mg-juntar')">Cerrar</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin:4px 0 12px">Si este alumno ya está en la app con otro nombre (p. ej. dado de alta en el móvil), búscalo: sus clases de la app se conservan y se le completan los datos de Ariauto.</p>
+    <input type="text" id="mg-juntar-buscar" placeholder="Nombre, DNI o nº de registro" autocomplete="off" oninput="mgAriautoBuscarLista('${esc(clave)}', this.value)">
+    <div id="mg-juntar-lista" style="margin-top:10px"></div>`);
+  setTimeout(() => document.getElementById('mg-juntar-buscar')?.focus(), 60);
+}
+async function mgAriautoBuscarLista(clave, texto) {
+  const cont = document.getElementById('mg-juntar-lista'); if (!cont) return;
+  const r = await window.api.buscarAlumnosRapido(texto, 8);
+  cont.innerHTML = r.length ? `<div class="table-wrap"><table><tbody>${r.map(a => `<tr><td><b>${esc(a.nombre)}</b><div class="ar-nota">${[a.n_registro && 'nº ' + esc(a.n_registro), a.dni && 'DNI ' + esc(a.dni), 'permiso ' + esc(a.permiso)].filter(Boolean).join(' · ')}</div></td>
+      <td style="text-align:right"><button class="btn btn-sm btn-primary" onclick="closeModal('modal-mg-juntar');mgAriautoDecidir('${esc(clave)}', ${a.id})">Juntar con este</button></td></tr>`).join('')}</tbody></table></div>`
+    : (texto.trim().length >= 2 ? '<div class="ar-nota">Ningún alumno coincide.</div>' : '');
+}
+// Selector de «Qué pasa» de una ficha: juntar con un alumno de la app, entrar aparte o no traerla
+function mgAriautoSelector(x) {
+  const cands = x.candidatos || [];
+  if (x.accion === 'nuevo' && !cands.length && !x.manual) return '';
+  const actual = x.accion === 'actualizar' ? String(x.id) : x.accion === 'nuevo' ? 'nuevo' : x.accion === 'omitir' ? 'omitir' : '';
+  const ops = [];
+  if (x.accion === 'revisar') ops.push(['', 'Sin decidir: no se toca']);
+  for (const c of cands) ops.push([String(c.id), `Juntar con «${c.nombre}»${c.n_registro ? ' nº ' + c.n_registro : ''}${c.permiso !== x.permiso ? ' (permiso ' + c.permiso + ')' : ''} · ${fmtClases(c.clasesApp)} ${c.clasesApp > 0 && c.clasesApp <= 1 ? 'clase' : 'clases'} en la app`]);
+  ops.push(['nuevo', 'Es otra persona: entra como alumno nuevo'], ['omitir', 'No traer esta ficha']);
+  return `<select class="mg-decision" aria-label="Qué hacer con esta ficha" onchange="mgAriautoDecidir('${esc(x.clave)}', this.value)">${ops.map(([v, t]) => `<option value="${esc(v)}"${v === actual ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
 }
 
 async function mgAriautoOpcion(k, v) {
@@ -385,7 +442,7 @@ function mgAriautoPintar() {
   const fechaCorta = iso => iso ? iso.split('-').reverse().join('/') : '';
   const coma = n => String(n).replace('.', ',');
   const filas = p.filas.map(x => {
-    const [cls, txt] = x.accion === 'actualizar' ? ['pill-info', 'Ya está: se completa'] : (MG_ACCIONES[x.accion] || (x.accion === 'revisar' ? ['pill-warn', 'No se toca'] : ['pill-line', x.accion]));
+    const [cls, txt] = x.accion === 'actualizar' ? ['pill-info', 'Ya está: se junta'] : x.accion === 'omitir' ? ['pill-line', 'No se trae'] : (MG_ACCIONES[x.accion] || (x.accion === 'revisar' ? ['pill-warn', 'Dudoso: no se toca'] : ['pill-line', x.accion]));
     // Qué les pasa a los que ya están en la app (lo que hay que poder revisar)
     const det = [];
     if (x.accion === 'actualizar') {
@@ -397,8 +454,12 @@ function mgAriautoPintar() {
       const otros = x.cambios - (x.nombreNuevo ? 1 : 0) - (x.registroNuevo ? 1 : 0) - (x.altaNueva ? 1 : 0) - (x.clases && !x.clasesConFecha ? 1 : 0);
       if (otros > 0) det.push(mgPl(otros, 'dato que le falta', 'datos que le faltan'));
       if (!det.length) det.push('Ya está al día');
+      const suyo = (x.candidatos || []).find(c => c.id === x.id);
+      if (suyo && suyo.clasesApp) det.push(`sus ${fmtClases(suyo.clasesApp)} ${suyo.clasesApp > 0 && suyo.clasesApp <= 1 ? 'clase' : 'clases'} de la app se conservan`);
     } else if (x.accion === 'nuevo' && x.clasesConFecha) det.push(`${coma(x.clasesConFecha)} ${x.clasesConFecha === 1 ? 'clase' : 'clases'} con su día`);
-    return `<tr><td><span class="pill ${cls}">${txt}</span>${x.parecido ? ' <span class="pill pill-warn" title="Mismo nombre de pila y apellidos casi iguales: se toma como el mismo alumno">Nombre parecido</span>' : ''}</td><td class="num-mono">${esc(x.n_registro || '')}</td><td>${esc(x.nombre)}</td><td class="num-mono">${esc(x.dni || '')}</td><td>${esc(x.permiso || '')}</td>
+    const sel = mgAriautoSelector(x);
+    const buscar = x.accion === 'nuevo' && !x.manual ? `<button type="button" class="lnk mg-lnk" onclick="mgAriautoBuscarPara('${esc(x.clave)}', ${esc(JSON.stringify(x.nombre))})">¿Ya está en la app? Juntar…</button>` : '';
+    return `<tr${x.manual ? ' class="mg-fila-decidida"' : ''}><td><span class="pill ${cls}">${txt}</span>${x.parecido ? ' <span class="pill pill-warn" title="Mismo nombre de pila y apellidos casi iguales: se toma como el mismo alumno">Nombre parecido</span>' : ''}${x.manual ? ` <span class="pill pill-line" title="Lo has elegido tú">Elegido a mano</span> <button type="button" class="lnk mg-lnk" onclick="mgAriautoDecidir('${esc(x.clave)}', '')">Volver a lo propuesto</button>` : ''}${sel ? `<div style="margin-top:6px">${sel}</div>` : ''}${buscar}</td><td class="num-mono">${esc(x.n_registro || '')}</td><td>${esc(x.nombre)}</td><td class="num-mono">${esc(x.dni || '')}</td><td>${esc(x.permiso || '')}</td>
       <td>${esc(estados[x.estado] || x.estado || '')}</td><td class="col-num">${x.clases ? coma(x.clases) : ''}</td>
       ${o.economia ? `<td class="col-num num-mono">${x.saldo == null ? '' : esc(coma(x.saldo))}</td>` : ''}<td class="col-num">${x.examenes || ''}</td>
       <td class="mg-det">${det.length ? `<small>${det.join(' · ')}</small>` : ''}${x.avisos.length ? `<div class="mg-avisos">${x.avisos.map(esc).join('<br>')}</div>` : ''}</td></tr>`;
@@ -406,7 +467,8 @@ function mgAriautoPintar() {
   const hay = r.nuevos + r.conCambios + r.examenes + r.tasas + r.vencimientos + r.profesoresNuevos + r.vehiculosNuevos + (r.examenesCompletar || 0) + r.profesoresCompletar + r.vehiculosCompletar + (r.cochesProfesor || 0) + (r.clasesConFecha || 0);
   // Los que ya están en la app (los de Puesta en marcha o de una importación
   // anterior): qué se les hace y qué se respeta
-  const yaTraidos = r.completar ? `<div class="alert alert-info" style="margin-top:12px"><span><b>${fmtMiles(r.completar)} de estos alumnos ya están en la app${r.parecidos ? ` (${fmtMiles(r.parecidos)} con el nombre algo distinto: salen marcados «Nombre parecido»)` : ''}.</b>
+  const yaTraidos = r.completar || r.revisar ? `<div class="alert alert-warn" style="margin-top:12px"><span><b>Revisa antes de importar a quién se junta cada ficha.</b> ${r.completar ? `${fmtMiles(r.completar)} ${r.completar === 1 ? 'ficha de Ariauto se juntará' : 'fichas de Ariauto se juntarán'} con alumnos que ya tienes en la app (salen arriba, «Ya está: se junta»): no se crea un alumno nuevo, se queda el de la app con sus clases y se le completa lo que le falta.` : ''}${r.revisar ? ` ${fmtMiles(r.revisar)} ${r.revisar === 1 ? 'es dudosa' : 'son dudosas'} y no se tocan si no decides.` : ''} En «Qué pasa» puedes cambiar cada una: juntarla con otro alumno, que entre como alumno nuevo o no traerla. ${r.decididas ? `<b>${fmtMiles(r.decididas)} ${r.decididas === 1 ? 'elegida' : 'elegidas'} a mano.</b>` : ''}</span></div>` : '';
+  const yaTraidosDet = r.completar ? `<div class="alert alert-info" style="margin-top:12px"><span><b>${fmtMiles(r.completar)} de estos alumnos ya están en la app${r.parecidos ? ` (${fmtMiles(r.parecidos)} con el nombre algo distinto: salen marcados «Nombre parecido»)` : ''}.</b>
       No se duplican ni se les borra nada: sus clases anotadas se quedan como están${r.clasesYaEnApp ? ` y ${mgPl(r.clasesYaEnApp, 'clase', 'clases')} de Ariauto que ya tienen anotadas no se vuelven a contar` : ''}.
       ${r.conCambios ? `Se completan con lo que les falta (nº de registro, DNI, teléfono, dirección, tutor…)${r.altasCorregidas ? `, la fecha de alta pasa a ser la real de Ariauto (${fmtMiles(r.altasCorregidas)})` : ''}${r.nombresCorregidos ? `, el nombre se escribe como en Ariauto donde estaba todo en mayúsculas o con una errata (${fmtMiles(r.nombresCorregidos)})` : ''}${r.limpiarObservaciones ? `, sus observaciones quedarán solo con las de Ariauto (${fmtMiles(r.limpiarObservaciones)})` : ''}${r.pasanAInactivo ? ` y ${mgPl(r.pasanAInactivo, 'alumno antiguo sin actividad pasa', 'alumnos antiguos sin actividad pasan')} a «Inactivo»` : ''}.` : 'Ya tienen todos sus datos.'}
       ${r.examenes ? `Se añaden ${mgPl(r.examenes, 'examen', 'exámenes')} con su examinador y sus fallos.` : ''} Lo que ya tenga cada alumno en la app no se cambia.</span></div>` : '';
@@ -425,7 +487,7 @@ function mgAriautoPintar() {
     </div>
     <div class="alert ${f.fiable ? 'alert-info' : 'alert-warn'}" style="margin-top:12px"><span>${chk('economia', '<b>Traer también los cargos y pagos de Ariauto</b>')}
       ${f.fiable ? 'Su saldo pasará a ser el de Ariauto.' : `<br>No recomendado: en Ariauto no constan la mayoría de los cobros (de ${fmtMiles(f.aptosRecientes)} alumnos aprobados en los dos últimos años, ${fmtMiles(f.aptosConDeuda)} aparecen debiendo). Si los traes, la app los mostraría como morosos. Mejor empezar a cero y apuntar en la app lo que cobres desde ahora.`}</span></div>
-    ${yaTraidos}${coches}
+    ${yaTraidos}${yaTraidosDet}${coches}
     <div class="pm-resumen" style="margin-top:14px">${pills}</div>
     <div class="table-wrap mg-prev-wrap"><table class="mg-prev"><thead><tr><th>Qué pasa</th><th>Nº</th><th>Alumno</th><th>DNI</th><th>Permiso</th><th>Estado</th><th class="col-num" title="Clases ya hechas que entran en la app (las que ya tiene anotadas no se cuentan)">Clases que entran</th>${o.economia ? '<th class="col-num">Saldo €</th>' : ''}<th class="col-num">Exámenes</th><th>Detalle</th></tr></thead>
       <tbody>${filas || '<tr><td colspan="10" class="mg-vacio">Ningún alumno con estas opciones.</td></tr>'}${p.masFilas ? `<tr><td colspan="10" class="mg-vacio">… y ${fmtMiles(p.masFilas)} alumnos más</td></tr>` : ''}</tbody></table></div>
@@ -436,7 +498,12 @@ function mgAriautoPintar() {
 async function mgAriautoImportar() {
   const r = mga.plan && mga.plan.ok ? mga.plan.resumen : null;
   if (!r) return;
-  const ok = await confirmar(`${r.nuevos ? `Entrarán ${mgPl(r.nuevos, 'alumno nuevo', 'alumnos nuevos')}` : 'No entra ningún alumno nuevo'}${r.conCambios ? ` y se completarán ${mgPl(r.conCambios, 'alumno', 'alumnos')} que ya tienes (sin tocar sus clases anotadas)` : ''}${r.clasesConFecha ? `, ${mgPl(r.clasesConFecha, 'clase', 'clases')} con su día` : ''}${r.examenes ? `, ${mgPl(r.examenes, 'examen', 'exámenes')}` : ''}${mga.opciones.economia ? ', cargos y pagos' : ''}.\n\nAntes se guarda una copia de seguridad, y podrás deshacer esta importación desde esta misma pantalla.`, { titulo: 'Importar de Ariauto', textoAceptar: r.nuevos ? 'Importar' : 'Completar' });
+  // Antes de importar, la lista de las fichas que se juntan con alumnos de la app
+  const juntadas = (mga.plan.filas || []).filter(x => x.accion === 'actualizar');
+  const lineas = juntadas.slice(0, 12).map(x => `• «${x.nombre}» (Ariauto${x.n_registro ? ' nº ' + x.n_registro : ''}) → «${x.nombreApp || x.nombre}» de la app`);
+  const fusiones = r.completar ? `\n\nSe juntan con alumnos que ya tienes (${fmtMiles(r.completar)}; no se crean repetidos y sus clases de la app se conservan):\n${lineas.join('\n')}${r.completar > lineas.length ? `\n… y ${fmtMiles(r.completar - lineas.length)} más (en la lista de abajo)` : ''}` : '';
+  const dudosos = r.revisar ? `\n\n${mgPl(r.revisar, 'ficha dudosa no se toca', 'fichas dudosas no se tocan')} (puedes decidirlas en la lista).` : '';
+  const ok = await confirmar(`${r.nuevos ? `Entrarán ${mgPl(r.nuevos, 'alumno nuevo', 'alumnos nuevos')}` : 'No entra ningún alumno nuevo'}${r.conCambios ? ` y se completarán ${mgPl(r.conCambios, 'alumno', 'alumnos')} que ya tienes (sin tocar sus clases anotadas)` : ''}${r.clasesConFecha ? `, ${mgPl(r.clasesConFecha, 'clase', 'clases')} con su día` : ''}${r.examenes ? `, ${mgPl(r.examenes, 'examen', 'exámenes')}` : ''}${mga.opciones.economia ? ', cargos y pagos' : ''}.${fusiones}${dudosos}\n\nAntes se guarda una copia de seguridad, y podrás deshacer esta importación desde esta misma pantalla.`, { titulo: 'Importar de Ariauto', textoAceptar: r.completar ? 'Importar y juntar' : (r.nuevos ? 'Importar' : 'Completar') });
   if (!ok) return;
   const btn = document.getElementById('mg-ariauto-btn');
   btn.disabled = true; btn.textContent = 'Importando…';

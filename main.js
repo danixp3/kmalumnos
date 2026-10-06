@@ -339,6 +339,18 @@ ipcMain.handle('get-alumnos-lista', (_, sucursalId, hoy) => db.getAlumnosLista(s
 ipcMain.handle('add-alumno', (_, nombre, permiso, vehiculo_id, profesor_id, sucursalId, email, datos, libro, permisos) => db.addAlumno(nombre, permiso, vehiculo_id, profesor_id, sucursalId, email, datos, libro, permisos));
 ipcMain.handle('delete-alumno', (_, id) => { db.deleteAlumno(id); return true; });
 ipcMain.handle('update-alumno-campos', (_, id, campos) => db.updateAlumnoCampos(id, campos));
+// Alumnos repetidos y nombres juntos (db/alumnos-repetidos.js)
+ipcMain.handle('proponer-separar-nombres', (_, ids) => db.proponerSepararNombres(ids));
+ipcMain.handle('aplicar-separar-nombres', (_, lista) => db.aplicarSepararNombres(lista));
+ipcMain.handle('buscar-alumnos-repetidos', () => db.buscarAlumnosRepetidos());
+ipcMain.handle('previa-fusion-alumnos', (_, queda, seVa) => db.previaFusionAlumnos(queda, seVa));
+ipcMain.handle('fusionar-alumnos', (_, queda, seVa) => {
+  const r = db.fusionarAlumnos(queda, seVa);
+  if (r && r.ok) copiarArchivosAlumno(parseInt(seVa), parseInt(queda));
+  return r;
+});
+ipcMain.handle('deshacer-fusion-alumnos', (_, id) => db.deshacerFusionAlumnos(id));
+ipcMain.handle('get-fusiones-alumnos', () => db.getFusionesAlumnos());
 ipcMain.handle('buscar-alumnos-rapido', (_, texto, limite) => db.buscarAlumnosRapido(texto, limite));
 ipcMain.handle('update-alumno', (_, id, nombre, permiso, vehiculo_id, profesor_id, email, datos, libro, permisos) => { db.updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id, email, datos, libro, permisos); return true; });
 
@@ -779,6 +791,29 @@ function _dirFotos() {
 }
 function _dirDocumentosAlumno(id) {
   return path.join(_dirUserData(), 'documentos', 'alumno_' + id);
+}
+
+// Al juntar dos fichas: los documentos de la que se va se copian a la que se
+// queda, y su foto si la que se queda no tiene (se copian: «Deshacer» no los pierde).
+function copiarArchivosAlumno(deId, aId) {
+  try {
+    const origen = _dirDocumentosAlumno(deId);
+    if (fs.existsSync(origen)) {
+      const destino = _dirDocumentosAlumno(aId);
+      fs.mkdirSync(destino, { recursive: true });
+      for (const f of fs.readdirSync(origen)) {
+        let nombre = f, k = 2;
+        while (fs.existsSync(path.join(destino, nombre))) nombre = f.replace(/(\.[^.]*)?$/, m => ` (${k++})${m}`);
+        fs.copyFileSync(path.join(origen, f), path.join(destino, nombre));
+      }
+    }
+    const dirF = _dirFotos();
+    if (fs.existsSync(dirF)) {
+      const fotos = fs.readdirSync(dirF);
+      const suya = fotos.find(f => f.startsWith('alumno_' + deId + '.'));
+      if (suya && !fotos.some(f => f.startsWith('alumno_' + aId + '.'))) fs.copyFileSync(path.join(dirF, suya), path.join(dirF, suya.replace('alumno_' + deId + '.', 'alumno_' + aId + '.')));
+    }
+  } catch (e) { console.error('No se pudieron copiar los archivos del alumno:', e.message); }
 }
 
 ipcMain.handle('guardar-foto-alumno', (_, id, dataUrl) => {

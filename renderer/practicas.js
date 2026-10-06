@@ -88,7 +88,7 @@ function pintarCabeceraFicha(f) {
   const pasos = [
     { tit: 'Matrícula', sub: a.fecha_alta ? fmtFecha(a.fecha_alta) : 'Alumno dado de alta', est: 'hecho' },
     { tit: 'Examen teórico', sub: idx >= 3 ? 'Aprobado' : (idx === 2 ? 'Apto teórico' : (idx === 1 ? 'En teórica' : 'Pendiente')), est: idx >= 2 ? 'hecho' : (idx === 1 ? 'actual' : 'pend') },
-    { tit: 'Prácticas', sub: `${fmtClases(m.clases)} ${m.clases > 0 && m.clases <= 1 ? 'clase' : 'clases'} · ${fmtMiles(m.km)} km${m.clases_previas ? ` <span title="Clases hechas antes de usar la app (punto de partida)">(${m.clases_previas} anteriores)</span>` : ''}`, est: idx >= 4 ? 'hecho' : (idx >= 2 ? 'actual' : 'pend') },
+    { tit: 'Prácticas', sub: `${fmtClases(m.clases)} ${m.clases > 0 && m.clases <= 1 ? 'clase' : 'clases'} · ${fmtMiles(m.km)} km${m.clases_previas ? ` <span title="Clases hechas antes de usar la app (punto de partida)">(${fmtClases(m.clases_previas)} anteriores)</span>` : ''}`, est: idx >= 4 ? 'hecho' : (idx >= 2 ? 'actual' : 'pend') },
     { tit: 'Examen práctico', sub: idx >= 5 ? 'Aprobado' : (ex ? fechaCorta(ex.fecha) : (idx === 4 ? 'Presentado' : 'Sin fecha')), est: idx >= 5 ? 'hecho' : (idx === 4 ? 'actual' : 'pend'), bandera: true },
     { tit: `Permiso ${esc(a.permiso)}`, sub: idx >= 5 ? 'Obtenido' : 'Tras aprobar el práctico', est: idx >= 5 ? 'hecho' : 'pend', ultimo: true }
   ];

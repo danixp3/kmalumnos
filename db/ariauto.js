@@ -39,7 +39,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO } = require('./core');
+const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO, clasesDePractica } = require('./core');
 const mig = require('./migracion');
 const { normTexto, claveNombre, capitalizarNombre, limpiarDni, limpiarTelefono, limpiarEmail, limpiarCP } = mig._norm;
 const { nombreDe, limpiarMatricula, registrarImportacion, buscadorParecidos } = mig._interno;
@@ -486,6 +486,11 @@ function planAriauto(tablas, opciones = {}, d = load()) {
     if (fila.caducaDni && dniVencido.has(`${al.id}|${fila.caducaDni}`)) fila.caducaDni = null;
   };
 
+  // Con quién se junta cada ficha se apunta primero (marcarActualizar); qué se
+  // le completa se calcula al final (prepararActualizar), después de aplicar
+  // lo que se haya decidido a mano en la vista previa (opciones.decisiones).
+  const marcarActualizar = (fila, al, parecido) => { fila.accion = 'actualizar'; fila.id = al.id; fila._al = al; fila._parecido = !!parecido; };
+
   // Lo más reciente primero (y, a la misma fecha, la de la sección de
   // autoescuela antes que su copia en la de cursos)
   const esCurso = sec => !!(secs.find(x => x.seccion === sec) || {}).curso;
@@ -638,7 +643,7 @@ function planAriauto(tablas, opciones = {}, d = load()) {
     if (dni.valor && !dni.valido) fila.avisos.push('DNI con letra que no cuadra');
     // Por su nº ya está en la app; si no, se empareja después, con todas las
     // fichas a la vista (una persona puede tener varias)
-    if (porClave) { prepararActualizar(fila, porClave, false); fichaDe.set(porClave.id, fila); } else fila.accion = null;
+    if (porClave) { marcarActualizar(fila, porClave, false); fichaDe.set(porClave.id, fila); } else fila.accion = null;
     filas.push(fila);
   }
 
@@ -695,7 +700,7 @@ function planAriauto(tablas, opciones = {}, d = load()) {
   for (const f of pendientes) {
     // El alumno de la app que es de esta misma persona (se lo llevó otra de sus fichas)
     const suyo = f.cands.find(al => fichaDe.has(al.id) && fichaDe.get(al.id).kPersona === f.kPersona);
-    if (f.asignado) prepararActualizar(f, f.asignado, false);
+    if (f.asignado) marcarActualizar(f, f.asignado, false);
     else if (f.homonimo) { f.accion = 'revisar'; f.avisos.push('En la app hay un alumno con este nombre y en Ariauto hay más de una persona que se llama así: no se toca (pon el DNI en la app para saber cuál es)'); }
     else if (f.empate) { f.accion = 'revisar'; f.avisos.push('Hay varios alumnos con este nombre en la app: no se toca'); }
     else if (suyo) { f.accion = 'nuevo'; f.otroExpedienteDe = suyo; }
@@ -727,15 +732,65 @@ function planAriauto(tablas, opciones = {}, d = load()) {
       for (const f of fs) if (f !== mejor) f.otroExpedienteDe = al;
     }
     for (const [f, als] of elegidaPor) {
-      if (als.length === 1 && !dudosas.has(f)) { idsUsados.add(als[0].id); fichaDe.set(als[0].id, f); prepararActualizar(f, als[0], true); }
+      if (als.length === 1 && !dudosas.has(f)) { idsUsados.add(als[0].id); fichaDe.set(als[0].id, f); marcarActualizar(f, als[0], true); }
       else for (const al of als) anotar(dudosas, f, al);
     }
     for (const [f, als] of dudosas) {
+      f.dudososCon = [...new Set([...(f.dudososCon || []), ...als])];
       if (f.accion !== 'nuevo') continue;
       f.accion = 'revisar'; delete f.otroExpedienteDe;
       f.avisos.push(`Se parece a ${[...new Set(als)].map(al => '«' + nombreAl(al) + '»').join(' y ')} de la app: no se toca (corrige el nombre en la app si es el mismo)`);
     }
   }
+  // ─── Lo decidido a mano en la vista previa ────────────────────────────────
+  // { [clave de la ficha]: id del alumno de la app con el que juntarla |
+  //   'nuevo' (es otra persona: entra aparte) | 'omitir' (no se trae) }.
+  // Así ninguna ficha de Ariauto se junta con un alumno de la app (ni se crea
+  // aparte) sin que se haya podido ver y cambiar antes de importar.
+  const decisiones = op.decisiones && typeof op.decisiones === 'object' ? op.decisiones : {};
+  const soltar = f => {
+    if (f.accion === 'actualizar' && f.id != null && fichaDe.get(f.id) === f) { fichaDe.delete(f.id); idsUsados.delete(f.id); }
+    delete f.id; delete f._al; delete f._parecido;
+  };
+  for (const f of filas) {
+    if (!Object.prototype.hasOwnProperty.call(decisiones, f.clave)) continue;
+    const dec = decisiones[f.clave];
+    if (dec === 'omitir' || dec === 'nuevo') {
+      soltar(f); f.accion = dec; f.manual = true;
+      if (dec === 'nuevo') delete f.otroExpedienteDe;
+      f.avisos = f.avisos.filter(a => !/no se toca/.test(a));
+      continue;
+    }
+    const al = d.alumnos.find(a => a.id === Number(dec) && !a.deleted);
+    if (!al) continue;
+    const otra = fichaDe.get(al.id);
+    if (otra && otra !== f) {
+      soltar(otra); otra.accion = 'revisar';
+      otra.avisos.push(`«${nombreAl(al)}» se ha juntado a mano con otra ficha de Ariauto: esta no se toca`);
+    }
+    soltar(f);
+    marcarActualizar(f, al, claveNombre(al.nombre, al.primer_apellido, al.segundo_apellido) !== claveNombre(f.persona.nombre, f.persona.primer_apellido, f.persona.segundo_apellido));
+    f.manual = true; idsUsados.add(al.id); fichaDe.set(al.id, f);
+    delete f.otroExpedienteDe;
+    f.avisos = f.avisos.filter(a => !/no se toca/.test(a));
+  }
+  // Qué se completa en cada alumno que ya está (con lo ya decidido)
+  for (const f of filas) if (f.accion === 'actualizar') prepararActualizar(f, f._al, f._parecido);
+  // Alumnos de la app con los que se podría juntar cada ficha (para elegir en la vista previa)
+  const clasesApp = new Map();
+  for (const p of d.practicas) if (!p.deleted) clasesApp.set(p.alumno_id, (clasesApp.get(p.alumno_id) || 0) + clasesDePractica(p));
+  const candidatoDe = al => ({ id: al.id, nombre: nombreAl(al), dni: al.dni || null, n_registro: al.n_registro || null, permiso: al.permiso || 'B', estado: al.estado || null,
+    clasesApp: cuarto(clasesApp.get(al.id) || 0), movil: al.id >= 1e9 });
+  for (const f of filas) {
+    const m = new Map();
+    const poner = al => { if (al && !al.deleted && !m.has(al.id)) m.set(al.id, al); };
+    poner(f._al); (f.cands || []).forEach(poner); (f.dudososCon || []).forEach(poner);
+    (porNombreApp.get(claveNombre(f.persona.nombre, f.persona.primer_apellido, f.persona.segundo_apellido)) || []).forEach(poner);
+    if (f.persona.dni.valor) (porDniApp.get(f.persona.dni.valor) || []).forEach(poner);
+    if (f.otroExpedienteDe) poner(f.otroExpedienteDe);
+    f.candidatosApp = [...m.values()].slice(0, 6).map(candidatoDe);
+  }
+
   // Varios expedientes de una misma persona: cada uno con su nº, y se avisa
   const porPersona = new Map();
   for (const f of filas) if (f.accion !== 'revisar') meter(porPersona, f.kPersona, f);
@@ -748,8 +803,8 @@ function planAriauto(tablas, opciones = {}, d = load()) {
       f.avisos.push(`Otro permiso o curso de «${nombreAl(f.otroExpedienteDe)}», que ya está en la app${suya ? ` (${permisoTxt(suya)})` : ` (permiso ${f.otroExpedienteDe.permiso})`}: entra como expediente aparte, con su nº`);
     }
   }
-  // «Clases ya hechas» sin fecha: en la nube es un número entero
-  for (const f of filas) f.datos.clases_previas = Math.round(f.reparto.sinFecha);
+  // «Clases ya hechas» sin fecha: de ¼ en ¼ (un bono de 10 ½ clases son 10 ½)
+  for (const f of filas) f.datos.clases_previas = cuarto(f.reparto.sinFecha);
 
   // Coches de alta en Ariauto → los de la app (por matrícula) o nuevos, con
   // sus datos (marca, modelo, seguro, ITV) y los vencimientos de ITV y seguro
@@ -856,6 +911,7 @@ function planAriauto(tablas, opciones = {}, d = load()) {
   const resumen = {
     enCurso, terminados, alumnos: filas.length,
     nuevos: filas.filter(f => f.accion === 'nuevo').length, completar: actualizar.length, revisar: filas.filter(f => f.accion === 'revisar').length,
+    omitidos: filas.filter(f => f.accion === 'omitir').length, decididas: filas.filter(f => f.manual).length,
     // De los que ya están: cuántos cambian de verdad y qué
     conCambios: actualizar.filter(f => Object.keys(f.cambios).length).length,
     limpiarObservaciones: actualizar.filter(f => 'observaciones' in f.cambios && RE_BLOQUE_V125.test(f.cambios.observaciones.antes || '')).length,
@@ -866,7 +922,7 @@ function planAriauto(tablas, opciones = {}, d = load()) {
     // Clases ya hechas que entran: con su fecha (como las anotadas en Puesta en
     // marcha) o sin ella (bonos); y las que NO entran porque el alumno ya las
     // tiene anotadas en la app
-    clases: filas.reduce((n, f) => n + (f.accion === 'nuevo' || f.accion === 'actualizar' ? f.reparto.conFecha.reduce((t, x) => t + x.n, 0) + (f.accion === 'nuevo' || (f.cambios && f.cambios.clases_previas) ? Math.round(f.reparto.sinFecha) : 0) : 0), 0),
+    clases: filas.reduce((n, f) => n + (f.accion === 'nuevo' || f.accion === 'actualizar' ? f.reparto.conFecha.reduce((t, x) => t + x.n, 0) + (f.accion === 'nuevo' || (f.cambios && f.cambios.clases_previas) ? cuarto(f.reparto.sinFecha) : 0) : 0), 0),
     clasesConFecha: filas.reduce((n, f) => n + (f.accion === 'nuevo' || f.accion === 'actualizar' ? f.reparto.conFecha.reduce((t, x) => t + x.n, 0) : 0), 0),
     clasesYaEnApp: actualizar.reduce((n, f) => n + f.reparto.omitidas, 0),
     parecidos: actualizar.filter(f => f.parecido).length,
@@ -919,7 +975,7 @@ function cambiosAlumno(al, fila) {
   }
   // Clases ya hechas sin fecha (bonos de antes de su primera clase en la app)
   const sinFecha = fila.reparto ? fila.reparto.sinFecha : 0;
-  if (sinFecha > 0 && !(al.clases_previas > 0)) poner('clases_previas', Math.round(sinFecha));
+  if (sinFecha > 0 && !(al.clases_previas > 0)) poner('clases_previas', cuarto(sinFecha));
   if (deV125) {
     // Las observaciones vuelven a ser solo las suyas: fuera el bloque de la 1.25
     const limpias = (al.observaciones || '').replace(RE_BLOQUE_V125, '').replace(/^\n+|\n+$/g, '').trim();
@@ -936,7 +992,7 @@ function cambiosAlumno(al, fila) {
 // Lo que necesita la pantalla (sin los cargos/pagos de cada alumno): primero
 // los que ya están en la app (lo que más interesa revisar), luego los dudosos
 // y al final los nuevos
-const ORDEN_PREVIA = { actualizar: 0, revisar: 1, nuevo: 2 };
+const ORDEN_PREVIA = { actualizar: 0, revisar: 1, nuevo: 2, omitir: 3 };
 function previaAriauto(plan) {
   if (!plan.ok) return plan;
   const { filas, ...resto } = plan;
@@ -944,7 +1000,7 @@ function previaAriauto(plan) {
     ...resto,
     filas: filas.slice().sort((a, b) => ORDEN_PREVIA[a.accion] - ORDEN_PREVIA[b.accion]).slice(0, MAX_PREVIA).map(f => {
       const conFecha = f.reparto ? f.reparto.conFecha.reduce((t, x) => t + x.n, 0) : 0;
-      const sinFecha = f.reparto ? (f.accion === 'nuevo' || (f.cambios && f.cambios.clases_previas) ? Math.round(f.reparto.sinFecha) : 0) : 0;
+      const sinFecha = f.reparto ? (f.accion === 'nuevo' || (f.cambios && f.cambios.clases_previas) ? cuarto(f.reparto.sinFecha) : 0) : 0;
       return {
         nombre: f.nombre, dni: f.dni, n_registro: f.n_registro, permiso: f.permiso, estado: f.estado, activo: f.activo, accion: f.accion,
         clases: f.accion === 'revisar' ? f.clases : cuarto(conFecha + sinFecha), clasesConFecha: conFecha, clasesYaEnApp: f.reparto ? f.reparto.omitidas : 0,
@@ -955,7 +1011,10 @@ function previaAriauto(plan) {
         nombreNuevo: f.cambios && (f.cambios.nombre || f.cambios.primer_apellido || f.cambios.segundo_apellido) ? f.nombre : null,
         altaNueva: f.cambios && f.cambios.fecha_alta && f.cambios.fecha_alta.antes ? f.cambios.fecha_alta.despues : null,
         registroNuevo: f.cambios && f.cambios.n_registro ? f.cambios.n_registro.despues : null,
-        otrosExpedientes: f.otrosExpedientes || null
+        otrosExpedientes: f.otrosExpedientes || null,
+        // Para decidir a mano con quién se junta (o si entra aparte o no se trae)
+        clave: f.clave, id: f.id || null, manual: !!f.manual, candidatos: f.candidatosApp || [],
+        detalleCambios: f.cambios ? Object.entries(f.cambios).slice(0, 14).map(([campo, v]) => ({ campo, antes: v.antes, despues: v.despues })) : []
       };
     }),
     masFilas: Math.max(0, filas.length - MAX_PREVIA)
@@ -1040,7 +1099,7 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
   // Alumnos
   const extrasAlumno = Object.keys(CAMPOS_EXTRA.alumnos);
   for (const f of plan.filas) {
-    if (f.accion === 'revisar') continue;
+    if (f.accion === 'revisar' || f.accion === 'omitir') continue;
     const dt = f.datos;
     let a;
     if (f.accion === 'nuevo') {

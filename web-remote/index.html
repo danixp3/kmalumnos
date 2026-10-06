@@ -241,6 +241,7 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .km-par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .km-par .campo { font-family: var(--font-mono, monospace); font-size: 20px; font-weight: 600; }
   .km-par .etq2 { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .par-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: end; }
   .lnk-olvido { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 18px; }
   .barra-fija { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, transparent); z-index: 20; }
   .barra-fija > * { max-width: 528px; margin: 0 auto; }
@@ -470,7 +471,7 @@ const SESION_KEY = 'km_sesion';              // sesión de Supabase Auth (se ren
 const ULTIMO_EMAIL_KEY = 'km_ultimo_email';  // para no tener que reescribirlo
 const ULTIMA_CUENTA_KEY = 'km_ultima_cuenta'; // id de la última cuenta que entró en este teléfono
 const TEMA_KEY = 'km_tema';                  // apariencia: auto | claro | oscuro | negro
-const FLUJO_KEY = 'km_flujo';                // práctica en marcha (sobrevive a recargas)
+const FLUJO_KEY = 'km_flujo';                // práctica en marcha de cada perfil (sobrevive a recargas): FLUJO_KEY + ':' + id del profesor
 const VEHICULO_KEY = 'km_vehiculo';          // último vehículo usado
 const VEHICULO_HOY_KEY = 'km_vehiculo_hoy';  // coche elegido HOY en este teléfono { id, fecha, perfil }
 const NCLASES_KEY = 'km_n_clases';          // nº de clases elegido la última vez
@@ -716,7 +717,8 @@ async function vaciarCola(manual = false) {
   else if (manual && r.parado === 'red') toast('Sigue sin haber conexión.');
   if (document.querySelector('#capa .op-fila, #capa .hoja-pend')) hojaPendientes();
 }
-window.addEventListener('online', () => { S.sinRedHasta = 0; pintarEstadoRed(); if (S.perfil) vaciarCola(); });
+// Al volver la cobertura: se envía lo pendiente y la nube vuelve a saber qué perfil tiene este teléfono (para sus avisos)
+window.addEventListener('online', () => { S.sinRedHasta = 0; pintarEstadoRed(); if (S.perfil) { vaciarCola(); refrescarSuscripcion(); } });
 window.addEventListener('offline', () => pintarEstadoRed());
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.perfil) { pintarEstadoRed(); vaciarCola(); } });
 setInterval(() => { if (S.perfil && S.pend.length && hayRed()) vaciarCola(); else pintarEstadoRed(); }, 30000);
@@ -876,7 +878,8 @@ function empezarSinConexion(I, ahora) {
   S.flujo = {
     practica_id: null, local: true, cid: Offline.nuevoId(), alumno_id: I.alumno_id, alumno_nombre: nombreAlumno(al), vehiculo_id: I.vehiculo_id, vehiculo_nombre: v ? v.nombre : '', matricula: v ? v.matricula : null,
     km_inicial: parseInt(I.km), km_final: 0, inicio_ms: ahora.getTime(), hora_inicio: hhmm(ahora), n_clases: I.n_clases, duracion_min: I.n_clases * durClase(),
-    zonas: I.zonas.slice(), trabajado: [], observacion: '', clase_n: siguienteClase(al), clases_antes: clasesAlumno(al), fecha: fechaLocal(ahora), cerrada: false
+    zonas: I.zonas.slice(), trabajado: [], observacion: '', clase_n: siguienteClase(al), clases_antes: clasesAlumno(al), fecha: fechaLocal(ahora), cerrada: false,
+    profesor_id: S.perfil ? S.perfil.id : null
   };
   guardarFlujo();
   toast('Sin conexión: la clase se guarda en la tablet y se envía sola.', 3800);
@@ -987,7 +990,7 @@ async function iniciarSesion() {
     try {
       localStorage.setItem(ULTIMO_EMAIL_KEY, email);
       // Otra cuenta en este teléfono: la práctica en marcha y el coche eran de la anterior.
-      if (localStorage.getItem(ULTIMA_CUENTA_KEY) !== s.user.id) { localStorage.removeItem(FLUJO_KEY); localStorage.removeItem(VEHICULO_KEY); localStorage.setItem(ULTIMA_CUENTA_KEY, s.user.id); }
+      if (localStorage.getItem(ULTIMA_CUENTA_KEY) !== s.user.id) { borrarFlujos(); localStorage.removeItem(VEHICULO_KEY); localStorage.setItem(ULTIMA_CUENTA_KEY, s.user.id); }
     } catch {}
     document.getElementById('login-password').value = '';
     const perfil = perfilGuardado(s.user.id);
@@ -1130,22 +1133,27 @@ async function cerrarEnVivo() {
   try { const reg = await registroSW(); if (reg && reg.getNotifications) (await reg.getNotifications({ tag: ETIQUETA_EN_VIVO })).forEach(n => n.close()); } catch {}
 }
 // Se llama al empezar, pausar, reanudar, cambiar los ajustes, volver a la
-// práctica ('reprogramar') y al cerrarla o cancelarla ('fin' / 'cancelar').
+// práctica ('reprogramar'), al cerrarla o cancelarla ('fin' / 'cancelar') y al
+// cambiar de perfil con ella abierta ('aparcar': se quitan sus avisos de este
+// teléfono hasta que se vuelva a su perfil). Este teléfono solo avisa de las
+// clases del profesor que tiene puesto.
+const esDelPerfil = F => !F.profesor_id || F.profesor_id === (S.perfil && S.perfil.id ? S.perfil.id : null);
 async function avisosPractica(evento) {
   const F = S.flujo; if (!F || !F.practica_id) return;
   try {
     const aj = avisosAjustes(), cerrar = evento === 'fin' || evento === 'cancelar';
-    if (cerrar || !aj.enVivo) await cerrarEnVivo(); else await mostrarEnVivo(F);
+    const quitar = evento === 'aparcar' || !esDelPerfil(F);
+    if (cerrar || quitar || !aj.enVivo) await cerrarEnVivo(); else await mostrarEnVivo(F);
     if (cerrar || !avisosActivos()) return; // al cerrar/cancelar los quita el servidor
     const sub = await suscripcionAvisos(); if (!sub) return;
     const lista = [];
-    if (!F.pausada_ms) {
+    if (!F.pausada_ms && !quitar) {
       const fin = finPrevistoMs(F), hasta = hhmm(new Date(fin)), quien = F.alumno_nombre || 'Alumno';
       if (aj.antes) lista.push({ tipo: 'antes', enviar_en: new Date(fin - aj.antes * 60000).toISOString(), titulo: `Quedan ${aj.antes} min de práctica`, cuerpo: `${quien} · termina a las ${hasta}`, etiqueta: ETIQUETA_EN_VIVO });
       if (aj.alFinal) lista.push({ tipo: 'fin', enviar_en: new Date(fin).toISOString(), titulo: 'Hora de terminar la práctica', cuerpo: `${quien} · ${hasta}. Toca para poner los km y la firma.`, etiqueta: ETIQUETA_EN_VIVO });
       if (aj.despues) lista.push({ tipo: 'recordatorio', enviar_en: new Date(fin + aj.despues * 60000).toISOString(), titulo: 'La práctica sigue abierta', cuerpo: `${quien}: terminaba a las ${hasta}. Ciérrala cuando puedas.`, etiqueta: ETIQUETA_EN_VIVO });
     }
-    await postJSON('/api/avisos', { accion: 'programar', endpoint: sub.endpoint, practica_id: F.practica_id, avisos: lista.filter(a => Date.parse(a.enviar_en) > Date.now() + 5000) });
+    await postJSON('/api/avisos', { accion: 'programar', endpoint: sub.endpoint, practica_id: F.practica_id, profesor_id: S.perfil && S.perfil.id ? S.perfil.id : null, avisos: lista.filter(a => Date.parse(a.enviar_en) > Date.now() + 5000) });
   } catch { /* los avisos nunca estorban a la práctica */ }
 }
 const segAviso = (clave, valores, actual) => `<div class="seg3">${valores.map(([v, t]) => `<button class="${v === actual ? 'on' : ''}" onclick="cambiarAviso('${clave}', ${JSON.stringify(v)})">${t}</button>`).join('')}</div>`;
@@ -1278,12 +1286,10 @@ async function cargarJornada() {
     S.jornadaHoy = S.fecha === S.hoy ? S.jornada : await pedirJornada(S.hoy);
   } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message || 'No se pudo cargar la jornada'); }
   sobreponerJornada();
-  // Si el servidor dice que hay una práctica en curso y aquí no hay flujo, se recupera.
-  const enCurso = S.jornadaHoy.practicas.find(p => p.en_curso && !p.local) || S.jornadaHoy.sin_cerrar[0];
-  if (enCurso && (!S.flujo || S.flujo.practica_id !== enCurso.id)) {
-    if (!S.flujo || (!S.flujo.practica_id && !S.flujo.local)) S.flujo = flujoDesdePractica(enCurso);
-    guardarFlujo();
-  }
+  // Una práctica en curso que este teléfono no empezó (la del profesor en su
+  // propia tablet, vista desde el perfil de ese profesor en otro teléfono) NO
+  // se adopta sola: antes se metía aquí, bloqueaba el cambio de perfil y traía
+  // sus avisos. Sale en Hoy con «Seguir en este teléfono».
 }
 function flujoDesdePractica(p) {
   const inicioMs = (() => { if (!p.hora_inicio || p.fecha !== S.hoy) return Date.now(); const [h, m] = p.hora_inicio.split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); return d.getTime(); })();
@@ -1291,11 +1297,25 @@ function flujoDesdePractica(p) {
     practica_id: p.id, alumno_id: p.alumno_id, alumno_nombre: p.alumno_nombre, vehiculo_id: p.vehiculo_id, vehiculo_nombre: p.vehiculo_nombre, matricula: p.matricula,
     km_inicial: p.km_inicial, km_final: p.km_final || 0, inicio_ms: inicioMs, hora_inicio: p.hora_inicio, hora_fin: p.hora_fin || null,
     n_clases: nClasesGuardado(), duracion_min: nClasesGuardado() * durClase(), zonas: (p.zonas || []).slice(), trabajado: p.trabajado || [], observacion: '',
-    clase_n: p.clase_n, fecha: p.fecha, cerrada: !!p.km_final, sin_cerrar: !!p.sin_cerrar, profesor_nombre: p.profesor_nombre || null
+    clase_n: p.clase_n, fecha: p.fecha, cerrada: !!p.km_final, sin_cerrar: !!p.sin_cerrar, profesor_nombre: p.profesor_nombre || nombreProfesor(p.profesor_id),
+    profesor_id: p.profesor_id === undefined ? (S.perfil ? S.perfil.id : null) : p.profesor_id
   };
 }
-function guardarFlujo() { try { if (S.flujo) localStorage.setItem(FLUJO_KEY, JSON.stringify(S.flujo)); else localStorage.removeItem(FLUJO_KEY); } catch {} }
-function cargarFlujo() { try { const r = localStorage.getItem(FLUJO_KEY); S.flujo = r ? JSON.parse(r) : null; } catch { S.flujo = null; } }
+const nombreProfesor = id => { const pr = id && S.profesores.find(x => x.id === id); return pr ? pr.nombre : null; };
+const deOtroProfesor = p => !!(p && p.profesor_id && p.profesor_id !== (S.perfil && S.perfil.id ? S.perfil.id : null));
+// Cada perfil tiene su práctica en marcha: se puede cambiar de perfil con una
+// clase abierta (sigue a nombre de su profesor) y se retoma al volver a él.
+const claveFlujo = () => FLUJO_KEY + ':' + (S.perfil && S.perfil.id ? S.perfil.id : 'sin');
+function guardarFlujo() { try { if (S.flujo) localStorage.setItem(claveFlujo(), JSON.stringify(S.flujo)); else localStorage.removeItem(claveFlujo()); } catch {} }
+function cargarFlujo() {
+  try {
+    // Versión anterior: una sola práctica por teléfono → es del perfil que está puesto
+    const vieja = localStorage.getItem(FLUJO_KEY);
+    if (vieja !== null) { if (!localStorage.getItem(claveFlujo())) localStorage.setItem(claveFlujo(), vieja); localStorage.removeItem(FLUJO_KEY); }
+    const r = localStorage.getItem(claveFlujo()); S.flujo = r ? JSON.parse(r) : null;
+  } catch { S.flujo = null; }
+}
+function borrarFlujos() { try { Object.keys(localStorage).filter(k => k === FLUJO_KEY || k.startsWith(FLUJO_KEY + ':')).forEach(k => localStorage.removeItem(k)); } catch {} }
 const vehiculo = id => S.vehiculos.find(v => v.id === id);
 const alumno = id => S.alumnos.find(a => a.id === id);
 const nombreAlumno = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '';
@@ -1379,7 +1399,7 @@ async function entrarApp() {
   if (S.vista === 'hoy') renderHoy();
   renderRiel();
   cargarMiFirma().then(() => { if (S.vista === 'hoy' && S.miFirma === false) renderHoy(); });
-  refrescarSuscripcion();
+  refrescarSuscripcion().then(() => { if (flujoActivo() && S.flujo.practica_id) avisosPractica('reprogramar'); });
   vaciarCola();
   // Atajo «Nueva práctica» del icono de la app (mantener pulsado el icono)
   if (new URLSearchParams(location.search).get('accion') === 'nueva') {
@@ -1446,8 +1466,9 @@ function renderHoy() {
     if (enCurso) {
       const miFlujo = esMiFlujo(enCurso);
       html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et">${miFlujo && S.flujo.pausada_ms ? ic('pausa', 14) + ' EN PAUSA' : '<span class="pill-dot"></span>EN CURSO'}</span><span>${esc(enCurso.hora_inicio || '')} ${enCurso.hora_inicio ? '–' : ''} ${esc(miFlujo && S.flujo.inicio_ms ? horaFinPrevista(S.flujo) : sumaMin(enCurso.hora_inicio, nClasesGuardado() * durClase()))}</span></div>
-        <div class="ahora-quien"><span class="ini">${esc(iniciales(enCurso.alumno_nombre))}</span><div><div class="ahora-nom">${esc(enCurso.alumno_nombre)}</div><div class="ahora-sub">${miFlujo ? esc(claseTxt(S.flujo)) : 'Clase ' + enCurso.clase_n}${enCurso.zonas && enCurso.zonas.length ? ' · ' + esc(zonasTxt(enCurso.zonas)) : ''}</div></div></div>
-        <button class="btn btn-pri btn-lg" onclick="continuarPractica(${enCurso.id})">${ic('play', 18)} Continuar práctica</button></div>`;
+        <div class="ahora-quien"><span class="ini">${esc(iniciales(enCurso.alumno_nombre))}</span><div><div class="ahora-nom">${esc(enCurso.alumno_nombre)}</div><div class="ahora-sub">${miFlujo ? esc(claseTxt(S.flujo)) : 'Clase ' + enCurso.clase_n}${enCurso.zonas && enCurso.zonas.length ? ' · ' + esc(zonasTxt(enCurso.zonas)) : ''}</div>
+          ${miFlujo || enCurso.local ? '' : `<div class="ahora-sub">${ic('tel', 14)} Empezada en otro teléfono${deOtroProfesor(enCurso) ? ' · de ' + esc(nombreProfesor(enCurso.profesor_id) || 'otro profesor') : ''}</div>`}</div></div>
+        <button class="btn btn-pri btn-lg" onclick="continuarPractica(${enCurso.id})">${ic('play', 18)} ${miFlujo || enCurso.local ? 'Continuar práctica' : 'Seguir en este teléfono'}</button></div>`;
     } else if (sinCerrar) {
       html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et">${ic('aviso', 16)} SIN CERRAR</span><span>${esc(fechaCorta(sinCerrar.fecha))}</span></div>
         <div class="ahora-quien"><span class="ini">${esc(iniciales(sinCerrar.alumno_nombre))}</span><div><div class="ahora-nom">${esc(sinCerrar.alumno_nombre)}</div><div class="ahora-sub">Empezó en el km ${miles(sinCerrar.km_inicial)} y falta el km final</div></div></div>
@@ -1555,7 +1576,26 @@ async function guardarCocheProfesor(pid, vid) {
     menuCoches();
   } catch (e) { if (e.message !== 'Sesión expirada') toast(e.message); }
 }
-function cambiarPerfil() { if (flujoActivo()) { toast('Termina primero la práctica en curso.'); return; } mostrarPerfiles(); }
+// Con una práctica en marcha también se puede cambiar de perfil (p. ej. el
+// jefe entra en el perfil de un profesor para configurarle algo): la práctica
+// sigue abierta a nombre de su profesor, este teléfono deja de avisar de ella
+// y se retoma tal cual al volver a ese perfil.
+async function cambiarPerfil() {
+  if (flujoActivo()) {
+    const F = S.flujo;
+    const deQuien = S.perfil && S.perfil.id ? ` de ${S.perfil.nombre}` : '';
+    const msg = F.local ? `La práctica${deQuien} con ${F.alumno_nombre || 'el alumno'} está guardada solo en esta tablet: sigue aquí y la terminas al volver a este perfil. ¿Cambiar de perfil?`
+      : `La práctica${deQuien} con ${F.alumno_nombre || 'el alumno'} sigue abierta: al volver a este perfil la retomas donde estaba. Mientras, este teléfono no avisará de ella. ¿Cambiar de perfil?`;
+    if (!confirm(msg)) return;
+  }
+  await aparcarFlujo();
+  mostrarPerfiles();
+}
+async function aparcarFlujo() {
+  pararTimer();
+  if (S.flujo) { guardarFlujo(); if (flujoActivo()) await avisosPractica('aparcar'); }
+  S.flujo = null;
+}
 
 function elegirVehiculo(despues) {
   const filas = S.vehiculos.map(v => `<button class="fila" onclick="fijarVehiculo(${v.id})"><span class="veh-ic">${ic('coche', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(v.nombre)}</div><div style="margin:3px 0">${placa(v.matricula)}</div><div class="fila-sub">Último km ${miles(v.ultimo ? v.ultimo.km_final : v.km_actual)}</div></div>${v.id === S.vehId ? ic('ok', 22) : ''}</button>`).join('');
@@ -1706,7 +1746,8 @@ async function empezarPractica() {
     S.flujo = {
       practica_id: data.practica_id, alumno_id: I.alumno_id, alumno_nombre: nombreAlumno(al), vehiculo_id: I.vehiculo_id, vehiculo_nombre: v ? v.nombre : '', matricula: v ? v.matricula : null,
       km_inicial: km, km_final: 0, inicio_ms: ahora.getTime(), hora_inicio: hhmm(ahora), n_clases: I.n_clases, duracion_min: I.n_clases * durClase(),
-      zonas: I.zonas.slice(), trabajado: [], observacion: '', clase_n: siguienteClase(al), clases_antes: clasesAlumno(al), fecha: fechaLocal(ahora), cerrada: false
+      zonas: I.zonas.slice(), trabajado: [], observacion: '', clase_n: siguienteClase(al), clases_antes: clasesAlumno(al), fecha: fechaLocal(ahora), cerrada: false,
+      profesor_id: S.perfil ? S.perfil.id : null
     };
     guardarFlujo();
     go('curso');
@@ -1745,20 +1786,77 @@ function abrirAnotar(op = {}) {
   const fecha = op.fecha && op.fecha <= S.hoy && op.fecha >= minimo ? op.fecha : sumaDias(S.hoy, -1);
   S.anotar = {
     alumno_id: al ? al.id : null, vehiculo_id: vid, fecha, hora: '', n_clases: nClasesGuardado(), modo: modoGuardado(), minutos: '',
-    km_ini: '', km_fin: '', zonas: [], trabajado: [], obs: '', volverA: op.volverA || 'hoy'
+    km_ini: '', km_fin: '', kmModo: modoKmAnotarGuardado(), kmIniAuto: true, ctx: null,
+    zonas: [], trabajado: [], obs: '', volverA: op.volverA || 'hoy'
   };
   go('anotar');
 }
+// Km de una clase pasada: «Los escribo» (el inicial sale ya puesto: donde
+// acabó la clase anterior de ese coche ese día), «Los pone la app» (desde ese
+// km, lo normal por clase sin pasar de la siguiente) o «Sin km» (se rellenan
+// en la oficina). Antes el inicial salía en blanco y la clase acababa en km 0.
+const MODO_KM_ANOTAR_KEY = 'km_modo_km_anotar';
+const modoKmAnotarGuardado = () => { const m = localStorage.getItem(MODO_KM_ANOTAR_KEY); return m === 'auto' || m === 'sin' ? m : 'escribo'; };
+function fijarModoKmAnotar(modo) {
+  const A = S.anotar; if (!A) return;
+  A.kmModo = modo; localStorage.setItem(MODO_KM_ANOTAR_KEY, modo);
+  if (modo === 'escribo' && A.kmIniAuto && A.ctx && A.ctx.anterior && !A.km_ini) A.km_ini = String(A.ctx.anterior.km);
+  renderAnotar();
+}
+// Clase anterior y siguiente del coche ese día a esa hora (GET /api/km-coche)
+async function cargarKmAnotar() {
+  const A = S.anotar; if (!A || !A.vehiculo_id || !A.fecha) return;
+  const clave = `${A.vehiculo_id}|${A.fecha}|${A.hora || ''}`;
+  if (A.ctx && A.ctx.clave === clave) return;
+  A.ctx = { clave, cargando: true, anterior: null, siguiente: null };
+  const q = new URLSearchParams({ vehiculo_id: A.vehiculo_id, fecha: A.fecha }); if (A.hora) q.set('hora', A.hora);
+  let ctx;
+  try {
+    const res = await apiFetch('/api/km-coche?' + q);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudieron leer los km del coche');
+    ctx = { clave, anterior: data.anterior, siguiente: data.siguiente };
+  } catch (e) {
+    ctx = { clave, error: esRed(e) ? 'red' : (e.message || 'error') };
+    // Sin cobertura: si la clase es posterior a la última conocida del coche, se parte de ella
+    const u = esRed(e) && (vehiculo(A.vehiculo_id) || {}).ultimo;
+    if (u && u.km_final && u.fecha && (u.fecha < A.fecha || (u.fecha === A.fecha && (!A.hora || !u.hora || u.hora < A.hora)))) {
+      ctx = { clave, sinRed: true, anterior: { km: u.km_final, fecha: u.fecha, hora: u.hora || null, alumno: u.alumno || null }, siguiente: null };
+    }
+  }
+  if (S.anotar !== A || A.ctx.clave !== clave) return; // ya se cambió de día, hora o coche
+  A.ctx = ctx;
+  // El km inicial propuesto sigue a la clase anterior mientras no se escriba otro
+  if (A.kmIniAuto) A.km_ini = ctx.anterior ? String(ctx.anterior.km) : '';
+  if (S.vista !== 'anotar') return;
+  const enCampo = document.activeElement && document.activeElement.closest && document.activeElement.closest('#v-anotar') && /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+  if (!enCampo) { renderAnotar(); return; }
+  const ini = document.getElementById('an-km-ini'); if (ini && document.activeElement !== ini) ini.value = A.km_ini;
+  pintarEstadoAnotar();
+}
+const cuandoClase = c => `${c.alumno ? esc(c.alumno.split(' ')[0]) + ', ' : ''}${esc(fechaCorta(c.fecha))}${c.hora ? ' a las ' + esc(c.hora) : ''}`;
 function estadoKmAnotar() {
-  const A = S.anotar;
+  const A = S.anotar, c = A.ctx || {}, ant = c.anterior, sig = c.siguiente;
+  const n = cantidadDe(A);
+  if (A.kmModo === 'sin') return { ok: true, cls: 'msg-gris', txt: 'Sin km: la clase queda como «Km pendientes» y se rellenan desde la oficina. Para que el alumno la firme hacen falta los km.' };
+  if (A.kmModo === 'auto') {
+    if (c.cargando) return { ok: false, cls: 'msg-gris', txt: 'Buscando dónde acabó la clase anterior de este coche…' };
+    if (c.error) return { ok: false, cls: 'msg-warn', txt: c.error === 'red' ? 'Sin cobertura la app no puede calcularlos: escríbelos o déjalos en blanco.' : esc(c.error) };
+    if (!ant) return { ok: false, cls: 'msg-err', txt: 'Este coche no tiene ninguna clase anterior con km: escríbelos o déjalos en blanco.' };
+    if (sig && sig.km - ant.km < Math.ceil(n - 1e-9)) return { ok: false, cls: 'msg-err', txt: `No caben: la clase anterior del coche acabó en el km ${miles(ant.km)} y la siguiente empezó en el ${miles(sig.km)}. Escríbelos o déjalos en blanco.` };
+    return { ok: true, cls: 'msg-ok', txt: `Empieza en el km <b>${miles(ant.km)}</b> (donde acabó la clase anterior del coche: ${cuandoClase(ant)}) y la app pone unos <b>${kmAutoTxt(n)}</b>${sig ? `, sin pasar del ${miles(sig.km)} (la siguiente: ${cuandoClase(sig)})` : ''}.` };
+  }
   const i = parseInt(A.km_ini) || 0, f = parseInt(A.km_fin) || 0;
-  if (!A.km_ini && !A.km_fin) return { ok: true, cls: 'msg-gris', txt: 'Sin km: la clase queda como «Km pendientes» y se rellenan desde la oficina. Para que el alumno la firme hacen falta los km.' };
-  if (!i || !f) return { ok: false, cls: 'msg-warn', txt: `Pon también el km ${i ? 'final' : 'inicial'}, o deja los dos en blanco.` };
+  const pista = ant ? ` La clase anterior de este coche acabó en el km ${miles(ant.km)} (${cuandoClase(ant)}).` : '';
+  if (!A.km_ini && !A.km_fin) return { ok: false, cls: 'msg-warn', txt: 'Escribe el km inicial y el final, o elige «Sin km».' + pista };
+  if (!i || !f) return { ok: false, cls: 'msg-warn', txt: i ? `Pon el km final.${ant && i === ant.km ? ` El inicial es donde acabó la clase anterior de este coche (${cuandoClase(ant)}).` : ''}${sig ? ` La siguiente empezó en el km ${miles(sig.km)} (${cuandoClase(sig)}).` : ''}` : `Pon también el km inicial.${pista}` };
   if (f <= i) return { ok: false, cls: 'msg-err', txt: 'El km final tiene que ser mayor que el inicial.' };
   if (f - i > 1000) return { ok: false, cls: 'msg-err', txt: 'Más de 1.000 km en una clase: revisa los números.' };
-  const n = cantidadDe(A);
   if (n >= 0.25 && f - i < Math.ceil(n - 1e-9)) return { ok: false, cls: 'msg-err', txt: `Con ${f - i} km no se pueden guardar ${clasesTxt(n)}.` };
-  return { ok: true, cls: 'msg-ok', txt: `${miles(f - i)} km recorridos${n !== 1 && n >= 0.25 ? ` en ${clasesTxt(n)}` : ''}.` };
+  if (ant && i < ant.km) return { ok: false, cls: 'msg-err', txt: `Empieza antes de que acabara la clase anterior de este coche (km ${miles(ant.km)}, ${cuandoClase(ant)}). Revisa el km inicial.` };
+  if (sig && f > sig.km) return { ok: false, cls: 'msg-err', txt: `Pasa del km en que empezó la clase siguiente de este coche (${miles(sig.km)}, ${cuandoClase(sig)}). Revisa el km final.` };
+  const hueco = ant && i > ant.km ? ` Quedan ${miles(i - ant.km)} km sin registrar desde la clase anterior (acabó en el ${miles(ant.km)}).` : '';
+  return { ok: true, cls: hueco ? 'msg-warn' : 'msg-ok', txt: `${miles(f - i)} km recorridos${n !== 1 && n >= 0.25 ? ` en ${clasesTxt(n)}` : ''}.${hueco}` };
 }
 function renderAnotar() {
   const A = S.anotar; if (!A) { go('hoy'); return; }
@@ -1789,12 +1887,13 @@ function renderAnotar() {
     <input class="campo" type="time" id="an-hora" value="${esc(A.hora)}" onchange="S.anotar.hora=this.value;renderAnotar()" style="font-family:var(--font-mono,monospace);font-size:20px;font-weight:600">
     <div class="etq">Duración <small id="an-dur">${fin ? 'de ' + esc(A.hora) + ' a ' + esc(fin) : ''}</small></div>
     ${bloqueCantidad(A, 'anotar')}
-    <div class="etq">Kilómetros <small>Si no los sabes, déjalos en blanco</small></div>
+    <div class="etq">Kilómetros</div>
     <div class="card card-pad">
-      <div class="km-par">
+      <div class="seg3 km-modo" role="group" aria-label="Kilómetros de la clase">${[['escribo', 'Los escribo'], ['auto', 'Los pone la app'], ['sin', 'Sin km']].map(([m, t]) => `<button class="${A.kmModo === m ? 'on' : ''}" onclick="fijarModoKmAnotar('${m}')">${t}</button>`).join('')}</div>
+      ${A.kmModo === 'escribo' ? `<div class="km-par" style="margin-top:12px">
         <div><div class="etq2" style="margin-bottom:6px">Inicial</div><input class="campo" id="an-km-ini" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="off" value="${esc(A.km_ini)}" oninput="tecleaKmAnotar(this,'km_ini')"></div>
         <div><div class="etq2" style="margin-bottom:6px">Final</div><input class="campo" id="an-km-fin" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="off" value="${esc(A.km_fin)}" oninput="tecleaKmAnotar(this,'km_fin')"></div>
-      </div>
+      </div>` : ''}
       <div class="msg ${k.cls}" id="an-km-msg"><span>${k.txt}</span></div>
     </div>
     ${S.zonas.length ? `<div class="etq">Zonas recorridas <small>Opcional</small></div>
@@ -1804,17 +1903,19 @@ function renderAnotar() {
     <div class="etq">Observación <small>Opcional</small></div>
     <textarea class="campo" id="an-obs" maxlength="500" placeholder="Qué ha ido bien, qué repasar…" oninput="S.anotar.obs=this.value">${esc(A.obs)}</textarea>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-anotar" onclick="enviarAnotar()" ${al && v && k.ok && nA >= 0.25 ? '' : 'disabled'}>${ic('ok', 20, 'style="stroke-width:2.6"')} ${textoBotonAnotar(nA)}</button></div>`;
+  cargarKmAnotar();
 }
 const textoBotonAnotar = n => n > 1 ? `Anotar ${clasesTxt(n)}` : (n < 1 && n >= 0.25 ? `Anotar ${clasesTxt(n)}` : 'Anotar clase');
 function tecleaKmAnotar(inp, campo) {
   inp.value = inp.value.replace(/\D/g, '').slice(0, 7);
   S.anotar[campo] = inp.value;
+  if (campo === 'km_ini') S.anotar.kmIniAuto = !inp.value; // escrito a mano: ya no sigue a la clase anterior
   pintarEstadoAnotar();
 }
 // Mensaje de km y botón de Anotar sin volver a pintar la pantalla (no se pierde el teclado)
 function pintarEstadoAnotar() {
   const A = S.anotar, k = estadoKmAnotar(), n = cantidadDe(A);
-  const m = document.getElementById('an-km-msg'); m.className = 'msg ' + k.cls; m.innerHTML = `<span>${k.txt}</span>`;
+  const m = document.getElementById('an-km-msg'); if (!m) return; m.className = 'msg ' + k.cls; m.innerHTML = `<span>${k.txt}</span>`;
   const fin = A.hora && minutosDe(A) ? sumaMin(A.hora, minutosDe(A)) : '';
   const d = document.getElementById('an-dur'); if (d) d.textContent = fin ? `de ${A.hora} a ${fin}` : '';
   const b = document.getElementById('btn-anotar');
@@ -1835,7 +1936,8 @@ async function enviarAnotar(forzar = false) {
       alumno_id: A.alumno_id, vehiculo_id: A.vehiculo_id, fecha: A.fecha, hoy: S.hoy,
       hora_inicio: A.hora || null, hora_fin: A.hora && minutosDe(A) ? sumaMin(A.hora, minutosDe(A)) : null,
       ...(A.modo === 'minutos' ? { minutos: parseInt(A.minutos) } : { n_clases: A.n_clases || 1 }),
-      km_inicial: A.km_ini || null, km_final: A.km_fin || null, zonas: A.zonas, trabajado: A.trabajado, observacion: A.obs,
+      ...(A.kmModo === 'auto' ? { km_auto: true } : A.kmModo === 'escribo' ? { km_inicial: A.km_ini || null, km_final: A.km_fin || null } : { km_inicial: null, km_final: null }),
+      zonas: A.zonas, trabajado: A.trabajado, observacion: A.obs,
       profesor_id: S.perfil ? S.perfil.id : null, forzar
     });
     const data = await res.json();
@@ -1843,6 +1945,10 @@ async function enviarAnotar(forzar = false) {
       A.enviando = false;
       if (confirm(`${data.error}\n\n¿Es otra clase distinta? Pulsa Aceptar para anotarla igualmente.`)) return enviarAnotar(true);
       renderAnotar(); return;
+    }
+    // La app no ha podido calcular los km (no caben o el coche no tiene clases con km): a escribirlos
+    if (res.status === 409 && (data.codigo === 'km_no_caben' || data.codigo === 'sin_km_anterior')) {
+      A.enviando = false; A.kmModo = 'escribo'; renderAnotar(); toast(data.error, 5200); return;
     }
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo anotar la clase');
     const al = alumno(A.alumno_id);
@@ -1871,13 +1977,21 @@ async function anotarSinConexion(A) {
   const al = alumno(A.alumno_id), v = vehiculo(A.vehiculo_id);
   const hora_fin = A.hora && minutosDe(A) ? sumaMin(A.hora, minutosDe(A)) : null;
   const n = cantidadDe(A);
-  const conKm = !!(parseInt(A.km_ini) && parseInt(A.km_fin));
+  let kmI = A.kmModo === 'escribo' ? parseInt(A.km_ini) || 0 : 0, kmF = A.kmModo === 'escribo' ? parseInt(A.km_fin) || 0 : 0, calculados = false;
+  const ant = A.ctx && A.ctx.anterior, sig = A.ctx && A.ctx.siguiente;
+  if (A.kmModo === 'auto' && ant) {
+    kmI = ant.km; kmF = kmI + kmAutoLocal(n);
+    if (sig && kmF > sig.km) kmF = sig.km;
+    if (kmF - kmI < Math.ceil(n - 1e-9)) { kmI = 0; kmF = 0; } else calculados = true;
+  }
+  const conKm = !!(kmI && kmF);
   await encolar({ tipo: 'registrar', url: '/api/registrar-clase', cuerpo: {
     cid: Offline.nuevoId(), alumno_id: A.alumno_id, vehiculo_id: A.vehiculo_id, fecha: A.fecha, hoy: S.hoy, hora_inicio: A.hora || null, hora_fin,
-    ...(A.modo === 'minutos' ? { minutos: parseInt(A.minutos) } : { n_clases: A.n_clases || 1 }), km_inicial: A.km_ini || null, km_final: A.km_fin || null,
+    ...(A.modo === 'minutos' ? { minutos: parseInt(A.minutos) } : { n_clases: A.n_clases || 1 }), km_inicial: conKm ? kmI : null, km_final: conKm ? kmF : null,
+    ...(calculados ? { km_calculado: true } : {}),
     zonas: A.zonas, trabajado: A.trabajado, observacion: A.obs, profesor_id: S.perfil ? S.perfil.id : null, anotada: true },
     etiqueta: { alumno_id: A.alumno_id, vehiculo_id: A.vehiculo_id, alumno: al ? nombreAlumno(al) : '', matricula: v ? v.matricula : null, fecha: A.fecha, hora_inicio: A.hora || null, hora_fin,
-      km_inicial: conKm ? parseInt(A.km_ini) : 0, km_final: conKm ? parseInt(A.km_fin) : 0, clases: n, firmada: false } });
+      km_inicial: conKm ? kmI : 0, km_final: conKm ? kmF : 0, clases: n, firmada: false } });
   const { volverA, fecha, alumno_id } = A;
   S.anotar = null;
   toast('Sin conexión: la clase queda guardada en la tablet y se envía sola.', 4200);
@@ -1921,7 +2035,11 @@ async function continuarPractica(id) {
     return;
   }
   if (S.flujo && S.flujo.local) { toast('Termina primero la práctica en curso.'); go(S.flujo.cerrada ? 'firma' : 'curso'); return; }
-  if (!S.flujo || S.flujo.practica_id !== id) { S.flujo = flujoDesdePractica(p); guardarFlujo(); }
+  if (!S.flujo || S.flujo.practica_id !== id) {
+    if (flujoActivo()) { toast('Termina primero la práctica en curso.'); go('curso'); return; }
+    if (!p.km_final && deOtroProfesor(p) && !confirm(`Esta clase es de ${nombreProfesor(p.profesor_id) || 'otro profesor'} y se está dando desde otro teléfono. ¿Seguirla en este? (No recibirás sus avisos.)`)) return;
+    S.flujo = flujoDesdePractica(p); guardarFlujo();
+  }
   if (p.km_final) {
     const J = S.jornada.practicas.some(x => x.id === id) ? S.jornada : S.jornadaHoy;
     const ses = agruparSesiones(J.practicas.filter(x => x.km_final > 0)).find(g => g.ids.includes(id));
@@ -2143,8 +2261,25 @@ function estadoKmFinal() {
   }
   if (kf && rec <= 0) return err(`El km final debe ser mayor que ${miles(F.km_inicial)}.`);
   if (kf && rec < Math.ceil(n - 1e-9)) return err(`Con ${rec} km no caben ${clasesTxt(n)}.`);
-  if (!kf) return { ok: false, html: 'Escribe el km que marca el coche.' };
-  return { ok: true, html: al ? `Con ${n > 1 ? 'estas' : 'esta'}, ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${clasesTxt(antesN + n)}</b> y <b>${miles(kmAlumno(al) + rec)} km</b>.` : '' };
+  if (!kf) return { ok: false, html: 'Escribe el km que marca el coche.' + (siguienteKmFinal() ? ` La clase siguiente de este coche empezó en el km ${miles(siguienteKmFinal().km)}.` : '') };
+  const sig = siguienteKmFinal();
+  const aviso = sig && kf > sig.km ? `<br><span style="color:var(--err);font-weight:600">Ojo: la clase siguiente de este coche empezó en el km ${miles(sig.km)} (${cuandoClase(sig)}). Revisa el número.</span>` : '';
+  return { ok: true, html: (al ? `Con ${n > 1 ? 'estas' : 'esta'}, ${esc(nombreAlumno(al).split(' ')[0])} suma <b>${clasesTxt(antesN + n)}</b> y <b>${miles(kmAlumno(al) + rec)} km</b>.` : '') + aviso };
+}
+// Una práctica que quedó sin cerrar otro día: el coche ya ha dado más clases
+// desde entonces y su km final no puede pasar del km en que empezó la siguiente.
+function siguienteKmFinal() { const F = S.flujo, c = S.kmFinalCtx; return F && c && c.id === F.practica_id ? c.siguiente : null; }
+async function cargarSiguienteKmFinal() {
+  const F = S.flujo;
+  if (!F || F.local || !F.practica_id || !F.fecha || F.fecha >= S.hoy || (S.kmFinalCtx && S.kmFinalCtx.id === F.practica_id)) return;
+  S.kmFinalCtx = { id: F.practica_id, siguiente: null };
+  try {
+    const q = new URLSearchParams({ vehiculo_id: F.vehiculo_id, fecha: F.fecha, excluir: F.practica_id }); if (F.hora_inicio) q.set('hora', F.hora_inicio);
+    const res = await apiFetch('/api/km-coche?' + q); const data = await res.json();
+    if (!res.ok || !data.ok || !S.kmFinalCtx || S.kmFinalCtx.id !== F.practica_id) return;
+    S.kmFinalCtx.siguiente = data.siguiente && data.siguiente.km > F.km_inicial ? data.siguiente : null;
+    if (S.vista === 'kmfinal') pintarAvisoKmFinal();
+  } catch { /* sin cobertura: sin aviso */ }
 }
 function pintarAvisoKmFinal() {
   const st = estadoKmFinal();
@@ -2177,6 +2312,7 @@ function renderKmFinal() {
     ${auto ? '' : `<div class="teclado">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button onclick="tecla('${n}')">${n}</button>`).join('')}
       <button class="f" onclick="tecla('C')">Borrar</button><button onclick="tecla('0')">0</button><button class="f" onclick="tecla('<')" aria-label="Borrar un dígito">${ic('borrar', 26)}</button></div>`}
     <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-firma" onclick="continuarFirma()" ${st.ok ? '' : 'disabled'}>Continuar a la firma ${ic('flecha', 20)}</button></div>`;
+  cargarSiguienteKmFinal();
 }
 function tecla(k) {
   if (k === 'C') S.kmFinal = ''; else if (k === '<') S.kmFinal = S.kmFinal.slice(0, -1); else if (S.kmFinal.length < 7) S.kmFinal += k;
@@ -2187,6 +2323,8 @@ async function continuarFirma() {
   if (!estadoKmFinal().ok) return;
   const porMinutos = F.modo === 'minutos', auto = F.kmModo === 'auto';
   if (!auto && kf - F.km_inicial > 300 && !confirm(`Son ${kf - F.km_inicial} km en una sola práctica. ¿Es correcto?`)) return;
+  const sig = siguienteKmFinal();
+  if (!auto && sig && kf > sig.km && !confirm(`La clase siguiente de este coche empezó en el km ${miles(sig.km)} y has puesto ${miles(kf)}: los km se pisarían. ¿Guardar igualmente?`)) return;
   const btn = document.getElementById('btn-firma'); btn.disabled = true; btn.textContent = 'Guardando…';
   if (F.local || !hayRed()) { await cerrarSinConexion(F, kf, auto, porMinutos); return; }
   try {
@@ -2472,7 +2610,7 @@ function renderFicha() {
     <div class="tres"><div class="stat-box osc"><span class="val">${fmtC(totalClases)}</span><span class="etq2">${totalClases > 0 && totalClases <= 1 ? 'clase hecha' : 'clases hechas'}</span></div>
       <div class="stat-box" style="background:var(--card);border:1px solid var(--line)"><span class="val">${miles(totalKm)}</span><span class="etq2">km recorridos</span></div>
       <div class="stat-box" style="background:var(--card);border:1px solid var(--line)"><span class="val">${horas}</span><span class="etq2">h al volante</span></div></div>
-    ${previas || kmPrevios ? `<div class="fila-sub" style="margin:8px 2px 0">Incluye ${previas} ${previas === 1 ? 'clase' : 'clases'} y ${miles(kmPrevios)} km hechos antes de usar la app.</div>` : ''}
+    ${previas || kmPrevios ? `<div class="fila-sub" style="margin:8px 2px 0">Incluye ${fmtC(previas)} ${previas > 0 && previas <= 1 ? 'clase' : 'clases'} y ${miles(kmPrevios)} km hechos antes de usar la app.</div>` : ''}
     ${a.minutos_sobrantes > 0 ? `<div class="fila-sub" style="margin:8px 2px 0">Tiene <b>${minTxt(a.minutos_sobrantes)}</b> acumulados de clases por minutos: se anotan en cuanto lleguen a ¼ de clase (${minTxt(durClase() / 4)}).</div>` : ''}
     <div class="card cal" style="margin-top:14px"><div class="cal-cab"><button onclick="mesFicha(-1)" aria-label="Mes anterior">${ic('chevIzq', 20)}</button><div style="text-align:center"><b>${cap(MESES[m - 1])} ${y}</b><div class="fila-sub">${nDiasPractica} ${nDiasPractica === 1 ? 'día con práctica' : 'días con práctica'}</div></div><button onclick="mesFicha(1)" aria-label="Mes siguiente">${ic('chev', 20)}</button></div>
       <div class="cal-sem"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div><div class="cal-dias">${celdas}</div>
@@ -2490,7 +2628,16 @@ function renderNuevo() {
   document.getElementById('v-nuevo').innerHTML = `
     <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Nuevo alumno</h1></div></div>
     <div class="card card-pad" style="display:flex;flex-direction:column;gap:12px">
-      <div><div class="etq" style="margin:0 0 6px">Nombre completo</div><input class="campo" id="n-nombre" placeholder="Nombre y apellidos" autocomplete="off"></div>
+      <div><div class="etq" style="margin:0 0 6px">Nombre</div><input class="campo" id="n-nombre" placeholder="Nombre" autocomplete="off" autocapitalize="words" maxlength="60"></div>
+      <div class="par-campos">
+        <div><div class="etq" style="margin:0 0 6px">1.er apellido</div><input class="campo" id="n-ape1" autocomplete="off" autocapitalize="words" maxlength="60"></div>
+        <div><div class="etq" style="margin:0 0 6px">2.º apellido</div><input class="campo" id="n-ape2" autocomplete="off" autocapitalize="words" maxlength="60" placeholder="Si tiene"></div>
+      </div>
+      <div class="par-campos">
+        <div><div class="etq" style="margin:0 0 6px">DNI / NIE</div><input class="campo" id="n-dni" autocomplete="off" autocapitalize="characters" maxlength="20" placeholder="Opcional"></div>
+        <div><div class="etq" style="margin:0 0 6px">Teléfono</div><input class="campo" id="n-tel" type="tel" inputmode="tel" autocomplete="off" maxlength="20" placeholder="Opcional"></div>
+      </div>
+      <p class="fila-sub" style="margin:-4px 2px 0;font-size:14px">Igual que en el ordenador. Con el DNI, al traer los datos del programa anterior se junta solo con su ficha.</p>
       <div><div class="etq" style="margin:0 0 6px">Permiso</div><select class="campo" id="n-permiso"><option value="B">B (Coche)</option><option value="A">A (Moto)</option><option value="A2">A2</option><option value="AM">AM</option><option value="C">C (Camión)</option></select></div>
       <div><div class="etq" style="margin:0 0 6px">Vehículo asignado</div><select class="campo" id="n-vehiculo"><option value="">— Sin asignar —</option>${S.vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('')}</select></div>
       <label style="display:flex;align-items:center;gap:10px;font-size:16px;font-weight:600"><input type="checkbox" id="n-mio" ${S.perfil && S.perfil.id ? 'checked' : 'disabled'} style="width:22px;height:22px"> Asignármelo a mí${S.perfil && S.perfil.id ? '' : ' (elige un perfil de profesor)'}</label>
@@ -2498,16 +2645,29 @@ function renderNuevo() {
     </div>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-nuevo" onclick="crearAlumno()">${ic('mas', 20)} Crear alumno</button></div>`;
 }
-async function crearAlumno() {
-  const nombre = document.getElementById('n-nombre').value.trim(); const err = document.getElementById('n-error');
-  if (!nombre) { err.textContent = 'Introduce el nombre del alumno.'; return; }
+async function crearAlumno(forzar = false) {
+  const val = id => document.getElementById(id).value.replace(/\s+/g, ' ').trim();
+  const nombre = val('n-nombre'), ape1 = val('n-ape1'), ape2 = val('n-ape2'); const err = document.getElementById('n-error');
+  if (!nombre) { err.textContent = 'Introduce el nombre del alumno.'; document.getElementById('n-nombre').focus(); return; }
+  if (!ape1) { err.textContent = 'Introduce el primer apellido.'; document.getElementById('n-ape1').focus(); return; }
+  // Nombre y apellidos escritos juntos en «Nombre»: se avisa (en el ordenador son campos distintos)
+  if (!forzar && nombre.split(' ').length >= 3 && !ape2 && !confirm(`¿«${nombre}» es solo el nombre? Los apellidos van en sus casillas. Pulsa Aceptar si el nombre es así.`)) { document.getElementById('n-nombre').focus(); return; }
   err.textContent = ''; const btn = document.getElementById('btn-nuevo'); btn.disabled = true;
   try {
     const res = await postJSON('/api/crear-alumno', {
-      nombre, permiso: document.getElementById('n-permiso').value, vehiculo_id: document.getElementById('n-vehiculo').value || null,
-      profesor_id: document.getElementById('n-mio').checked && S.perfil ? S.perfil.id : null, hoy: fechaLocal()
+      nombre, primer_apellido: ape1, segundo_apellido: ape2, dni: val('n-dni'), telefono: val('n-tel'),
+      permiso: document.getElementById('n-permiso').value, vehiculo_id: document.getElementById('n-vehiculo').value || null,
+      profesor_id: document.getElementById('n-mio').checked && S.perfil ? S.perfil.id : null, hoy: fechaLocal(), forzar
     });
     const data = await res.json();
+    // Ya hay un alumno igual: no se duplica salvo que se confirme que es otra persona (u otro permiso de la misma)
+    if (res.status === 409 && data.codigo === 'posible_duplicado') {
+      btn.disabled = false;
+      const a = data.alumno || {};
+      const quien = `${a.nombre || ''}${a.n_registro ? ' (nº ' + a.n_registro + ')' : ''}${a.permiso ? ', permiso ' + a.permiso : ''}`;
+      if (confirm(`${data.error}\n\n${quien}\n\nNo hace falta darlo de alta otra vez: ya está en la lista de alumnos. Pulsa Aceptar solo si es OTRA persona${data.por_dni ? ' (o el mismo alumno sacándose otro permiso)' : ''}.`)) return crearAlumno(true);
+      err.textContent = `Ya está dado de alta: ${quien}.`; return;
+    }
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo crear el alumno');
     const conNum = data.n_registro ? ` con el nº ${data.n_registro}` : '';
     toast(data.cobros_error ? `Alumno creado${conNum}. La matrícula la anotará la oficina.` : `Alumno creado${conNum}`, 3600); await cargarBase(); go('alumnos');
@@ -2655,7 +2815,7 @@ function pintarDetalle(p) {
 }
 function firmarDesdeDetalle() {
   const p = S.detalle; if (!p) return;
-  if (S.flujo && S.flujo.practica_id && !S.flujo.cerrada && S.flujo.practica_id !== p.id) { toast('Termina primero la práctica en curso.'); return; }
+  if (flujoActivo() && S.flujo.practica_id !== p.id) { toast('Termina primero la práctica en curso.'); return; }
   S.flujo = {
     practica_id: p.id, alumno_id: p.alumno_id, alumno_nombre: p.alumno_nombre, vehiculo_id: p.vehiculo_id, vehiculo_nombre: p.vehiculo_nombre, matricula: p.matricula,
     km_inicial: p.km_inicial, km_final: p.km_final, inicio_ms: Date.now(), hora_inicio: p.hora_inicio, hora_fin: p.hora_fin,

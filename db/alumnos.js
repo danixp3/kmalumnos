@@ -114,14 +114,18 @@ function getFichaAlumno(alumno_id, hoy) {
     .filter(p => p.alumno_id === aid && !p.deleted)
     .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (a.hora_inicio || '').localeCompare(b.hora_inicio || '') || a.id - b.id);
   // La numeración continúa tras las clases hechas antes de usar la app.
+  // Las fracciones (¼ ½ ¾) y unas «clases antes de la app» con fracción suman lo
+  // que valen: tras 12 ½ + 1 la siguiente es la 14.ª (igual que el móvil)
   const previas = base.clases_previas || 0;
+  let llevadas = previas;
   const practicas = propias.map((p, i) => {
+    llevadas += clasesDePractica(p);
     const v = veh.get(p.vehiculo_id);
     const sinKm = p.km_inicial === 0 && p.km_final === 0;
     const enCurso = esPracticaEnCurso(p, hoy);
     const sinCerrar = esPracticaSinCerrar(p, hoy);
     return {
-      id: p.id, n: previas + i + 1, fecha: p.fecha, hora_inicio: p.hora_inicio || null,
+      id: p.id, n: Math.ceil(llevadas - 1e-9), fecha: p.fecha, hora_inicio: p.hora_inicio || null,
       vehiculo_id: p.vehiculo_id, vehiculo_nombre: v ? v.nombre : null, matricula: v ? v.matricula || null : null,
       km_inicial: p.km_inicial, km_final: p.km_final,
       km: (sinKm || enCurso || sinCerrar) ? 0 : Math.max(0, p.km_final - p.km_inicial),
@@ -335,7 +339,13 @@ function updateAlumno(id, nombre, permiso, vehiculo_id, profesor_id = null, emai
     a.vehiculo_id = vehiculo_id ? parseInt(vehiculo_id) : null;
     a.profesor_id = profesor_id ? parseInt(profesor_id) : null;
     a.email = email ? String(email).trim() : null;
-    if (datos) Object.assign(a, _normalizarDatosAlumno(datos), extraerCamposExtra('alumnos', datos));
+    // Solo los campos que llegan: un `datos` parcial ya no deja en blanco el
+    // resto de la ficha (DNI, apellidos, teléfono…), que antes se borraba
+    if (datos) {
+      const norm = _normalizarDatosAlumno(datos);
+      for (const c of CAMPOS_DATOS_ALUMNO) if (c in datos) a[c] = norm[c];
+      Object.assign(a, extraerCamposExtra('alumnos', datos));
+    }
     if (libro) Object.assign(a, _normalizarLibroAlumno(libro));
     if (permisos !== null) a.permisos = _normalizarPermisos(permisos);
     save();

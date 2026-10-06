@@ -47,6 +47,25 @@ function fmtClases(n) {
   const ent = Math.floor(v), frac = ['', '¼', '½', '¾'][Math.round((v - ent) * 4)];
   return ent && frac ? `${ent} ${frac}` : frac || String(ent);
 }
+// Cantidad de clases escrita de cualquier forma (de ¼ en ¼): «12», «12,5», «12.5»,
+// «0.25», «½», «12 ½», «1/2», «1 1/2». null si no se entiende. Igual que
+// leerCantidadClases de db/core.js.
+function leerClases(v) {
+  if (typeof v === 'number') { const q = Math.round(v * 4); return Number.isFinite(v) && q >= 1 && Math.abs(v * 4 - q) < 1e-6 ? q / 4 : null; }
+  const t = String(v == null ? '' : v).toLowerCase().replace(/\b(clases?|cl\.?)(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  const FR = { '¼': 0.25, '½': 0.5, '¾': 0.75 };
+  let n, r;
+  if ((r = t.match(/^(\d+)?\s*([¼½¾])$/))) n = (r[1] ? +r[1] : 0) + FR[r[2]];
+  else if ((r = t.match(/^(\d+)\s+(\d)\s*\/\s*(\d)$/))) n = +r[1] + (+r[3] ? +r[2] / +r[3] : NaN);
+  else if ((r = t.match(/^(\d)\s*\/\s*(\d)$/))) n = +r[2] ? +r[1] / +r[2] : NaN;
+  else if (/^\d*[.,]?\d+$/.test(t)) n = Number(t.replace(',', '.'));
+  else return null;
+  const q = Math.round(n * 4);
+  return Number.isFinite(n) && q >= 1 && Math.abs(n * 4 - q) < 1e-6 ? q / 4 : null;
+}
+// 12.5 → «12,5» (para casillas de texto que luego se vuelven a leer)
+const clasesEnCasilla = n => (n > 0 ? String(Math.round(n * 4) / 4).replace('.', ',') : '');
 const fmtMiles = n => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 const fmtDec = n => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(Number(n) || 0);
 const parteFecha = iso => { const [y, m, d] = iso.split('-').map(Number); return { y, m, d, dow: new Date(y, m - 1, d).getDay() }; };

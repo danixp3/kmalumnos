@@ -101,6 +101,46 @@ function fmtClases(n) {
   const frac = ['', '¼', '½', '¾'][q];
   return ent && frac ? `${ent} ${frac}` : frac || String(ent);
 }
+// Redondea a cuartos de clase (las clases van de ¼ en ¼).
+const aCuartos = n => Math.round((Number(n) || 0) * 4) / 4;
+// Lee una cantidad de clases escrita de cualquier forma: «2», «1,5», «1.5»,
+// «0.25», «½», «1 ½», «1½», «1/2», «1 1/2», «3 clases». Solo vale de ¼ en ¼
+// (x.25, x.5, x.75). null si no se entiende o no va de ¼ en ¼.
+const FRACCIONES_TXT = { '¼': 0.25, '½': 0.5, '¾': 0.75 };
+function leerCantidadClases(v) {
+  if (typeof v === 'number') { const q = Math.round(v * 4); return Number.isFinite(v) && q >= 1 && Math.abs(v * 4 - q) < 1e-6 ? q / 4 : null; }
+  const t = String(v == null ? '' : v).toLowerCase().replace(/\b(clases?|cl\.?)(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  let n, r;
+  if ((r = t.match(/^(\d+)?\s*([¼½¾])$/))) n = (r[1] ? +r[1] : 0) + FRACCIONES_TXT[r[2]];
+  else if ((r = t.match(/^(\d+)\s+(\d)\s*\/\s*(\d)$/))) n = +r[1] + (+r[3] ? +r[2] / +r[3] : NaN);
+  else if ((r = t.match(/^(\d)\s*\/\s*(\d)$/))) n = +r[2] ? +r[1] / +r[2] : NaN;
+  else if (/^\d*[.,]?\d+$/.test(t)) n = Number(t.replace(',', '.'));
+  else return null;
+  const q = Math.round(n * 4);
+  return Number.isFinite(n) && q >= 1 && Math.abs(n * 4 - q) < 1e-6 ? q / 4 : null;
+}
+// Trozos en que se guarda una cantidad: 2,75 → [1, 1, 0.75]. Cada trozo es una
+// práctica (las enteras sin fracción; la última, con la suya).
+function trozosDeClases(cantidad) {
+  const c = aCuartos(cantidad);
+  if (!(c >= 0.25)) return [];
+  const t = Array(Math.floor(c)).fill(1);
+  if (c % 1) t.push(aCuartos(c % 1));
+  return t;
+}
+// Reparte `total` km entre trozos que valen `pesos` (1, 1, ½…) en proporción a
+// lo que vale cada uno; el resto de uno en uno a los que más se quedaron sin
+// repartir, y cada trozo con al menos 1 km. [40 km, (1, ½)] → [27, 13].
+function kmPorPesos(total, pesos) {
+  const suma = pesos.reduce((a, b) => a + b, 0);
+  const ideal = pesos.map(w => (total * w) / suma), km = ideal.map(Math.floor);
+  let resto = total - km.reduce((a, b) => a + b, 0);
+  ideal.map((x, i) => [x - km[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]).forEach(([, i]) => { if (resto > 0) { km[i]++; resto--; } });
+  for (let i = 0; i < km.length; i++) if (km[i] < 1) { const m = km.indexOf(Math.max(...km)); km[m]--; km[i]++; }
+  return km;
+}
+
 // Firma dibujada (alumno o profesor): imagen PNG en data URL, tamaño razonable.
 const FIRMA_MAX = 200000;
 function firmaValida(f) {
@@ -306,6 +346,10 @@ module.exports = {
   hoyLocalISO,
   clasesDePractica,
   fmtClases,
+  aCuartos,
+  leerCantidadClases,
+  trozosDeClases,
+  kmPorPesos,
   firmaValida,
   FIRMA_MAX,
   // Superficie pública (re-exportada tal cual por db.js)

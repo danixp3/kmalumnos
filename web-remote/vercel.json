@@ -55,6 +55,10 @@
     {
       "source": "/api/avisos-enviar",
       "destination": "/api/movil?op=avisos-enviar"
+    },
+    {
+      "source": "/api/km-coche",
+      "destination": "/api/movil?op=km-coche"
     }
   ],
   "headers": [

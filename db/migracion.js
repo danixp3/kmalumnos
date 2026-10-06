@@ -30,7 +30,7 @@
  * deshacerImportacion. El lector de archivos está en db/lector-tablas.js.
  */
 
-const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO } = require('./core');
+const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO, leerCantidadClases, trozosDeClases, kmPorPesos, aCuartos, fmtClases } = require('./core');
 const { PERMISOS_VALIDOS } = require('./alumnos');
 const { normalizarCampoExtra, extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
 
@@ -769,6 +769,10 @@ function analizarAlumnos(d, entrada) {
   const practicasPorAlumno = new Map();
   for (const p of d.practicas) if (!p.deleted) practicasPorAlumno.set(p.alumno_id, (practicasPorAlumno.get(p.alumno_id) || 0) + 1);
   const saldoImportado = new Set((d.cargos || []).filter(c => !c.deleted && c.nota === NOTA_IMPORTADO).map(c => c.alumno_id));
+  // Lo decidido a mano en la vista previa, por nº de fila: id del alumno de la
+  // app con el que juntarla, 'nuevo' (entra aparte) u 'omitir' (no se trae)
+  const decisiones = opciones.decisiones && typeof opciones.decisiones === 'object' ? opciones.decisiones : {};
+  const candidatoDe = a => ({ id: a.id, nombre: nombreDe(a), dni: a.dni || null, n_registro: a.n_registro || null, permiso: a.permiso || 'B', clasesApp: practicasPorAlumno.get(a.id) || 0 });
   const vistos = new Map(); // clave/dni → nº de fila
   const filas = [];
   const registros = registrosDe(entrada).map(r => {
@@ -819,7 +823,8 @@ function analizarAlumnos(d, entrada) {
     if (v.tutor_nombre) datos.tutor_nombre = capitalizarNombre(v.tutor_nombre).slice(0, 120);
     if (v.profesor) { const r = rel.profesor(v.profesor); if (r.aviso) avisos.push(r.aviso); else { datos.profesor_id = r.id ?? `nuevo:${r.nuevo}`; fila.profesor = r.nombre; } }
     if (v.vehiculo) { const r = rel.vehiculo(v.vehiculo); if (r.aviso) avisos.push(r.aviso); else { datos.vehiculo_id = r.id ?? `nuevo:${r.nuevo}`; fila.vehiculo = r.nombre; } }
-    const previas = v.clases_previas ? leerEntero(v.clases_previas, 500) : null;
+    // Clases ya hechas: de ¼ en ¼ (12, 12,5, «12 ½»); si no, el número entero que haya
+    const previas = v.clases_previas ? Math.min(500, leerCantidadClases(v.clases_previas) ?? leerEntero(v.clases_previas, 500) ?? 0) || null : null;
     const kmPrev = v.km_previos ? leerEntero(v.km_previos, 100000) : null;
     const saldo = v.saldo ? leerImporte(v.saldo) : null;
     if (v.saldo && saldo == null) avisos.push(`Saldo «${v.saldo}» no se entiende.`);
@@ -844,7 +849,18 @@ function analizarAlumnos(d, entrada) {
 
     // Con candidatos exactos manda el reparto de expedientes; si no, los parecidos
     const asig = asignadas[iReg];
-    const m = !asig ? emparejar(p) : asig.alumno ? { alumno: asig.alumno } : asig.empate ? { ambiguo: asig.empate } : {};
+    let m = !asig ? emparejar(p) : asig.alumno ? { alumno: asig.alumno } : asig.empate ? { ambiguo: asig.empate } : {};
+    // Alumnos de la app con los que se podría juntar (para elegir a mano)
+    const cands = new Map();
+    for (const a of [m.alumno, ...(m.parecidos || []), ...(p.dni.valor ? idx.porDni.get(p.dni.valor) || [] : []), ...(idx.porNombre.get(k) || [])]) if (a && !cands.has(a.id)) cands.set(a.id, a);
+    fila.candidatos = [...cands.values()].slice(0, 6).map(candidatoDe);
+    if (Object.prototype.hasOwnProperty.call(decisiones, n)) {
+      const dec = decisiones[n];
+      fila.manual = true;
+      if (dec === 'omitir') { filas.push({ ...fila, accion: 'omitir', motivo: 'No se trae (elegido a mano)' }); continue; }
+      if (dec === 'nuevo') m = {};
+      else { const a = idx.alumnos.find(x => x.id === Number(dec)); if (a) m = { alumno: a }; else delete fila.manual; }
+    }
     if (asig && asig.aparte) avisos.push(`Otro expediente de «${nombreDe(asig.aparte)}» (en la app con ${asig.aparte.n_registro ? 'el nº ' + asig.aparte.n_registro + ', ' : ''}permiso ${asig.aparte.permiso}): entra aparte.`);
     if (m.ambiguo) { filas.push({ ...fila, accion: 'omitir', motivo: `Hay ${m.ambiguo} alumnos con este nombre en la app: añade el DNI o el nº de registro para saber cuál es` }); continue; }
     if (m.mismoNombre) avisos.push(`Ya hay un alumno con este nombre y otro DNI (${m.mismoNombre.dni}): se crea aparte.`);
@@ -937,12 +953,16 @@ function analizarClases(d, entrada) {
     } else fila.nombre = nombreDe(alumno);
     const claveAl = alumno ? alumno.id : claveNuevo;
 
-    // Nº de clases: columna, o duración, o de la hora de fin
+    // Nº de clases: columna (de ¼ en ¼: 1, 1.5, 0.25, «½»…), o duración, o de la hora de fin
     let k = 1;
-    if (v.clases) { const c = Number(String(v.clases).replace(',', '.')); if (Number.isFinite(c) && c > 0) k = Math.max(1, Math.round(c)); else avisos.push(`Nº de clases «${v.clases}» no válido: se cuenta 1.`); }
-    else if (v.duracion) { const mins = leerEntero(v.duracion, 1000); if (mins) k = Math.max(1, Math.round(mins / dur)); }
-    else if (v.hora_fin && hora) { const hf = leerHoraFlexible(v.hora_fin); if (hf && aMin(hf) > aMin(hora)) k = Math.max(1, Math.round((aMin(hf) - aMin(hora)) / dur)); }
-    if (k > MAX_CLASES_FILA) { avisos.push(`${k} clases en un día: se cuentan ${MAX_CLASES_FILA}.`); k = MAX_CLASES_FILA; }
+    if (v.clases) {
+      const c = leerCantidadClases(v.clases);
+      if (c) k = c;
+      else { const n = Number(String(v.clases).replace(',', '.')); if (Number.isFinite(n) && n > 0) { k = Math.max(0.25, aCuartos(n)); avisos.push(`Nº de clases «${v.clases}»: van de ¼ en ¼, se cuentan ${fmtClases(k)}.`); } else avisos.push(`Nº de clases «${v.clases}» no válido: se cuenta 1.`); }
+    }
+    else if (v.duracion) { const mins = leerEntero(v.duracion, 1000); if (mins) k = Math.max(0.25, aCuartos(mins / dur)); }
+    else if (v.hora_fin && hora) { const hf = leerHoraFlexible(v.hora_fin); if (hf && aMin(hf) > aMin(hora)) k = Math.max(0.25, aCuartos((aMin(hf) - aMin(hora)) / dur)); }
+    if (k > MAX_CLASES_FILA) { avisos.push(`${fmtClases(k)} clases en un día: se cuentan ${MAX_CLASES_FILA}.`); k = MAX_CLASES_FILA; }
 
     // Repetida en el propio archivo (mismo alumno, fecha y hora)
     if (hora) {
@@ -970,7 +990,7 @@ function analizarClases(d, entrada) {
       else if (!vehiculo_id) motivo = 'no se sabe el coche';
       else if (conKm.some(x => x.v === vehiculo_id && ki < x.f && x.i < kf)) motivo = 'pisan los de otra clase del mismo coche';
       if (motivo) { avisos.push(`Km ${ki}–${kf}: ${motivo}; la clase queda sin km.`); ki = 0; kf = 0; } else conKm.push({ v: vehiculo_id, i: ki, f: kf });
-      if (kf - ki < k && kf) { avisos.push(`Con ${kf - ki} km no caben ${k} clases: quedan sin km.`); ki = 0; kf = 0; }
+      if (kf - ki < trozosDeClases(k).length && kf) { avisos.push(`Con ${kf - ki} km no caben ${fmtClases(k)} clases: quedan sin km.`); ki = 0; kf = 0; }
     }
     filas.push({
       ...fila, accion: 'nuevo', clases: k, alumno_id: alumno ? alumno.id : null, alumno_nuevo: claveNuevo,
@@ -1124,28 +1144,32 @@ function aplicarImportacion(entrada = {}) {
       const a = d.alumnos.find(x => x.id === aid);
       if (!a) continue;
       const pr = f.practica, vid = r.vehiculo(pr.vehiculo_id), pid0 = r.profesor(pr.profesor_id);
-      const total = pr.km_final > 0 ? pr.km_final - pr.km_inicial : 0, base = Math.floor(total / f.clases), resto = total % f.clases;
-      let km = pr.km_inicial;
-      for (let j = 0; j < f.clases; j++) {
-        const tramo = total ? base + (j < resto ? 1 : 0) : 0;
+      // 2,5 clases = dos enteras y una de ½: km y horas en proporción a lo que vale cada una
+      const pesos = trozosDeClases(f.clases);
+      const total = pr.km_final > 0 ? pr.km_final - pr.km_inicial : 0;
+      const tramos = total ? kmPorPesos(total, pesos) : pesos.map(() => 0);
+      let km = pr.km_inicial, acum = 0;
+      pesos.forEach((w, j) => {
+        const tramo = tramos[j];
         const id = nextId('p');
         d.practicas.push({
           id, alumno_id: a.id, vehiculo_id: vid, fecha: pr.fecha, km_inicial: total ? km : 0, km_final: total ? km + tramo : 0,
           profesor_id: pid0, tipo: 'circulacion', sucursal_id: a.sucursal_id || null, nota: j === 0 ? pr.nota : '',
-          hora_inicio: pr.hora_inicio ? aHHMM(aMin(pr.hora_inicio) + j * dur) : null, tipo_detalle: MARCA_ANTERIOR
+          hora_inicio: pr.hora_inicio ? aHHMM(aMin(pr.hora_inicio) + Math.round(acum * dur)) : null, tipo_detalle: MARCA_ANTERIOR,
+          ...(w < 1 ? { fraccion: w } : {})
         });
-        km += tramo;
+        km += tramo; acum += w;
         registro.creados.practicas.push(id);
-      }
+      });
       const v = vid && d.vehiculos.find(x => x.id === vid);
       if (v && pr.km_final > (v.km_actual || 0)) { v.km_actual = pr.km_final; if (s) s.markDirty('vehiculos', v.id); }
-      porAlumno.set(a.id, (porAlumno.get(a.id) || 0) + f.clases);
+      porAlumno.set(a.id, aCuartos((porAlumno.get(a.id) || 0) + f.clases));
     }
     // Las clases importadas salen de las «clases ya hechas» (como las anotadas a mano)
     for (const [aid, nClases] of porAlumno) {
       const a = d.alumnos.find(x => x.id === aid);
       const resta = Math.min(a.clases_previas || 0, nClases);
-      if (resta) { a.clases_previas -= resta; registro.previasRestadas.push({ alumno_id: aid, n: resta }); tocados.add(aid); }
+      if (resta) { a.clases_previas = aCuartos(a.clases_previas - resta); registro.previasRestadas.push({ alumno_id: aid, n: resta }); tocados.add(aid); }
     }
   }
 
@@ -1204,7 +1228,7 @@ function deshacerImportacion(id) {
   marcarBorrado('practicas', quitadas); res.practicas = quitadas.length;
   for (const { alumno_id, n } of imp.previasRestadas || []) {
     const a = d.alumnos.find(x => x.id === alumno_id);
-    if (a) { a.clases_previas = (a.clases_previas || 0) + n; if (s) s.markDirty('alumnos', a.id); }
+    if (a) { a.clases_previas = aCuartos((a.clases_previas || 0) + n); if (s) s.markDirty('alumnos', a.id); }
   }
   const cids = new Set(imp.creados.cargos);
   for (const c of d.cargos || []) if (cids.has(c.id) && !c.deleted) { c.deleted = true; c.updated_at = new Date().toISOString(); res.cargos++; marcarBorrado('cargos', [c.id]); }

@@ -38,16 +38,26 @@ export default async function handler(req, res) {
       .order('fecha', { ascending: false })
       .order('km_final', { ascending: false })
       .limit(400));
-    if (!errR) {
-      for (const p of recientes || []) {
-        if (!ultimoPorVehiculo[p.vehiculo_id]) {
-          ultimoPorVehiculo[p.vehiculo_id] = {
-            km_final: p.km_final, fecha: p.fecha, hora: p.hora_inicio || null,
-            alumno: p.alumnos ? p.alumnos.nombre : null
-          };
-        }
+    const apuntar = p => {
+      if (!ultimoPorVehiculo[p.vehiculo_id]) {
+        ultimoPorVehiculo[p.vehiculo_id] = {
+          km_final: p.km_final, fecha: p.fecha, hora: p.hora_inicio || null,
+          alumno: p.alumnos ? p.alumnos.nombre : null
+        };
       }
-    }
+    };
+    if (!errR) (recientes || []).forEach(apuntar);
+    // Un coche que se usa poco puede no salir entre las 400 últimas clases de
+    // toda la autoescuela: entonces se busca la suya (antes se quedaba sin
+    // «último km» y el km inicial propuesto era el del odómetro, a veces 0)
+    const faltan = vehiculos.filter(v => !ultimoPorVehiculo[v.id]);
+    await Promise.all(faltan.map(async v => {
+      const { data: una, error: errU } = await supabase.from('practicas')
+        .select('vehiculo_id, alumno_id, fecha, hora_inicio, km_final, alumnos(nombre)')
+        .eq('vehiculo_id', v.id).eq('deleted', false).eq('empresa_id', auth.empresaId).gt('km_final', 0)
+        .order('fecha', { ascending: false }).order('km_final', { ascending: false }).limit(1);
+      if (!errU && una && una[0]) apuntar(una[0]);
+    }));
   }
 
   res.json(vehiculos.map(v => ({ ...v, ultimo: ultimoPorVehiculo[v.id] || null })));
