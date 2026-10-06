@@ -8,7 +8,7 @@ const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const TOKEN = `x.${b64({ sub: 'emp1' })}.y`;
 
 async function llamar(nombre, { method = 'POST', body, query } = {}) {
-  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','firma-profesor','coche-profesor'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
+  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
   let status = 200, json;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
   await mod.default({ method, headers: { authorization: 'Bearer ' + TOKEN }, body, query }, res);
@@ -655,4 +655,106 @@ test('siguienteNRegistro (web): correlativa primero, la del año si es la única
   assert.equal(siguienteNRegistro([{ n_registro: '2026081' }, { n_registro: '2026082' }], 2026), '2026083');
   assert.equal(siguienteNRegistro([{ n_registro: '2025140' }], 2026), '2026001');
   assert.equal(siguienteNRegistro([{ n_registro: '7', deleted: true }, { n_registro: '3' }]), '4');
+});
+
+// ─── Clases dadas sin cobertura (registrar-clase) ───────────────────────────
+const FIRMA = 'data:image/png;base64,iVBORw0KGgo=';
+const reg = (extra = {}) => ({ cid: 'cid-0001-aaaa', alumno_id: 2, vehiculo_id: 1, fecha: hoy(), hoy: hoy(), hora_inicio: '10:00', hora_fin: '10:45', n_clases: 1, km_inicial: 1000, km_final: 1024, profesor_id: 1, zonas: ['Centro'], trabajado: ['Rotondas'], observacion: 'Sin cobertura', firma: FIRMA, ...extra });
+
+test('registrar-clase: guarda la clase completa (km, horas, zonas, trabajado, firma) y sube el odómetro', async () => {
+  reiniciar(base());
+  const r = await llamar('registrar-clase', { body: reg() });
+  assert.equal(r.status, 200); assert.equal(r.json.ok, true); assert.equal(r.json.clases, 1);
+  const p = BD.tablas.practicas.find(x => x.id === r.json.practica_ids[0]);
+  assert.deepEqual([p.km_inicial, p.km_final, p.hora_inicio, p.hora_fin, p.firma, p.source, p.profesor_id, p.nota], [1000, 1024, '10:00', '10:45', FIRMA, 'web-remote', 1, 'Sin cobertura']);
+  assert.deepEqual(p.zonas, ['Centro']); assert.deepEqual(p.trabajado, ['Rotondas']);
+  assert.ok(!p.tipo_detalle);
+  assert.equal(BD.tablas.vehiculos[0].km_actual, 1024);
+});
+
+test('registrar-clase: una sesión de 2 clases se parte y firma entera; marca km calculados o anotada según venga', async () => {
+  reiniciar(base());
+  const r = await llamar('registrar-clase', { body: reg({ n_clases: 2, hora_fin: '11:30', km_final: 1048, km_calculado: true }) });
+  assert.equal(r.json.clases, 2); assert.equal(r.json.practica_ids.length, 2);
+  const [a, b] = r.json.practica_ids.map(id => BD.tablas.practicas.find(x => x.id === id));
+  assert.deepEqual([a.km_inicial, a.km_final, b.km_inicial, b.km_final], [1000, 1024, 1024, 1048]);
+  assert.ok([a, b].every(x => x.firma === FIRMA && x.tipo_detalle === 'km_auto'));
+  const anotada = await llamar('registrar-clase', { body: reg({ cid: 'cid-0002-bbbb', hora_inicio: '16:00', hora_fin: '16:45', km_inicial: 1100, km_final: 1120, anotada: true }) });
+  assert.equal(BD.tablas.practicas.find(x => x.id === anotada.json.practica_ids[0]).tipo_detalle, 'anotada');
+});
+
+test('registrar-clase: enviarla dos veces NO duplica (la respuesta pudo perderse) y completa la firma si faltaba', async () => {
+  reiniciar(base());
+  const a = await llamar('registrar-clase', { body: reg({ firma: undefined }) });
+  assert.equal(a.json.ya_registrada, undefined);
+  const antes = BD.tablas.practicas.length;
+  const b = await llamar('registrar-clase', { body: reg() });
+  assert.equal(b.status, 200); assert.equal(b.json.ya_registrada, true); assert.equal(b.json.firma_guardada, true);
+  assert.equal(BD.tablas.practicas.length, antes);
+  assert.equal(BD.tablas.practicas.find(x => x.id === a.json.practica_ids[0]).firma, FIRMA);
+  // y una tercera vez, sin cambios
+  const c = await llamar('registrar-clase', { body: reg() });
+  assert.equal(c.json.ya_registrada, true); assert.equal(BD.tablas.practicas.length, antes);
+});
+
+test('registrar-clase: si el «iniciar» llegó pero su respuesta no, la clase abierta se retira y queda solo la completa', async () => {
+  reiniciar(base());
+  const ini1 = await llamar('iniciar-practica', { body: ini({ hora_inicio: '10:00', km_inicial: 1000 }) });
+  assert.equal(ini1.status, 200);
+  const r = await llamar('registrar-clase', { body: reg() });
+  assert.equal(r.status, 200);
+  const vivas = BD.tablas.practicas.filter(x => !x.deleted && x.alumno_id === 2);
+  assert.equal(vivas.length, 1); assert.equal(vivas[0].km_final, 1024);
+  assert.equal(BD.tablas.practicas.find(x => x.id === ini1.json.practica_id).deleted, true);
+});
+
+test('registrar-clase: la clase ya se dio, así que se guarda aunque sus km pisen a otra del coche', async () => {
+  reiniciar(base());
+  const r = await llamar('registrar-clase', { body: reg({ km_inicial: 990, km_final: 1010 }) });
+  assert.equal(r.status, 200);
+  assert.equal(BD.tablas.practicas.filter(x => x.vehiculo_id === 1 && !x.deleted).length, 2);
+});
+
+test('registrar-clase sin km (la clase queda en blanco para cuadrarla en el escritorio) y con minutos', async () => {
+  reiniciar(base());
+  const r = await llamar('registrar-clase', { body: reg({ km_inicial: '', km_final: '', n_clases: 2, firma: undefined }) });
+  assert.equal(r.json.con_km, false);
+  assert.deepEqual(r.json.practica_ids.map(id => { const p = BD.tablas.practicas.find(x => x.id === id); return [p.km_inicial, p.km_final]; }), [[0, 0], [0, 0]]);
+  assert.equal(BD.tablas.vehiculos[0].km_actual, 1000);
+});
+
+test('registrar-clase: valida cid, futuro, firma, km al revés, alumno y coche', async () => {
+  reiniciar(base());
+  const manana = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  assert.equal((await llamar('registrar-clase', { body: reg({ cid: undefined }) })).status, 400);
+  assert.equal((await llamar('registrar-clase', { body: reg({ cid: 'corto' }) })).status, 400);
+  assert.equal((await llamar('registrar-clase', { body: reg({ fecha: manana }) })).status, 400);
+  assert.equal((await llamar('registrar-clase', { body: reg({ firma: 'hola' }) })).status, 400);
+  assert.equal((await llamar('registrar-clase', { body: reg({ km_final: 990 }) })).status, 400);
+  assert.equal((await llamar('registrar-clase', { body: reg({ km_final: '' }) })).status, 400);
+  assert.equal((await llamar('registrar-clase', { body: reg({ alumno_id: 99 }) })).status, 404);
+  assert.equal((await llamar('registrar-clase', { body: reg({ vehiculo_id: 99 }) })).status, 404);
+  assert.equal(BD.tablas.practicas.length, 1);
+});
+
+test('finalizar-practica con reintento: si la clase ya está cerrada la devuelve sin tocarla ni repetir la observación', async () => {
+  reiniciar(base());
+  const ini1 = await llamar('iniciar-practica', { body: ini() });
+  const cuerpo = { practica_id: ini1.json.practica_id, km_final: 1030, observacion: 'Muy bien', hora_fin: '10:48' };
+  assert.equal((await llamar('finalizar-practica', { body: cuerpo })).status, 200);
+  const otra = await llamar('finalizar-practica', { body: { ...cuerpo, reintento: true } });
+  assert.equal(otra.status, 200); assert.equal(otra.json.ya_cerrada, true); assert.deepEqual(otra.json.practica_ids, [ini1.json.practica_id]);
+  assert.equal(BD.tablas.practicas.find(x => x.id === ini1.json.practica_id).nota, 'Muy bien');
+  // sin la marca de reintento no cambia lo de siempre
+  const normal = await llamar('finalizar-practica', { body: { ...cuerpo, km_final: 1035 } });
+  assert.equal(normal.status, 200); assert.equal(BD.tablas.practicas.find(x => x.id === ini1.json.practica_id).km_final, 1035);
+});
+
+test('finalizar-practica con km_calculado (la tablet puso los km sin cobertura): se marca como km automáticos y respeta el km escrito', async () => {
+  reiniciar(base());
+  const ini1 = await llamar('iniciar-practica', { body: ini() });
+  const r = await llamar('finalizar-practica', { body: { practica_id: ini1.json.practica_id, km_final: 1023, km_calculado: true, reintento: true, hora_fin: '10:45' } });
+  assert.equal(r.status, 200); assert.equal(r.json.km_final, 1023);
+  const p = BD.tablas.practicas.find(x => x.id === ini1.json.practica_id);
+  assert.deepEqual([p.km_final, p.tipo_detalle], [1023, 'km_auto']);
 });

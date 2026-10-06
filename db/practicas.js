@@ -5,6 +5,7 @@
 const { load, save, nextId, _sync, addLog, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, hoyLocalISO,
   clasesDePractica, fmtClases, firmaValida } = require('./core');
 const { directorResuelto } = require('./ajustes-empresa');
+const { mapaContinuidad, getHuecosRevisados, TOLERANCIA_HUECO } = require('./cuadre-km');
 
 // Profesor que firma una clase: el que la dio; si no consta, el del alumno; y
 // si tampoco, el profesor de la autoescuela cuando solo hay uno.
@@ -198,18 +199,10 @@ function getTodasPracticas(filtros = {}) {
   // La numeración continúa tras las clases hechas antes de usar la app (punto de partida).
   const previasDe = id => { const a = d.alumnos.find(x => x.id === id); return a && a.clases_previas > 0 ? a.clases_previas : 0; };
   for (const [aid, lista] of porAlumno.entries()) { const pr = previasDe(aid); lista.sort(orden).forEach((p, i) => claseN.set(p.id, pr + i + 1)); }
-  // Práctica anterior del mismo vehículo (con km) para comprobar la continuidad del cuentakilómetros.
-  const previa = new Map();
-  const porVehiculo = new Map();
-  for (const p of vivas) { if (!porVehiculo.has(p.vehiculo_id)) porVehiculo.set(p.vehiculo_id, []); porVehiculo.get(p.vehiculo_id).push(p); }
-  for (const lista of porVehiculo.values()) {
-    lista.sort(orden);
-    let ant = null;
-    for (const p of lista) {
-      previa.set(p.id, ant);
-      if (!(p.km_inicial === 0 && p.km_final === 0) && !esPracticaEnCurso(p, hoy) && !esPracticaSinCerrar(p, hoy)) ant = p;
-    }
-  }
+  // Práctica anterior del mismo vehículo (la anterior de la cadena de km fiable) para comprobar
+  // la continuidad del cuentakilómetros; una clase con km incoherentes se señala a sí misma.
+  const continuidadKm = mapaContinuidad(d, hoy);
+  const huecosRevisados = new Set(getHuecosRevisados());
 
   return filtrarPorSucursal(d.practicas, sucursal_id)
     .filter(p => !p.deleted)
@@ -227,7 +220,8 @@ function getTodasPracticas(filtros = {}) {
       const sinKm = p.km_inicial === 0 && p.km_final === 0;
       const enCurso = esPracticaEnCurso(p, hoy);
       const sinCerrar = esPracticaSinCerrar(p, hoy);
-      const pv = previa.get(p.id);
+      const cont = continuidadKm.get(p.id) || { previa: null, incoherente: null };
+      const pv = cont.previa;
       const pvAlumno = pv ? d.alumnos.find(x => x.id === pv.alumno_id) : null;
       return {
         id: p.id,
@@ -256,11 +250,16 @@ function getTodasPracticas(filtros = {}) {
         hora_fin: p.hora_fin || null,
         origen: p.source || null,
         // Continuidad con la práctica anterior del mismo coche (null si es la primera o no hay km).
+        km_incoherente: cont.incoherente || null,
         continuidad: (pv && !sinKm && !sinCerrar) ? {
           alumno: pvAlumno ? pvAlumno.nombre : '—',
           fecha: pv.fecha, hora_inicio: pv.hora_inicio || null,
           km_final_anterior: pv.km_final,
-          diferencia: p.km_inicial - pv.km_final
+          diferencia: p.km_inicial - pv.km_final,
+          // un tramo pequeño es el coche volviendo a la autoescuela; uno grande puede darse por revisado
+          pequeno: p.km_inicial - pv.km_final > 0 && p.km_inicial - pv.km_final <= TOLERANCIA_HUECO,
+          clave_hueco: `${pv.id}-${p.id}`,
+          revisado: huecosRevisados.has(`${pv.id}-${p.id}`)
         } : null
       };
     });

@@ -478,6 +478,12 @@ ipcMain.handle('corregir-solapamientos', (_, vehiculo_id, kmMin, kmMax) => db.co
 ipcMain.handle('generar-km-hasta-maximo', (_, vehiculo_id, kmMin, kmMax, kmMaximo, aplicar) => db.generarKmHastaMaximo(vehiculo_id, kmMin, kmMax, kmMaximo, aplicar));
 ipcMain.handle('generar-km-por-rango', (_, vehiculo_id, kmDesde, kmHasta, variacion, aplicar) => db.generarKmPorRango(vehiculo_id, kmDesde, kmHasta, variacion, aplicar));
 ipcMain.handle('aplicar-plan-km', (_, vehiculo_id, asignaciones) => db.aplicarPlanKm(vehiculo_id, asignaciones));
+ipcMain.handle('proponer-cuadre-km', (_, vehiculo_id, opciones) => db.proponerCuadreKm(vehiculo_id, opciones));
+ipcMain.handle('aplicar-cuadre-km', (_, vehiculo_id, cambios) => db.aplicarCuadreKm(vehiculo_id, cambios));
+ipcMain.handle('deshacer-cuadre-km', (_, id) => db.deshacerCuadreKm(id));
+ipcMain.handle('get-cuadres-km', () => db.getCuadresKm());
+ipcMain.handle('marcar-hueco-km-revisado', (_, clave, revisado) => db.marcarHuecoRevisado(clave, revisado !== false));
+ipcMain.handle('get-resumen-cuadre-km', () => db.getResumenCuadreKm());
 // Zonas de prácticas (se comparten con la web del móvil vía ajustes_empresa)
 ipcMain.handle('get-zonas-practica', () => db.getZonasPractica());
 ipcMain.handle('get-practica-detalle', (_, id) => db.getPracticaDetalle(id));

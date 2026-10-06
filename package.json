@@ -1,6 +1,6 @@
 {
   "name": "kmalumnos",
-  "version": "1.27.1",
+  "version": "1.28.0",
   "description": "Gestión de kilómetros de prácticas para autoescuela",
   "main": "main.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "smoke": "electron scripts/smoke-ui.js",
     "fuzz": "electron scripts/fuzz-ui.js",
     "barrido": "electron scripts/barrido-visual.js",
-    "test:api": "node --import ./web-remote/tests/register.mjs --test web-remote/tests/api.test.mjs"
+    "test:api": "node --import ./web-remote/tests/register.mjs --test web-remote/tests/api.test.mjs web-remote/tests/offline.test.mjs web-remote/tests/sw.test.mjs"
   },
   "build": {
     "appId": "com.kmalumnos.app",

@@ -14,7 +14,7 @@ const MENU_DESCRIPCIONES = {
   'practicas-global': 'Todas las prácticas con filtros',
   'alumnos': 'Fichas, progreso y documentos',
   'vehiculos': 'Flota, cuentakilómetros y consumo',
-  'kilometros': 'Mapa de km, conflictos y generar km',
+  'kilometros': 'Mapa de km, conflictos, cuadrar y generar km',
   'registro-rapido': 'Apuntar las prácticas del día desde el PC',
   'reservas': 'Citas y solicitudes (lista y semana)',
   'examenes': 'Convocatorias, resultados y tasas',

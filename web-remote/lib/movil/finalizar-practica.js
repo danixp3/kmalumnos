@@ -29,10 +29,11 @@ export default async function handler(req, res) {
   if (!auth) return;
   const supabase = getSupabase(auth.token);
 
-  const { practica_id, km_final, trabajado, observacion, hora_fin, zonas, n_clases, minutos, km_auto } = req.body || {};
+  const { practica_id, km_final, trabajado, observacion, hora_fin, zonas, n_clases, minutos, km_auto, km_calculado, reintento } = req.body || {};
   const idVal = validators.positiveInt(practica_id, 'practica_id');
   if (!idVal.valid) return res.status(400).json({ error: idVal.error });
   const kmAuto = km_auto === true;
+  const marcarAuto = kmAuto || km_calculado === true; // km_calculado: los calculó la tablet sin cobertura
   const kmVal = kmAuto ? { valid: true, value: 0 } : kmEntero(km_final, 'El km final');
   if (!kmVal.valid) return res.status(400).json({ error: kmVal.error });
   let nClases = 1;
@@ -53,6 +54,18 @@ export default async function handler(req, res) {
     .eq('id', idVal.value).eq('deleted', false).eq('empresa_id', auth.empresaId).maybeSingle();
   if (errFind && isAuthError(errFind)) return res.status(401).json({ error: 'Sesión expirada. Inicia sesión de nuevo.' });
   if (errFind || !practica) return res.status(404).json({ error: 'Práctica no encontrada' });
+
+  // Envío repetido desde la cola sin conexión (`reintento`): si la clase ya está
+  // cerrada se devuelve tal cual, sin volver a partirla ni a añadir la observación.
+  if (reintento === true && practica.km_final > 0) {
+    const sesion = await sesionDePractica(supabase, auth.empresaId, practica, 'id, km_inicial, km_final, hora_inicio, hora_fin, firmada, fraccion');
+    return res.status(200).json({
+      ok: true, ya_cerrada: true, practica_ids: sesion.map(x => x.id), clases: sesion.reduce((n, x) => n + clasesDe(x), 0),
+      recorridos: sesion[sesion.length - 1].km_final - sesion[0].km_inicial,
+      km_final: sesion[sesion.length - 1].km_final,
+      alumno: await resumenAlumno(supabase, auth.empresaId, practica.alumno_id), campos_guardados: true
+    });
+  }
 
   // Reintento de una sesión ya cerrada (la respuesta anterior no llegó al
   // móvil): no se vuelve a partir ni a contar minutos, se devuelven las clases
@@ -118,7 +131,7 @@ export default async function handler(req, res) {
   if (hhmmValido(hora_fin)) cambios.hora_fin = hora_fin;
   if (Array.isArray(zonas)) cambios.zonas = limpiarZonas(zonas); // [] = el profesor las desmarcó todas
   cambios.fraccion = partes[0].fraccion; // null = clase entera
-  if (kmAuto) cambios.tipo_detalle = MARCA_KM_AUTO;
+  if (marcarAuto) cambios.tipo_detalle = MARCA_KM_AUTO;
 
   // Clases 2..N de la sesión: se crean ANTES de tocar la abierta; si alguna
   // falla se retiran (borrado suave) y la práctica sigue abierta como estaba.
@@ -139,7 +152,7 @@ export default async function handler(req, res) {
     if (cambios.trabajado) fila.trabajado = cambios.trabajado;
     if (parte.hora_fin) fila.hora_fin = parte.hora_fin;
     if (parte.fraccion) fila.fraccion = parte.fraccion;
-    if (kmAuto) fila.tipo_detalle = MARCA_KM_AUTO;
+    if (marcarAuto) fila.tipo_detalle = MARCA_KM_AUTO;
     const zonasFila = cambios.zonas || zonasOrig;
     if (zonasFila.length) fila.zonas = zonasFila;
     const { data, error, degradado } = await insertarPractica(supabase, fila);

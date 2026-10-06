@@ -3,14 +3,19 @@
 //  - Páginas: primero la red, así siempre se ve la última versión publicada;
 //    sin cobertura se abre la última copia guardada.
 //  - Fuentes e iconos: desde la caché (no cambian).
-//  - /api y Supabase: nunca se guardan (datos vivos y privados).
+//  - /api y Supabase: nunca se guardan aquí (datos vivos y privados); la web guarda
+//    en la tablet, con su propia lógica (offline.js), la última lectura y lo pendiente de enviar.
 //  - Avisos de la práctica (Web Push): los manda el servidor a su hora y aquí
 //    se muestran aunque la app esté cerrada; al tocarlos se abre la app.
-const VERSION = 'aulamovil-v2';
-const BASICOS = ['/', '/manifest.webmanifest', '/logo.png', '/icons/icon-192.png', '/icons/maskable-192.png'];
+const VERSION = 'aulamovil-v3';
+// Todo lo que la app necesita para abrirse sin cobertura (dentro del coche no hay datos)
+const FUENTES = ['barlow-400', 'barlow-500', 'barlow-600', 'barlow-700', 'barlow-condensed-600', 'barlow-condensed-700', 'ibm-plex-mono-500', 'ibm-plex-mono-600']
+  .flatMap(f => [`/fonts/${f}-latin.woff2`, `/fonts/${f}-latin-ext.woff2`]);
+const BASICOS = ['/', '/offline.js', '/manifest.webmanifest', '/logo.png', '/icons/icon-192.png', '/icons/maskable-192.png', '/icons/apple-touch-icon.png', ...FUENTES];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(BASICOS)).catch(() => {}).then(() => self.skipWaiting()));
+  // Uno a uno: si algún archivo falla, el resto se guarda igualmente
+  e.waitUntil(caches.open(VERSION).then(c => Promise.all(BASICOS.map(u => c.add(u).catch(() => {})))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -33,6 +38,12 @@ self.addEventListener('fetch', e => {
         return res;
       })
       .catch(() => caches.match(esApp ? '/' : r).then(x => x || Response.error())));
+    return;
+  }
+
+  // La lógica sin conexión: red primero (siempre la última), y sin red la copia guardada
+  if (url.pathname === '/offline.js') {
+    e.respondWith(fetch(r).then(res => { if (res.ok) { const copia = res.clone(); caches.open(VERSION).then(c => c.put(r, copia)); } return res; }).catch(() => caches.match(r).then(x => x || Response.error())));
     return;
   }
 

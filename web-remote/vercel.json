@@ -37,6 +37,10 @@
       "destination": "/api/movil?op=anotar-practica"
     },
     {
+      "source": "/api/registrar-clase",
+      "destination": "/api/movil?op=registrar-clase"
+    },
+    {
       "source": "/api/firma-profesor",
       "destination": "/api/movil?op=firma-profesor"
     },
