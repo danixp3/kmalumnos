@@ -2178,7 +2178,7 @@
   }
 
   /* ── Cabecera de tarjeta del diseño: título + nota a la derecha ── */
-  .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin-bottom: 10px; }
   .card-head h2 { font-size: 17px; font-weight: 700; margin: 0; }
   .card-head .card-note { font-size: 13px; color: var(--text-muted); }
 
@@ -2404,9 +2404,9 @@
 
   .cal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
   .cal-mes b { display: block; font-size: 13px; margin-bottom: 4px; }
-  .cal-sem, .cal-dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px 0; text-align: center; font-size: 11.5px; }
+  .cal-sem, .cal-dias { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px 0; text-align: center; font-size: 11.5px; }
   .cal-sem span { color: var(--text-muted); font-weight: 600; padding: 2px 0; }
-  .cal-dias span { width: 22px; height: 22px; line-height: 22px; margin: 0 auto; border-radius: 999px; color: var(--btn-gray-fg); box-sizing: border-box; }
+  .cal-dias span { width: min(22px, 100%); aspect-ratio: 1; display: flex; align-items: center; justify-content: center; line-height: 1; margin: 0 auto; border-radius: 999px; color: var(--btn-gray-fg); box-sizing: border-box; }
   .cal-dias .cal-hecha { background: #14161B; color: #fff; font-weight: 700; }
   .cal-dias .cal-prog { box-shadow: inset 0 0 0 1.5px #14161B; font-weight: 700; color: var(--text); }
   .cal-dias .cal-examen { background: var(--accent); color: #14161B; font-weight: 700; }
@@ -2419,16 +2419,34 @@
   .cal-l.cal-hecha { background: #14161B; }
   .cal-l.cal-prog { box-shadow: inset 0 0 0 1.5px #14161B; }
   .cal-l.cal-examen { background: var(--accent); }
+  body[data-theme="oscuro"] .cal-l.cal-hecha, body[data-theme="negro"] .cal-l.cal-hecha { background: #F3F2EE; }
+  body[data-theme="oscuro"] .cal-l.cal-prog, body[data-theme="negro"] .cal-l.cal-prog { box-shadow: inset 0 0 0 1.5px #F3F2EE; }
 
-  .trab-fila { display: grid; grid-template-columns: minmax(0, 1fr) 140px 46px; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; }
+  .trab-fila { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; padding: 6px 0; font-size: 14px; }
+  .trab-fila .trab-barra { grid-column: 1 / -1; grid-row: 2; }
   .trab-barra { height: 6px; border-radius: 999px; background: var(--btn-gray-bg); overflow: hidden; }
   .trab-barra i { display: block; height: 100%; background: var(--chart-series-1); border-radius: 999px; }
   .trab-fila b { text-align: right; font-size: 13px; }
+
+  /* Las tarjetas de la columna derecha miden lo que dé la ventana (290 px en modo
+     ventana, 420 a pantalla completa): se adaptan a SU ancho, no al de la pantalla. */
+  #ficha-dias, #ficha-trabajado, #ficha-proximas { container-type: inline-size; }
+  @container (max-width: 300px) {
+    .cal-grid { column-gap: 12px; }
+    .cal-sem, .cal-dias { font-size: 10.5px; }
+    .cal-dias .cal-hoy { box-shadow: 0 0 0 1.5px var(--accent); }
+  }
+  @container (max-width: 200px) { .cal-grid { grid-template-columns: minmax(0, 1fr); } }
+  @container (min-width: 380px) {
+    .trab-fila { grid-template-columns: minmax(0, 1fr) 140px 46px; gap: 10px; padding: 5px 0; }
+    .trab-fila .trab-barra { grid-column: auto; grid-row: auto; }
+  }
 
   .prox-fila { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
   .prox-fecha { width: 44px; height: 44px; flex-shrink: 0; border-radius: 10px; background: var(--btn-gray-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
   .prox-fecha small { font-size: 10.5px; font-weight: 700; color: var(--text-muted); letter-spacing: .04em; }
   .prox-fecha b { font-family: var(--font-display); font-size: 20px; margin-top: 2px; }
+  .prox-fila > div:last-child { min-width: 0; overflow-wrap: anywhere; }
   .prox-tit { font-size: 14.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
   .prox-sub { font-size: 13px; color: var(--text-muted); }
   .prox-examen { background: var(--accent-light); border-radius: 12px; padding: 9px 10px; margin: 4px -10px; }
@@ -2436,7 +2454,8 @@
   .prox-examen .prox-fecha small { color: #14161B; }
   .prox-pie { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--btn-gray-bg); font-size: 13px; color: var(--text-muted); }
 
-  .obs-fila { display: grid; grid-template-columns: 110px 1fr; gap: 16px; padding: 12px 0; border-top: 1px solid var(--btn-gray-bg); }
+  .obs-fila { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 16px; padding: 12px 0; border-top: 1px solid var(--btn-gray-bg); }
+  .obs-texto { overflow-wrap: anywhere; }
   .obs-cuando b { display: block; font-size: 14px; }
   .obs-cuando small { font-size: 12.5px; color: var(--text-muted); }
   .obs-texto { font-size: 15px; color: var(--btn-gray-fg); }
