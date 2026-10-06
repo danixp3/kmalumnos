@@ -1,7 +1,7 @@
 // ─── PAGOS ───────────────────────────────────────────────────────────────────
 // Pagos y cálculo de deudas (desglose FIFO de prácticas pagadas/pendientes).
 
-const { load, save, nextId, _sync, filtrarPorSucursal, clasesDePractica } = require('./core');
+const { load, save, nextId, _sync, filtrarPorSucursal, clasesDePractica, nombreCorto } = require('./core');
 const { getPracticasByAlumno } = require('./practicas');
 
 // Formas de pago admitidas (tarea D1, arqueo de caja): cualquier otro valor
@@ -96,7 +96,7 @@ function getDeudas(sucursalId) {
       const saldo = total_generado - total_pagado;
       return {
         alumno_id: alumno.id,
-        alumno_nombre: alumno.nombre,
+        alumno_nombre: nombreCorto(alumno),
         permiso: alumno.permiso,
         num_practicas: practicasAlumno.reduce((n, p) => n + clasesDePractica(p), 0),
         total_generado,
@@ -158,7 +158,7 @@ function getDesglosePagosAlumno(alumno_id) {
 
   return {
     alumno_id: aid,
-    alumno_nombre: alumno.nombre,
+    alumno_nombre: nombreCorto(alumno),
     permiso: alumno.permiso,
     practicas,
     cargos: cargosAlumno,

@@ -495,6 +495,9 @@ ipcMain.handle('aplicar-cuadre-km', (_, vehiculo_id, cambios) => db.aplicarCuadr
 ipcMain.handle('deshacer-cuadre-km', (_, id) => db.deshacerCuadreKm(id));
 ipcMain.handle('get-cuadres-km', () => db.getCuadresKm());
 ipcMain.handle('quitar-km-clase', (_, practica_id) => db.quitarKmClase(practica_id));
+ipcMain.handle('proponer-encaje-km', (_, vehiculo_id, practica_id, opciones) => db.proponerEncajeKm(vehiculo_id, practica_id, opciones));
+ipcMain.handle('get-encajes-km', (_, vehiculo_id) => db.getEncajesKm(vehiculo_id));
+ipcMain.handle('get-clases-coche-km', (_, vehiculo_id, limite) => db.getClasesCocheKm(vehiculo_id, limite));
 ipcMain.handle('marcar-hueco-km-revisado', (_, clave, revisado) => db.marcarHuecoRevisado(clave, revisado !== false));
 ipcMain.handle('get-resumen-cuadre-km', () => db.getResumenCuadreKm());
 // Zonas de prácticas (se comparten con la web del móvil vía ajustes_empresa)

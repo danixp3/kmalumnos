@@ -2,7 +2,7 @@
 // Detección de solapamientos, relleno masivo de km en blanco y corrección
 // quirúrgica de solapamientos entre prácticas del mismo vehículo.
 
-const { load, save, addLog, fmtFechaLog, _sync } = require('./core');
+const { load, save, addLog, fmtFechaLog, _sync, nombreCorto } = require('./core');
 
 /**
  * Comprueba si el rango [kmI, kmF] para un vehículo en una fecha concreta
@@ -25,7 +25,7 @@ function validarSolapamiento(vehiculo_id, fecha, kmI, kmF, excluirPracticaId = n
     if (kmI < p.km_final && p.km_inicial < kmF) {
       const alumno = d.alumnos.find(a => a.id === p.alumno_id);
       conflictos.push({
-        alumno: alumno ? alumno.nombre : '?',
+        alumno: alumno ? nombreCorto(alumno) : '?',
         fecha: p.fecha,
         km_inicial: p.km_inicial,
         km_final: p.km_final
@@ -270,7 +270,7 @@ function generarKmHastaMaximo(vehiculo_id, kmMin = 40, kmMax = 45, kmMaximo = nu
 
   const asignaciones = plan.map(({ p, ki, kf }) => {
     const alumno = d.alumnos.find(a => a.id === p.alumno_id);
-    return { practica_id: p.id, alumno: alumno ? alumno.nombre : '?', fecha: p.fecha, km_inicial: ki, km_final: kf };
+    return { practica_id: p.id, alumno: alumno ? nombreCorto(alumno) : '?', fecha: p.fecha, km_inicial: ki, km_final: kf };
   });
 
   if (aplicar) {
@@ -331,7 +331,7 @@ function generarKmPorRango(vehiculo_id, kmDesde = null, kmHasta = null, variacio
 
   const asignaciones = plan.map(({ p, ki, kf }) => {
     const alumno = d.alumnos.find(a => a.id === p.alumno_id);
-    return { practica_id: p.id, alumno: alumno ? alumno.nombre : '?', fecha: p.fecha, km_inicial: ki, km_final: kf };
+    return { practica_id: p.id, alumno: alumno ? nombreCorto(alumno) : '?', fecha: p.fecha, km_inicial: ki, km_final: kf };
   });
 
   if (aplicar) {
@@ -486,8 +486,8 @@ function getSolapamientos() {
           conflictos.push({
             vehiculo: vNombre,
             vehiculo_id: vid,
-            practica_a: { id: a.id, alumno: alumnoA ? alumnoA.nombre : '?', fecha: a.fecha, km_inicial: a.km_inicial, km_final: a.km_final },
-            practica_b: { id: b.id, alumno: alumnoB ? alumnoB.nombre : '?', fecha: b.fecha, km_inicial: b.km_inicial, km_final: b.km_final }
+            practica_a: { id: a.id, alumno: alumnoA ? nombreCorto(alumnoA) : '?', fecha: a.fecha, km_inicial: a.km_inicial, km_final: a.km_final },
+            practica_b: { id: b.id, alumno: alumnoB ? nombreCorto(alumnoB) : '?', fecha: b.fecha, km_inicial: b.km_inicial, km_final: b.km_final }
           });
         }
         // Si b.km_inicial >= a.km_final ya no puede haber solapamiento con los siguientes (están ordenados)

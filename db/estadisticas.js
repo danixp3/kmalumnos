@@ -2,7 +2,7 @@
 // Resumen general, tarjetas opcionales del dashboard y timeline de prácticas
 // de un vehículo (con detección de huecos/solapamientos frente a la anterior).
 
-const { load, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar } = require('./core');
+const { load, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, nombreCorto } = require('./core');
 const { getSolapamientos } = require('./km-algoritmos');
 const { getDeudas } = require('./pagos');
 const { vehiculoEnUso } = require('./campos-extra');
@@ -212,7 +212,7 @@ function getTimelineVehiculo(vehiculo_id) {
     }
     return {
       ...p,
-      alumno_nombre: alumno ? alumno.nombre : '?',
+      alumno_nombre: alumno ? nombreCorto(alumno) : '?',
       sin_km: sinKm,
       gap
     };
@@ -289,7 +289,7 @@ function getSemaforoExamen() {
   return alumnos.map(a => {
     const propias = practicasPorAlumno.get(a.id) || [];
     const { nivel, motivo, nPracticas, kmTotales, diasDesdeUltima } = _calcularSemaforo(propias, a);
-    return { alumno_id: a.id, nombre: a.nombre, nivel, motivo, nPracticas, kmTotales, diasDesdeUltima };
+    return { alumno_id: a.id, nombre: nombreCorto(a), nivel, motivo, nPracticas, kmTotales, diasDesdeUltima };
   });
 }
 
@@ -304,7 +304,7 @@ function getSemaforoAlumno(alumno_id) {
   if (!a) return null;
   const propias = d.practicas.filter(p => p.alumno_id === aid && !p.deleted);
   const { nivel, motivo, nPracticas, kmTotales, diasDesdeUltima } = _calcularSemaforo(propias, a);
-  return { alumno_id: a.id, nombre: a.nombre, nivel, motivo, nPracticas, kmTotales, diasDesdeUltima };
+  return { alumno_id: a.id, nombre: nombreCorto(a), nivel, motivo, nPracticas, kmTotales, diasDesdeUltima };
 }
 
 // ─── ALUMNOS EN RIESGO DE ABANDONO ────────────────────────────────────────
@@ -349,7 +349,7 @@ function getAlumnosEnRiesgo() {
     const diasSinPractica = Math.round((hoyUTC - ultimaUTC) / msPorDia);
     if (!Number.isFinite(diasSinPractica) || diasSinPractica <= RIESGO_DIAS_INACTIVIDAD) continue;
 
-    enRiesgo.push({ alumno_id: a.id, nombre: a.nombre, nPracticas, diasSinPractica, ultimaFecha });
+    enRiesgo.push({ alumno_id: a.id, nombre: nombreCorto(a), nPracticas, diasSinPractica, ultimaFecha });
   }
 
   return enRiesgo.sort((a, b) => b.diasSinPractica - a.diasSinPractica);
@@ -525,7 +525,7 @@ function getLibroVentas(desde, hasta, sucursalId, ivaPorcentaje) {
     return {
       fecha: p.fecha,
       alumno_id: p.alumno_id,
-      alumno_nombre: alumno ? alumno.nombre : '?',
+      alumno_nombre: alumno ? nombreCorto(alumno) : '?',
       dni: alumno ? (alumno.dni || null) : null,
       concepto: p.nota || 'Cobro',
       forma_pago: p.forma_pago || null,
@@ -578,7 +578,7 @@ function getPanel(hoy, sucursalId) {
 
   const practicas = filtrarPorSucursal(d.practicas, sucursalId).filter(p => !p.deleted);
   const alumnos = filtrarPorSucursal(d.alumnos, sucursalId).filter(a => !a.deleted);
-  const nombreAlumno = new Map(d.alumnos.map(a => [a.id, a.nombre]));
+  const nombreAlumno = new Map(d.alumnos.map(a => [a.id, nombreCorto(a)]));
   const veh = new Map(d.vehiculos.map(v => [v.id, v]));
   const prof = new Map(d.profesores.map(x => [x.id, x.nombre]));
   const conKm = p => !(p.km_inicial === 0 && p.km_final === 0) && !!p.km_final;
@@ -696,7 +696,7 @@ function getPanelVehiculos(hoy, sucursalId, duracionMin) {
   const dur = duracionMin > 0 ? duracionMin : 45;
   const mes = hoy.slice(0, 7);
   const conKm = p => !(p.km_inicial === 0 && p.km_final === 0) && !!p.km_final;
-  const nombreAlumno = new Map(d.alumnos.map(a => [a.id, a.nombre]));
+  const nombreAlumno = new Map(d.alumnos.map(a => [a.id, nombreCorto(a)]));
   const nombreProf = new Map(d.profesores.map(x => [x.id, x.nombre]));
   const vivas = d.practicas.filter(p => !p.deleted);
 

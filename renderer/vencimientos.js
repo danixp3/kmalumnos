@@ -34,7 +34,7 @@ function _nombreEntidadVenc(v) {
   }
   if (v.entidad_tipo === 'alumno') {
     const al = vencAlumnosCache.find(x => x.id === v.entidad_id);
-    return al ? al.nombre : '—';
+    return al ? nombreCortoAlumno(al) : '—';
   }
   return '—';
 }

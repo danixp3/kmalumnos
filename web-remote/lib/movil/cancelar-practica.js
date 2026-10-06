@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
   const supabase = getSupabase(auth.token);
 
-  const { practica_id } = req.body || {};
+  const { practica_id, profesor_id, forzar } = req.body || {};
 
   // Validar practica_id
   const practicaIdVal = validators.positiveInt(practica_id, 'practica_id');
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   // Verificar que la práctica existe y fue creada desde web-remote
   const { data: practica, error: errFind } = await supabase
     .from('practicas')
-    .select('id, fecha, source, updated_at')
+    .select('id, fecha, source, updated_at, km_inicial, km_final, profesor_id')
     .eq('id', practicaIdVal.value)
     .eq('deleted', false)
     .eq('empresa_id', auth.empresaId)
@@ -46,6 +46,22 @@ export default async function handler(req, res) {
   const practicaTime = new Date(practica.updated_at);
   if (practicaTime < hace24h) {
     return res.status(403).json({ error: 'Solo se pueden cancelar prácticas de las últimas 24 horas' });
+  }
+
+  // Una clase que está EN CURSO la tiene abierta el teléfono de su profesor (cronómetro, km, firma).
+  // Cancelarla desde el teléfono de otro la deja huérfana allí y fue la causa de km mal registrados:
+  // hay que confirmarlo expresamente (`forzar`). `profesor_id` = el profesor desde el que se cancela.
+  const enCurso = practica.km_inicial > 0 && !practica.km_final;
+  const declara = req.body && 'profesor_id' in req.body;   // los móviles con versión antigua no lo mandan: se les deja como antes
+  const quien = Number.isInteger(Number(profesor_id)) && Number(profesor_id) > 0 ? Number(profesor_id) : null;
+  if (enCurso && declara && forzar !== true && practica.profesor_id && quien !== practica.profesor_id) {
+    let nombre = null;
+    const { data: prof } = await supabase.from('profesores').select('nombre').eq('id', practica.profesor_id).maybeSingle();
+    if (prof) nombre = prof.nombre;
+    return res.status(409).json({
+      codigo: 'clase_en_curso_de_otro', profesor: nombre,
+      error: `Esta clase la está dando ${nombre || 'otro profesor'} desde su teléfono. Si la cancelas, ese teléfono no podrá guardarla igual y los km pueden quedar mal. Pídele que la cancele él.`
+    });
   }
 
   // Marcar como eliminada (soft delete)

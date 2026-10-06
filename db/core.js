@@ -146,6 +146,17 @@ const FIRMA_MAX = 200000;
 function firmaValida(f) {
   return typeof f === 'string' && f.length <= FIRMA_MAX && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(f);
 }
+// Nombre y primer apellido del alumno: así se distinguen dos personas que se llaman igual.
+// Si el nombre ya trae el apellido (datos traídos de otro programa) no se repite.
+function nombreCorto(a) {
+  if (!a) return '';
+  const nombre = String(a.nombre || '').trim();
+  const apellido = String(a.primer_apellido || '').trim();
+  if (!apellido) return nombre;
+  const plano = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return plano(nombre).includes(plano(apellido)) ? nombre : `${nombre} ${apellido}`;
+}
+
 function hoyLocalISO() {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
@@ -344,6 +355,7 @@ module.exports = {
   esPracticaEnCurso,
   esPracticaSinCerrar,
   hoyLocalISO,
+  nombreCorto,
   clasesDePractica,
   fmtClases,
   aCuartos,

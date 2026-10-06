@@ -8,7 +8,7 @@ const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const TOKEN = `x.${b64({ sub: 'emp1' })}.y`;
 
 async function llamar(nombre, { method = 'POST', body, query } = {}) {
-  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor','km-coche'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
+  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor','km-coche','estado-practica'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
   let status = 200, json;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
   await mod.default({ method, headers: { authorization: 'Bearer ' + TOKEN }, body, query }, res);
@@ -496,14 +496,14 @@ test('finalizar-practica con km_auto: nunca pisa la siguiente práctica del coch
   const t = base();
   t.practicas.push({ id: 50, alumno_id: 1, vehiculo_id: 1, fecha: '2026-09-29', km_inicial: 1012, km_final: 1050, deleted: false, empresa_id: 'emp1', source: 'desktop' });
   reiniciar(t);
-  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini() });
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ forzar: true }) });
   const r = await llamar('finalizar-practica', { body: { practica_id, km_auto: true } });
   assert.equal(r.status, 200); assert.equal(r.json.km_final, 1012);
   // Otra que empieza justo donde hay otra práctica: no queda hueco
   const t2 = base();
   t2.practicas.push({ id: 51, alumno_id: 1, vehiculo_id: 1, fecha: '2026-09-29', km_inicial: 1001, km_final: 1050, deleted: false, empresa_id: 'emp1', source: 'desktop' });
   reiniciar(t2);
-  const { json: { practica_id: otra } } = await llamar('iniciar-practica', { body: ini() });
+  const { json: { practica_id: otra } } = await llamar('iniciar-practica', { body: ini({ forzar: true }) });
   const r2 = await llamar('finalizar-practica', { body: { practica_id: otra, km_auto: true, n_clases: 2 } });
   assert.equal(r2.status, 409); assert.equal(r2.json.codigo, 'km_no_caben');
   assert.equal(BD.tablas.practicas.find(x => x.id === otra).km_final, 0); // sigue en curso
@@ -745,9 +745,10 @@ test('finalizar-practica con reintento: si la clase ya está cerrada la devuelve
   const otra = await llamar('finalizar-practica', { body: { ...cuerpo, reintento: true } });
   assert.equal(otra.status, 200); assert.equal(otra.json.ya_cerrada, true); assert.deepEqual(otra.json.practica_ids, [ini1.json.practica_id]);
   assert.equal(BD.tablas.practicas.find(x => x.id === ini1.json.practica_id).nota, 'Muy bien');
-  // sin la marca de reintento no cambia lo de siempre
+  // sin la marca de reintento tampoco se pisa lo guardado (otro teléfono pudo cerrarla y firmarla)
   const normal = await llamar('finalizar-practica', { body: { ...cuerpo, km_final: 1035 } });
-  assert.equal(normal.status, 200); assert.equal(BD.tablas.practicas.find(x => x.id === ini1.json.practica_id).km_final, 1035);
+  assert.equal(normal.status, 200); assert.equal(normal.json.ya_cerrada, true); assert.equal(normal.json.km_final, 1030);
+  assert.equal(BD.tablas.practicas.find(x => x.id === ini1.json.practica_id).km_final, 1030);
 });
 
 test('finalizar-practica con km_calculado (la tablet puso los km sin cobertura): se marca como km automáticos y respeta el km escrito', async () => {
@@ -862,4 +863,82 @@ test('crear-alumno: avisa si ya existe (mismo nombre en cualquier orden y sin ti
   const antes = BD.tablas.alumnos.length;
   r = await llamar('crear-alumno', { body: { nombre: 'Lucía', primer_apellido: 'Martín', permiso: 'B', forzar: true } });
   assert.equal(r.status, 200); assert.equal(BD.tablas.alumnos.length, antes + 1);
+});
+
+// ─── Seguridad: dos teléfonos con la misma clase (caso real del 06/10) ───────────────────────────
+test('iniciar-practica: un km inicial menor que el final de la última clase del coche se rechaza (409) salvo que se confirme', async () => {
+  reiniciar(base());
+  const r = await llamar('iniciar-practica', { body: ini({ km_inicial: 980 }) });
+  assert.equal(r.status, 409); assert.equal(r.json.codigo, 'km_menor_anterior'); assert.equal(r.json.km_final_anterior, 1000);
+  assert.match(r.json.error, /1000/);
+  assert.equal(BD.tablas.practicas.length, 1);   // no creó nada
+  // con la confirmación del profesor (forzar) se guarda; el km igual o mayor no pregunta
+  assert.equal((await llamar('iniciar-practica', { body: ini({ km_inicial: 980, forzar: true }) })).status, 200);
+  reiniciar(base());
+  assert.equal((await llamar('iniciar-practica', { body: ini({ km_inicial: 1000 }) })).status, 200);
+});
+
+test('iniciar-practica: compara con la última clase en el tiempo, no con un km enorme antiguo', async () => {
+  const t = base();
+  t.practicas.push({ id: 9, alumno_id: 1, vehiculo_id: 1, fecha: '2026-01-10', km_inicial: 90000, km_final: 90030, deleted: false, empresa_id: 'emp1', source: 'desktop' });
+  reiniciar(t);
+  assert.equal((await llamar('iniciar-practica', { body: ini({ km_inicial: 1000 }) })).status, 200);
+});
+
+test('cancelar-practica: una clase EN CURSO de otro profesor no se cancela sin confirmarlo; la propia o las cerradas sí', async () => {
+  const t = base();
+  t.profesores.push({ id: 2, nombre: 'Marta Gil', deleted: false, empresa_id: 'emp1' });
+  reiniciar(t);
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ profesor_id: 2 }) });
+  // desde el perfil de Javier (1) → 409 con el nombre del profesor, y la clase sigue viva
+  const r = await llamar('cancelar-practica', { body: { practica_id, profesor_id: 1 } });
+  assert.equal(r.status, 409); assert.equal(r.json.codigo, 'clase_en_curso_de_otro'); assert.equal(r.json.profesor, 'Marta Gil');
+  assert.equal(BD.tablas.practicas.find(x => x.id === practica_id).deleted, false);
+  // sin perfil (null) también cuenta como otro
+  assert.equal((await llamar('cancelar-practica', { body: { practica_id, profesor_id: null } })).status, 409);
+  // desde su perfil, o confirmándolo, o un móvil antiguo que no dice quién es → como siempre
+  assert.equal((await llamar('cancelar-practica', { body: { practica_id, profesor_id: 2 } })).status, 200);
+  const { json: { practica_id: b } } = await llamar('iniciar-practica', { body: ini({ profesor_id: 2 }) });
+  assert.equal((await llamar('cancelar-practica', { body: { practica_id: b, profesor_id: 1, forzar: true } })).status, 200);
+  const { json: { practica_id: c } } = await llamar('iniciar-practica', { body: ini({ profesor_id: 2 }) });
+  assert.equal((await llamar('cancelar-practica', { body: { practica_id: c } })).status, 200);
+  // una clase ya cerrada de otro profesor no tiene cronómetro en ningún teléfono: se puede cancelar
+  const { json: { practica_id: d } } = await llamar('iniciar-practica', { body: ini({ profesor_id: 2 }) });
+  await llamar('finalizar-practica', { body: { practica_id: d, km_final: 1030 } });
+  assert.equal((await llamar('cancelar-practica', { body: { practica_id: d, profesor_id: 1 } })).status, 200);
+});
+
+test('finalizar-practica de una clase que se canceló desde otro teléfono: 409 practica_cancelada (el móvil ofrece guardarla); si nunca existió, 404', async () => {
+  reiniciar(base());
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini() });
+  await llamar('cancelar-practica', { body: { practica_id } });
+  const r = await llamar('finalizar-practica', { body: { practica_id, km_final: 1030 } });
+  assert.equal(r.status, 409); assert.equal(r.json.codigo, 'practica_cancelada');
+  assert.equal((await llamar('finalizar-practica', { body: { practica_id: 999, km_final: 1030 } })).status, 404);
+});
+
+test('finalizar-practica: si otro teléfono ya la cerró, el segundo cierre no cambia los km ni la firma', async () => {
+  reiniciar(base());
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini() });
+  await llamar('finalizar-practica', { body: { practica_id, km_final: 1030, hora_fin: '10:45' } });
+  await llamar('firmar-practica', { body: { practica_id, firma: 'data:image/png;base64,AAAA' } });
+  const r = await llamar('finalizar-practica', { body: { practica_id, km_final: 1044, hora_fin: '10:59', observacion: 'otro' } });
+  assert.equal(r.status, 200); assert.equal(r.json.ya_cerrada, true); assert.equal(r.json.km_final, 1030); assert.equal(r.json.km_inicial, 1000);
+  assert.equal(r.json.firmada, true);
+  const p = BD.tablas.practicas.find(x => x.id === practica_id);
+  assert.deepEqual([p.km_final, p.hora_fin, p.nota || ''], [1030, '10:45', '']);
+});
+
+test('estado-practica: dice si la clase sigue en curso, ya está cerrada, se canceló o no existe (para el móvil que la tiene en marcha)', async () => {
+  reiniciar(base());
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini() });
+  const est = async id => (await llamar('estado-practica', { method: 'GET', query: { id } })).json;
+  assert.equal((await est(practica_id)).estado, 'en_curso');
+  await llamar('finalizar-practica', { body: { practica_id, km_final: 1030 } });
+  const c = await est(practica_id);
+  assert.deepEqual([c.estado, c.km_inicial, c.km_final, c.firmada], ['cerrada', 1000, 1030, false]);
+  await llamar('cancelar-practica', { body: { practica_id } });
+  assert.equal((await est(practica_id)).estado, 'cancelada');
+  assert.equal((await est(999)).estado, 'no_existe');
+  assert.equal((await llamar('estado-practica', { method: 'GET', query: { id: 'x' } })).status, 400);
 });

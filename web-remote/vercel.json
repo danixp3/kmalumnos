@@ -59,6 +59,10 @@
     {
       "source": "/api/km-coche",
       "destination": "/api/movil?op=km-coche"
+    },
+    {
+      "source": "/api/estado-practica",
+      "destination": "/api/movil?op=estado-practica"
     }
   ],
   "headers": [

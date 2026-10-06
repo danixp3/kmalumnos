@@ -170,6 +170,15 @@ function pintarPorTandas(tbody, items, filaHTML, { tanda = 80, columnas = 1 } = 
 // Desplegables de alumnos (agenda, exámenes, bonos…): con miles de fichas,
 // «Apellidos, Nombre» ordenado, primero los que están en curso y los
 // terminados (aprobados, bajas, inactivos) aparte, al final.
+// Nombre y primer apellido (así se distinguen dos alumnos que se llaman igual). Igual que
+// nombreCorto de db/core.js: si el nombre ya trae el apellido no se repite.
+function nombreCortoAlumno(a) {
+  if (!a) return '';
+  const nombre = String(a.nombre || '').trim(), apellido = String(a.primer_apellido || '').trim();
+  if (!apellido) return nombre;
+  const plano = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return plano(nombre).includes(plano(apellido)) ? nombre : `${nombre} ${apellido}`;
+}
 const ESTADOS_ALUMNO_TERMINADO = ['baja', 'aprobado', 'apto', 'no_apto', 'inactivo'];
 function nombreAlumnoLista(a) {
   const ap = [a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
