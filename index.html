@@ -109,7 +109,7 @@
         Kilómetros
       </a>
       <!-- Hermana de Kilómetros: se llega desde sus pestañas (renderer/menu.js) -->
-      <a data-page="generar-km" data-hermano-de="kilometros" class="nav-hermano">Generar km</a>
+      <a data-page="generar-km" data-hermano-de="kilometros" class="nav-hermano">Cuadrar y generar km</a>
 
       <div class="nav-sep"></div>
       <div class="nav-section" data-grupo="1" role="button" tabindex="0" aria-expanded="true" title="Mostrar u ocultar el grupo">Agenda<svg class="nav-section-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
@@ -1239,6 +1239,8 @@
         </div>
       </div>
 
+      <div id="pg-cuadre-aviso"></div>
+
       <div class="toolbar">
         <div class="seg seg-tabs" id="pg-tabs" role="group" aria-label="Grupo de prácticas">
           <button type="button" data-tab="todas" aria-pressed="true" onclick="cambiarTabPracticasGlobal('todas')">Todas</button>
@@ -1293,8 +1295,8 @@
     <div id="page-kilometros" class="page">
       <div class="page-header">
         <div>
-          <div class="page-title">Kilómetros</div>
-          <div class="page-subtitle">Mapa del cuentakilómetros de cada vehículo, solapamientos y generación de km</div>
+          <div class="page-title">Cuadrar y generar km</div>
+          <div class="page-subtitle">Deja coherente el cuentakilómetros de cada coche y rellena los km de las clases en blanco</div>
         </div>
       </div>
 
@@ -1384,17 +1386,17 @@
     <div id="page-generar-km" class="page">
       <div class="page-header">
         <div>
-          <div class="page-title">Kilómetros</div>
-          <div class="page-subtitle">Mapa del cuentakilómetros de cada vehículo, solapamientos y generación de km</div>
+          <div class="page-title">Cuadrar y generar km</div>
+          <div class="page-subtitle">Deja coherente el cuentakilómetros de cada coche y rellena los km de las clases en blanco</div>
         </div>
       </div>
 
       <div class="page-tabs">
         <button class="page-tab" onclick="navegarA('kilometros','mapa')">Mapa del vehículo</button>
         <button class="page-tab" onclick="navegarA('kilometros','conflictos')">Conflictos</button>
-        <button class="page-tab active">Generar km</button>
+        <button class="page-tab active">Cuadrar y generar km</button>
       </div>
-      <p class="page-intro">Rellena los kilómetros de las prácticas en blanco de un vehículo. Elige el método:</p>
+      <p class="page-intro">Elige el coche. <strong>Cuadrar</strong> ordena sus clases por fecha y hora, arregla los km que no encajan y reparte los huecos entre las clases sin km; el resto de métodos rellenan a mano las clases en blanco.</p>
 
       <div class="card">
         <div class="form-row" style="align-items:flex-end;gap:12px">
@@ -1407,13 +1409,19 @@
       </div>
 
       <div class="page-tabs" id="generar-km-tabs">
-        <button class="page-tab active" data-tab="encadenado" onclick="cambiarTabGenerarKm('encadenado')">Encadenado</button>
+        <button class="page-tab active" data-tab="cuadrar" onclick="cambiarTabGenerarKm('cuadrar')">Cuadrar</button>
+        <button class="page-tab" data-tab="encadenado" onclick="cambiarTabGenerarKm('encadenado')">Encadenado</button>
         <button class="page-tab" data-tab="maximo" onclick="cambiarTabGenerarKm('maximo')">Hasta un máximo</button>
         <button class="page-tab" data-tab="rango" onclick="cambiarTabGenerarKm('rango')">Por rango</button>
       </div>
 
+      <!-- CUADRAR: ordena por tiempo, arregla km que no encajan y reparte los huecos (renderer/cuadrar-km.js) -->
+      <div class="tab-content active" id="tab-generar-km-cuadrar">
+        <div id="cuadre-cuerpo"><div class="card"><p class="empty">Elige un vehículo…</p></div></div>
+      </div>
+
       <!-- MODO ENCADENADO: desde el odómetro actual hacia delante -->
-      <div class="tab-content active" id="tab-generar-km-encadenado">
+      <div class="tab-content" id="tab-generar-km-encadenado">
         <div class="card">
           <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Rellena las prácticas en blanco <strong>hacia delante</strong>, empezando en el odómetro actual del vehículo (o en el tope inicial que indiques). A cada práctica le suma un incremento aleatorio dentro del rango.</p>
           <div class="form-row" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
@@ -3693,6 +3701,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/caja.js"></script>
 <script src="renderer/agenda-visual.js"></script>
 <script src="renderer/generar-km.js"></script>
+<script src="renderer/cuadrar-km.js"></script>
 <script src="renderer/menu.js"></script>
 <script src="renderer/puesta-en-marcha.js"></script>
 <script src="renderer/migracion.js"></script>

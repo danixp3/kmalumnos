@@ -28,6 +28,7 @@ module.exports = {
   ...require('./db/pagos'),
   ...require('./db/csv'),
   ...require('./db/km-algoritmos'),
+  ...require('./db/cuadre-km'),
   ...require('./db/estadisticas'),
   ...require('./db/sucursales'),
   ...require('./db/reservas'),

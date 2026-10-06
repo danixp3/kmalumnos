@@ -8,6 +8,7 @@
 async function loadPracticasGlobal() {
   await poblarSelectsPracticasGlobal();
   await fetchPracticasGlobal();
+  cuadreAvisoPracticas();
 }
 
 // Rellena los <select> de alumno/vehículo/profesor conservando la selección actual.
@@ -140,15 +141,19 @@ function detallePracticaGlobal(p) {
   let km;
   if (p.en_curso) km = '<span class="pill pill-dark"><span class="pill-dot"></span>En curso — el km final se fija al terminar</span>';
   else if (p.sin_cerrar) km = '<span class="pill pill-warn">Sin cerrar: falta el km final (empezó en el km ' + fmtMiles(p.km_inicial) + ')</span>';
-  else if (p.sin_km) km = '<span class="pill pill-warn">Sin kilómetros: rellénalos en Generar km</span>';
+  else if (p.sin_km) km = '<span class="pill pill-warn">Sin kilómetros: se rellenan en Cuadrar y generar km</span>';
   else {
     km = `<div class="num-mono" style="font-size:16px"><b>${fmtMiles(p.km_inicial)}</b> → <b>${fmtMiles(p.km_final)}</b> <span style="color:var(--text-muted);font-weight:400">· ${fmtDec(p.km_recorridos)} km</span></div>`;
     const c = p.continuidad;
-    if (c) {
+    if (p.km_incoherente) {
+      km += `<div class="cont-aviso">Los km de esta clase no encajan con los de alrededor (${esc(p.km_incoherente)}). <a href="#" onclick="cuadreIrA(${p.vehiculo_id});return false">Cuadrar km de este coche</a></div>`;
+    } else if (c) {
       const cuando = `${esc(c.alumno)}${c.hora_inicio ? ', ' + esc(c.hora_inicio) : ''}`;
-      km += c.diferencia === 0
-        ? `<div class="cont-ok">${svgMini('ficha').replace(SVG_MINI.ficha, '<path d="M5 12.5l4.5 4.5L19 7.5"/>')} Km inicial igual al final anterior (${cuando}).</div>`
-        : `<div class="cont-aviso">${c.diferencia > 0 ? `Hueco de ${fmtMiles(c.diferencia)} km` : `Se solapa ${fmtMiles(-c.diferencia)} km`} respecto al final anterior (${cuando}: ${fmtMiles(c.km_final_anterior)}).</div>`;
+      if (c.diferencia === 0) km += `<div class="cont-ok">${svgMini('ficha').replace(SVG_MINI.ficha, '<path d="M5 12.5l4.5 4.5L19 7.5"/>')} Km inicial igual al final anterior (${cuando}).</div>`;
+      else if (c.pequeno) km += `<div class="cont-suave">El coche hizo ${fmtMiles(c.diferencia)} km entre las dos clases (anterior: ${cuando}, km ${fmtMiles(c.km_final_anterior)}).</div>`;
+      else if (c.revisado) km += `<div class="cont-suave">Hueco de ${fmtMiles(c.diferencia)} km dado por revisado (otro uso del coche o clases fuera de la app). <a href="#" onclick="cuadreRevisarDesdeLista('${c.clave_hueco}', false);return false">Volver a avisar</a></div>`;
+      else km += `<div class="cont-aviso">${c.diferencia > 0 ? `Hueco de ${fmtMiles(c.diferencia)} km` : `Se solapa ${fmtMiles(-c.diferencia)} km`} respecto al final anterior (${cuando}: ${fmtMiles(c.km_final_anterior)}). `
+        + `<a href="#" onclick="cuadreIrA(${p.vehiculo_id});return false">Cuadrar km de este coche</a>${c.diferencia > 0 ? ` · <a href="#" onclick="cuadreRevisarDesdeLista('${c.clave_hueco}', true);return false">Dar por revisado</a>` : ''}</div>`;
     }
   }
   return `<div class="pg-detalle">
@@ -219,8 +224,13 @@ function renderPracticasGlobalTabla() {
     const kmIni = p.en_curso || p.sin_cerrar || !p.sin_km ? fmtMiles(p.km_inicial) : '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>';
     const kmFin = p.en_curso ? guion : (p.sin_cerrar ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin cerrar</span>' : (p.sin_km ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : fmtMiles(p.km_final)));
     const kmRec = p.en_curso ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>' : (p.sin_km || p.sin_cerrar ? guion : `<b>${fmtDec(p.km_recorridos)}</b>`);
-    const aviso = p.continuidad && p.continuidad.diferencia !== 0
-      ? `<div class="pg-hueco" title="Respecto al final de la práctica anterior de este coche">${p.continuidad.diferencia > 0 ? '+' + fmtMiles(p.continuidad.diferencia) + ' km sin asignar' : 'solapa ' + fmtMiles(-p.continuidad.diferencia) + ' km'}</div>` : '';
+    const c = p.continuidad;
+    let aviso = '';
+    if (p.km_incoherente) aviso = `<div class="pg-hueco" title="${esc(p.km_incoherente)}">km que no encajan</div>`;
+    else if (c && c.diferencia !== 0) {
+      if (c.diferencia > 0 && (c.pequeno || c.revisado)) aviso = `<div class="pg-hueco pg-hueco-suave" title="${c.revisado ? 'Hueco dado por revisado' : 'El coche hizo estos km entre las dos clases'}">+${fmtMiles(c.diferencia)} km${c.revisado ? ' · revisado' : ''}</div>`;
+      else aviso = `<div class="pg-hueco" title="Respecto al final de la práctica anterior de este coche">${c.diferencia > 0 ? '+' + fmtMiles(c.diferencia) + ' km sin asignar' : 'solapa ' + fmtMiles(-c.diferencia) + ' km'}</div>`;
+    }
     return `<tr class="fila-pg${abierta ? ' abierta' : ''}" onclick="togglePracticaGlobal(${p.id})"${p.sin_km && !p.en_curso ? ' style="background:var(--warn-bg-soft)"' : ''}>
       <td>${esc(fechaTxt)}<div class="al-sub">${fmtFecha(p.fecha)}</div></td>
       <td class="num-mono">${p.hora_inicio ? esc(p.hora_inicio) : guion}</td>
@@ -240,4 +250,11 @@ function renderPracticasGlobalTabla() {
     pie.innerHTML = `<span>Mostrando ${desde}–${hasta} de ${filtradas.length} ${filtradas.length === 1 ? 'práctica' : 'prácticas'}</span>` +
       (paginas > 1 ? `<span class="paginador"><button class="btn btn-outline btn-sm btn-icon" ${pgPagina <= 1 ? 'disabled' : ''} onclick="irPaginaPracticasGlobal(${pgPagina - 1})" aria-label="Página anterior">‹</button> Página ${pgPagina} de ${paginas} <button class="btn btn-outline btn-sm btn-icon" ${pgPagina >= paginas ? 'disabled' : ''} onclick="irPaginaPracticasGlobal(${pgPagina + 1})" aria-label="Página siguiente">›</button></span>` : '');
   }
+}
+
+// Dar por revisado (o volver a avisar) un hueco desde el detalle de una clase
+async function cuadreRevisarDesdeLista(clave, revisado) {
+  await window.api.marcarHuecoKmRevisado(clave, revisado);
+  await fetchPracticasGlobal();
+  cuadreAvisoPracticas();
 }

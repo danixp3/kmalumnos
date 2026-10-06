@@ -264,6 +264,17 @@ async function pintarAvisosPanel(p) {
     desc: 'Hay prácticas cuyo tramo de kilómetros se pisa con otra del mismo vehículo.',
     btn: btn('Revisar', "navegarA('kilometros','conflictos')") });
 
+  try {
+    const cuadrar = (await window.api.getResumenCuadreKm()).filter(c => c.activo && c.problemas > 0);
+    if (cuadrar.length) {
+      const n = cuadrar.reduce((s, c) => s + c.problemas, 0);
+      avisos.push({ nivel: 'err', ic: 'aviso', orden: 0,
+        tit: `${n} ${n === 1 ? 'cosa' : 'cosas'} por cuadrar en los km de ${cuadrar.map(c => c.nombre).join(', ')}`,
+        desc: 'Hay clases con km que no encajan, clases en blanco por repartir o tramos donde faltan clases.',
+        btn: btn('Cuadrar km', `cuadreIrA(${cuadrar[0].vehiculo_id})`) });
+    }
+  } catch (e) {}
+
   let reservas = [], venc = [], riesgo = [];
   try { reservas = await window.api.getReservas(suc); } catch (e) {}
   try { venc = await window.api.getProximosVencimientos(30, null, suc); } catch (e) {}

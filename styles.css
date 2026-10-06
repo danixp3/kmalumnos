@@ -2466,6 +2466,28 @@
   .pg-detalle-acc { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
   .cont-ok { margin-top: 6px; color: var(--success-fg); font-size: 14px; font-weight: 600; }
   .cont-aviso { margin-top: 6px; color: var(--danger-fg); font-size: 14px; font-weight: 600; }
+  .cont-aviso a, .cont-suave a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+  .cont-suave { margin-top: 6px; color: var(--text-muted); font-size: 14px; }
+  .pg-hueco-suave { color: var(--text-muted); font-weight: 600; }
+  /* ── CUADRAR KM ──────────────────────────────── */
+  .cuadre-chips { display: flex; gap: 12px; flex-wrap: wrap; }
+  .cuadre-chip { display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 10px; min-width: 120px; }
+  .cuadre-chip b { font-family: var(--font-mono); font-size: 24px; font-weight: 600; line-height: 1.1; }
+  .cuadre-chip span { font-size: 12.5px; color: var(--text-muted); }
+  .cuadre-chip.aviso { border-color: var(--warn-border); background: var(--warn-bg-soft); }
+  .cuadre-estado, .cuadre-nota { font-size: 13px; color: var(--text-muted); margin: 12px 0 0; line-height: 1.5; }
+  .cuadre-nota { margin: 0 0 12px; }
+  .cuadre-opciones { display: flex; flex-direction: column; gap: 9px; font-size: 13px; }
+  .cuadre-opciones label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; line-height: 1.4; }
+  .cuadre-opciones input { margin-top: 3px; }
+  .cuadre-tabla { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .cuadre-tabla td, .cuadre-tabla th { white-space: nowrap; }
+  .cuadre-km { color: var(--text-muted); font-size: 12px; margin-left: 4px; }
+  .cuadre-hueco { display: flex; gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .cuadre-hueco:first-of-type { border-top: 0; }
+  .cuadre-hueco.sospechoso { background: var(--warn-bg-soft); padding-left: 10px; border-radius: 8px; }
+  .cuadre-aviso { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .cuadre-aviso-fila { display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; }
   .paginador { display: inline-flex; align-items: center; gap: 8px; }
 
   /* ── VEHÍCULOS ───────────────────────────────── */

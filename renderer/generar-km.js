@@ -6,12 +6,14 @@
 // como usan aleatoriedad, guardan EXACTAMENTE lo previsualizado (aplicarPlanKm).
 
 let gkPlanActual = null; // { vid, asignaciones:[{practica_id,km_inicial,km_final}] }
+let gkVehiculoPreferido = null; // coche que debe quedar elegido al abrir la pantalla (viene de un aviso)
 
 async function loadGenerarKm() {
   const vehiculos = await window.api.getVehiculos(getSucursalActual());
   const sel = document.getElementById('gk-vehiculo');
   if (!sel) return;
-  const previo = sel.value;
+  const previo = gkVehiculoPreferido != null ? String(gkVehiculoPreferido) : sel.value;
+  gkVehiculoPreferido = null;
   sel.innerHTML = vehiculos.length
     ? vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + v.matricula + ')' : ''}${v.activo === false ? ' · retirado' : ''}</option>`).join('')
     : '<option value="">Sin vehículos</option>';
@@ -24,11 +26,17 @@ async function loadGenerarKm() {
 
   gkLimpiarPreview();
   gkActualizarContador();
+  if (gkTabActual() === 'cuadrar') cuadreCargar();
+}
+
+function gkTabActual() {
+  return document.querySelector('#generar-km-tabs .page-tab.active')?.dataset.tab || 'cuadrar';
 }
 
 function gkCambioVehiculo() {
   gkLimpiarPreview();
   gkActualizarContador();
+  if (gkTabActual() === 'cuadrar') cuadreCargar();
 }
 
 async function gkActualizarContador() {
@@ -47,6 +55,7 @@ function cambiarTabGenerarKm(modo) {
   gkLimpiarPreview();
   const alert = document.getElementById('gk-enc-alert');
   if (alert) alert.classList.add('hidden');
+  if (modo === 'cuadrar') cuadreCargar();
 }
 
 function gkLimpiarPreview() {

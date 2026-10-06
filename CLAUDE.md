@@ -13,10 +13,10 @@ Aplicación de escritorio (Windows) para una autoescuela: gestiona vehículos, a
 ```
 main.js       → proceso principal Electron: ventana, IPC handlers, auto-updater
 preload.js    → contextBridge, expone window.api al renderer
-index.html    → SPA (solo HTML), enlaza styles.css y los 39 <script> de renderer/
+index.html    → SPA (solo HTML), enlaza styles.css y los 40 <script> de renderer/
 styles.css    → CSS de la app de escritorio (sistema ámbar/tinta), temas [data-theme="oscuro"/"negro"], paleta de gráficos
 fonts/        → Barlow, Barlow Condensed, IBM Plex Mono (woff2 locales; también en web-remote/fonts/)
-renderer/     → UI (vanilla JS) dividida en 39 <script> clásicos (globales, no módulos ES),
+renderer/     → UI (vanilla JS) dividida en 40 <script> clásicos (globales, no módulos ES),
                 cargados en orden fijo desde index.html; arranque.js SIEMPRE el último
   estado.js, utils-ui.js → estado, modales, esc/fmt/fmtFecha/tagPermiso, TEMA, toasts
   dashboard.js, vehiculos.js, profesores.js, alumnos.js, practicas.js, pagos.js → CRUD
@@ -28,6 +28,7 @@ renderer/     → UI (vanilla JS) dividida en 39 <script> clásicos (globales, n
   roles.js → funciones de gestión de roles jefe/empleado (modo clásico ↔ multi-empresa)
   sucursales.js → selector de sucursal en la barra, filtrado por sede
   migracion.js → «Traer de otro programa»: asistente para importar alumnos/clases (vista previa, deshacer)
+  cuadrar-km.js → pestaña «Cuadrar» de Cuadrar y generar km + franja de aviso en Prácticas
   historial-pantallas.js → botones laterales del ratón / Alt+←→: pantalla anterior y siguiente
   arranque.js → bienvenida + código de arranque (siempre el último)
 db.js         → índice de 40 líneas que re-exporta db/ (misma superficie pública, 51 exports)
@@ -35,6 +36,7 @@ db/           → CRUD + algoritmos de km, por módulo
   core.js         → rutas, caché de data.json, save/nextId, logs, backups
   vehiculos.js, profesores.js, tarifas.js, alumnos.js, practicas.js, pagos.js, csv.js
   km-algoritmos.js → solapamientos, relleno masivo, corrección
+  cuadre-km.js → Cuadrar km: ordena por fecha y hora, arregla km imposibles, reparte huecos entre clases sin km (vista previa, aplicar y deshacer)
   estadisticas.js  → resumen, dashboard, timeline, estadísticas por profesor
   sucursales.js → CRUD sucursales (modo multi-empresa con migración pendiente)
   ajustes-empresa.js → ajustes compartidos con la web (zonas de prácticas)
@@ -47,7 +49,7 @@ db/           → CRUD + algoritmos de km, por módulo
   lector-tablas.js → leer Excel/ODS/DBF (SheetJS) y CSV/TXT/texto pegado con cualquier separador y codificación
 sync.js       → sincronización bidireccional con Supabase (auto-sync cada 2 min), resolución de colisiones
 migraciones/  → migraciones SQL de Supabase escritas pero NO APLICADAS (roles + sucursales)
-web-remote/   → web móvil + API serverless (deploy: cd web-remote && vercel --prod --yes); instalable como app (PWA: manifest.webmanifest, sw.js, icons/)
+web-remote/   → web móvil + API serverless (deploy: cd web-remote && vercel --prod --yes); instalable como app (PWA: manifest.webmanifest, sw.js, icons/) y que funciona SIN COBERTURA (offline.js: cola de envíos y caché en la tablet)
 CONTEXT.md    → documentación técnica detallada (arquitectura, funciones, endpoints)
 RELEASE.md    → proceso paso a paso para publicar una nueva versión (automatizado en /publicar-release)
 CHANGELOG-SECURITY.md → auditoría de seguridad de julio 2026 y pendientes
@@ -75,7 +77,9 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-10-04. El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-10-06. El detalle histórico completo está en HISTORIAL.md._
+
+- **v1.28.0 (2026-10-06) — Cuadrar km y la web móvil sin cobertura (escritorio PUBLICADO; web DESPLEGADA):** los profesores empezaron a dar clases antes de traer los datos y el cuentakilómetros del coche salía con huecos («+954 km sin asignar») y solapes (clase `0 → 30`). **Cuadrar km** (`db/cuadre-km.js`, pestaña Cuadrar de «Cuadrar y generar km», aviso en Prácticas y Panel): ordena las clases por fecha y hora, repara las que tienen km imposibles, reparte entre las clases sin km los km que hay entre dos clases con km (solo si es creíble; si sobran muchos km faltan clases por traer y NO se inventan: queda como tramo sin explicar que se puede dar por revisado), vista previa, aplicar y **deshacer**. La lista de Prácticas ya no culpa a la clase siguiente: la rota se señala a sí misma y los huecos ≤ 15 km son normales. En el Taigo real (copia): 34 clases por repartir + 1 recolocada + 3 tramos donde faltan clases. **Web sin cobertura** (`web-remote/offline.js`, `sw.js` v3, `/api/registrar-clase`): la web se abre sin red, trabaja con la última copia de coches/alumnos/jornada, una clase empezada, finalizada y firmada sin red se guarda en la tablet (IndexedDB) y se envía sola al volver la cobertura (reenviable sin duplicar; si algo no se puede enviar sale en «Pendientes de enviar»). Un km inicial 300 km por encima del último del coche pide confirmación. Sin migraciones. Jest 546/60 + test:api 76 (api + cola + service worker).
 
 - **v1.27.1 (2026-10-04) — varios expedientes por persona (escritorio PUBLICADO; web sin cambios):** en Ariauto cada permiso o curso es una ficha con su nº (416 personas con 2–7 fichas): ahora cada una entra como alumno aparte con su nº, sus clases y exámenes; la misma ficha copiada en la sección de cursos (mismo nº y permiso) se junta; al alumno de la app le toca la ficha de su permiso actual (mismo permiso, en curso, la más reciente) y dos personas distintas que se llaman igual no se mezclan (`revisar`). Igual en Excel/CSV (`asignarExpedientes`, `elegirExpediente`), Puesta en marcha deja dar de alta otro permiso de la misma persona y la ficha enseña «Otros expedientes» (mismo DNI). Jest 523/59.
 
