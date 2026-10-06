@@ -50,6 +50,8 @@ async function loadAlumnos() {
   alumnosConteoTabs = Object.fromEntries(Object.keys(PREDICADOS_TAB_ALUMNOS).map(t => [t, lista.filter(a => a._tabs[t]).length]));
   poblarFiltrosAlumnos();
   renderAlumnosTabla();
+  // Fichas por revisar (apellidos dentro del nombre, alumnos repetidos): renderer/alumnos-repetidos.js
+  if (typeof avisoAlumnosRepetidos === 'function') avisoAlumnosRepetidos();
 }
 
 // ─── Filtros y ordenación de la tabla de alumnos (en memoria, sobre alumnosCache) ───
@@ -579,7 +581,7 @@ const FD_GRUPOS = [
     { c: 'fecha_alta', l: 'Alta', t: 'fecha' }, { c: 'fecha_teorico', l: 'Teórico aprobado', t: 'fecha' }, { c: 'fecha_fin', l: 'Fin de la enseñanza', t: 'fecha' },
     { c: 'resultado', l: 'Resultado final', t: 'select', op: [['', '—'], ['apto', 'Apto'], ['no_apto', 'No apto'], ['baja', 'Baja']] },
     { c: 'n_solicitud', l: 'Nº de solicitud', t: 'num', ayuda: 'Solicitud del expediente en Tráfico' }, { c: 'convocatoria', l: 'Convocatoria', t: 'num' },
-    { c: 'clases_previas', l: 'Clases antes de la app', t: 'num', ayuda: 'Punto de partida: la numeración de clases y los totales continúan desde aquí' },
+    { c: 'clases_previas', l: 'Clases antes de la app', t: 'clases', ayuda: 'Punto de partida: la numeración de clases y los totales continúan desde aquí. De ¼ en ¼ (12 · 12,5 · 12 ½)' },
     { c: 'km_previos', l: 'Km antes de la app', t: 'num' }] },
   { titulo: 'Salud, tutor y facturación', campos: [
     { c: 'centro_medico', l: 'Centro médico' }, { c: 'restricciones', l: 'Restricciones', ayuda: 'Lentes, condiciones restrictivas, validez limitada…' },
@@ -598,6 +600,7 @@ function fdValorTexto(a, campo) {
   const vacio = v == null || v === '' || (Array.isArray(v) && !v.length);
   if (campo.c === 'profesor_id') return a.profesor_nombre ? esc(a.profesor_nombre) : null;
   if (campo.c === 'vehiculo_id') return a.vehiculo_nombre ? `${esc(a.vehiculo_nombre)}${a.vehiculo_matricula ? ' · ' + esc(a.vehiculo_matricula) : ''}` : null;
+  if (campo.c === 'clases_previas') return v > 0 ? fmtClases(v) : null;
   if (FD_PUNTO_PARTIDA.includes(campo.c)) return v > 0 ? fmtMiles(v) : null;
   if (vacio) return null;
   if (campo.c === 'dni_caducidad') {
@@ -626,6 +629,7 @@ function fdEntrada(a, campo) {
   switch (campo.t) {
     case 'fecha': return `<input type="date" ${attr} value="${esc(val)}">`;
     case 'num': return `<input type="number" min="0" ${attr} value="${v > 0 ? v : ''}" placeholder="0">`;
+    case 'clases': return `<input type="text" inputmode="decimal" ${attr} value="${clasesEnCasilla(v)}" placeholder="0" title="De ¼ en ¼: 12 · 12,25 · 12,5 · 12,75 (o 12 ½)">`;
     case 'tel': return `<input type="tel" ${attr} value="${esc(val)}">`;
     case 'email': return `<input type="email" ${attr} value="${esc(val)}" placeholder="alumno@email.com">`;
     case 'texto': return `<textarea ${attr} rows="3" placeholder="Notas sobre el alumno…">${esc(val)}</textarea>`;
@@ -744,13 +748,16 @@ async function guardarDatosFicha() {
       return;
     }
     if (FD_PUNTO_PARTIDA.includes(c)) {
-      if ((parseInt(nuevo) || 0) !== (viejo || 0)) previasCambiadas = true;
+      const n = c === 'clases_previas' ? (leerClases(nuevo) || 0) : (parseInt(nuevo) || 0);
+      if (n !== (viejo || 0)) previasCambiadas = true;
       return;
     }
     if (String(nuevo) !== String(viejo ?? '')) cambios[c] = nuevo;
   });
   if ('nombre' in cambios && !cambios.nombre) { showToast('fd-alerta', 'El nombre no puede quedar vacío.', 'err'); document.getElementById('fd-nombre')?.focus(); return; }
   if ('email' in cambios && !emailValido(cambios.email)) { showToast('fd-alerta', 'El email no tiene un formato válido.', 'err'); document.getElementById('fd-email')?.focus(); return; }
+  const previasTxt = (document.getElementById('fd-clases_previas')?.value || '').trim();
+  if (previasTxt && previasTxt !== '0' && leerClases(previasTxt) == null) { showToast('fd-alerta', `«${previasTxt}» no vale: las clases van de ¼ en ¼ (12 · 12,25 · 12,5 · 12,75 o 12 ½).`, 'err'); document.getElementById('fd-clases_previas')?.focus(); return; }
   if (!Object.keys(cambios).length && !previasCambiadas) { cancelarDatosFicha(); return; }
   if (cambios.n_registro) {
     const otro = await window.api.getAlumnoConNRegistro(cambios.n_registro, a.id);
@@ -764,7 +771,7 @@ async function guardarDatosFicha() {
     if (!r || !r.ok) { showToast('fd-alerta', (r && r.error) || 'No se pudieron guardar los cambios.', 'err'); return; }
   }
   if (previasCambiadas) {
-    const clases = parseInt(document.getElementById('fd-clases_previas')?.value) || 0;
+    const clases = leerClases(document.getElementById('fd-clases_previas')?.value) || 0;
     const km = parseInt(document.getElementById('fd-km_previos')?.value) || 0;
     await window.api.setPuntoDePartidaAlumno(a.id, clases, km);
   }

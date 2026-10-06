@@ -229,6 +229,25 @@ export async function traerTodo(construir, tam = 1000) {
 // Nombre completo del alumno (nombre + apellidos si los tiene).
 export const nombreCompleto = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '';
 
+// Clave para saber si dos nombres son la misma persona: sin tildes, mayúsculas
+// ni partículas y en cualquier orden (igual que db/migracion.js del escritorio).
+const PARTICULAS_NOMBRE = new Set(['de', 'del', 'la', 'las', 'los', 'y', 'i', 'e', 'da', 'das', 'do', 'dos', 'van', 'von', 'der', 'di', 'san', 'santa']);
+export function claveNombre(...partes) {
+  return String(partes.filter(Boolean).join(' ')).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^a-z0-9ñ]+/g, ' ').trim().split(' ').filter(w => w && !PARTICULAS_NOMBRE.has(w)).sort().join(' ');
+}
+// DNI / NIE sin espacios ni guiones, con los ceros que faltan y la letra
+// calculada si no la lleva (como limpiarDni del escritorio). '' si no hay.
+const LETRAS_DNI = 'TRWAGMYFPDXBNJZSQVHLCKE';
+export function limpiarDni(v) {
+  let t = String(v == null ? '' : v).toUpperCase().replace(/[\s.\-_/]/g, '');
+  if (!t) return '';
+  if (/^\d{6,8}$/.test(t)) { t = t.padStart(8, '0'); t += LETRAS_DNI[parseInt(t, 10) % 23]; }
+  if (/^\d{6,7}[A-Z]$/.test(t)) t = t.padStart(9, '0');
+  if (/^[XYZ]\d{6}[A-Z]$/.test(t)) t = t[0] + '0' + t.slice(1);
+  return t.slice(0, 20);
+}
+
 // Siguiente nº de registro del alumno: la numeración correlativa que ya haya
 // (el mayor + 1); la que lleva el año delante (2026082, 200801) solo si es la
 // única. Sin ningún número todavía → null. Misma regla que el escritorio
@@ -459,6 +478,47 @@ export async function topeKmSiguiente(supabase, empresaId, vehiculoId, kmIni, ex
     .gt('km_inicial', kmIni).neq('id', excluirId).order('km_inicial', { ascending: true }).limit(1);
   if (error) return { error };
   return { tope: data && data.length ? data[0].km_inicial : null };
+}
+
+// Km del coche alrededor de un momento (una clase que se anota días después o
+// que se cierra tarde): la última clase con km que TERMINÓ antes (`anterior`,
+// su km final = donde empieza la nueva) y la primera que EMPEZÓ después
+// (`siguiente`, su km inicial = de donde no puede pasar). Antes = días
+// anteriores y, ese mismo día, las de hora anterior; sin hora (la nueva o la
+// otra), las de ese día cuentan como anteriores (la nueva va al final del día).
+// Las clases en blanco (0/0) no cuentan. `excluir` = ids que no se miran (la
+// propia clase). Devuelve { anterior, siguiente } con { id, km, fecha, hora,
+// alumno } o null; { error } si falla la consulta.
+export async function kmAlrededor(supabase, empresaId, vehiculoId, fecha, hora = null, excluir = []) {
+  const h = hhmmValido(hora) ? hora : null;
+  const fuera = new Set((excluir || []).map(Number));
+  const esAntes = p => p.fecha < fecha || (p.fecha === fecha && (!h || !p.hora_inicio || p.hora_inicio < h));
+  const cols = 'id, alumno_id, fecha, hora_inicio, km_inicial, km_final';
+  const [rA, rS] = await Promise.all([
+    supabase.from('practicas').select(cols)
+      .eq('vehiculo_id', vehiculoId).eq('deleted', false).eq('empresa_id', empresaId)
+      .lte('fecha', fecha).gt('km_final', 0)
+      .order('fecha', { ascending: false }).order('km_final', { ascending: false }).limit(40),
+    supabase.from('practicas').select(cols)
+      .eq('vehiculo_id', vehiculoId).eq('deleted', false).eq('empresa_id', empresaId)
+      .gte('fecha', fecha).gt('km_inicial', 0)
+      .order('fecha', { ascending: true }).order('km_inicial', { ascending: true }).limit(40)
+  ]);
+  if (rA.error) return { error: rA.error };
+  if (rS.error) return { error: rS.error };
+  const ant = (rA.data || []).filter(p => !fuera.has(p.id) && esAntes(p))
+    .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.km_final - a.km_final)[0] || null;
+  const sig = (rS.data || []).filter(p => !fuera.has(p.id) && !esAntes(p) && (!ant || p.km_inicial >= ant.km_final))
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.km_inicial - b.km_inicial)[0] || null;
+  const ids = [ant, sig].filter(Boolean).map(p => p.alumno_id).filter(v => v != null);
+  let nombres = {};
+  if (ids.length) {
+    let { data, error } = await supabase.from('alumnos').select('id, nombre, primer_apellido, segundo_apellido').in('id', [...new Set(ids)]);
+    if (error && esErrorColumnaInexistente(error)) ({ data } = await supabase.from('alumnos').select('id, nombre').in('id', [...new Set(ids)]));
+    nombres = Object.fromEntries((data || []).map(a => [a.id, nombreCompleto(a)]));
+  }
+  const forma = (p, km) => p ? { id: p.id, km, fecha: p.fecha, hora: p.hora_inicio || null, alumno: nombres[p.alumno_id] || null } : null;
+  return { anterior: forma(ant, ant && ant.km_final), siguiente: forma(sig, sig && sig.km_inicial) };
 }
 
 // Clases de la misma sesión que `p`: mismo alumno, coche y día, cerradas y con

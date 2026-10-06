@@ -16,6 +16,7 @@
 
 const { load, save, nextId, _sync, addLog, crearBackup } = require('./core');
 const { contarClasesAnteriores } = require('./clases-anteriores');
+const { leerCantidadClases, aCuartos, fmtClases } = require('./core');
 const { siguienteNRegistro, alumnoConNRegistro } = require('./campos-extra');
 
 // Los que ya terminaron no se listan aquí (tras traer los de otro programa
@@ -29,6 +30,8 @@ const entero = (v, max = 2000000) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0;
 };
+// Clases (de ¼ en ¼: 12, 12,5, «12 ½»…); 0 si no se entiende
+const cuartos = (v, max = 500) => { const n = leerCantidadClases(v); return n ? Math.min(n, max) : 0; };
 const texto = (v, max = 80) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, max);
 const idONull = v => (v == null || v === '' || isNaN(parseInt(v)) ? null : parseInt(v));
 const kmDe = p => (p.km_final > 0 && p.km_inicial >= 0 ? Math.max(0, p.km_final - p.km_inicial) : 0);
@@ -38,7 +41,7 @@ function setPuntoDePartidaAlumno(id, clases_previas, km_previos) {
   const d = load();
   const a = d.alumnos.find(x => x.id === parseInt(id));
   if (!a) return false;
-  a.clases_previas = entero(clases_previas, 500);
+  a.clases_previas = cuartos(clases_previas, 500);
   a.km_previos = entero(km_previos, 100000);
   save();
   const s = _sync(); if (s) s.markDirty('alumnos', a.id);
@@ -135,7 +138,7 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
   }
   alumnos.forEach((a, i) => {
     const nombre = texto(a.nombre);
-    const hayDatos = texto(a.primer_apellido) || entero(a.clases_previas) || entero(a.km_previos);
+    const hayDatos = texto(a.primer_apellido) || cuartos(a.clases_previas) || entero(a.km_previos);
     if (!a.id && !nombre && hayDatos) errores.push(`Alumno de la fila ${i + 1}: falta el nombre.`);
     if (!a.id && nombre) {
       const k = claveNombre(nombre, texto(a.primer_apellido), texto(a.segundo_apellido));
@@ -154,9 +157,13 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
       const otro = alumnoConNRegistro(d.alumnos, nReg, a.id || null);
       if (otro) errores.push(`${nombre || 'Alumno de la fila ' + (i + 1)}: el nº de registro ${nReg} ya lo tiene ${nombreCompleto(otro)}.`);
     }
+    const previasTxt = texto(a.clases_previas, 20);
+    if (previasTxt && previasTxt !== '0' && !leerCantidadClases(previasTxt)) {
+      errores.push(`${nombre || 'Alumno de la fila ' + (i + 1)}: «${previasTxt}» clases ya hechas no vale; van de ¼ en ¼ (12 · 12,25 · 12,5 · 12,75 o 12 ½).`);
+    }
     const creadas = a.id ? anteriores.get(a.id) || 0 : 0;
-    if (creadas && entero(a.clases_previas, 500) < creadas) {
-      errores.push(`${nombre || 'Alumno de la fila ' + (i + 1)}: ya tiene ${creadas} clases anteriores creadas; para poner menos, borra antes algunas en «Anotar».`);
+    if (creadas && cuartos(a.clases_previas, 500) < creadas) {
+      errores.push(`${nombre || 'Alumno de la fila ' + (i + 1)}: ya tiene ${fmtClases(creadas)} clases anteriores creadas; para poner menos, borra antes algunas en «Anotar».`);
     }
   });
   if (errores.length) return { ok: false, errores, creados, actualizados };
@@ -211,7 +218,7 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
       permiso: texto(a.permiso, 6) || 'B',
       profesor_id: idONull(a.profesor_id),
       vehiculo_id: vehiculoId(a.vehiculo_id),
-      clases_previas: Math.max(0, entero(a.clases_previas, 500) - (a.id ? anteriores.get(a.id) || 0 : 0)),
+      clases_previas: Math.max(0, aCuartos(cuartos(a.clases_previas, 500) - (a.id ? anteriores.get(a.id) || 0 : 0))),
       km_previos: entero(a.km_previos, 100000)
     };
     // Nº de registro: solo si la fila lo trae; en las nuevas sin número, el siguiente

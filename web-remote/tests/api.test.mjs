@@ -8,7 +8,7 @@ const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const TOKEN = `x.${b64({ sub: 'emp1' })}.y`;
 
 async function llamar(nombre, { method = 'POST', body, query } = {}) {
-  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
+  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor','km-coche'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
   let status = 200, json;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
   await mod.default({ method, headers: { authorization: 'Bearer ' + TOKEN }, body, query }, res);
@@ -757,4 +757,109 @@ test('finalizar-practica con km_calculado (la tablet puso los km sin cobertura):
   assert.equal(r.status, 200); assert.equal(r.json.km_final, 1023);
   const p = BD.tablas.practicas.find(x => x.id === ini1.json.practica_id);
   assert.deepEqual([p.km_final, p.tipo_detalle], [1023, 'km_auto']);
+});
+
+// ─── 2026-10-06: km de la clase anterior, avisos por profesor y alta con apellidos ─────
+const masPracticas = () => {
+  const b = base();
+  b.practicas.push(
+    { id: 10, alumno_id: 1, vehiculo_id: 1, fecha: haceDias(5), hora_inicio: '09:00', km_inicial: 1000, km_final: 1040, profesor_id: 1, deleted: false, empresa_id: 'emp1' },
+    { id: 11, alumno_id: 2, vehiculo_id: 1, fecha: haceDias(3), hora_inicio: '18:00', km_inicial: 1040, km_final: 1080, profesor_id: 1, deleted: false, empresa_id: 'emp1' },
+    { id: 12, alumno_id: 1, vehiculo_id: 1, fecha: haceDias(1), hora_inicio: '10:00', km_inicial: 1130, km_final: 1170, profesor_id: 1, deleted: false, empresa_id: 'emp1' },
+    { id: 13, alumno_id: 1, vehiculo_id: 1, fecha: haceDias(2), hora_inicio: null, km_inicial: 0, km_final: 0, profesor_id: 1, deleted: false, empresa_id: 'emp1' });
+  return b;
+};
+
+test('km-coche: la clase anterior y la siguiente del coche según día y hora (las en blanco no cuentan)', async () => {
+  reiniciar(masPracticas());
+  let r = await llamar('km-coche', { method: 'GET', query: { vehiculo_id: '1', fecha: haceDias(2) } });
+  assert.equal(r.status, 200);
+  assert.deepEqual([r.json.anterior.km, r.json.anterior.id, r.json.anterior.alumno], [1080, 11, 'Pablo Ortega']);
+  assert.deepEqual([r.json.siguiente.km, r.json.siguiente.id], [1130, 12]);
+  // Mismo día que la de las 18:00: a las 12:00 va antes que ella
+  r = await llamar('km-coche', { method: 'GET', query: { vehiculo_id: '1', fecha: haceDias(3), hora: '12:00' } });
+  assert.deepEqual([r.json.anterior.id, r.json.siguiente.id], [10, 11]);
+  // Sin hora, las de ese día cuentan como anteriores
+  r = await llamar('km-coche', { method: 'GET', query: { vehiculo_id: '1', fecha: haceDias(3) } });
+  assert.deepEqual([r.json.anterior.id, r.json.siguiente.id], [11, 12]);
+  // Excluir la propia clase (cerrar una que quedó sin cerrar)
+  r = await llamar('km-coche', { method: 'GET', query: { vehiculo_id: '1', fecha: haceDias(1), hora: '09:00', excluir: '12' } });
+  assert.equal(r.json.siguiente, null);
+  assert.equal((await llamar('km-coche', { method: 'GET', query: { vehiculo_id: '9', fecha: haceDias(1) } })).status, 404);
+  assert.equal((await llamar('km-coche', { method: 'GET', query: { vehiculo_id: '1', fecha: 'ayer' } })).status, 400);
+});
+
+test('anotar-practica con km_auto: empieza donde acabó la clase anterior del coche y no pasa de la siguiente', async () => {
+  reiniciar(masPracticas());
+  BD.tablas.ajustes_empresa = [{ empresa_id: 'emp1', clave: 'km_auto_movil', valor: { min: 40, max: 50 } }];
+  const r = await llamar('anotar-practica', { body: anot({ km_inicial: undefined, km_final: undefined, km_auto: true, fecha: haceDias(2), hora_inicio: '12:00', hora_fin: '13:30' }) });
+  assert.equal(r.status, 200); assert.equal(r.json.km_auto, true); assert.equal(r.json.km_inicial, 1080);
+  assert.ok(r.json.km_final >= 1120 && r.json.km_final <= 1130, 'entre 40 y 50 km y sin pasar de 1130');
+  const ps = r.json.practica_ids.map(id => BD.tablas.practicas.find(x => x.id === id));
+  assert.equal(ps[0].km_inicial, 1080); assert.equal(ps[ps.length - 1].km_final, r.json.km_final);
+  assert.equal(ps[0].tipo_detalle, 'anotada');
+});
+
+test('anotar-practica con km_auto: sin clase anterior con km, o sin sitio, pide escribirlos (409)', async () => {
+  reiniciar(base()); BD.tablas.practicas = [];
+  let r = await llamar('anotar-practica', { body: anot({ km_inicial: undefined, km_final: undefined, km_auto: true }) });
+  assert.equal(r.status, 409); assert.equal(r.json.codigo, 'sin_km_anterior');
+  reiniciar(masPracticas());
+  // Entre la de hace 3 días (1080) y una que empieza en 1081 no caben 2 clases
+  BD.tablas.practicas.find(x => x.id === 12).km_inicial = 1081;
+  r = await llamar('anotar-practica', { body: anot({ km_inicial: undefined, km_final: undefined, km_auto: true, fecha: haceDias(2) }) });
+  assert.equal(r.status, 409); assert.equal(r.json.codigo, 'km_no_caben');
+  assert.equal(BD.tablas.practicas.length, 5);
+});
+
+test('anotar-practica: unos km que pisan una clase sin cerrar del coche se rechazan', async () => {
+  reiniciar(base());
+  BD.tablas.practicas.push({ id: 20, alumno_id: 1, vehiculo_id: 1, fecha: haceDias(1), hora_inicio: '09:00', km_inicial: 1030, km_final: 0, deleted: false, empresa_id: 'emp1' });
+  const r = await llamar('anotar-practica', { body: anot({ km_inicial: 1000, km_final: 1060 }) });
+  assert.equal(r.status, 409); assert.equal(r.json.solape, true); assert.match(r.json.error, /sin cerrar/);
+});
+
+test('avisos: no se programan los de una clase de otro profesor (teléfono en otro perfil)', async () => {
+  reiniciar(base()); reiniciarPush();
+  await llamarAvisos('avisos', { accion: 'suscribir', suscripcion: sus, profesor_id: 1 });
+  BD.tablas.profesores.push({ id: 2, nombre: 'Marta', deleted: false, empresa_id: 'emp1' });
+  const { json: { practica_id } } = await llamar('iniciar-practica', { body: ini({ profesor_id: 2 }) });
+  const lista = [{ tipo: 'fin', enviar_en: enMin(45), titulo: 'Hora de terminar' }];
+  const otro = await llamarAvisos('avisos', { accion: 'programar', endpoint: EP, practica_id, profesor_id: 1, avisos: lista });
+  assert.equal(otro.status, 200); assert.equal(otro.json.programados, 0); assert.equal(otro.json.otro_profesor, true);
+  assert.equal((BD.tablas.avisos_push || []).length, 0);
+  // El de su profesor sí; y el teléfono queda apuntado con su perfil
+  const suyo = await llamarAvisos('avisos', { accion: 'programar', endpoint: EP, practica_id, profesor_id: 2, avisos: lista });
+  assert.equal(suyo.json.programados, 1);
+  assert.equal(BD.tablas.push_suscripciones[0].profesor_id, 2);
+});
+
+test('hoy: cada práctica lleva su profesor', async () => {
+  reiniciar(base());
+  await llamar('iniciar-practica', { body: ini() });
+  const r = await llamar('hoy', { method: 'GET', query: { fecha: hoy(), hoy: hoy() } });
+  assert.equal(r.json.practicas[0].profesor_id, 1);
+});
+
+test('crear-alumno: nombre y apellidos por separado, con DNI y teléfono', async () => {
+  reiniciar(base());
+  const r = await llamar('crear-alumno', { body: { nombre: 'Ana María', primer_apellido: 'López', segundo_apellido: 'de la Fuente', dni: '1234567-l', telefono: '600 11 22 33', permiso: 'B' } });
+  assert.equal(r.status, 200);
+  const a = BD.tablas.alumnos.find(x => x.id === r.json.alumno_id);
+  assert.deepEqual([a.nombre, a.primer_apellido, a.segundo_apellido, a.dni, a.telefono], ['Ana María', 'López', 'de la Fuente', '01234567L', '600 11 22 33']);
+});
+
+test('crear-alumno: avisa si ya existe (mismo nombre en cualquier orden y sin tildes, o mismo DNI) y crea solo si se fuerza', async () => {
+  reiniciar(base());
+  BD.tablas.alumnos.push({ id: 3, nombre: 'José', primer_apellido: 'García', segundo_apellido: 'Pérez', dni: '12345678Z', permiso: 'B', n_registro: '4900', deleted: false, empresa_id: 'emp1' });
+  let r = await llamar('crear-alumno', { body: { nombre: 'jose', primer_apellido: 'garcia perez', permiso: 'B' } });
+  assert.equal(r.status, 409); assert.equal(r.json.codigo, 'posible_duplicado'); assert.equal(r.json.alumno.id, 3); assert.equal(r.json.por_dni, false);
+  r = await llamar('crear-alumno', { body: { nombre: 'Pepe', primer_apellido: 'García', dni: '12.345.678-z', permiso: 'A2' } });
+  assert.equal(r.status, 409); assert.equal(r.json.por_dni, true);
+  // Lucía Martín (nombre y apellido juntos en «nombre», como antes) también se reconoce
+  r = await llamar('crear-alumno', { body: { nombre: 'Lucía', primer_apellido: 'Martín', permiso: 'B' } });
+  assert.equal(r.status, 409); assert.equal(r.json.alumno.id, 1);
+  const antes = BD.tablas.alumnos.length;
+  r = await llamar('crear-alumno', { body: { nombre: 'Lucía', primer_apellido: 'Martín', permiso: 'B', forzar: true } });
+  assert.equal(r.status, 200); assert.equal(BD.tablas.alumnos.length, antes + 1);
 });

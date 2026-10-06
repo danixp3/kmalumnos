@@ -109,9 +109,9 @@ test('la exportación devuelve un CSV con cabecera y una línea por práctica', 
 
   expect(res.total).toBe(1);
   const lineas = res.csv.split('\n');
-  expect(lineas[0]).toBe('alumno,vehiculo,fecha,km_inicial,km_final,hora_inicio,profesor,dni');
+  expect(lineas[0]).toBe('alumno,vehiculo,fecha,km_inicial,km_final,hora_inicio,profesor,dni,clases');
   // hora_inicio, profesor y dni van al final y quedan en blanco si no los hay
-  expect(lineas[1]).toBe('Ana,Coche 1,2026-07-01,100,140,,,');
+  expect(lineas[1]).toBe('Ana,Coche 1,2026-07-01,100,140,,,,');
 });
 
 test('importa hora_inicio y profesor opcionales (crea el profesor por nombre)', () => {
@@ -147,7 +147,7 @@ test('exporta la hora y el nombre del profesor cuando la práctica los tiene', (
   ]);
   expect(res.insertados).toBe(1);
   const linea = db.exportarCSV().csv.split('\n')[1];
-  expect(linea).toBe('Ana,Coche 1,2026-07-01,100,140,08:30,Luis Marín,');
+  expect(linea).toBe('Ana,Coche 1,2026-07-01,100,140,08:30,Luis Marín,,');
 });
 
 test('acepta fechas dd/mm/aaaa y empareja al alumno por nombre y apellidos o por DNI (sin duplicarlo)', () => {
@@ -161,5 +161,5 @@ test('acepta fechas dd/mm/aaaa y empareja al alumno por nombre y apellidos o por
   expect(db.getAlumnos()).toHaveLength(1);
   expect(db.getPracticasByAlumno(aid).map(p => p.fecha).sort()).toEqual(['2026-07-01', '2026-07-02']);
   // La exportación lleva nombre completo y DNI para cruzarla con otro programa
-  expect(db.exportarCSV().csv.split('\n')[1]).toBe('Lucía Martín Gómez,Coche 1,2026-07-01,100,140,,,12345678Z');
+  expect(db.exportarCSV().csv.split('\n')[1]).toBe('Lucía Martín Gómez,Coche 1,2026-07-01,100,140,,,12345678Z,');
 });

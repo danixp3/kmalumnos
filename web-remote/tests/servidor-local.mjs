@@ -11,6 +11,7 @@ const { reiniciar, BD } = await import(pathToFileURL(RAIZ + '/tests/fake-supabas
 process.env.SUPABASE_URL = 'http://fake'; process.env.SUPABASE_ANON_KEY = 'fake';
 
 const hoy = () => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; };
+const haceDias = k => { const n = new Date(); n.setDate(n.getDate() - k); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; };
 const e = 'emp1';
 reiniciar({
   vehiculos: [{ id: 1, nombre: 'TAIGO', matricula: '6664NNM', km_actual: 17839, deleted: false, empresa_id: e, activo: true },
@@ -18,13 +19,19 @@ reiniciar({
   alumnos: [{ id: 1, nombre: 'NICOLAS', primer_apellido: 'PEREZ', permiso: 'B', vehiculo_id: 1, profesor_id: 1, deleted: false, empresa_id: e, estado: 'activo', clases_previas: 16 },
             { id: 2, nombre: 'MARICELY', primer_apellido: 'AMIGO', permiso: 'B', vehiculo_id: 1, profesor_id: 1, deleted: false, empresa_id: e, estado: 'activo', clases_previas: 15 },
             { id: 3, nombre: 'HUGO', primer_apellido: 'CERDEIRA', permiso: 'B', vehiculo_id: 2, profesor_id: 1, deleted: false, empresa_id: e, estado: 'activo' }],
-  profesores: [{ id: 1, nombre: 'JAVIER PÉREZ ALONSO', vehiculo_id: 1, deleted: false, empresa_id: e }],
+  profesores: [{ id: 1, nombre: 'JAVIER PÉREZ ALONSO', vehiculo_id: 1, deleted: false, empresa_id: e },
+               { id: 2, nombre: 'MARTA GIL', vehiculo_id: 2, deleted: false, empresa_id: e }],
   practicas: [{ id: 1, alumno_id: 1, vehiculo_id: 1, fecha: hoy(), hora_inicio: '08:43', hora_fin: '09:08', km_inicial: 17793, km_final: 17816, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'web-remote', tipo_detalle: 'km_auto' },
-              { id: 2, alumno_id: 1, vehiculo_id: 1, fecha: hoy(), hora_inicio: '09:08', hora_fin: '09:33', km_inicial: 17816, km_final: 17839, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'web-remote', tipo_detalle: 'km_auto' }],
+              { id: 2, alumno_id: 1, vehiculo_id: 1, fecha: hoy(), hora_inicio: '09:08', hora_fin: '09:33', km_inicial: 17816, km_final: 17839, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'web-remote', tipo_detalle: 'km_auto' },
+              // Clase de MARTA en curso, empezada en SU tablet (para probar que otro teléfono no la adopta)
+              { id: 3, alumno_id: 3, vehiculo_id: 2, fecha: hoy(), hora_inicio: '09:30', km_inicial: 295250, km_final: 0, tipo: 'circulacion', profesor_id: 2, deleted: false, empresa_id: e, source: 'web-remote' },
+              // Clases de días anteriores del TAIGO (para «Anotar clase pasada»)
+              { id: 4, alumno_id: 2, vehiculo_id: 1, fecha: haceDias(3), hora_inicio: '17:00', hora_fin: '17:45', km_inicial: 17700, km_final: 17722, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'desktop' },
+              { id: 5, alumno_id: 2, vehiculo_id: 1, fecha: haceDias(1), hora_inicio: '12:00', hora_fin: '12:45', km_inicial: 17770, km_final: 17793, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'desktop' }],
   reservas: [], ajustes_empresa: [{ empresa_id: e, clave: 'duracion_clase_min', valor: 45 }]
 });
 
-const MOVIL = ['hoy', 'iniciar-practica', 'finalizar-practica', 'firmar-practica', 'cancelar-practica', 'config', 'calendario', 'practica-detalle', 'anotar-practica', 'registrar-clase', 'firma-profesor', 'coche-profesor'];
+const MOVIL = ['hoy', 'iniciar-practica', 'finalizar-practica', 'firmar-practica', 'cancelar-practica', 'config', 'calendario', 'practica-detalle', 'anotar-practica', 'registrar-clase', 'firma-profesor', 'coche-profesor', 'km-coche', 'avisos'];
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.woff2': 'font/woff2', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 let desconectado = false;   // simula «sin cobertura» desde el servidor: corta /api con 503
 

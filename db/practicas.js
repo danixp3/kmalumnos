@@ -109,7 +109,7 @@ function getFichaPracticasAlumno(alumno_id) {
       llevadas += clases;
       return {
         id: p.id,
-        n: Math.ceil(llevadas),
+        n: Math.ceil(llevadas - 1e-9),
         clases,
         clases_txt: clases < 1 ? fmtClases(clases) : '',
         fecha: p.fecha,
@@ -168,7 +168,7 @@ function getPracticaDetalle(id) {
   const firmaValida = typeof p.firma === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(p.firma);
   return {
     id: p.id, fecha: p.fecha, hora_inicio: p.hora_inicio || null, hora_fin: p.hora_fin || null,
-    clase_n: previas + delAlumno.findIndex(x => x.id === p.id) + 1,
+    clase_n: Math.ceil(previas + delAlumno.slice(0, delAlumno.findIndex(x => x.id === p.id) + 1).reduce((t, x) => t + clasesDePractica(x), 0) - 1e-9),
     alumno_id: p.alumno_id,
     alumno_nombre: a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '—',
     alumno_dni: a ? a.dni || null : null,
@@ -198,7 +198,7 @@ function getTodasPracticas(filtros = {}) {
   for (const p of vivas) { if (!porAlumno.has(p.alumno_id)) porAlumno.set(p.alumno_id, []); porAlumno.get(p.alumno_id).push(p); }
   // La numeración continúa tras las clases hechas antes de usar la app (punto de partida).
   const previasDe = id => { const a = d.alumnos.find(x => x.id === id); return a && a.clases_previas > 0 ? a.clases_previas : 0; };
-  for (const [aid, lista] of porAlumno.entries()) { const pr = previasDe(aid); lista.sort(orden).forEach((p, i) => claseN.set(p.id, pr + i + 1)); }
+  for (const [aid, lista] of porAlumno.entries()) { let llevadas = previasDe(aid); lista.sort(orden).forEach(p => { llevadas += clasesDePractica(p); claseN.set(p.id, Math.ceil(llevadas - 1e-9)); }); }
   // Práctica anterior del mismo vehículo (la anterior de la cadena de km fiable) para comprobar
   // la continuidad del cuentakilómetros; una clase con km incoherentes se señala a sí misma.
   const continuidadKm = mapaContinuidad(d, hoy);

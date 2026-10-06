@@ -6,10 +6,14 @@
 // sesión. Las clases llevan tipo_detalle = 'anotada' para distinguirlas.
 // `n_clases` va de ¼ en ¼ (1.5 = una entera y otra de ½); con `minutos` se
 // cuentan como al cerrar una clase por minutos (con lo acumulado del alumno).
+// Con `km_auto: true` los km los pone el servidor: empieza donde acabó la clase
+// anterior de ese coche (ese día a esa hora) y recorre lo normal (Ajustes →
+// km por cada 2 clases) sin pasar del km en que empezó la siguiente.
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError,
   hhmmValido, kmEntero, limpiarZonas, partirEnClases, insertarPractica, cantidadClases, minutosValidos,
-  clasesPorMinutos, leerDuracionClase, leerMinutosAlumno, guardarMinutosAlumno, fmtClases
+  clasesPorMinutos, leerDuracionClase, leerMinutosAlumno, guardarMinutosAlumno, fmtClases,
+  kmAlrededor, leerKmAuto, kmFinalAutomatico, esErrorColumnaInexistente, nombreCompleto
 } from '../../api/_utils.js';
 
 export const MARCA_ANOTADA = 'anotada';
@@ -26,7 +30,7 @@ export default async function handler(req, res) {
   if (!auth) return;
   const supabase = getSupabase(auth.token);
 
-  const { alumno_id, vehiculo_id, fecha, hoy, hora_inicio, hora_fin, n_clases, minutos, km_inicial, km_final, zonas, trabajado, observacion, profesor_id, forzar } = req.body || {};
+  const { alumno_id, vehiculo_id, fecha, hoy, hora_inicio, hora_fin, n_clases, minutos, km_inicial, km_final, km_auto, zonas, trabajado, observacion, profesor_id, forzar } = req.body || {};
 
   const alumnoIdVal = validators.positiveInt(alumno_id, 'alumno_id');
   if (!alumnoIdVal.valid) return res.status(400).json({ error: alumnoIdVal.error });
@@ -52,9 +56,10 @@ export default async function handler(req, res) {
     if (!minVal.valid) return res.status(400).json({ error: minVal.error });
   }
 
-  // Km: los dos o ninguno
+  // Km: los dos, ninguno o que los ponga la app
   let kmIni = 0, kmFin = 0;
-  const conKm = !vacio(km_inicial) || !vacio(km_final);
+  const kmAuto = km_auto === true;
+  let conKm = !kmAuto && (!vacio(km_inicial) || !vacio(km_final));
   if (conKm) {
     const vi = kmEntero(km_inicial, 'El km inicial');
     if (!vi.valid || vi.value < 1) return res.status(400).json({ error: 'Pon el km inicial y el final, o deja los dos en blanco.' });
@@ -72,15 +77,46 @@ export default async function handler(req, res) {
     profesorIdFinal = pv.value;
   }
 
-  const { data: alumno, error: errA } = await supabase
-    .from('alumnos').select('id, nombre').eq('id', alumnoIdVal.value).eq('deleted', false).eq('empresa_id', auth.empresaId).maybeSingle();
+  const leerAlumno = cols => supabase
+    .from('alumnos').select(cols).eq('id', alumnoIdVal.value).eq('deleted', false).eq('empresa_id', auth.empresaId).maybeSingle();
+  let { data: alumno, error: errA } = await leerAlumno('id, nombre, primer_apellido, segundo_apellido');
+  if (errA && esErrorColumnaInexistente(errA)) ({ data: alumno, error: errA } = await leerAlumno('id, nombre'));
   if (errA && isAuthError(errA)) return res.status(401).json({ error: 'Sesión expirada. Inicia sesión de nuevo.' });
   if (errA || !alumno) return res.status(404).json({ error: 'Alumno no encontrado' });
+  alumno.nombre = nombreCompleto(alumno);
 
   const { data: vehiculo, error: errV } = await supabase
     .from('vehiculos').select('id, nombre, km_actual').eq('id', vehiculoIdVal.value).eq('deleted', false).eq('empresa_id', auth.empresaId).maybeSingle();
   if (handleSupabaseError(errV, res, 'Error al obtener el vehículo')) return;
   if (!vehiculo) return res.status(404).json({ error: 'Vehículo no encontrado' });
+
+  // Clases por minutos: lo acumulado del alumno + los minutos de esta clase
+  let acumulado = null, calculo = null;
+  if (porMinutos) {
+    const duracion = await leerDuracionClase(supabase, auth.empresaId);
+    acumulado = await leerMinutosAlumno(supabase, auth.empresaId, alumno.id);
+    calculo = clasesPorMinutos(minVal.value, acumulado.minutos, duracion);
+    if (calculo.cantidad < 0.25) {
+      return res.status(400).json({ error: `${calculo.total} min no llegan a ¼ de clase (${duracion / 4} min). Elige la cantidad de clases a mano.` });
+    }
+    nClases = calculo.cantidad;
+  }
+
+  // Km que pone la app: desde el final de la clase anterior del coche
+  if (kmAuto) {
+    const alrededor = await kmAlrededor(supabase, auth.empresaId, vehiculo.id, fechaVal.value, horaIni);
+    if (handleSupabaseError(alrededor.error, res, 'Error al buscar los km del coche')) return;
+    if (!alrededor.anterior) {
+      return res.status(409).json({ codigo: 'sin_km_anterior', error: 'Este coche no tiene ninguna clase anterior con km: escribe los km o déjalos en blanco.' });
+    }
+    const rango = await leerKmAuto(supabase, auth.empresaId);
+    const tope = alrededor.siguiente ? alrededor.siguiente.km : null;
+    const fin = kmFinalAutomatico(alrededor.anterior.km, nClases, rango, tope);
+    if (fin == null) {
+      return res.status(409).json({ codigo: 'km_no_caben', error: `Entre el km ${alrededor.anterior.km} (fin de la clase anterior del coche) y el ${tope} (la siguiente) no caben ${fmtClases(nClases)} ${nClases > 1 ? 'clases' : 'clase'}. Escribe los km o déjalos en blanco.` });
+    }
+    kmIni = alrededor.anterior.km; kmFin = fin; conKm = true;
+  }
 
   // ¿Ya está anotada? (misma hora o mismo km inicial ese día; sin hora ni km,
   // otra clase en blanco). Se puede forzar si de verdad son dos clases.
@@ -100,32 +136,26 @@ export default async function handler(req, res) {
     }
   }
 
-  // Los km no pueden pisar los de otra clase del mismo coche
+  // Los km no pueden pisar los de otra clase del mismo coche (cerrada, o en
+  // curso: su km inicial no puede quedar dentro de los de esta)
   if (conKm) {
-    const { data: choques, error: errS } = await supabase
-      .from('practicas').select('id, fecha, km_inicial, km_final, alumno_id')
-      .eq('vehiculo_id', vehiculo.id).eq('deleted', false).eq('empresa_id', auth.empresaId)
-      .gt('km_final', 0).lt('km_inicial', kmFin).gt('km_final', kmIni).limit(1);
-    if (handleSupabaseError(errS, res, 'Error al comprobar los km')) return;
-    if (choques && choques.length) {
-      const c = choques[0];
+    const [rC, rE] = await Promise.all([
+      supabase.from('practicas').select('id, fecha, km_inicial, km_final, alumno_id')
+        .eq('vehiculo_id', vehiculo.id).eq('deleted', false).eq('empresa_id', auth.empresaId)
+        .gt('km_final', 0).lt('km_inicial', kmFin).gt('km_final', kmIni).limit(1),
+      supabase.from('practicas').select('id, fecha, km_inicial, km_final, alumno_id')
+        .eq('vehiculo_id', vehiculo.id).eq('deleted', false).eq('empresa_id', auth.empresaId)
+        .eq('km_final', 0).gt('km_inicial', kmIni).lt('km_inicial', kmFin).limit(1)
+    ]);
+    if (handleSupabaseError(rC.error || rE.error, res, 'Error al comprobar los km')) return;
+    const c = (rC.data || [])[0], e = (rE.data || [])[0];
+    if (c || e) {
       return res.status(409).json({
         solape: true,
-        error: `Esos km se pisan con otra clase de este coche (${fechaCorta(c.fecha)}, km ${c.km_inicial} → ${c.km_final}). Revisa los números o déjalos en blanco.`
+        error: c ? `Esos km se pisan con otra clase de este coche (${fechaCorta(c.fecha)}, km ${c.km_inicial} → ${c.km_final}). Revisa los números o déjalos en blanco.`
+          : `Esos km se pisan con una clase sin cerrar de este coche (${fechaCorta(e.fecha)}, empezó en el km ${e.km_inicial}). Revisa los números o déjalos en blanco.`
       });
     }
-  }
-
-  // Clases por minutos: lo acumulado del alumno + los minutos de esta clase
-  let acumulado = null, calculo = null;
-  if (porMinutos) {
-    const duracion = await leerDuracionClase(supabase, auth.empresaId);
-    acumulado = await leerMinutosAlumno(supabase, auth.empresaId, alumno.id);
-    calculo = clasesPorMinutos(minVal.value, acumulado.minutos, duracion);
-    if (calculo.cantidad < 0.25) {
-      return res.status(400).json({ error: `${calculo.total} min no llegan a ¼ de clase (${duracion / 4} min). Elige la cantidad de clases a mano.` });
-    }
-    nClases = calculo.cantidad;
   }
 
   // Clases: con km se reparten; sin km se reparte solo el horario.
@@ -177,6 +207,7 @@ export default async function handler(req, res) {
   return res.status(200).json({
     ok: true, practica_ids: creadas, clases: nClases, con_km: conKm,
     recorridos: conKm ? kmFin - kmIni : 0, campos_guardados: !degradado,
+    ...(kmAuto ? { km_auto: true, km_inicial: kmIni, km_final: kmFin } : {}),
     minutos_sobrantes: porMinutos && acumulado.disponible && !errMinutos ? calculo.sobran : undefined,
     mensaje: `${nClases === 1 ? 'Clase anotada' : (nClases < 1 ? fmtClases(nClases) + ' de clase anotado' : fmtClases(nClases) + ' clases anotadas')} a ${alumno.nombre} el ${fechaCorta(fechaVal.value)}`
   });

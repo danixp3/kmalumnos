@@ -13,10 +13,10 @@ Aplicación de escritorio (Windows) para una autoescuela: gestiona vehículos, a
 ```
 main.js       → proceso principal Electron: ventana, IPC handlers, auto-updater
 preload.js    → contextBridge, expone window.api al renderer
-index.html    → SPA (solo HTML), enlaza styles.css y los 40 <script> de renderer/
+index.html    → SPA (solo HTML), enlaza styles.css y los 41 <script> de renderer/
 styles.css    → CSS de la app de escritorio (sistema ámbar/tinta), temas [data-theme="oscuro"/"negro"], paleta de gráficos
 fonts/        → Barlow, Barlow Condensed, IBM Plex Mono (woff2 locales; también en web-remote/fonts/)
-renderer/     → UI (vanilla JS) dividida en 40 <script> clásicos (globales, no módulos ES),
+renderer/     → UI (vanilla JS) dividida en 41 <script> clásicos (globales, no módulos ES),
                 cargados en orden fijo desde index.html; arranque.js SIEMPRE el último
   estado.js, utils-ui.js → estado, modales, esc/fmt/fmtFecha/tagPermiso, TEMA, toasts
   dashboard.js, vehiculos.js, profesores.js, alumnos.js, practicas.js, pagos.js → CRUD
@@ -30,6 +30,7 @@ renderer/     → UI (vanilla JS) dividida en 40 <script> clásicos (globales, n
   migracion.js → «Traer de otro programa»: asistente para importar alumnos/clases (vista previa, deshacer)
   cuadrar-km.js → pestaña «Cuadrar» de Cuadrar y generar km + franja de aviso en Prácticas
   historial-pantallas.js → botones laterales del ratón / Alt+←→: pantalla anterior y siguiente
+  alumnos-repetidos.js → aviso en Alumnos, separar nombre y apellidos y juntar dos fichas de la misma persona
   arranque.js → bienvenida + código de arranque (siempre el último)
 db.js         → índice de 40 líneas que re-exporta db/ (misma superficie pública, 51 exports)
 db/           → CRUD + algoritmos de km, por módulo
@@ -44,6 +45,7 @@ db/           → CRUD + algoritmos de km, por módulo
   clases-anteriores.js → clases previas a la app: anotarlas a mano y crear las que falten con fecha y km (sin solapes)
   migracion.js → traer datos de otro programa: reconocer columnas, limpiar, emparejar sin duplicar, importar y deshacer
   ariauto.js → importar la base Access de Ariauto (alumnos con todos sus datos, exámenes, tasas, caducidades, coches, centro) y completar los ya traídos
+  alumnos-repetidos.js → separar nombre y apellidos juntos, buscar fichas repetidas y juntarlas (vista previa, copia, deshacer)
   campos-extra.js → campos ampliados de alumnos/profesores/vehículos (nº de registro y su siguiente número, sexo, nacionalidad…, coche habitual del profesor y coche en uso/retirado)
   exportar.js → alumnos (todos sus datos) y exámenes filtrados a CSV para Excel
   lector-tablas.js → leer Excel/ODS/DBF (SheetJS) y CSV/TXT/texto pegado con cualquier separador y codificación
@@ -67,6 +69,7 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 | Tests de la API móvil | `npm run test:api` (Supabase falso en `web-remote/tests/`, sin red) |
 | Prueba de interfaz | `npm run smoke` (arranca la app sobre una copia de los datos, sin nube, y recorre todas las secciones del menú) |
 | Barrido visual | `npm run barrido` (copia de datos, sin nube: textos que se pisan, cortes y desbordes a 920×620 y 1366×768) |
+| Capturas de pantallas | `npx electron scripts/capturas-revision.js` (copia de datos, sin nube; edita `PASOS` para elegir qué abrir; deja PNG en %TEMP%\aulamovil-capturas) |
 
 ## Convenciones
 - Todo en español: nombres de funciones/variables de dominio (`getVehiculos`, `rellenarKmMasivo`), mensajes de UI y commits (`v1.X.X - descripción breve`).
@@ -78,6 +81,9 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
 _Última actualización: 2026-10-06. El detalle histórico completo está en HISTORIAL.md._
+
+- **v1.29.0 (2026-10-06 noche) — avisos por profesor, perfil con clase abierta, km de «Anotar clase pasada», ¼ ½ ¾ y alumnos sin repetidos:** la web ya no adopta sola las clases en curso de otro teléfono (era la causa de los avisos ajenos y de no poder cambiar de perfil); práctica en marcha por perfil (`km_flujo:<id>`), avisos solo del profesor del perfil (cliente, `/api/avisos` y `tomar_avisos_vencidos`). «Anotar clase pasada» propone el km de la clase anterior del coche (`/api/km-coche`) con «Los escribo | Los pone la app | Sin km». Fracciones en «clases ya hechas», clases anteriores, archivo de la IA, Excel/CSV y CSV de prácticas (`core.leerCantidadClases`).
+- **Alumnos (v1.29.0):** alta del móvil con nombre y apellidos separados, DNI y aviso de repetido; `db/alumnos-repetidos.js` (separar nombre y apellidos, juntar dos fichas con deshacer); al traer Ariauto o Excel se decide a mano con quién se junta cada ficha y la confirmación lista las fusiones. Migraciones `2026-10-06_clases_previas_fracciones.sql` y `2026-10-06_avisos_mismo_profesor.sql`. Jest 568/62 + test:api 84 + smoke + barrido.
 
 - **v1.28.1 (2026-10-06) — quitar los km de una clase mal (PUBLICADO):** en los «tramos sin explicar» de Cuadrar km, botones «Quitar los km de la 1.ª / 2.ª clase» (`quitarKmClase`, se puede deshacer) para anular una lectura equivocada (caso real: la clase de Marco del 04/09, km 9.262, descuadraba 5.574 km del Taigo; sin ella Cuadrar rellena hacia atrás las 61 clases anteriores con 23–30 km cada una). El formulario de editar una clase ya admite 0 y 0 (sin km). Lo rellenado hacia atrás/delante varía ±15 %. Jest 550/60. Cuadrar km NUNCA cambia fecha, hora, alumno ni profesor: solo km.
 - **v1.28.0 (2026-10-06) — Cuadrar km y la web móvil sin cobertura (escritorio PUBLICADO; web DESPLEGADA):** los profesores empezaron a dar clases antes de traer los datos y el cuentakilómetros del coche salía con huecos («+954 km sin asignar») y solapes (clase `0 → 30`). **Cuadrar km** (`db/cuadre-km.js`, pestaña Cuadrar de «Cuadrar y generar km», aviso en Prácticas y Panel): ordena las clases por fecha y hora, repara las que tienen km imposibles, reparte entre las clases sin km los km que hay entre dos clases con km (solo si es creíble; si sobran muchos km faltan clases por traer y NO se inventan: queda como tramo sin explicar que se puede dar por revisado), vista previa, aplicar y **deshacer**. La lista de Prácticas ya no culpa a la clase siguiente: la rota se señala a sí misma y los huecos ≤ 15 km son normales. En el Taigo real (copia): 34 clases por repartir + 1 recolocada + 3 tramos donde faltan clases. **Web sin cobertura** (`web-remote/offline.js`, `sw.js` v3, `/api/registrar-clase`): la web se abre sin red, trabaja con la última copia de coches/alumnos/jornada, una clase empezada, finalizada y firmada sin red se guarda en la tablet (IndexedDB) y se envía sola al volver la cobertura (reenviable sin duplicar; si algo no se puede enviar sale en «Pendientes de enviar»). Un km inicial 300 km por encima del último del coche pide confirmación. Sin migraciones. Jest 546/60 + test:api 76 (api + cola + service worker).

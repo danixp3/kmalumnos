@@ -1260,6 +1260,18 @@ function markDeletedVarios(table, ids) {
   programarSyncInmediato();
 }
 
+// Anula borrados que aún no han llegado a la nube (deshacer una fusión de
+// alumnos antes del siguiente sync): si no, el borrado pendiente ganaría a la
+// subida del registro recuperado.
+function desmarcarBorradosVarios(table, ids) {
+  const lista = new Set([...(ids || [])]);
+  if (!lista.size) return;
+  const p = loadPending();
+  if (!p.deleted || !p.deleted[table]) return;
+  p.deleted[table] = p.deleted[table].filter(x => !lista.has(x));
+  savePending(p);
+}
+
 function markDirty(table, id) { markDirtyVarios(table, [id]); }
 function markDeleted(table, id) { markDeletedVarios(table, [id]); }
 
@@ -1757,7 +1769,13 @@ async function _syncInterno() {
               if (r && !r.error) { trozo.forEach(confirmar); return; }
             }
             for (const f of trozo) {
-              const r = await sb.from(tabla).upsert(f[1], { onConflict: 'id' });
+              let r = await sb.from(tabla).upsert(f[1], { onConflict: 'id' });
+              // Nube aún sin la migración que admite ¼ ½ ¾ en «clases ya hechas»
+              // (columna entera): se sube redondeado antes que dejarlo atascado
+              if (r && r.error && tabla === 'alumnos' && f[1].clases_previas % 1 && /integer/i.test(r.error.message || '')) {
+                f[1] = { ...f[1], clases_previas: Math.round(f[1].clases_previas) };
+                r = await sb.from(tabla).upsert(f[1], { onConflict: 'id' });
+              }
               if (subidaOk(r, tabla, f[0]) && !(r && r.error)) confirmar(f);
             }
           });
@@ -2012,7 +2030,8 @@ async function _syncInterno() {
             payload.poblacion = a.poblacion || null;
           }
           if (previasOn) {
-            payload.clases_previas = a.clases_previas > 0 ? Math.round(a.clases_previas) : null;
+            // De ¼ en ¼ (12 ½ clases ya hechas): columna numeric desde la migración 2026-10-06
+            payload.clases_previas = a.clases_previas > 0 ? Math.round(a.clases_previas * 4) / 4 : null;
             payload.km_previos = a.km_previos > 0 ? Math.round(a.km_previos) : null;
           }
           if (extraOn.alumnos) _ponerExtra('alumnos', payload, a);
@@ -2976,7 +2995,7 @@ async function pushAll() {
     const quitarPrevias = obj => {
       const { clases_previas, km_previos, minutos_sobrantes, ...resto } = obj;
       if (!previasOn) return resto;
-      return { ...resto, clases_previas: clases_previas > 0 ? Math.round(clases_previas) : null, km_previos: km_previos > 0 ? Math.round(km_previos) : null };
+      return { ...resto, clases_previas: clases_previas > 0 ? Math.round(clases_previas * 4) / 4 : null, km_previos: km_previos > 0 ? Math.round(km_previos) : null };
     };
     // supabase-js no lanza ante un error: se recoge cada { error } para no dar
     // por subido lo que la nube rechazó.
@@ -3136,6 +3155,7 @@ module.exports = {
   markDeleted,
   markDirtyVarios,
   markDeletedVarios,
+  desmarcarBorradosVarios,
   getStatus,
   STATUS,
   startAutoSync,

@@ -42,7 +42,7 @@ export default async function handler(req, res) {
   const pos = orden.findIndex(x => x.id === p.id);
   // Las fracciones (¼ ½ ¾) suman lo que valen
   const hasta = pos >= 0 ? orden.slice(0, pos + 1) : orden;
-  const claseN = ((alumno && alumno.clases_previas) || 0) + Math.max(1, Math.ceil(hasta.reduce((n, x) => n + clasesDe(x), 0) - 1e-9));
+  const claseN = Math.max(1, Math.ceil(((alumno && Number(alumno.clases_previas)) || 0) + hasta.reduce((n, x) => n + clasesDe(x), 0) - 1e-9));
 
   // Sesión de varias clases (90 min = 2 clases...): para firmarlas de una vez.
   let sesion = null;

@@ -278,7 +278,7 @@ describe('clases anteriores: varias el mismo día en una fila', () => {
     let r = db.guardarClasesAnteriores(aid, [{ fecha: '08/09/2025', hora_inicio: '10:00' }, { fecha: '8/9/2025', hora_inicio: '10:00' }]);
     expect(r.ok).toBe(false); expect(r.errores[0]).toMatch(/misma fecha y hora/);
     r = db.guardarClasesAnteriores(aid, [{ fecha: '08/09/2025', clases: 7 }]);
-    expect(r.ok).toBe(false); expect(r.errores[0]).toMatch(/de 1 a 4/);
+    expect(r.ok).toBe(false); expect(r.errores[0]).toMatch(/de ¼ a 4/);
     r = db.guardarClasesAnteriores(aid, [{ fecha: '08/09/2025', clases: 3, km_inicial: 1000, km_final: 1002 }]);
     expect(r.ok).toBe(false); expect(r.errores[0]).toMatch(/no caben 3 clases/);
     r = db.guardarClasesAnteriores(aid, [{ fecha: '08/09/2025', clases: 2, hora_inicio: '23:30' }], { duracion: 45 });
@@ -323,9 +323,11 @@ describe('leerArchivoClasesAnteriores (archivo de la IA, CSV de Excel o texto pe
     const aid = alumno('Ana', vid, null, 0);
     const { filas } = db.leerArchivoClasesAnteriores(db.PLANTILLA_CLASES_ANTERIORES);
     const r = db.guardarClasesAnteriores(aid, filas, { duracion: 45 });
-    expect(r).toMatchObject({ ok: true, anotadas: 4 });
-    expect(db.getClasesAnteriores(aid).clases.map(c => [c.fecha, c.hora_inicio])).toEqual([
-      ['2025-09-08', '10:00'], ['2025-09-10', '17:30'], ['2025-09-10', '18:15'], ['2025-09-12', ''],
+    expect(r).toMatchObject({ ok: true, anotadas: 6 });
+    // La plantilla trae también una clase y media (15/09) y media clase (17/09)
+    expect(db.getClasesAnteriores(aid).clases.map(c => [c.fecha, c.hora_inicio, c.clases])).toEqual([
+      ['2025-09-08', '10:00', 1], ['2025-09-10', '17:30', 1], ['2025-09-10', '18:15', 1], ['2025-09-12', '', 1],
+      ['2025-09-15', '18:00', 1], ['2025-09-15', '18:45', 0.5], ['2025-09-17', '', 0.5],
     ]);
   });
 });

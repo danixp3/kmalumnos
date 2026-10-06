@@ -27,10 +27,11 @@
 
 // ─── CLASES ANTERIORES ──────────────────────────────────────────────────────
 
-const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO } = require('./core');
+const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO, clasesDePractica, trozosDeClases, kmPorPesos, leerCantidadClases, aCuartos, fmtClases: fmtC } = require('./core');
 
 const MARCA = 'anterior';
-const MAX_CLASES_FILA = 4;   // clases seguidas el mismo día en una fila
+const MAX_CLASES_FILA = 4;   // clases seguidas el mismo día en una fila (de ¼ en ¼: 1 ½ = una entera y otra de ½)
+const sumaClases = lista => aCuartos(lista.reduce((t, p) => t + clasesDePractica(p), 0));
 const LIMITES = { porAlumnoDia: 2, porProfesorDia: 12, porVehiculoDia: 12, desde: 9 * 60, hasta: 21 * 60, diasAtras: 2000 };
 
 const esAnterior = p => !!p && !p.deleted && p.tipo_detalle === MARCA;
@@ -84,10 +85,10 @@ function getClasesAnteriores(alumno_id) {
   const a = d.alumnos.find(x => x.id === parseInt(alumno_id));
   if (!a) return null;
   const clases = d.practicas.filter(p => p.alumno_id === a.id && esAnterior(p)).sort(ordenTiempo)
-    .map(p => ({ id: p.id, fecha: p.fecha, hora_inicio: p.hora_inicio || '', km_inicial: p.km_inicial || 0, km_final: p.km_final || 0, vehiculo_id: p.vehiculo_id, profesor_id: p.profesor_id || null }));
+    .map(p => ({ id: p.id, fecha: p.fecha, hora_inicio: p.hora_inicio || '', km_inicial: p.km_inicial || 0, km_final: p.km_final || 0, vehiculo_id: p.vehiculo_id, profesor_id: p.profesor_id || null, clases: clasesDePractica(p) }));
   return {
     alumno: { id: a.id, nombre: nombreDe(a), vehiculo_id: a.vehiculo_id || null, profesor_id: a.profesor_id || null, clases_previas: a.clases_previas || 0, km_previos: a.km_previos || 0 },
-    clases, total: clases.length + (a.clases_previas || 0)
+    clases, total: aCuartos(sumaClases(clases.map(c => ({ fraccion: c.clases < 1 ? c.clases : null }))) + (a.clases_previas || 0))
   };
 }
 
@@ -106,7 +107,7 @@ function guardarClasesAnteriores(alumno_id, filas = [], opciones = {}) {
   const hoy = hoyLocalISO();
   const previas = d.practicas.filter(p => p.alumno_id === a.id && esAnterior(p));
   const idsPrevias = new Set(previas.map(p => p.id));
-  const totalAntes = previas.length + (a.clases_previas || 0);
+  const totalAntes = aCuartos(sumaClases(previas) + (a.clases_previas || 0));
   const errores = [];
   const limpias = [];
 
@@ -124,24 +125,25 @@ function guardarClasesAnteriores(alumno_id, filas = [], opciones = {}) {
     else if (conKm && kf - ki > 1000) errores.push(`Fila ${n}: más de 1.000 km en una clase; revisa los km.`);
     const vehiculo_id = parseInt(f.vehiculo_id) || a.vehiculo_id || null;
     if (!vehiculo_id || !d.vehiculos.some(v => v.id === vehiculo_id)) { errores.push(`Fila ${n}: ${nombreDe(a)} no tiene coche asignado; asígnaselo en la tabla de alumnos.`); return; }
-    // Varias clases el mismo día en una fila: seguidas, cada una de `dur` min,
-    // con los km repartidos a partes iguales (el resto, a las primeras).
-    const k = String(f.clases == null ? '' : f.clases).trim() === '' ? 1 : Number(f.clases);
-    if (!Number.isInteger(k) || k < 1 || k > MAX_CLASES_FILA) { errores.push(`Fila ${n}: el nº de clases debe ser de 1 a ${MAX_CLASES_FILA}.`); return; }
-    if (conKm && kf - ki < k) { errores.push(`Fila ${n}: con ${kf - ki} km no caben ${k} clases.`); return; }
-    if (hora && aMin(hora) + k * dur > 24 * 60) { errores.push(`Fila ${n}: ${k} clases desde las ${hora} pasan de medianoche.`); return; }
+    // Varias clases el mismo día en una fila: seguidas, cada una de `dur` min
+    // (una fracción, su parte), con los km repartidos en proporción a lo que
+    // vale cada una. Van de ¼ en ¼: 1,5 = una entera y otra de ½.
+    const k = String(f.clases == null ? '' : f.clases).trim() === '' ? 1 : leerCantidadClases(f.clases);
+    if (!k || k > MAX_CLASES_FILA) { errores.push(`Fila ${n}: las clases van de ¼ en ¼, de ¼ a ${MAX_CLASES_FILA} (¼, ½, ¾, 1, 1 ½…).`); return; }
+    const pesos = trozosDeClases(k);
+    if (conKm && kf - ki < pesos.length) { errores.push(`Fila ${n}: con ${kf - ki} km no caben ${fmtC(k)} clases.`); return; }
+    if (hora && aMin(hora) + Math.round(k * dur) > 24 * 60) { errores.push(`Fila ${n}: ${fmtC(k)} clases desde las ${hora} pasan de medianoche.`); return; }
     const ids = [...(Array.isArray(f.ids) ? f.ids : []), f.id].map(x => parseInt(x)).filter(x => idsPrevias.has(x));
-    const total = conKm ? kf - ki : 0, base = Math.floor(total / k), resto = total % k;
-    let km = ki;
-    for (let j = 0; j < k; j++) {
-      const tramo = conKm ? base + (j < resto ? 1 : 0) : 0;
+    const tramos = conKm ? kmPorPesos(kf - ki, pesos) : pesos.map(() => 0);
+    let km = ki, acum = 0;
+    pesos.forEach((w, j) => {
       limpias.push({
-        n, id: ids[j] || null, fecha, hora_inicio: hora ? aHHMM(aMin(hora) + j * dur) : null,
-        km_inicial: conKm ? km : 0, km_final: conKm ? km + tramo : 0, vehiculo_id,
-        profesor_id: parseInt(f.profesor_id) || a.profesor_id || null
+        n, id: ids[j] || null, fecha, hora_inicio: hora ? aHHMM(aMin(hora) + Math.round(acum * dur)) : null,
+        km_inicial: conKm ? km : 0, km_final: conKm ? km + tramos[j] : 0, vehiculo_id,
+        profesor_id: parseInt(f.profesor_id) || a.profesor_id || null, fraccion: w < 1 ? w : null
       });
-      km += tramo;
-    }
+      km += tramos[j]; acum += w;
+    });
   });
   // La misma clase dos veces (misma fecha y hora): seguramente repetida al copiar
   const vistas = new Map();
@@ -188,14 +190,14 @@ function guardarClasesAnteriores(alumno_id, filas = [], opciones = {}) {
   for (const f of limpias) {
     if (f.id) {
       const p = d.practicas.find(x => x.id === f.id);
-      Object.assign(p, { fecha: f.fecha, hora_inicio: f.hora_inicio, km_inicial: f.km_inicial, km_final: f.km_final, vehiculo_id: f.vehiculo_id, profesor_id: f.profesor_id });
+      Object.assign(p, { fecha: f.fecha, hora_inicio: f.hora_inicio, km_inicial: f.km_inicial, km_final: f.km_final, vehiculo_id: f.vehiculo_id, profesor_id: f.profesor_id, fraccion: f.fraccion });
       quedan.add(f.id); tocadas.push(f.id);
     } else {
       const id = nextId('p');
       d.practicas.push({
         id, alumno_id: a.id, vehiculo_id: f.vehiculo_id, fecha: f.fecha, km_inicial: f.km_inicial, km_final: f.km_final,
         profesor_id: f.profesor_id, tipo: 'circulacion', sucursal_id: a.sucursal_id || null,
-        hora_inicio: f.hora_inicio, tipo_detalle: MARCA
+        hora_inicio: f.hora_inicio, tipo_detalle: MARCA, ...(f.fraccion ? { fraccion: f.fraccion } : {})
       });
       tocadas.push(id);
     }
@@ -204,8 +206,9 @@ function guardarClasesAnteriores(alumno_id, filas = [], opciones = {}) {
   }
   const borradas = previas.filter(p => !quedan.has(p.id)).map(p => p.id);
   if (borradas.length) d.practicas = d.practicas.filter(p => !borradas.includes(p.id));
-  a.clases_previas = Math.max(0, totalAntes - limpias.length);
-  addLog('puesta_en_marcha', `Clases anteriores de ${nombreDe(a)}: ${limpias.length} anotadas (${limpias.filter(tiene).length} con km); faltan ${a.clases_previas} por crear`, []);
+  const anotadas = sumaClases(limpias);
+  a.clases_previas = Math.max(0, aCuartos(totalAntes - anotadas));
+  addLog('puesta_en_marcha', `Clases anteriores de ${nombreDe(a)}: ${fmtC(anotadas)} anotadas (${limpias.filter(tiene).length} con km); faltan ${fmtC(a.clases_previas)} por crear`, []);
   save();
   if (s) {
     s.markDirtyVarios('practicas', tocadas);
@@ -213,7 +216,7 @@ function guardarClasesAnteriores(alumno_id, filas = [], opciones = {}) {
     s.markDirty('alumnos', a.id);
     s.markDirtyVarios('vehiculos', new Set(limpias.map(f => f.vehiculo_id)));
   }
-  return { ok: true, errores: [], anotadas: limpias.length, pendientes: a.clases_previas };
+  return { ok: true, errores: [], anotadas, pendientes: a.clases_previas };
 }
 
 /**
@@ -229,6 +232,8 @@ function guardarClasesAnteriores(alumno_id, filas = [], opciones = {}) {
  * Devuelve { filas: [{ fecha: 'dd/mm/aaaa', hora_inicio, clases, km_inicial, km_final, revisar }],
  *            errores: ['Línea 4: …'], lineas }.
  */
+// Una casilla que es un nº de clases (sin cabecera): 1–4, de ¼ en ¼ (½, 1,5, 0.75…)
+const esCantidadCorta = c => { const v = leerCantidadClases(c); return v != null && v <= MAX_CLASES_FILA && !/^\d{1,2}[:h]\d{2}$/.test(c) && !/^\d+[.,]\d{3,}$/.test(c); };
 function leerArchivoClasesAnteriores(texto) {
   // Cada línea con su nº real en el archivo (para los avisos)
   const lineas = String(texto == null ? '' : texto).replace(/^\uFEFF/, '').replace(/\r/g, '').split('\n')
@@ -239,7 +244,14 @@ function leerArchivoClasesAnteriores(texto) {
   // Una línea con otro separador, o solo con espacios («9/9/2025 17:00 2»), también vale
   const partir = l => {
     const otro = [sep, '\t', ';', ','].find(x => l.includes(x));
-    return (otro ? l.split(otro) : l.split(/\s+/)).map(c => c.trim().replace(/^"(.*)"$/, '$1').trim());
+    const limpiar = celdas => celdas.map(c => c.trim().replace(/^"(.*)"$/, '$1').trim());
+    const celdas = limpiar(otro ? l.split(otro) : l.split(/\s+/));
+    // «08/09/2025 10:00 1,5»: la coma es la de los decimales, no un separador
+    if (otro === ',' && !celdas.some(c => leerFecha(c.replace(/\?$/, '')))) {
+      const porEspacios = limpiar(l.split(/\s+/));
+      if (porEspacios.some(c => leerFecha(c.replace(/\?$/, '')))) return porEspacios;
+    }
+    return celdas;
   };
   const norm = t => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
   // ¿Cabecera? (primera línea sin ninguna fecha y con la palabra «fecha»)
@@ -273,8 +285,9 @@ function leerArchivoClasesAnteriores(texto) {
       fechaTxt = iF >= 0 ? celdas[iF] : (celdas[0] || '');
       for (const c of celdas.filter((_, k) => k !== iF)) {
         if (!c) continue;
-        if (!horaTxt && /^\d{1,2}[:.h]\d{2}$/.test(c)) horaTxt = c;
-        else if (!clasesTxt && /^[1-9]$/.test(c)) clasesTxt = c;
+        // «1,5» / «0.25» / «½» = clases (antes que la hora: 0.25 no es las 00:25)
+        if (!clasesTxt && esCantidadCorta(c)) clasesTxt = c;
+        else if (!horaTxt && /^\d{1,2}[:.h]\d{2}$/.test(c)) horaTxt = c;
         else if (/^\d{1,3}(\.\d{3})+$|^\d{2,7}$/.test(c)) kms.push(c);
       }
     }
@@ -287,8 +300,9 @@ function leerArchivoClasesAnteriores(texto) {
     }
     const hora = leerHora(horaTxt);
     if (hora === null) errores.push(`Línea ${n}: la hora «${horaTxt}» no se entiende; se deja en blanco.`);
-    const clases = parseInt(clasesTxt) >= 1 && parseInt(clasesTxt) <= MAX_CLASES_FILA ? parseInt(clasesTxt) : 1;
-    if (clasesTxt && clases !== parseInt(clasesTxt)) errores.push(`Línea ${n}: «${clasesTxt}» clases no es válido (de 1 a ${MAX_CLASES_FILA}); se pone 1.`);
+    const leida = clasesTxt ? leerCantidadClases(clasesTxt) : 1;
+    const clases = leida && leida <= MAX_CLASES_FILA ? leida : 1;
+    if (clasesTxt && clases !== leida) errores.push(`Línea ${n}: «${clasesTxt}» clases no es válido (de ¼ a ${MAX_CLASES_FILA}, de ¼ en ¼: 1, 1.5, 0.25…); se pone 1.`);
     const [ki, kf] = [kmEntero(kms[0]), kmEntero(kms[1])];
     filas.push({
       fecha: fmtF(fecha), hora_inicio: hora || '', clases, revisar,
@@ -301,7 +315,7 @@ function leerArchivoClasesAnteriores(texto) {
 }
 
 // Plantilla para importar (la que se le pide a la IA)
-const PLANTILLA_CLASES_ANTERIORES = 'fecha;hora;clases\n08/09/2025;10:00;1\n10/09/2025;17:30;2\n12/09/2025;;1\n';
+const PLANTILLA_CLASES_ANTERIORES = 'fecha;hora;clases\n08/09/2025;10:00;1\n10/09/2025;17:30;2\n12/09/2025;;1\n15/09/2025;18:00;1.5\n17/09/2025;;0.5\n';
 
 // Reparte `total` km entre `n` clases: cada una al azar dentro del rango y, si
 // hay que encajarlas en un hueco concreto (`exacto`), escaladas para sumarlo justo.
@@ -336,14 +350,15 @@ function planificarClasesAnteriores(opciones = {}) {
   // 1. Qué falta por crear
   const pendientes = [];
   for (const a of d.alumnos.filter(x => !x.deleted && x.clases_previas > 0)) {
-    if (a.km_previos > 0) { avisos.push(`${nombreDe(a)}: tiene «km ya hechos» apuntados, así que sus ${a.clases_previas} clases se quedan como punto de partida (sin crear). Borra esos km si quieres que se creen.`); continue; }
+    if (a.km_previos > 0) { avisos.push(`${nombreDe(a)}: tiene «km ya hechos» apuntados, así que sus ${fmtC(a.clases_previas)} clases se quedan como punto de partida (sin crear). Borra esos km si quieres que se creen.`); continue; }
     const v = vehiculoDe(a.vehiculo_id);
-    if (!v) { avisos.push(`${nombreDe(a)}: sin coche asignado; asígnale uno para poder crear sus ${a.clases_previas} clases.`); continue; }
+    if (!v) { avisos.push(`${nombreDe(a)}: sin coche asignado; asígnale uno para poder crear sus ${fmtC(a.clases_previas)} clases.`); continue; }
     if (!(v.km_actual > 0) && !practicas.some(p => p.vehiculo_id === v.id && tiene(p))) {
       errores.push(`${v.nombre}: falta el km de hoy de su cuentakilómetros (paso 1); sin él no se pueden poner km a las clases de ${nombreDe(a)}.`);
       continue;
     }
-    pendientes.push({ a, quedan: a.clases_previas, creadas: [] });
+    // 12 ½ clases = 13 prácticas, la más antigua de ½
+    pendientes.push({ a, quedan: Math.ceil(a.clases_previas - 1e-9), frac: aCuartos(a.clases_previas % 1), creadas: [] });
   }
   const blancas = practicas.filter(p => esAnterior(p) && !tiene(p) && vehiculoDe(p.vehiculo_id));
   if (!pendientes.length && !blancas.length) return { ok: !errores.length, vacio: !errores.length, altas: [], km: [], alumnos: [], vehiculos: [], avisos, errores };
@@ -434,6 +449,8 @@ function planificarClasesAnteriores(opciones = {}) {
     }
   }
   for (const x of pendientes) if (x.quedan > 0) errores.push(`${nombreDe(x.a)}: no se han podido colocar ${x.quedan} de sus clases (no quedan días con hueco en su coche o su profesor).`);
+  // La fracción (¼ ½ ¾) va en la más antigua de las creadas
+  for (const x of pendientes) if (x.frac > 0 && x.frac < 1 && x.creadas.length) x.creadas[x.creadas.length - 1].fraccion = x.frac;
 
   // 5. Km: por coche, en orden de fecha y hora, cada tanda de clases sin km
   //    entre dos clases conocidas se encaja en los km que las separan.
@@ -500,10 +517,10 @@ function planificarClasesAnteriores(opciones = {}) {
     const dias = new Set(suyas.map(c => c.fecha)).size;
     alumnos.push({
       alumno_id: aid, nombre: nombreDe(a), vehiculo: v ? `${v.matricula || v.nombre}` : '—',
-      nuevas: altas.filter(c => c.alumno_id === aid).length, anotadas_sin_km: blancas.filter(b => b.alumno_id === aid).length,
+      nuevas: sumaClases(altas.filter(c => c.alumno_id === aid)), anotadas_sin_km: blancas.filter(b => b.alumno_id === aid).length,
       dias, desde: suyas[0].fecha, hasta: suyas[suyas.length - 1].fecha,
       km_desde: Math.min(...suyas.map(c => c.km_inicial ?? Infinity)), km_hasta: Math.max(...suyas.map(c => c.km_final ?? -Infinity)),
-      clases: suyas.map(c => ({ fecha: c.fecha, hora_inicio: c.hora_inicio || '', km_inicial: c.km_inicial, km_final: c.km_final, anotada: !!c.tipo_detalle }))
+      clases: suyas.map(c => ({ fecha: c.fecha, hora_inicio: c.hora_inicio || '', km_inicial: c.km_inicial, km_final: c.km_final, anotada: !!c.tipo_detalle, fraccion: c.fraccion || null }))
     });
   }
   alumnos.sort((x, y) => x.nombre.localeCompare(y.nombre));
@@ -534,9 +551,9 @@ function aplicarClasesAnteriores(plan) {
     const a = d.alumnos.find(x => x.id === c.alumno_id);
     if (!a || !d.vehiculos.some(v => v.id === c.vehiculo_id) || !leerFecha(c.fecha) ||
       !(Number.isInteger(c.km_inicial) && Number.isInteger(c.km_final) && c.km_final > c.km_inicial && c.km_inicial >= 0)) return cambiado;
-    porAlumno.set(a.id, (porAlumno.get(a.id) || 0) + 1);
+    porAlumno.set(a.id, aCuartos((porAlumno.get(a.id) || 0) + clasesDePractica(c)));
   }
-  for (const [aid, k] of porAlumno) if (k > (d.alumnos.find(x => x.id === aid).clases_previas || 0)) return cambiado;
+  for (const [aid, k] of porAlumno) if (k > (d.alumnos.find(x => x.id === aid).clases_previas || 0) + 1e-9) return cambiado;
   for (const k of plan.km) {
     const p = d.practicas.find(x => x.id === k.id);
     if (!esAnterior(p) || tiene(p) || !(Number.isInteger(k.km_inicial) && k.km_final > k.km_inicial && k.km_inicial >= 0)) return cambiado;
@@ -563,11 +580,11 @@ function aplicarClasesAnteriores(plan) {
     d.practicas.push({
       id, alumno_id: a.id, vehiculo_id: c.vehiculo_id, fecha: c.fecha, km_inicial: c.km_inicial, km_final: c.km_final,
       profesor_id: c.profesor_id || null, tipo: 'circulacion', sucursal_id: a.sucursal_id || null,
-      hora_inicio: c.hora_inicio || null, tipo_detalle: MARCA
+      hora_inicio: c.hora_inicio || null, tipo_detalle: MARCA, ...(clasesDePractica(c) < 1 ? { fraccion: clasesDePractica(c) } : {})
     });
     nuevas.push(id);
   }
-  for (const [aid, k] of porAlumno) { const a = d.alumnos.find(x => x.id === aid); a.clases_previas = Math.max(0, (a.clases_previas || 0) - k); }
+  for (const [aid, k] of porAlumno) { const a = d.alumnos.find(x => x.id === aid); a.clases_previas = Math.max(0, aCuartos((a.clases_previas || 0) - k)); }
   for (const k of plan.km) Object.assign(d.practicas.find(x => x.id === k.id), { km_inicial: k.km_inicial, km_final: k.km_final });
   const vehiculosTocados = new Set([...plan.altas.map(c => c.vehiculo_id), ...plan.km.map(k => d.practicas.find(x => x.id === k.id).vehiculo_id)]);
   for (const vid of vehiculosTocados) {
@@ -589,7 +606,7 @@ function aplicarClasesAnteriores(plan) {
 // Clases anteriores ya creadas por alumno (para la tabla de Puesta en marcha).
 function contarClasesAnteriores(d = load()) {
   const m = new Map();
-  for (const p of d.practicas) if (esAnterior(p)) m.set(p.alumno_id, (m.get(p.alumno_id) || 0) + 1);
+  for (const p of d.practicas) if (esAnterior(p)) m.set(p.alumno_id, aCuartos((m.get(p.alumno_id) || 0) + clasesDePractica(p)));
   return m;
 }
 

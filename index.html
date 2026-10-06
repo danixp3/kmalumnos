@@ -834,6 +834,7 @@
         </div>
 
         <div id="alumnos-alta-toast" class="hidden" style="margin-bottom:12px"></div>
+        <div id="alumnos-revisar-aviso" class="hidden" style="margin-bottom:12px"></div>
 
         <div class="toolbar">
           <div class="seg seg-tabs" id="alumnos-tabs" role="group" aria-label="Grupo de alumnos">
@@ -907,6 +908,8 @@
               <summary class="btn btn-outline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Documentos</summary>
               <div class="menu-fila-lista">
                 <button type="button" onclick="abrirFichaDGT(currentAlumnoId)">Ficha oficial DGT</button>
+                <button type="button" onclick="this.closest('details').open=false;abrirSepararNombres([currentAlumnoId])">Separar nombre y apellidos</button>
+                <button type="button" onclick="this.closest('details').open=false;abrirJuntarConOtro(currentAlumnoId)">Juntar con otra ficha (repetido)…</button>
               </div>
             </details>
             <button class="btn btn-outline" onclick="abrirNuevaReservaAlumno()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Programar clase</button>
@@ -3706,6 +3709,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/puesta-en-marcha.js"></script>
 <script src="renderer/migracion.js"></script>
 <script src="renderer/historial-pantallas.js"></script>
+<script src="renderer/alumnos-repetidos.js"></script>
 <script src="renderer/arranque.js"></script>
 </body>
 </html>

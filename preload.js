@@ -47,6 +47,13 @@ contextBridge.exposeInMainWorld('api', {
   addAlumno:    (n, p, vid, profId, sucursalId, email, datos, libro, permisos) => ipcRenderer.invoke('add-alumno', n, p, vid, profId, sucursalId, email, datos, libro, permisos),
   deleteAlumno: (id)                         => ipcRenderer.invoke('delete-alumno', id),
   updateAlumnoCampos: (id, campos)           => ipcRenderer.invoke('update-alumno-campos', id, campos),
+  proponerSepararNombres: (ids)              => ipcRenderer.invoke('proponer-separar-nombres', ids),
+  aplicarSepararNombres: (lista)             => ipcRenderer.invoke('aplicar-separar-nombres', lista),
+  buscarAlumnosRepetidos: ()                 => ipcRenderer.invoke('buscar-alumnos-repetidos'),
+  previaFusionAlumnos: (queda, seVa)         => ipcRenderer.invoke('previa-fusion-alumnos', queda, seVa),
+  fusionarAlumnos: (queda, seVa)             => ipcRenderer.invoke('fusionar-alumnos', queda, seVa),
+  deshacerFusionAlumnos: (id)                => ipcRenderer.invoke('deshacer-fusion-alumnos', id),
+  getFusionesAlumnos: ()                     => ipcRenderer.invoke('get-fusiones-alumnos'),
   buscarAlumnosRapido: (texto, limite)       => ipcRenderer.invoke('buscar-alumnos-rapido', texto, limite),
   updateAlumno: (id, n, p, vid, profId, email, datos, libro, permisos) => ipcRenderer.invoke('update-alumno', id, n, p, vid, profId, email, datos, libro, permisos),
 

@@ -2,7 +2,7 @@
 // Importar prácticas desde CSV (con generación de km aleatorios si faltan),
 // exportarlas de vuelta al mismo formato, y comparar dos CSV entre sí.
 
-const { load, save, nextId, _sync, addLog } = require('./core');
+const { load, save, nextId, _sync, addLog, leerCantidadClases, trozosDeClases, kmPorPesos, clasesDePractica } = require('./core');
 
 // Emparejar el alumno por DNI o por nombre y apellidos (en cualquier orden) y
 // aceptar fechas en cualquier formato: el CSV puede venir de otro programa.
@@ -76,6 +76,20 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
         }
       }
 
+      // Columna OPCIONAL «clases»: lo que vale la fila, de ¼ en ¼ (0.5 = media clase;
+      // 1.5 = una entera y otra de ½, con los km repartidos). En blanco = 1.
+      const clasesTxt = String(row.clases == null ? '' : row.clases).trim();
+      const cantidad = clasesTxt ? leerCantidadClases(clasesTxt) : 1;
+      if (!cantidad || cantidad > 6) {
+        erroresDetalle.push({ fila: idx + 2, motivo: `Clases no válidas: "${clasesTxt}" (de ¼ en ¼: 1, 0.5, 0.25, 1.5…)`, datos: `${alumno} / ${fecha}` });
+        return;
+      }
+      const pesos = trozosDeClases(cantidad);
+      if (tieneKms && kmF - kmI < pesos.length) {
+        erroresDetalle.push({ fila: idx + 2, motivo: `Con ${kmF - kmI} km no caben ${clasesTxt} clases`, datos: `${alumno} / ${fecha}` });
+        return;
+      }
+
       // Columnas OPCIONALES: hora de inicio y profesor (pueden ir en blanco o no existir).
       const horaInicio = (row.hora_inicio || '').trim() || null;
       let profesorId = null;
@@ -91,8 +105,8 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
         profesorId = prof.id;
       }
 
-      if (tieneKms) conKm.push({ fila: idx + 2, a, v, fecha, kmI, kmF, profesorId, horaInicio });
-      else          sinKm.push({ fila: idx + 2, a, v, fecha, profesorId, horaInicio });
+      if (tieneKms) conKm.push({ fila: idx + 2, a, v, fecha, kmI, kmF, profesorId, horaInicio, pesos });
+      else          sinKm.push({ fila: idx + 2, a, v, fecha, profesorId, horaInicio, pesos });
     } catch (e) {
       erroresDetalle.push({ fila: idx + 2, motivo: `Error inesperado: ${e.message}`, datos: JSON.stringify(row) });
     }
@@ -101,9 +115,20 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
   // Cache del km_final más alto ya insertado por alumno_id (encadena las prácticas sin km).
   const ultimoKmPorAlumno = {};
   const insertar = (r, kmI, kmF) => {
-    const pid = nextId('p');
-    d.practicas.push({ id: pid, alumno_id: r.a.id, vehiculo_id: r.v.id, fecha: r.fecha, km_inicial: kmI, km_final: kmF, profesor_id: r.profesorId, hora_inicio: r.horaInicio });
-    const s = _sync(); if (s) s.markDirty('practicas', pid);
+    // Una fila de varias clases (o con fracción) = una práctica por trozo, km en proporción
+    const pesos = r.pesos || [1];
+    const tramos = kmF > kmI ? kmPorPesos(kmF - kmI, pesos) : pesos.map(() => 0);
+    const s = _sync();
+    let km = kmI;
+    pesos.forEach((w, j) => {
+      const pid = nextId('p');
+      d.practicas.push({
+        id: pid, alumno_id: r.a.id, vehiculo_id: r.v.id, fecha: r.fecha, km_inicial: kmF > kmI ? km : 0, km_final: kmF > kmI ? km + tramos[j] : 0,
+        profesor_id: r.profesorId, hora_inicio: j === 0 ? r.horaInicio : null, ...(w < 1 ? { fraccion: w } : {})
+      });
+      km += tramos[j];
+      if (s) s.markDirty('practicas', pid);
+    });
     if (kmF > r.v.km_actual) {
       r.v.km_actual = kmF;
       if (s) s.markDirty('vehiculos', r.v.id);
@@ -129,7 +154,8 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
       base = Math.max(maxAlumno, r.v.km_actual || 0);
     }
     const kmI = Math.round(base);
-    const kmF = kmI + _randomKm(kmMin, kmMax);
+    const valor = (r.pesos || [1]).reduce((t, w) => t + w, 0);
+    const kmF = kmI + Math.max((r.pesos || [1]).length, Math.round(_randomKm(kmMin, kmMax) * valor));
     insertar(r, kmI, kmF);
   }
 
@@ -158,7 +184,7 @@ function exportarCSV(opciones = {}) {
   // hora_inicio, profesor y dni son columnas OPCIONALES (compatibles con importarCSV):
   // se exportan siempre pero quedan en blanco cuando no hay ese dato. El alumno
   // sale con sus apellidos y su DNI para poder cruzarlo con otro programa.
-  const lineas = ['alumno,vehiculo,fecha,km_inicial,km_final,hora_inicio,profesor,dni'];
+  const lineas = ['alumno,vehiculo,fecha,km_inicial,km_final,hora_inicio,profesor,dni,clases'];
   for (const p of practicas) {
     const alumno = d.alumnos.find(a => a.id === p.alumno_id);
     const vehiculo = d.vehiculos.find(v => v.id === p.vehiculo_id);
@@ -172,7 +198,8 @@ function exportarCSV(opciones = {}) {
       p.km_final,
       escapar(p.hora_inicio || ''),
       escapar(profesor ? profesor.nombre : ''),
-      escapar(alumno && alumno.dni ? alumno.dni : '')
+      escapar(alumno && alumno.dni ? alumno.dni : ''),
+      clasesDePractica(p) < 1 ? clasesDePractica(p) : ''
     ].join(','));
   }
   return { csv: lineas.join('\n'), total: practicas.length };

@@ -113,7 +113,7 @@ export default async function handler(req, res) {
     const previas = (alumnosPorId[p.alumno_id] && alumnosPorId[p.alumno_id].clases_previas) || 0;
     // Las fracciones (¼ ½ ¾) suman lo que valen: tras 1 + ½ la siguiente es la 3.ª
     const hasta = i >= 0 ? lista.slice(0, i + 1) : [...lista, p];
-    return previas + Math.ceil(hasta.reduce((n, x) => n + clasesDe(x), 0) - 1e-9);
+    return Math.ceil(Number(previas) + hasta.reduce((n, x) => n + clasesDe(x), 0) - 1e-9);
   };
   const forma = p => ({
     id: p.id, fecha: p.fecha, alumno_id: p.alumno_id,
@@ -128,7 +128,7 @@ export default async function handler(req, res) {
     zonas: Array.isArray(p.zonas) ? p.zonas : [],
     en_curso: p.km_inicial > 0 && !p.km_final && p.fecha === hoyCliente,
     sin_cerrar: p.km_inicial > 0 && !p.km_final && p.fecha < hoyCliente,
-    firmada: !!p.firmada, clase_n: claseN(p), source: p.source || null,
+    firmada: !!p.firmada, clase_n: claseN(p), source: p.source || null, profesor_id: p.profesor_id || null,
     fraccion: clasesDe(p) < 1 ? clasesDe(p) : null
   });
 
