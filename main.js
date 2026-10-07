@@ -602,6 +602,15 @@ ipcMain.handle('get-encajes-km', (_, vehiculo_id) => db.getEncajesKm(vehiculo_id
 ipcMain.handle('get-clases-coche-km', (_, vehiculo_id, limite) => db.getClasesCocheKm(vehiculo_id, limite));
 ipcMain.handle('marcar-hueco-km-revisado', (_, clave, revisado) => db.marcarHuecoRevisado(clave, revisado !== false));
 ipcMain.handle('get-resumen-cuadre-km', () => db.getResumenCuadreKm());
+// Asistente de km: recomendar y combinar pasos en una sola vista previa
+ipcMain.handle('recomendar-plan-km', (_, vehiculo_id) => db.recomendarPlanKm(vehiculo_id));
+ipcMain.handle('proponer-plan-km', (_, vehiculo_id, pasos) => db.proponerPlanKm(vehiculo_id, pasos));
+// Añadir y editar clases (sesiones de ¼ en ¼, encajar entre otras, firma borrada al cambiar el nº de clases)
+ipcMain.handle('get-sesion-clase', (_, practica_id) => db.getSesionClase(practica_id));
+ipcMain.handle('proponer-clase', (_, op) => db.proponerClase(op));
+ipcMain.handle('aplicar-clase', (_, vistaPrevia) => db.aplicarClase(vistaPrevia));
+ipcMain.handle('quitar-sesion-clase', (_, practica_id) => db.quitarSesionClase(practica_id));
+ipcMain.handle('sumar-clases-dia', (_, opts) => db.sumarClasesDia(opts));
 // Zonas de prácticas (se comparten con la web del móvil vía ajustes_empresa)
 ipcMain.handle('get-zonas-practica', () => db.getZonasPractica());
 ipcMain.handle('get-practica-detalle', (_, id) => db.getPracticaDetalle(id));

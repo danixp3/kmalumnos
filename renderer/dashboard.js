@@ -265,12 +265,14 @@ async function pintarAvisosPanel(p) {
     btn: btn('Revisar', "navegarA('kilometros','conflictos')") });
 
   try {
-    const cuadrar = (await window.api.getResumenCuadreKm()).filter(c => c.activo && c.problemas > 0);
+    const sinHuecos = typeof kmOcultarHuecos === 'function' && kmOcultarHuecos();   // «Ocultar huecos»: los tramos sin explicar no avisan
+    const problemasDe = c => (sinHuecos ? c.a_cambiar : c.problemas);
+    const cuadrar = (await window.api.getResumenCuadreKm()).filter(c => c.activo && problemasDe(c) > 0);
     if (cuadrar.length) {
-      const n = cuadrar.reduce((s, c) => s + c.problemas, 0);
+      const n = cuadrar.reduce((s, c) => s + problemasDe(c), 0);
       avisos.push({ nivel: 'err', ic: 'aviso', orden: 0,
         tit: `${n} ${n === 1 ? 'cosa' : 'cosas'} por cuadrar en los km de ${cuadrar.map(c => c.nombre).join(', ')}`,
-        desc: 'Hay clases con km que no encajan, clases en blanco por repartir o tramos donde faltan clases.',
+        desc: sinHuecos ? 'Hay clases con km que no encajan o clases en blanco por repartir.' : 'Hay clases con km que no encajan, clases en blanco por repartir o tramos donde faltan clases.',
         btn: btn('Cuadrar km', `cuadreIrA(${cuadrar[0].vehiculo_id})`) });
     }
   } catch (e) {}
@@ -461,23 +463,17 @@ async function loadVencimientosDashboard() {
 }
 
 function navegarA(page, tab) {
+  // «Cuadrar y generar km» ya no es una pantalla aparte: está en el asistente de Kilómetros
+  if (page === 'generar-km') { page = 'kilometros'; tab = 'asistente'; }
   const link = document.querySelector(`#sidebar nav a[data-page="${page}"]`);
   if (link) link.click();
   if (tab) {
     if (page === 'kilometros') cambiarTabKilometros(tab);
     if (page === 'datos') cambiarTabDatos(tab);
-    if (page === 'generar-km') cambiarTabGenerarKm(tab);
   }
 }
 
 // ─── PESTAÑAS DE PÁGINA (Kilómetros / Datos) ──────────────────────────────────
-function cambiarTabKilometros(tab) {
-  document.querySelectorAll('#page-kilometros .page-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.querySelectorAll('#page-kilometros .tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-kilometros-' + tab));
-  if (tab === 'mapa') loadTimelineSelect();
-  if (tab === 'conflictos') { aplicarRangoPref('solap-min', 'solap-max'); loadSolapamientos(); }
-}
-
 function cambiarTabDatos(tab) {
   document.querySelectorAll('#page-datos .page-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('#page-datos .tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-datos-' + tab));

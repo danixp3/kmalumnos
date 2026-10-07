@@ -336,6 +336,26 @@ function showToast(elementId, msg, type = 'err') {
   toastTimers[elementId] = setTimeout(() => hideToast(elementId), 4000);
 }
 
+// Aviso flotante (abajo en el centro): confirma algo hecho sin quitar la pantalla.
+// tipo: 'ok' (por defecto), 'aviso' o 'error'. Se va solo a los 3,2 s (6 s si es un error).
+let _toastAppTimer = null;
+function toastApp(msg, tipo = 'ok') {
+  let el = document.getElementById('toast-app');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast-app';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    document.body.appendChild(el);
+  }
+  clearTimeout(_toastAppTimer);
+  el.className = 'toast-app toast-' + tipo;
+  el.textContent = msg;
+  void el.offsetWidth;            // reinicia la animación si ya estaba a la vista
+  el.classList.add('visible');
+  _toastAppTimer = setTimeout(() => el.classList.remove('visible'), tipo === 'error' ? 6000 : 3200);
+}
+
 function hideToast(elementId) {
   const el = document.getElementById(elementId);
   if (!el) return;

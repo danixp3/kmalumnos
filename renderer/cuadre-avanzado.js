@@ -26,16 +26,16 @@ async function abrirCuadreAvanzado() {
   if (!vid) return;
   cav.vid = vid;
   const coche = (vehiculosCache || []).find(v => v.id === vid);
-  const sel = document.getElementById('gk-vehiculo');
+  const sel = document.getElementById('km-vehiculo');
   cav.nombre = coche ? coche.nombre : (sel && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : 'coche');
-  cav.opc = { rehacerCalculados: true, rellenarAntes: true, rellenarDespues: !!cuadreOpc.rellenarDespues, cerrarHuecosPequenos: !!cuadreOpc.cerrarHuecosPequenos, rellenarHuecosGrandes: !!cuadreOpc.rellenarHuecosGrandes };
+  cav.opc = { rehacerCalculados: true, rellenarAntes: true, rellenarDespues: false, cerrarHuecosPequenos: false, rellenarHuecosGrandes: false };
   cav.resaltar = '';
   cav.plan = null;
   navegarA('cuadre-avanzado');
 }
 
 async function loadCuadreAvanzado() {
-  if (!cav.vid) { navegarA('generar-km', 'cuadrar'); return; }
+  if (!cav.vid) { navegarA('kilometros', 'asistente'); return; }
   document.getElementById('cav-titulo').textContent = `Modo avanzado · ${cav.nombre}`;
   try { cav.companeros = await window.api.getCompanerosKm(cav.vid); } catch (e) { cav.companeros = []; }
   cav.sel = Math.min(cav.sel, Math.max(0, cav.companeros.length - 1));
@@ -44,8 +44,9 @@ async function loadCuadreAvanzado() {
 }
 
 function cavVolver() {
-  if (typeof gkVehiculoPreferido !== 'undefined') gkVehiculoPreferido = cav.vid;
-  navegarA('generar-km', 'cuadrar');
+  kmVehiculoPreferido = cav.vid;
+  KM.planDe = null;
+  navegarA('kilometros', 'asistente');
 }
 
 const cavColor = i => `var(${CAV_COLORES[i % CAV_COLORES.length]})`;

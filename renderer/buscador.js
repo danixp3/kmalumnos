@@ -22,7 +22,7 @@ const BUSCADOR_DESTINOS = [
   // Vehículos
   { titulo: 'Vehículos', sub: 'Flota y odómetros', page: 'vehiculos', kw: 'vehiculos vehiculo coches coche flota odometro matricula' },
   { titulo: 'Añadir vehículo', sub: 'Vehículos', page: 'vehiculos', anchor: 'v-nombre', kw: 'anadir agregar nuevo vehiculo coche crear alta matricula' },
-  { titulo: 'Relleno masivo de km', sub: 'Kilómetros → Generar km', page: 'generar-km', kw: 'relleno masivo kilometros km blanco generar odometro rellenar encadenado' },
+  { titulo: 'Relleno masivo de km', sub: 'Kilómetros → Asistente', page: 'kilometros', tab: 'asistente', kw: 'relleno masivo kilometros km blanco generar odometro rellenar encadenado' },
 
   // Profesores
   { titulo: 'Profesores', sub: 'Lista de profesores', page: 'profesores', kw: 'profesores profesor instructores docentes' },
@@ -41,13 +41,10 @@ const BUSCADOR_DESTINOS = [
 
   // Kilómetros
   { titulo: 'Mapa del vehículo', sub: 'Kilómetros', page: 'kilometros', tab: 'mapa', kw: 'kilometros km mapa vehiculo timeline linea tiempo odometro' },
-  { titulo: 'Conflictos de km', sub: 'Kilómetros', page: 'kilometros', tab: 'conflictos', kw: 'kilometros conflictos solapamientos errores km incoherencias' },
-
-  // Generar km
-  { titulo: 'Cuadrar km', sub: 'Cuentakilómetros coherente de cada coche', page: 'generar-km', tab: 'cuadrar', kw: 'cuadrar cuadre km kilometros huecos sin asignar solapan solapamientos incoherentes ordenar repartir faltan clases revisar arreglar modo avanzado planning compañeros fantasma sin registrar aprobaron' },
-  { titulo: 'Generar km', sub: 'Generación de kilómetros', page: 'generar-km', kw: 'generar generacion kilometros km rellenar relleno masivo blanco encadenado maximo rango odometro' },
-  { titulo: 'Generar hasta un máximo', sub: 'Generar km', page: 'generar-km', tab: 'maximo', kw: 'generar km maximo tope final odometro hacia atras' },
-  { titulo: 'Generar por rango', sub: 'Generar km', page: 'generar-km', tab: 'rango', kw: 'generar km rango desde hasta media variacion repartir distribuir' },
+  { titulo: 'Solapes de km', sub: 'Kilómetros', page: 'kilometros', tab: 'conflictos', kw: 'kilometros conflictos solapamientos solapes errores km incoherencias' },
+  { titulo: 'Asistente de km', sub: 'Cuentakilómetros coherente de cada coche', page: 'kilometros', tab: 'asistente', kw: 'asistente cuadrar cuadre km kilometros huecos sin asignar solapan solapamientos incoherentes ordenar repartir faltan clases revisar arreglar modo avanzado planning compañeros fantasma sin registrar aprobaron generar generacion rellenar relleno masivo blanco encadenado maximo rango odometro plan combinar' },
+  { titulo: 'Ocultar huecos de km', sub: 'Kilómetros', page: 'kilometros', anchor: 'km-ocultar-huecos', kw: 'ocultar huecos km kilometros ruido visual tramos sin explicar esconder' },
+  { titulo: 'Añadir una clase olvidada', sub: 'Kilómetros → se encaja sola entre las otras', page: 'kilometros', tab: 'asistente', kw: 'anadir clase olvidada practica meter entre medio encajar km recalcular insertar' },
 
   // Historial
   { titulo: 'Historial de cambios', sub: 'Registro de operaciones', page: 'logs', kw: 'historial logs registro operaciones cambios auditoria' },

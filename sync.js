@@ -1772,7 +1772,11 @@ async function _syncInterno() {
     const subirEnLotes = async (tabla, filas) => {
       const confirmar = ([id, payload, local]) => {
         hecho(tabla, id);
-        if (local) { local.updated_at = payload.updated_at; marcasLocales = true; }
+        if (local) {
+          local.updated_at = payload.updated_at; marcasLocales = true;
+          // La firma ya se borró en la nube: la marca no debe quedarse y borrar una firma nueva hecha después en el móvil
+          if (tabla === 'practicas' && local.firma_borrar && payload.firma === null) delete local.firma_borrar;
+        }
       };
       const grupos = new Map();
       for (const f of filas) {
