@@ -15,7 +15,9 @@ const proj = JSON.parse(fs.readFileSync(path.join(WEB, '.vercel', 'project.json'
 
 // Archivos a subir: los trackeados por git en web-remote (sin .gitignore)
 const fileList = execSync('git ls-files', { cwd: WEB, encoding: 'utf-8' })
-  .split('\n').map(s => s.trim()).filter(f => f && f !== '.gitignore');
+  .split('\n').map(s => s.trim())
+  // Las pruebas (Supabase falso, servidor local) no se publican
+  .filter(f => f && f !== '.gitignore' && !f.startsWith('tests/'));
 
 async function main() {
   console.log(`proyecto: ${proj.projectName} | archivos: ${fileList.length}`);
