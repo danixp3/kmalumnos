@@ -11,11 +11,20 @@ function openModal(id) {
   m.querySelectorAll('.val-ok, .val-aviso, .val-mal').forEach(x => { x.classList.remove('val-ok', 'val-aviso', 'val-mal'); x._valMsg = null; });
   m.querySelectorAll('.dp-msg').forEach(x => x.remove());
   m.querySelectorAll('.dp-error').forEach(x => x.classList.remove('dp-error'));
+  // Si se estaba cerrando con su fundido, se cancela: vuelve a abrirse entera
+  clearTimeout(m._cierre); m.classList.remove('cerrando');
   m.classList.add('open');
 }
+// Se cierra con un fundido corto (la ventana se encoge un poco, como en iOS); sin movimiento, de golpe
 function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
+  const m = document.getElementById(id);
   if (typeof cerrarDatepicker === 'function') cerrarDatepicker();
+  if (!m.classList.contains('open')) return;
+  const sinMov = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (sinMov) { m.classList.remove('open'); return; }
+  m.classList.add('cerrando');
+  clearTimeout(m._cierre);
+  m._cierre = setTimeout(() => { m.classList.remove('open', 'cerrando'); }, 190);
 }
 
 // Cerrar modal al hacer click fuera.

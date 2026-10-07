@@ -45,10 +45,13 @@ export default async function handler(req, res) {
   const claseN = Math.max(1, Math.ceil(((alumno && Number(alumno.clases_previas)) || 0) + hasta.reduce((n, x) => n + clasesDe(x), 0) - 1e-9));
 
   // Sesión de varias clases (90 min = 2 clases...): para firmarlas de una vez.
-  let sesion = null;
-  if (!p.firma && p.km_final > 0) {
+  let sesion = null, corregible = null;
+  if (p.km_final > 0) {
     const cadena = await sesionDePractica(supabase, auth.empresaId, p, 'id, km_inicial, km_final, hora_inicio, hora_fin, firmada, fraccion');
-    const sinFirmar = cadena.filter(x => x.id === p.id || !x.firmada);
+    // ¿Se puede corregir cuántas clases fue? (clases del móvil de los últimos 30 días): la sesión entera
+    const dias = Math.round((Date.now() - new Date(p.fecha + 'T00:00:00Z').getTime()) / 86400000);
+    if (p.source === 'web-remote' && dias <= 30) corregible = { ids: cadena.map(x => x.id), n: cadena.reduce((n, x) => n + clasesDe(x), 0) };
+    const sinFirmar = !p.firma ? cadena.filter(x => x.id === p.id || !x.firmada) : [];
     if (sinFirmar.length > 1) {
       sesion = {
         ids: sinFirmar.map(x => x.id), n: sinFirmar.reduce((n, x) => n + clasesDe(x), 0),
@@ -73,7 +76,7 @@ export default async function handler(req, res) {
       tipo: p.tipo || 'circulacion', tipo_detalle: p.tipo_detalle || null,
       zonas: Array.isArray(p.zonas) ? p.zonas : [], trabajado: Array.isArray(p.trabajado) ? p.trabajado : [],
       nota: p.nota || '', firma: p.firma || null, source: p.source || null, cancelable: !!cancelable,
-      sesion
+      sesion, corregible
     }
   });
 }

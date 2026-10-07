@@ -67,6 +67,10 @@
     {
       "source": "/api/estado-practica",
       "destination": "/api/movil?op=estado-practica"
+    },
+    {
+      "source": "/api/corregir-clases",
+      "destination": "/api/movil?op=corregir-clases"
     }
   ],
   "headers": [

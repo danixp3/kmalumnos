@@ -1,6 +1,6 @@
 // Único endpoint serverless del flujo móvil de prácticas. El plan Hobby de Vercel
 // admite 12 funciones, así que hoy/iniciar/finalizar/firmar/cancelar/config/
-// calendario/practica-detalle/anotar-practica/registrar-clase/firma-profesor/coche-profesor/avisos/km-coche/estado-practica viven en lib/movil/ y vercel.json reescribe
+// calendario/practica-detalle/anotar-practica/registrar-clase/firma-profesor/coche-profesor/avisos/km-coche/estado-practica/corregir-clases viven en lib/movil/ y vercel.json reescribe
 // /api/<nombre> → /api/movil?op=<nombre>.
 import hoy from '../lib/movil/hoy.js';
 import iniciar from '../lib/movil/iniciar-practica.js';
@@ -17,6 +17,7 @@ import cocheProfesor from '../lib/movil/coche-profesor.js';
 import avisos, { enviarAvisos } from '../lib/movil/avisos.js';
 import kmCoche from '../lib/movil/km-coche.js';
 import estadoPractica from '../lib/movil/estado-practica.js';
+import corregirClases from '../lib/movil/corregir-clases.js';
 
 const OPS = {
   'hoy': hoy,
@@ -34,7 +35,8 @@ const OPS = {
   'avisos': avisos,
   'avisos-enviar': enviarAvisos,
   'km-coche': kmCoche,
-  'estado-practica': estadoPractica
+  'estado-practica': estadoPractica,
+  'corregir-clases': corregirClases
 };
 
 export default async function handler(req, res) {
