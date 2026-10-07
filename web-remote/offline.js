@@ -144,7 +144,9 @@
         }
         return true;
       },
-      async leer(url) { const k = claveCache(url); return k ? (await almacen.get('cache', k)) || null : null; }
+      async leer(url) { const k = claveCache(url); return k ? (await almacen.get('cache', k)) || null : null; },
+      // Borra la copia de lecturas (alumnos, coches, jornada…): al cerrar sesión o al entrar otra cuenta
+      async vaciar() { for (const [k] of await almacen.todos('cache')) await almacen.del('cache', k); return true; }
     };
 
     const cola = {

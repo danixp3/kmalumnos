@@ -534,6 +534,8 @@ function getDatosFichaDGT(alumno_id, tipo) {
     if (firmante && !firmaValida(firmante.firma)) sinFirma.set(firmante.id, firmante.nombre);
     return {
       fecha: fmt(g[0].fecha), hora, km_inicial: km(primera.km_inicial), km_final: km(ultima.km_final),
+      // Km que no leyó nadie del cuentakilómetros: los puso la app (Cuadrar, Generar km, «Los pone la app»)
+      km_calculados: conKm.some(p => p.tipo_detalle === 'km_auto'),
       clases, ejercicio: clases >= 2 ? '2 CLASES' : `${fmtClases(clases)} ${clases > 1 ? 'CLASES' : 'CLASE'}`,
       firma_alumno: conFirma ? conFirma.firma : null,
       firma_profesor: firmante && firmaValida(firmante.firma) ? firmante.firma : null,

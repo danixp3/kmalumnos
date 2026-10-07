@@ -81,6 +81,9 @@ function _dlgAbrir(tipo, mensaje, opts = {}) {
   const input = _dlgOverlay.querySelector('#dlg-input');
   inputWrap.style.display = esTexto ? '' : 'none';
   if (esTexto) {
+    // tipoCampo: 'password' para PIN y contraseñas (no se ven al escribir)
+    input.type = opts.tipoCampo === 'password' ? 'password' : 'text';
+    input.autocomplete = 'off';
     input.value = opts.valor != null ? String(opts.valor) : '';
     input.placeholder = opts.placeholder || '';
   }
@@ -93,7 +96,7 @@ function _dlgAbrir(tipo, mensaje, opts = {}) {
   btnAceptar.textContent = opts.textoAceptar || (esConfirm ? 'Aceptar' : esTexto ? 'Aceptar' : 'Aceptar');
   btnAceptar.className = 'btn ' + (peligro ? 'btn-danger' : 'btn-primary');
 
-  const aceptar = () => _dlgCerrar(esTexto ? input.value : true);
+  const aceptar = () => { const v = esTexto ? input.value : true; if (esTexto) input.value = ''; _dlgCerrar(v); };
   const cancelar = () => _dlgCerrar(esTexto ? null : false);
   btnAceptar.onclick = aceptar;
   btnCancelar.onclick = cancelar;

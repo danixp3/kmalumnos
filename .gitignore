@@ -10,3 +10,6 @@ __pycache__/
 BD/
 *.accdb
 *.mdb
+
+# Datos reales de alumnos: nunca al repositorio (es público)
+registro_kilometraje_alumnos.csv

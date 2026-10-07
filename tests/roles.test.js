@@ -6,7 +6,7 @@
 //     ("modo clásico": rol efectivo siempre 'jefe', nada se oculta);
 //   - con la migración aplicada, el rol real (jefe/empleado) se detecta bien;
 //   - un empleado sin acceso a `pagos` (RLS) no rompe el resto del sync;
-//   - invitarEmpleado da un mensaje claro si el email no tiene cuenta.
+//   - invitarEmpleado ya no mete cuentas ajenas por email (seguridad 2026-10-07).
 // Nunca se conecta a la base de datos real.
 const fs = require('fs');
 const path = require('path');
@@ -182,62 +182,43 @@ describe('sync() tolera que "pagos" falle por permisos (RLS) para un empleado', 
   });
 });
 
-describe('invitarEmpleado()', () => {
-  test('con email no registrado, devuelve un error claro pidiendo crear la cuenta primero', async () => {
+describe('cerrarOtrasSesiones()', () => {
+  test('cierra la sesión en los demás dispositivos y deja abierta la de este PC', async () => {
     mockRemote.authUserId = 'uid-jefe';
-    mockRemote.tables.perfiles = [
-      { user_id: 'uid-jefe', empresa_id: 'uid-jefe', rol: 'jefe', sucursal_id: null, nombre: 'El Jefe' }
-    ];
-    mockRemote.rpcHandlers.buscar_uid_por_email = () => null; // el email no tiene cuenta
     sync.setCredentials('jefe@empresa.com', 'secreta');
     await sync.sync();
-
-    const res = await sync.invitarEmpleado('nadie@empresa.com', 'empleado', null);
-
-    expect(res.ok).toBe(false);
-    expect(res.msg).toMatch(/no tiene todavía una cuenta|registre/i);
-  });
-
-  test('con email registrado, da de alta al empleado en perfiles', async () => {
-    mockRemote.authUserId = 'uid-jefe';
-    mockRemote.tables.perfiles = [
-      { user_id: 'uid-jefe', empresa_id: 'uid-jefe', rol: 'jefe', sucursal_id: null, nombre: 'El Jefe' }
-    ];
-    mockRemote.rpcHandlers.buscar_uid_por_email = () => 'uid-nuevo-empleado';
-    sync.setCredentials('jefe@empresa.com', 'secreta');
-    await sync.sync();
-
-    const res = await sync.invitarEmpleado('nuevo@empresa.com', 'empleado', null);
-
+    const res = await sync.cerrarOtrasSesiones();
     expect(res.ok).toBe(true);
-    const fila = mockRemote.tables.perfiles.find(p => p.user_id === 'uid-nuevo-empleado');
-    expect(fila).toMatchObject({ empresa_id: 'uid-jefe', rol: 'empleado' });
+    expect(mockRemote.lastSignOut).toBe('others');
   });
+  test('sin sesión no hace nada y lo explica', async () => {
+    mockRemote.lastSignOut = undefined;
+    sync.setCredentials(null, null);
+    const res = await sync.cerrarOtrasSesiones();
+    expect(res.ok).toBe(false);
+    expect(mockRemote.lastSignOut).toBeUndefined();
+  });
+});
 
-  test('sin la migración aplicada, devuelve un mensaje claro en vez de intentar la llamada', async () => {
+describe('invitarEmpleado()', () => {
+  // Seguridad (2026-10-07): meter otra cuenta en tu empresa solo con su email
+  // permitía dejar fuera de sus datos a otra autoescuela. Ya no se hace.
+  test('ya no da de alta cuentas por email: ni busca el usuario ni toca perfiles', async () => {
     mockRemote.authUserId = 'uid-jefe';
-    mockRemote.tablasInexistentes = ['perfiles'];
+    mockRemote.tables.perfiles = [
+      { user_id: 'uid-jefe', empresa_id: 'uid-jefe', rol: 'jefe', sucursal_id: null, nombre: 'El Jefe' }
+    ];
+    const buscar = jest.fn(() => 'uid-de-otra-autoescuela');
+    mockRemote.rpcHandlers.buscar_uid_por_email = buscar;
     sync.setCredentials('jefe@empresa.com', 'secreta');
     await sync.sync();
 
-    const res = await sync.invitarEmpleado('nuevo@empresa.com', 'empleado', null);
+    const res = await sync.invitarEmpleado('victima@otra.com', 'empleado', null);
 
     expect(res.ok).toBe(false);
-    expect(res.msg).toMatch(/no está disponible/i);
-  });
-
-  test('un empleado no puede invitar a otros', async () => {
-    mockRemote.authUserId = 'uid-empleado';
-    mockRemote.tables.perfiles = [
-      { user_id: 'uid-empleado', empresa_id: 'uid-jefe', rol: 'empleado', sucursal_id: null, nombre: 'Un Empleado' }
-    ];
-    sync.setCredentials('empleado@empresa.com', 'secreta');
-    await sync.sync();
-
-    const res = await sync.invitarEmpleado('otro@empresa.com', 'empleado', null);
-
-    expect(res.ok).toBe(false);
-    expect(res.msg).toMatch(/solo el jefe/i);
+    expect(res.msg).toMatch(/seguridad/i);
+    expect(buscar).not.toHaveBeenCalled();
+    expect(mockRemote.tables.perfiles).toHaveLength(1);
   });
 });
 

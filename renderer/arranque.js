@@ -42,6 +42,7 @@ async function comprobarBienvenida() {
     if (estado && estado.conectado) {
       if (estado.conflictoEmpresa) { abrirConflictoEmpresa(estado.conflictoEmpresa, estado.email); return; }
       mostrarAppPorGate();
+      if (typeof comprobarAceptacionLegal === 'function') comprobarAceptacionLegal();
       return;
     }
     abrirBienvenida();
@@ -51,6 +52,7 @@ async function comprobarBienvenida() {
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 aplicarTema(getTema());
+if (typeof iniciarBloqueo === 'function') iniciarBloqueo();
 avisoCambioCuenta();
 document.getElementById('relleno-vehiculo')?.addEventListener('change', actualizarContadorSinKm);
 document.getElementById('rr-vehiculo')?.addEventListener('change', loadRegistroRapido);

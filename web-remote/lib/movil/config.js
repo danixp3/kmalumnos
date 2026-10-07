@@ -21,11 +21,16 @@ export default async function handler(req, res) {
   const zonas = ajustes.find(a => a.clave === 'zonas');
   const duracion = ajustes.find(a => a.clave === 'duracion_clase_min');
   const kmAuto = ajustes.find(a => a.clave === 'km_auto_movil');
+  // Responsable de los datos (Ajustes → Datos del centro del escritorio): lo ve el alumno al firmar
+  const c = (ajustes.find(a => a.clave === 'centro') || {}).valor || {};
+  const texto = v => (typeof v === 'string' ? v.trim().slice(0, 160) : '');
+  const centro = { nombre: texto(c.razon_social) || texto(c.denominacion), comercial: texto(c.denominacion), email: texto(c.email), telefono: texto(c.telefono) };
 
   return res.status(200).json({
     ok: true, zonas: limpiarZonas(zonas ? zonas.valor : []),
     duracion_clase_min: duracionClaseValida(duracion ? duracion.valor : 45),
     km_auto: kmAutoValido(kmAuto ? kmAuto.valor : null),
+    centro: centro.nombre ? centro : null,
     // Clave pública para los avisos del móvil (Web Push); null = sin configurar
     vapid_public: process.env.VAPID_PUBLIC_KEY || null
   });

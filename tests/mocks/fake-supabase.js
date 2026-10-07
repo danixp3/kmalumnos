@@ -166,6 +166,11 @@ module.exports = function makeFakeSupabase(remote) {
       }
       return { data: { user: { id: uid, email, identities: [{}] }, session: { access_token: 'tok-test' } }, error: null };
     },
+    async signOut(opciones) {
+      if (!remote.online) return { error: { message: 'Fallo de red (simulado)' } };
+      remote.lastSignOut = (opciones && opciones.scope) || 'global';
+      return { error: null };
+    },
     async resetPasswordForEmail(email, options) {
       if (!remote.online) return { data: null, error: { message: 'Fallo de red (simulado)' } };
       if (remote.resetPasswordError) return { data: null, error: { message: remote.resetPasswordError } };

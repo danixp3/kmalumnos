@@ -39,13 +39,13 @@ test('getDatosFichaDGT filtra por tipo (destreza -> pista, circulacion -> circul
   expect(destreza.profesor).toEqual({ id: pid, nombre: 'Juan', dni: '11111111A', firma: null });
   // Solo las 2 prácticas de tipo 'pista', ordenadas por fecha ascendente.
   expect(sinFirmas(destreza.practicas)).toEqual([
-    { fecha: '05/07/2026', hora: '', km_inicial: '40', km_final: '80', clases: 1, ejercicio: '1 CLASE' },
-    { fecha: '10/07/2026', hora: '10:30', km_inicial: '100', km_final: '150', clases: 1, ejercicio: '1 CLASE' },
+    { fecha: '05/07/2026', hora: '', km_inicial: '40', km_final: '80', km_calculados: false, clases: 1, ejercicio: '1 CLASE' },
+    { fecha: '10/07/2026', hora: '10:30', km_inicial: '100', km_final: '150', km_calculados: false, clases: 1, ejercicio: '1 CLASE' },
   ]);
 
   const circulacion = db.getDatosFichaDGT(aid, 'circulacion');
   expect(sinFirmas(circulacion.practicas)).toEqual([
-    { fecha: '01/07/2026', hora: '09:00', km_inicial: '0', km_final: '40', clases: 1, ejercicio: '1 CLASE' },
+    { fecha: '01/07/2026', hora: '09:00', km_inicial: '0', km_final: '40', km_calculados: false, clases: 1, ejercicio: '1 CLASE' },
   ]);
 });
 
@@ -63,9 +63,9 @@ test('getDatosFichaDGT agrupa las clases del mismo día en una fila: "1 CLASE" s
   db.addPractica(aid, vid, '2026-09-10', 208120, 208160, null, 'circulacion', null, '10:30');
 
   expect(sinFirmas(db.getDatosFichaDGT(aid, 'circulacion').practicas)).toEqual([
-    { fecha: '08/09/2026', hora: '10:00', km_inicial: '207908', km_final: '208000', clases: 2, ejercicio: '2 CLASES' },
-    { fecha: '09/09/2026', hora: '09:00', km_inicial: '208000', km_final: '208040', clases: 1, ejercicio: '1 CLASE' },
-    { fecha: '10/09/2026', hora: '09:00', km_inicial: '208040', km_final: '208160', clases: 3, ejercicio: '2 CLASES' },
+    { fecha: '08/09/2026', hora: '10:00', km_inicial: '207908', km_final: '208000', km_calculados: false, clases: 2, ejercicio: '2 CLASES' },
+    { fecha: '09/09/2026', hora: '09:00', km_inicial: '208000', km_final: '208040', km_calculados: false, clases: 1, ejercicio: '1 CLASE' },
+    { fecha: '10/09/2026', hora: '09:00', km_inicial: '208040', km_final: '208160', km_calculados: false, clases: 3, ejercicio: '2 CLASES' },
   ]);
 });
 
@@ -352,3 +352,33 @@ test('generarFichaDGT firma el pie (director y profesor) salvo con firmarPie: fa
     expect(H - p.y).toBeLessThanOrEqual(748.5);           // ni el texto de protección de datos
   }
 }, 30000);
+
+test('los km que calculó la app salen con * y nota al pie (se puede quitar)', async () => {
+  const db = require('../db');
+  const { resetData } = require('./helpers');
+  resetData(db);
+  const vid = db.addVehiculo('Kia', '1234BCD', 1000);
+  const aid = db.addAlumno('Ana', 'B', vid);
+  const id = db.addPractica(aid, vid, '2026-09-01', 1000, 1030);
+  db.addPractica(aid, vid, '2026-09-02', 1030, 1060);
+  require('../db/core').load().practicas.find(p => p.id === id).tipo_detalle = 'km_auto';
+  const datos = db.getDatosFichaDGT(aid, 'circulacion');
+  expect(datos.practicas.map(p => p.km_calculados)).toEqual([true, false]);
+  const { generarFichaDGT } = require('../fichas-dgt');
+  const { PDFDocument } = require('pdf-lib');
+  // La nota al pie es un trozo más de contenido en la página (el texto va comprimido)
+  const trozos = async opc => {
+    const bytes = await generarFichaDGT({ tipo: 'circulacion', centro: {}, alumno: datos.alumno, profesor: datos.profesor, director: datos.director, practicas: datos.practicas, ...opc });
+    const pdf = await PDFDocument.load(bytes);
+    const c = pdf.getPage(0).node.Contents();
+    return c && typeof c.size === 'function' ? c.size() : 1;
+  };
+  const con = await trozos({});
+  const sin = await trozos({ marcarCalculados: false });
+  expect(con).toBeGreaterThan(sin);
+  const sinCalculados = await generarFichaDGT({ tipo: 'circulacion', centro: {}, alumno: datos.alumno, profesor: datos.profesor, director: datos.director, practicas: datos.practicas.map(x => ({ ...x, km_calculados: false })) });
+  const pdf2 = await PDFDocument.load(sinCalculados);
+  const c2 = pdf2.getPage(0).node.Contents();
+  expect(c2 && typeof c2.size === 'function' ? c2.size() : 1).toBe(sin);
+  expect(PDFDocument).toBeDefined();
+});

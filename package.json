@@ -52,7 +52,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^33.4.11",
+    "electron": "^44.6.0",
     "electron-builder": "^26.15.3",
     "jest": "^30.4.2",
     "png-to-ico": "^3.0.2",

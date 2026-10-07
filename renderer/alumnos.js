@@ -1086,7 +1086,8 @@ async function generarFichaDGTUI(firmasYaPedidas = false) {
   const rellenarFecha = centro.rellenar_fecha !== false;
   const firmarPie = document.getElementById('ficha-dgt-firmar-pie').checked;
   try { localStorage.setItem(FICHA_FIRMAR_PIE_KEY, firmarPie ? '1' : '0'); } catch (e) {}
-  const r = await window.api.generarFichaDGT({ alumnoId, tipo, centro, rellenarFecha, firmarPie, comprobarFirmas: !firmasYaPedidas });
+  const marcarCalculados = document.getElementById('ficha-dgt-marcar-calculados')?.checked !== false;
+  const r = await window.api.generarFichaDGT({ alumnoId, tipo, centro, rellenarFecha, firmarPie, marcarCalculados, comprobarFirmas: !firmasYaPedidas });
   // El profesor de estas clases (o el del pie) o el director aún no han
   // guardado su firma: se les pide ahora (una vez; sirve para todas las
   // fichas) o se saca sin ella.

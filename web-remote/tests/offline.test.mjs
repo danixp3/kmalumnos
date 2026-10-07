@@ -31,6 +31,17 @@ test('caché: guarda y devuelve la última respuesta; se queda con las más reci
   assert.equal(await o.cache.leer('/api/calendario?desde=2026-01-0'), null);
 });
 
+test('caché: al cerrar sesión se vacía la copia de lecturas pero no la cola de envíos', async () => {
+  const o = nueva();
+  await o.cache.guardar('/api/alumnos?resumen=1', '[{"id":1,"nombre":"Ana"}]');
+  await o.cache.guardar('/api/vehiculos', '[{"id":1}]');
+  await o.cola.agregar({ uid: 'u1', tipo: 'registrar', url: '/api/registrar-clase', cuerpo: {} });
+  await o.cache.vaciar();
+  assert.equal(await o.cache.leer('/api/alumnos?resumen=1'), null);
+  assert.equal(await o.cache.leer('/api/vehiculos'), null);
+  assert.equal(await o.cola.contar('u1'), 1);
+});
+
 test('cola: se guarda en orden, por cuenta, y quitar una op quita las que dependen de ella', async () => {
   const o = nueva();
   const a = await o.cola.agregar({ uid: 'u1', tipo: 'finalizar', url: '/api/finalizar-practica', cuerpo: { practica_id: 5 } });

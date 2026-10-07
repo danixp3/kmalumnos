@@ -287,8 +287,10 @@
     <div id="lista-practicas"></div>
     <button class="btn-cerrar-sesion" onclick="cerrarSesion()">Cerrar sesión</button>
   </div>
+  <p style="text-align:center;font-size:13px;margin:22px 0 10px;opacity:.8">Tus datos los trata tu autoescuela; AulaMovil solo los guarda por encargo suyo. <a href="/legal/alumnos.html" style="color:inherit">Información para alumnos</a> · <a href="/legal/privacidad.html" style="color:inherit">Privacidad</a> · <a href="/legal/cookies.html" style="color:inherit">Cookies</a> · <a href="/legal/aviso-legal.html" style="color:inherit">Aviso legal</a></p>
 </div>
 
+<script src="/vendor/supabase-2.110.3.js"></script>
 <script type="module">
   // Solo lectura salvo el propio login: esta página no envía ningún
   // dato de prácticas, solo consulta.
@@ -301,7 +303,7 @@
   const SUPABASE_URL = 'https://dmwoqugdnwgkcqtixhyw.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtd29xdWdkbndna2NxdGl4aHl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjA5NjYsImV4cCI6MjA5OTU5Njk2Nn0.8XhWdS0ohrCbZcKpHWKsJz22rY8ASA4IkgpbtE_pHkc';
 
-  const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+  const { createClient } = window.supabase; // librería servida desde la propia web (versión fija, sin CDN externo)
 
   // "Recordar sesión" — en v1 el checkbox se deja visible por coherencia
   // visual, pero NO cambia el comportamiento: el retorno desde el enlace

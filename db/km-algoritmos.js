@@ -109,6 +109,9 @@ function rellenarKmMasivo(vehiculo_id, kmMin = 40, kmMax = 45, kmInicio = null, 
 
       p.km_inicial = kmI;
       p.km_final   = kmF;
+      // Km puestos por la app (no leídos del cuentakilómetros): se marcan
+      // como calculados, igual que en Cuadrar km (la ficha DGT puede señalarlos)
+      if (!p.tipo_detalle) p.tipo_detalle = 'km_auto';
       cursor = kmF;
       rellenadas++;
       // Marcar el cambio para que los km lleguen a la nube (antes solo quedaban en este PC)
@@ -202,6 +205,7 @@ function _aplicarPlan(d, v, plan, tipoLog, tituloLog) {
   for (const { p, ki, kf } of plan) {
     p.km_inicial = ki;
     p.km_final   = kf;
+    if (!p.tipo_detalle) p.tipo_detalle = 'km_auto'; // km calculados por la app
     if (s) s.markDirty('practicas', p.id);
   }
   // Actualizar odómetro del vehículo si creció

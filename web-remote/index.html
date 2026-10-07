@@ -100,6 +100,10 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   textarea.campo { height: auto; min-height: 92px; padding: 12px 14px; resize: vertical; }
   .err-txt { color: var(--err); font-size: 14px; min-height: 18px; font-weight: 600; }
   .aviso-dni { color: var(--err); font-size: 13px; margin-top: 4px; line-height: 1.3; }
+  .acceso-legal { margin-top: 22px; font-size: 13px; color: var(--muted, #5E6068); text-align: center; }
+  .acceso-legal a { color: inherit; }
+  .firma-legal { margin: 6px 2px 0; font-size: 13px; color: var(--muted, #5E6068); line-height: 1.35; }
+  .firma-legal a { color: inherit; }
   .aviso-dni:empty { display: none; }
   .aviso-dni .lnk { font-size: 13px; padding: 0 2px; color: inherit; }
   .campo.campo-mal { border-color: var(--err); }
@@ -409,6 +413,7 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
     <p class="acceso-sub" style="font-size:14px">¿Sin cuenta? Créala en la aplicación de escritorio.</p>
   </div>
   <button class="lnk instalar-lnk" style="margin-top:18px;font-size:15px" onclick="instalarApp()" hidden>Instalar AulaMovil en este móvil</button>
+  <nav class="acceso-legal" aria-label="Información legal"><a href="/legal/aviso-legal.html">Aviso legal</a> · <a href="/legal/privacidad.html">Privacidad</a> · <a href="/legal/cookies.html">Cookies</a> · <a href="/legal/condiciones.html">Condiciones</a></nav>
 </div>
 
 <div id="profile-screen" class="acceso" hidden>
@@ -561,6 +566,7 @@ const IC = {
   persona: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.6-3.6 3.3-6 7-6s6.4 2.4 7 6"/>', cerrar: '<path d="M6 6l12 12M18 6L6 18"/>',
   compartir: '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11v9h12v-9"/>',
   firma: '<path d="M3 17c2.5-4 4-9 6-9s-1 8 1.5 8 2.5-4 4-4 1 3 2.5 3H21"/><path d="M3 21h18"/>',
+  legal: '<path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 7a4 4 0 0 0 6 0z"/><path d="M19 7l-3 7a4 4 0 0 0 6 0z"/><path d="M8 21h8"/>',
   temaAuto: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
   sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
   luna: '<path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/>',
@@ -1003,7 +1009,7 @@ async function iniciarSesion() {
     try {
       localStorage.setItem(ULTIMO_EMAIL_KEY, email);
       // Otra cuenta en este teléfono: la práctica en marcha y el coche eran de la anterior.
-      if (localStorage.getItem(ULTIMA_CUENTA_KEY) !== s.user.id) { borrarFlujos(); localStorage.removeItem(VEHICULO_KEY); localStorage.setItem(ULTIMA_CUENTA_KEY, s.user.id); }
+      if (localStorage.getItem(ULTIMA_CUENTA_KEY) !== s.user.id) { borrarFlujos(); localStorage.removeItem(VEHICULO_KEY); localStorage.setItem(ULTIMA_CUENTA_KEY, s.user.id); OFF.cache.vaciar().catch(() => {}); }
     } catch {}
     document.getElementById('login-password').value = '';
     const perfil = perfilGuardado(s.user.id);
@@ -1022,6 +1028,8 @@ async function cerrarSesion() {
   const s = sesionCruda();
   if (s && s.access_token) authPost('logout?scope=local', {}, s.access_token).catch(() => {});
   borrarSesion();
+  // Los datos de alumnos guardados para trabajar sin cobertura no se quedan en el teléfono
+  OFF.cache.vaciar().catch(() => {});
   S.perfil = null; S.flujo = null; S.pend = [];
   cerrarHoja(); mostrarLogin(); pintarEstadoRed();
 }
@@ -1244,7 +1252,7 @@ async function cargarBase() {
     if (!ra.ok) throw new Error('Error cargando alumnos');
     S.vehiculos = await rv.json(); S.alumnos = await ra.json();
     if (rp && rp.ok) { const l = await rp.json(); if (Array.isArray(l)) S.profesores = l; }
-    if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; S.duracionClase = parseInt(c.duracion_clase_min) || 45; if (c.km_auto && c.km_auto.min > 0) S.kmAuto = c.km_auto; S.vapid = c.vapid_public || null; }
+    if (rc && rc.ok) { const c = await rc.json(); S.zonas = Array.isArray(c.zonas) ? c.zonas : []; S.duracionClase = parseInt(c.duracion_clase_min) || 45; if (c.km_auto && c.km_auto.min > 0) S.kmAuto = c.km_auto; S.vapid = c.vapid_public || null; S.centro = c.centro || null; }
     S.ultimaCarga = Date.now();
     sobreponerPendientes();
   } catch (e) { if (e.message !== 'Sesión expirada') toast(esRed(e) ? 'Sin conexión y sin datos guardados: abre la app una vez con cobertura.' : 'No se pudieron cargar los datos. Reintenta.', esRed(e) ? 5000 : 2600); }
@@ -1604,6 +1612,7 @@ function menuPerfil() {
     <button class="fila" onclick="menuCoches()"><span class="veh-ic">${ic('coche', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Coche de cada profesor</div><div class="fila-sub">${cocheHabitual() ? 'El tuyo: ' + esc(vehiculo(cocheHabitual()).nombre) : 'El que se propone al empezar una clase'}</div></div>${S.perfil && S.perfil.id && !cocheHabitual() ? '<span class="pill pill-warn">Elegir</span>' : ''}${ic('chev', 20)}</button>
     <button class="fila" onclick="menuAvisos()"><span class="veh-ic">${ic('campana', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Avisos de la práctica</div><div class="fila-sub">${avisosActivos() ? 'Activados en este teléfono' : 'Cuando va a acabar, al acabar…'}</div></div>${avisosActivos() ? '<span class="pill pill-ok">Sí</span>' : ''}${ic('chev', 20)}</button>
     <button class="fila" onclick="menuTema()"><span class="veh-ic">${ic(TEMAS.find(x => x[0] === temaElegido())[3], 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Apariencia</div><div class="fila-sub">${TEMAS.find(x => x[0] === temaElegido())[1]}</div></div>${ic('chev', 20)}</button>
+    <a class="fila" href="/legal/" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><span class="veh-ic">${ic('legal', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Legal y privacidad</div><div class="fila-sub">Aviso legal, privacidad, cookies y condiciones</div></div>${ic('chev', 20)}</a>
     <button class="fila" onclick="cerrarHoja();cambiarPerfil()"><span class="veh-ic">${ic('persona', 22)}</span><div class="fila-tit" style="flex:1">Cambiar de perfil</div>${ic('chev', 20)}</button>
     <button class="fila" onclick="cerrarSesion()"><span class="veh-ic">${ic('salir', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Cerrar sesión</div>${cuentaEmail() ? `<div class="fila-sub">${esc(cuentaEmail())}</div>` : ''}</div></button></div>`);
 }
@@ -2588,6 +2597,7 @@ function renderFirma() {
     <div class="etq"><span>Firma de ${esc(F.alumno_nombre)}</span><button class="lnk" style="color:var(--ink);font-size:15px" onclick="borrarFirma()">${ic('deshacer', 16)} Borrar</button></div>
     <div class="firma-caja" id="firma-caja"><canvas id="firma-cv"></canvas><div class="firma-ayuda" id="firma-ayuda">Firma aquí con el dedo</div><div class="firma-guia"><span>×</span></div></div>
     <p class="fila-sub" style="margin:8px 2px 0">Al firmar confirmas que has recibido ${(F.n_clases || 1) > 1 ? `estas ${fmtC(F.n_clases)} clases prácticas` : `esta clase práctica${(F.n_clases || 1) < 1 ? ` (${fmtC(F.n_clases)} de clase)` : ''}`} con los datos de arriba.</p>
+    <p class="firma-legal">Se guarda solo la imagen de tu firma, para tu ficha de formación. Responsable de tus datos: ${S.centro && S.centro.nombre ? `<b>${esc(S.centro.nombre)}</b>` : 'tu autoescuela'}. <a href="/legal/alumnos.html" target="_blank" rel="noopener">Más información</a></p>
     <div class="barra-fija"><div style="display:flex;flex-direction:column;gap:6px;align-items:center"><button class="btn btn-pri btn-lg" id="btn-conf" onclick="confirmarFirma()" disabled>${ic('ok', 20, 'style="stroke-width:2.6"')} Confirmar firma</button>
       <button class="lnk" onclick="firmarMasTarde()">Firmar más tarde</button></div></div>`;
   iniciarLienzo();
