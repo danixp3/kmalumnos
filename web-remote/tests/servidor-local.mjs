@@ -25,8 +25,8 @@ reiniciar({
               { id: 2, alumno_id: 1, vehiculo_id: 1, fecha: hoy(), hora_inicio: '09:08', hora_fin: '09:33', km_inicial: 17816, km_final: 17839, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'web-remote', tipo_detalle: 'km_auto' },
               // Clase de MARTA en curso, empezada en SU tablet (para probar que otro teléfono no la adopta)
               { id: 3, alumno_id: 3, vehiculo_id: 2, fecha: hoy(), hora_inicio: '09:30', km_inicial: 295250, km_final: 0, tipo: 'circulacion', profesor_id: 2, deleted: false, empresa_id: e, source: 'web-remote' },
-              // Clases de días anteriores del TAIGO (para «Anotar clase pasada»)
-              { id: 4, alumno_id: 2, vehiculo_id: 1, fecha: haceDias(3), hora_inicio: '17:00', hora_fin: '17:45', km_inicial: 17700, km_final: 17722, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'desktop' },
+              // Clases de días anteriores del TAIGO (para «Anotar clase pasada»); la de hace 3 días es del móvil y sin firma → sale en «Firmas pendientes»
+              { id: 4, alumno_id: 2, vehiculo_id: 1, fecha: haceDias(3), hora_inicio: '17:00', hora_fin: '17:45', km_inicial: 17700, km_final: 17722, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'web-remote' },
               { id: 5, alumno_id: 2, vehiculo_id: 1, fecha: haceDias(1), hora_inicio: '12:00', hora_fin: '12:45', km_inicial: 17770, km_final: 17793, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'desktop' }],
   reservas: [], ajustes_empresa: [{ empresa_id: e, clave: 'duracion_clase_min', valor: 45 }]
 });

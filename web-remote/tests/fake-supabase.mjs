@@ -12,7 +12,7 @@ class Consulta {
   insert(p) { this.modo = 'insert'; this.payload = p; return this; }
   update(p) { this.modo = 'update'; this.payload = p; return this; }
   delete() { this.modo = 'delete'; return this; }
-  is(c, v) { this.filtros.push(r => (r[c] ?? null) === v); return this; }
+  is(c, v) { (this.colsFiltro ||= []).push(c); this.filtros.push(r => (r[c] ?? null) === v); return this; }
   eq(c, v) { this.filtros.push(r => r[c] === v); return this; }
   neq(c, v) { this.filtros.push(r => r[c] !== v); return this; }
   gt(c, v) { this.filtros.push(r => r[c] > v); return this; }
@@ -58,7 +58,7 @@ class Consulta {
       afectadas.forEach(r => Object.assign(r, this.payload));
       return { data: this.retorna ? afectadas.map(r => ({ id: r.id })) : null, error: null };
     }
-    const c = faltan.find(k => new RegExp(`\\b${k}\\b`).test(this.cols)); if (c) return { data: null, error: errColSel(c) };
+    const c = faltan.find(k => new RegExp(`\\b${k}\\b`).test(this.cols) || (this.colsFiltro || []).includes(k)); if (c) return { data: null, error: errColSel(c) };
     let filas = this.filas().filter(r => this.filtros.every(f => f(r)));
     for (const [col, dir] of [...this.ordenes].reverse()) filas.sort((a, b) => ((a[col] > b[col]) - (a[col] < b[col])) * dir);
     if (this.opts.count && this.opts.head) return { data: null, count: filas.length, error: null };

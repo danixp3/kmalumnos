@@ -43,6 +43,18 @@ test('iniciar-practica: con km inicial distinto informa del hueco; rechaza km 0,
   assert.equal((await llamar('iniciar-practica', { body: ini({ alumno_id: 99 }) })).status, 404);
 });
 
+test('iniciar-practica: la MISMA petición repetida (doble toque o respuesta perdida) no crea otra clase', async () => {
+  reiniciar(base());
+  const a = await llamar('iniciar-practica', { body: ini() });
+  const b = await llamar('iniciar-practica', { body: ini() });
+  assert.equal(a.status, 200); assert.equal(b.status, 200);
+  assert.equal(b.json.practica_id, a.json.practica_id); assert.equal(b.json.repetida, true);
+  assert.equal(BD.tablas.practicas.filter(p => !p.deleted && p.km_final === 0).length, 1);
+  // otro alumno o otro km sigue siendo un choque de verdad
+  assert.equal((await llamar('iniciar-practica', { body: ini({ alumno_id: 1 }) })).status, 409);
+  assert.equal((await llamar('iniciar-practica', { body: ini({ km_inicial: 1001 }) })).status, 409);
+});
+
 test('iniciar-practica: un coche solo puede tener una práctica en curso (409)', async () => {
   reiniciar(base());
   assert.equal((await llamar('iniciar-practica', { body: ini() })).status, 200);
@@ -129,6 +141,31 @@ test('hoy: prácticas del día con en_curso/firmada/clase_n, sin cerrar de días
   assert.equal(r.json.reservas.length, 1); assert.equal(r.json.reservas[0].alumno_nombre, 'Pablo Ortega');
   // «sin cerrar» solo aparece si se mira el día de hoy y está dentro de la ventana de 7 días
   assert.equal(r.json.sin_cerrar.length, 0);
+});
+
+test('hoy: «sin firma» lista las clases del móvil de los últimos 30 días sin firma (no las de hoy, ni las viejas, ni las del escritorio)', async () => {
+  const t = base();
+  const dia = n => { const d = new Date(); d.setDate(d.getDate() - n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const fila = (id, extra) => ({ id, alumno_id: 2, vehiculo_id: 1, hora_inicio: '10:00', km_inicial: 1000 + id * 50, km_final: 1030 + id * 50, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: 'emp1', source: 'web-remote', ...extra });
+  t.practicas.push(fila(10, { fecha: dia(3) }));                                   // sin firma, hace 3 días → sale
+  t.practicas.push(fila(11, { fecha: dia(5), firma: 'data:image/png;base64,AA==' })); // firmada → no
+  t.practicas.push(fila(12, { fecha: dia(40) }));                                  // demasiado vieja → no
+  t.practicas.push(fila(13, { fecha: dia(4), source: 'desktop' }));                // del escritorio → no
+  t.practicas.push(fila(14, { fecha: hoy() }));                                    // de hoy: ya sale en la lista del día
+  reiniciar(t);
+  const r = await llamar('hoy', { method: 'GET', query: { fecha: hoy(), hoy: hoy(), profesor_id: '1' } });
+  assert.equal(r.status, 200);
+  const ids = r.json.sin_firma.map(p => p.id);
+  assert.ok(ids.includes(10)); assert.ok(![11, 12, 13, 14].some(i => ids.includes(i)));
+  const p10 = r.json.sin_firma.find(p => p.id === 10);
+  assert.equal(p10.firmada, false); assert.equal(p10.alumno_nombre, 'Pablo Ortega');
+  // otro día que no es hoy: no se piden
+  const otro = await llamar('hoy', { method: 'GET', query: { fecha: dia(1), hoy: hoy(), profesor_id: '1' } });
+  assert.deepEqual(otro.json.sin_firma, []);
+  // sin la columna `firma` sigue respondiendo, sin esa lista
+  reiniciar(t, { practicas: ['firma'] });
+  const sinCol = await llamar('hoy', { method: 'GET', query: { fecha: hoy(), hoy: hoy(), profesor_id: '1' } });
+  assert.equal(sinCol.status, 200); assert.deepEqual(sinCol.json.sin_firma, []);
 });
 
 test('hoy: si faltan las columnas opcionales sigue respondiendo (firmada=false)', async () => {
