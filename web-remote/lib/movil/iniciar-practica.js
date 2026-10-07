@@ -53,11 +53,18 @@ export default async function handler(req, res) {
 
   // Un coche solo puede tener una práctica en curso
   const { data: abiertas, error: errAb } = await supabase
-    .from('practicas').select('id, alumno_id')
+    .from('practicas').select('id, alumno_id, km_inicial')
     .eq('vehiculo_id', vehiculo.id).eq('deleted', false).eq('empresa_id', auth.empresaId)
     .eq('km_final', 0).gt('km_inicial', 0).eq('fecha', fechaVal.value).limit(1);
   if (handleSupabaseError(errAb, res, 'Error al comprobar el vehículo')) return;
   if (abiertas && abiertas.length) {
+    // La MISMA petición repetida (doble toque, o la respuesta se perdió por mala cobertura y el móvil
+    // reintenta): no se crea otra clase, se devuelve la que ya se empezó. Así un reintento nunca
+    // duplica la práctica ni descuadra los km.
+    const ya = abiertas[0];
+    if (ya.alumno_id === alumno.id && ya.km_inicial === kmVal.value) {
+      return res.status(200).json({ ok: true, practica_id: ya.id, repetida: true, continuidad: { km_final_anterior: 0, diferencia: 0 } });
+    }
     return res.status(409).json({ error: 'Este vehículo ya tiene una práctica en curso. Ciérrala antes de empezar otra.', practica_id: abiertas[0].id });
   }
 

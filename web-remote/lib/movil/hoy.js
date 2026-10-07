@@ -45,9 +45,11 @@ export default async function handler(req, res) {
     .eq('deleted', false)
     .eq('empresa_id', auth.empresaId)))));
 
-  // Prácticas del día · sin cerrar de los últimos 7 días (solo si se mira el día de hoy) ·
-  // reservas del día (agenda del profesor)
-  const [{ res: rDia }, rPendiente, rReservas] = await Promise.all([
+  // Prácticas del día · sin cerrar de los últimos 7 días y sin firma de los últimos 30 (solo si se mira
+  // el día de hoy) · reservas del día (agenda del profesor).
+  // «Sin firma»: clases cerradas desde el móvil a las que les falta la firma del alumno, p. ej. porque la
+  // autoescuela cambió el nº de clases desde el ordenador (se borra la firma para que la recoja de nuevo).
+  const [{ res: rDia }, rPendiente, rReservas, rSinFirma] = await Promise.all([
     pedirPracticas(q => q.eq('fecha', fecha).order('hora_inicio', { ascending: true, nullsFirst: false }).order('id')),
     fecha === hoyCliente
       ? pedirPracticas(q => q.eq('km_final', 0).gt('km_inicial', 0).lt('fecha', fecha).gte('fecha', sumarDias(fecha, -7)).order('fecha', { ascending: false }))
@@ -61,6 +63,9 @@ export default async function handler(req, res) {
         .eq('deleted', false)
         .neq('estado', 'cancelada')
         .order('hora_inicio'))
+      : Promise.resolve(null),
+    fecha === hoyCliente
+      ? pedirPracticas(q => q.gt('km_final', 0).is('firma', null).eq('source', 'web-remote').lt('fecha', fecha).gte('fecha', sumarDias(fecha, -30)).order('fecha', { ascending: false }).limit(40))
       : Promise.resolve(null)
   ]);
   if (handleSupabaseError(rDia.error, res, 'Error al obtener las prácticas de hoy')) return;
@@ -70,6 +75,12 @@ export default async function handler(req, res) {
     if (handleSupabaseError(rPendiente.res.error, res, 'Error al obtener las prácticas sin cerrar')) return;
     sinCerrar = rPendiente.res.data || [];
   }
+  // Sin la columna `firma` (migración sin aplicar) no hay firmas que pedir: se sigue sin esa lista
+  let sinFirma = [];
+  if (rSinFirma && !(rSinFirma.res.error && esErrorColumnaInexistente(rSinFirma.res.error))) {
+    if (handleSupabaseError(rSinFirma.res.error, res, 'Error al obtener las clases sin firmar')) return;
+    sinFirma = rSinFirma.res.data || [];
+  }
   let reservas = [];
   if (rReservas) {
     if (handleSupabaseError(rReservas.error, res, 'Error al obtener la agenda')) return;
@@ -78,7 +89,7 @@ export default async function handler(req, res) {
 
   // Nombres de alumnos y vehículos (una consulta por tabla, sin N+1) y, para el nº de
   // clase, las prácticas de esos alumnos: las tres a la vez.
-  const todas = [...delDia, ...sinCerrar];
+  const todas = [...delDia, ...sinCerrar, ...sinFirma];
   const alumnoIds = [...new Set([...todas.map(p => p.alumno_id), ...reservas.map(r => r.alumno_id)].filter(v => v != null))];
   const vehiculoIds = [...new Set([...todas.map(p => p.vehiculo_id), ...reservas.map(r => r.vehiculo_id)].filter(v => v != null))];
   let alumnosPorId = {}, vehiculosPorId = {}, totalesPorAlumno = {};
@@ -142,6 +153,7 @@ export default async function handler(req, res) {
     ok: true, fecha,
     practicas: delDia.map(forma),
     sin_cerrar: sinCerrar.map(forma),
+    sin_firma: sinFirma.map(forma),
     reservas: reservas.map(r => ({
       id: r.id, hora_inicio: r.hora_inicio, duracion_min: r.duracion_min, estado: r.estado,
       alumno_id: r.alumno_id, alumno_nombre: alumnosPorId[r.alumno_id] ? nombreCompleto(alumnosPorId[r.alumno_id]) : null,

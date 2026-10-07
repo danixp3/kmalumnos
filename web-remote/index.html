@@ -229,6 +229,42 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .instalar-pasos { margin: 6px 0 0; padding-left: 22px; font-size: 16px; line-height: 1.7; }
   .instalar-pasos b { white-space: nowrap; }
   .seg3 button small { display: block; font-size: 13px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+  /* ── Deslizador de clases (Iniciar práctica): un punto cada ¼, más grande en cada clase entera ── */
+  .cs { margin-top: 10px; padding: 12px 16px 14px; }
+  .cs-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 14px; color: var(--muted); }
+  .cs-cab b { color: var(--ink); font-weight: 700; }
+  .cs-pista { position: relative; height: 46px; margin-top: 4px; --th: 30px; --fill: 0; touch-action: pan-y; }
+  .cs-pista::before, .cs-pista::after { content: ''; position: absolute; top: 50%; height: 8px; margin-top: -4px; border-radius: 999px; left: calc(var(--th) / 2); }
+  .cs-pista::before { right: calc(var(--th) / 2); background: var(--soft); }
+  .cs-pista::after { width: calc((100% - var(--th)) * var(--fill)); background: var(--ink); transition: width .18s ease; }
+  .cs-pista.arrastrando::after { transition: none; }
+  .cs-marcas { position: absolute; left: calc(var(--th) / 2); right: calc(var(--th) / 2); top: 0; bottom: 0; pointer-events: none; z-index: 1; }
+  .cs-marca { position: absolute; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--line-2); transition: background .2s ease; }
+  .cs-marca.ent { width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; background: var(--muted); }
+  .cs-marca.on { background: var(--on-ink); opacity: .8; }
+  .cs-marca.ent.on { background: var(--on-ink); opacity: 1; }
+  .cs-nums { position: relative; height: 18px; margin: 2px calc(var(--th, 30px) / 2) 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+  .cs-nums span { position: absolute; transform: translateX(-50%); }
+  input[type=range].cs-in { -webkit-appearance: none; appearance: none; position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; background: transparent; z-index: 2; cursor: pointer; }
+  .cs-in:focus { outline: none; }
+  .cs-in:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--amber), 0 2px 8px rgba(20,22,27,.3); }
+  .cs-in::-webkit-slider-runnable-track { height: 46px; background: transparent; }
+  .cs-in::-moz-range-track { height: 46px; background: transparent; }
+  .cs-in::-webkit-slider-thumb { -webkit-appearance: none; width: var(--th, 30px); height: var(--th, 30px); margin-top: calc((46px - var(--th, 30px)) / 2); border-radius: 50%; background: #fff; border: 0.5px solid rgba(20,22,27,.12); box-shadow: 0 2px 8px rgba(20,22,27,.3), 0 0 0 1px rgba(20,22,27,.04); transition: transform .22s cubic-bezier(.34,1.5,.5,1); }
+  .cs-in::-moz-range-thumb { width: var(--th, 30px); height: var(--th, 30px); border-radius: 50%; background: #fff; border: 0.5px solid rgba(20,22,27,.12); box-shadow: 0 2px 8px rgba(20,22,27,.3); transition: transform .22s cubic-bezier(.34,1.5,.5,1); }
+  .cs-in:active::-webkit-slider-thumb { transform: scale(1.14); }
+  .cs-in:active::-moz-range-thumb { transform: scale(1.14); }
+  .cs-texto { text-align: center; min-height: 28px; margin-top: 8px; font-size: 18px; color: var(--ink); }
+  .cs-texto small { font-size: 16px; font-weight: 500; color: var(--muted); }
+  .cs-texto.pop { animation: csPop .46s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes csPop { 0% { opacity: 0; transform: translateY(8px) scale(.9); } 55% { opacity: 1; transform: translateY(-1px) scale(1.035); } 100% { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .cs-texto.pop { animation: none; } .cs-pista::after, .cs-in::-webkit-slider-thumb { transition: none; } }
+  /* ── Una acción, una vez: mientras algo se guarda, ningún botón responde ── */
+  body.trabajando button, body.trabajando .fila, body.trabajando .riel-fila, body.trabajando a.lnk { pointer-events: none; }
+  .btn.cargando { position: relative; }
+  .btn.cargando::before { content: ''; width: 18px; height: 18px; border-radius: 50%; border: 3px solid currentColor; border-right-color: transparent; animation: gira .7s linear infinite; flex: none; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .btn.cargando::before { animation-duration: 1.6s; } }
   .nclases { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 8px 8px 8px 16px; }
   .cant { margin-top: 10px; padding: 10px; }
   .cant .nclases { margin-top: 8px; padding: 2px 0 2px 6px; }
@@ -1298,12 +1334,12 @@ async function pedirJornada(fecha) {
   const res = await apiFetch('/api/hoy?' + q);
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || 'Error al cargar la jornada');
-  return { practicas: data.practicas, sin_cerrar: data.sin_cerrar || [], reservas: data.reservas };
+  return { practicas: data.practicas, sin_cerrar: data.sin_cerrar || [], sin_firma: data.sin_firma || [], reservas: data.reservas };
 }
 // Jornadas ya vistas, por perfil y día: al cambiar de día se enseña al instante lo último
 // que se sabía de él y se refresca detrás (antes cada toque en una flecha esperaba 4-5 s).
 S.cacheDia = new Map(); S.cargaJ = 0; S.cargaDia = 0;
-const jornadaVacia = cargando => ({ practicas: [], sin_cerrar: [], reservas: [], cargando: !!cargando });
+const jornadaVacia = cargando => ({ practicas: [], sin_cerrar: [], sin_firma: [], reservas: [], cargando: !!cargando });
 const claveDia = f => (S.perfil && S.perfil.id ? S.perfil.id : 'sin') + '|' + f;
 const copiaJornada = j => JSON.parse(JSON.stringify(j));
 function guardarDiaEnCache(fecha, j) {
@@ -1541,6 +1577,16 @@ function renderHoy() {
         <div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div><div class="fila-sub mono">${p.n !== 1 ? `<b style="color:var(--ink)">${clasesTxt(p.n)}</b> · ` : ''}${miles(p.km_inicial)} → ${miles(p.km_final)} · ${p.km} km</div></div>
         ${p.local ? `<span class="pill pill-info">${ic('reloj', 14)} Por enviar${p.firmada ? '' : ' · sin firma'}</span>` : p.firmada ? `<span class="pill pill-ok">${ic('ok', 14, 'style="stroke-width:2.6"')} Firmada</span>` : '<span class="pill pill-warn">Sin firmar</span>'}</button>`).join('') + '</div>';
   }
+  // Clases de días anteriores a las que falta la firma del alumno (p. ej. porque la autoescuela cambió el nº de
+  // clases desde el ordenador: se borra la firma para que el alumno la recoja de nuevo la próxima vez que lo ves)
+  if (!cargando && esHoy && (S.jornada.sin_firma || []).length) {
+    const fechas = [...new Set(S.jornada.sin_firma.map(p => p.fecha))].sort().reverse();
+    const filas = fechas.flatMap(f => agruparSesiones(S.jornada.sin_firma.filter(p => p.fecha === f)).map(p => p));
+    html += `<div class="grupo-tit"><span>Firmas pendientes · ${filas.length}</span></div><div class="card firmas-pend">` + filas.map(p =>
+      `<button class="fila" onclick="abrirDetalle(${p.id})"><span class="fila-hora">${esc(fechaCorta(p.fecha).replace(/^\S+ /, ''))}</span>
+        <div style="flex:1;min-width:0"><div class="fila-tit">${esc(p.alumno_nombre)}</div><div class="fila-sub mono">${p.n !== 1 ? `<b style="color:var(--ink)">${clasesTxt(p.n)}</b> · ` : ''}${miles(p.km_inicial)} → ${miles(p.km_final)}</div></div>
+        <span class="pill pill-warn">Sin firmar</span></button>`).join('') + `</div><p class="fila-sub" style="margin:6px 4px 0">Cuando veas al alumno, ábrela y pídele que firme.</p>`;
+  }
   if (!cargando && !r.total && !S.jornada.sin_cerrar.length && !esHoy) html += '<div class="vacio">Sin clases este día.</div>';
   if (!esHoy && S.fecha < S.hoy && S.fecha >= sumaDias(S.hoy, -DIAS_ANOTAR)) html += `<button class="btn btn-sec" style="margin-top:14px" onclick="abrirAnotar({fecha:'${S.fecha}',volverA:'hoy'})">${ic('mas', 20)} Anotar una clase de este día</button>`;
   else if (esHoy) html += `<button class="lnk lnk-suave lnk-olvido" onclick="abrirAnotar({volverA:'hoy'})">${ic('hist', 18)} ¿Se te olvidó anotar una clase? Anotar clase pasada</button>`;
@@ -1750,10 +1796,65 @@ function renderIniciar() {
     ${S.zonas.length ? `<div class="etq">Zonas recorridas <small>Opcional · se puede cambiar durante la clase</small></div>
     <div class="chips">${S.zonas.map((z, i) => `<button class="chip ${I.zonas.includes(z) ? 'on' : ''}" onclick="toggleZonaIniciar(${i})">${I.zonas.includes(z) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(z)}</button>`).join('')}</div>` : ''}
     <div class="etq">Clases <small>${durTxt(I.n_clases * durClase())} · termina a las ${esc(sumaMin(ahora, I.n_clases * durClase()))}</small></div>
-    <div class="seg3 dos-lineas">${[...new Set([0.5, 1, 2, 3, I.n_clases])].sort((a, b) => a - b).map(n => `<button class="${n === I.n_clases ? 'on' : ''}" onclick="S.iniciar.n_clases=${n};renderIniciar()">${clasesTxt(n)}<small>${durTxt(n * durClase())}</small></button>`).join('')}</div>
+    <div class="seg3 dos-lineas">${[...new Set([0.5, 1, 2, 3, I.n_clases])].sort((a, b) => a - b).map(n => `<button class="${n === I.n_clases ? 'on' : ''}" onclick="S.iniciar.n_clases=${n};S.iniciar.slUsado=false;renderIniciar()">${clasesTxt(n)}<small>${durTxt(n * durClase())}</small></button>`).join('')}</div>
+    ${htmlDeslizadorClases(I)}
     <div style="text-align:center;margin-top:18px;display:flex;flex-direction:column;gap:14px;align-items:center"><button class="lnk lnk-suave" onclick="registrarSinCronometro()">Registrar sin cronómetro (rellenar los km después)</button>
       <button class="lnk lnk-suave" onclick="abrirAnotar({alumno_id:S.iniciar.alumno_id,volverA:'hoy'})">¿Ya la diste otro día y se te olvidó? Anotar clase pasada</button></div>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-empezar" onclick="empezarPractica()" ${al && v && parseInt(I.km) > 0 ? '' : 'disabled'}>${ic('play', 18)} Empezar práctica</button></div>`;
+}
+// ─── DESLIZADOR DE CLASES ────────────────────────────────────────────────────
+// Para fijar de antemano clases con fracción (1 + ¼, 1 + ½, 1 + ¾…). De ¼ a 5, con un
+// punto cada ¼ y uno más grande en cada clase entera. Al SOLTARLO (no al moverlo) sale
+// debajo, con un pequeño popup, cuántas prácticas va a hacer el alumno y su duración.
+const SL_MIN = 0.25, SL_MAX = 5;
+// 1.5 → «1 + ½ de práctica» · 2 → «2 prácticas» · 0.25 → «¼ de práctica»
+function textoPracticas(n) {
+  n = aCuartos(n);
+  const e = Math.floor(n), f = ['', '¼', '½', '¾'][Math.round((n - e) * 4)];
+  if (!f) return `${e} ${e === 1 ? 'práctica' : 'prácticas'}`;
+  return e ? `${e} + ${f} de práctica` : `${f} de práctica`;
+}
+const slFraccion = n => Math.min(1, Math.max(0, (n - SL_MIN) / (SL_MAX - SL_MIN)));
+function htmlDeslizadorClases(I) {
+  const n = Math.min(SL_MAX, Math.max(SL_MIN, I.n_clases));
+  let marcas = '', nums = '';
+  for (let v = SL_MIN; v <= SL_MAX + 1e-9; v += 0.25) {
+    const ent = Math.abs(v - Math.round(v)) < 1e-9;
+    marcas += `<i class="cs-marca${ent ? ' ent' : ''}${v <= n + 1e-9 ? ' on' : ''}" data-v="${v}" style="left:${slFraccion(v) * 100}%"></i>`;
+    if (ent) nums += `<span style="left:${slFraccion(v) * 100}%">${Math.round(v)}</span>`;
+  }
+  const pop = I.slPop; I.slPop = false;
+  const texto = I.slUsado ? `<b>${esc(textoPracticas(I.n_clases))}</b> <small>(${esc(durTxt(I.n_clases * durClase()))})</small>` : '';
+  return `<div class="card cs">
+    <div class="cs-cab"><span>Elige con precisión</span><span>de ¼ en ¼ hasta 5</span></div>
+    <div class="cs-pista" id="cs-pista" style="--fill:${slFraccion(n)}">
+      <div class="cs-marcas">${marcas}</div>
+      <input class="cs-in" id="sl-clases" type="range" min="${SL_MIN}" max="${SL_MAX}" step="0.25" value="${n}" aria-label="Clases que va a hacer el alumno" aria-valuetext="${esc(textoPracticas(n))}"
+        oninput="slMover(this)" onchange="slSoltar(this)" onpointerdown="this.parentNode.classList.add('arrastrando')" onpointerup="this.parentNode.classList.remove('arrastrando')" onpointercancel="this.parentNode.classList.remove('arrastrando')">
+    </div>
+    <div class="cs-nums" aria-hidden="true">${nums}</div>
+    <div class="cs-texto${pop && texto ? ' pop' : ''}" id="cs-texto" aria-live="polite">${texto}</div>
+  </div>`;
+}
+// Mientras se arrastra: solo se mueve la barra (el texto espera a que se suelte)
+function slMover(el) {
+  const v = aCuartos(parseFloat(el.value));
+  const pista = el.parentNode;
+  pista.style.setProperty('--fill', slFraccion(v));
+  pista.querySelectorAll('.cs-marca').forEach(m => m.classList.toggle('on', parseFloat(m.dataset.v) <= v + 1e-9));
+  el.setAttribute('aria-valuetext', textoPracticas(v));
+}
+// Al soltarlo: se fija la cantidad y sale el texto con su popup
+function slSoltar(el) {
+  const I = S.iniciar; if (!I) return;
+  I.n_clases = Math.min(MAX_CLASES, Math.max(SL_MIN, aCuartos(parseFloat(el.value))));
+  I.slUsado = true; I.slPop = true;
+  const teniaFoco = document.activeElement === el;
+  renderIniciar();
+  if (teniaFoco) { const n = document.getElementById('sl-clases'); if (n) n.focus({ preventScroll: true }); }
+  // El texto sale debajo del deslizador: que no lo tape la barra de «Empezar práctica»
+  const t = document.getElementById('cs-texto');
+  if (t) { const b = t.getBoundingClientRect().bottom, limite = window.innerHeight - 110; if (b > limite) window.scrollBy({ top: b - limite + 8, behavior: 'smooth' }); }
 }
 function pintarMsgContinuidad() {
   const c = msgContinuidad(S.iniciar.vehiculo_id, S.iniciar.km);
@@ -3117,6 +3218,66 @@ function renderRiel() {
   document.getElementById('riel-pie').innerHTML = `<span><b class="mono" style="color:var(--ink)">${miles(r.km)}</b> km hoy</span><span>${r.firmadas} de ${r.cerradas.length} firmadas</span>`;
 }
 window.addEventListener('resize', renderRiel);
+
+// ─── UNA ACCIÓN, UNA VEZ ─────────────────────────────────────────────────────
+// Un toque doble (o varios porque con mala cobertura no se ve respuesta) no puede registrar dos
+// veces lo mismo: dos prácticas, dos firmas o dos veces los km desajustan todo lo demás.
+//  1. Las funciones que GUARDAN algo se envuelven con unaVez(): mientras una está en marcha, otra
+//     llamada igual devuelve LA MISMA promesa (no se ejecuta otra vez) y la pantalla queda «trabajando»
+//     (body.trabajando: ningún botón responde y el pulsado enseña una rueda).
+//  2. Las acciones sin espera (pausar, reanudar…) ignoran un segundo toque en 600 ms.
+//  3. Cualquier botón ignora el mismo clic repetido en 450 ms (salvo los que se pulsan a ráfagas a
+//     propósito: teclado de km, − / +, flechas de día y de mes, el deslizador).
+// Además el servidor es a prueba de repeticiones (iniciar-practica devuelve la misma clase, finalizar
+// no cierra dos veces, registrar-clase no duplica).
+const EN_MARCHA = new Map();
+let trabajandoTimer = null;
+function pintarTrabajando() {
+  const hay = [...EN_MARCHA.values()].some(v => v && v.asincrona);
+  document.body.classList.toggle('trabajando', hay);
+  clearTimeout(trabajandoTimer);
+  // Por si algo se quedara esperando para siempre: la pantalla no se queda bloqueada más de 30 s
+  if (hay) trabajandoTimer = setTimeout(() => document.body.classList.remove('trabajando'), 30000);
+}
+function botonDelToque() {
+  try { const t = window.event && window.event.target; return t && t.closest ? t.closest('button') : null; } catch { return null; }
+}
+function unaVez(nombre, f) {
+  return function (...args) {
+    const previa = EN_MARCHA.get(nombre);
+    if (previa) return previa.promesa;
+    const boton = botonDelToque();
+    const r = f.apply(this, args);
+    if (r && typeof r.then === 'function') {
+      if (boton && boton.classList.contains('btn')) boton.classList.add('cargando');
+      const promesa = r.finally(() => { EN_MARCHA.delete(nombre); if (boton) boton.classList.remove('cargando'); pintarTrabajando(); });
+      EN_MARCHA.set(nombre, { promesa, asincrona: true });
+      pintarTrabajando();
+      return promesa;
+    }
+    EN_MARCHA.set(nombre, { promesa: r, asincrona: false });
+    setTimeout(() => EN_MARCHA.delete(nombre), 600);
+    return r;
+  };
+}
+// Todo lo que guarda, cierra, cancela, firma, da de alta o cambia algo
+['empezarPractica', 'registrarSinCronometro', 'continuarFirma', 'confirmarFirma', 'firmarMasTarde', 'salirDeFirma', 'cancelarCurso', 'cancelarPractica',
+  'enviarAnotar', 'firmarAnotada', 'crearAlumno', 'guardarMiFirma', 'quitarMiFirma', 'guardarCocheProfesor', 'iniciarSesion', 'cerrarSesion',
+  'activarAvisos', 'desactivarAvisos', 'probarAvisos', 'recuperarClaseCancelada', 'descartarClaseCancelada', 'cerrarClaseCerradaFuera',
+  'reintentarOp', 'descartarOp', 'pausarPractica', 'reanudarPractica', 'firmarDesdeDetalle', 'continuarPractica', 'instalarApp'
+].forEach(nombre => { if (typeof window[nombre] === 'function') window[nombre] = unaVez(nombre, window[nombre]); });
+// El mismo botón dos veces seguidas: el segundo clic no llega a su función
+const TOQUES = new Map();
+document.addEventListener('click', e => {
+  const el = e.target && e.target.closest ? e.target.closest('button, .fila, .riel-fila, a.lnk, label.chip') : null;
+  if (!el || el.closest('.teclado, .paso-n, .fecha-lin, .cal-cab, .cs-pista, [data-rapido]')) return;
+  const clave = (el.getAttribute('onclick') || '') + '|' + (el.id || '') + '|' + (el.className || '');
+  if (!clave.replace(/\|/g, '')) return;
+  const ahora = Date.now();
+  if (ahora - (TOQUES.get(clave) || 0) < 450) { e.stopImmediatePropagation(); e.preventDefault(); return; }
+  TOQUES.set(clave, ahora);
+  if (TOQUES.size > 80) { for (const [k, t] of TOQUES) if (ahora - t > 2000) TOQUES.delete(k); }
+}, true);
 
 // ─── ARRANQUE ────────────────────────────────────────────────────────────────
 aplicarTema();
