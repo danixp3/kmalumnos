@@ -13,7 +13,7 @@ Aplicación de escritorio (Windows) para una autoescuela: gestiona vehículos, a
 ```
 main.js       → proceso principal Electron: ventana, IPC handlers, auto-updater
 preload.js    → contextBridge, expone window.api al renderer
-index.html    → SPA (solo HTML), enlaza styles.css y los 46 <script> de renderer/ (CSP: nada externo)
+index.html    → SPA (solo HTML), enlaza styles.css y los 47 <script> de renderer/ (CSP: nada externo)
 styles.css    → CSS de la app de escritorio (sistema ámbar/tinta), temas [data-theme="oscuro"/"negro"], paleta de gráficos
 fonts/        → Barlow, Barlow Condensed, IBM Plex Mono (woff2 locales; también en web-remote/fonts/)
 renderer/     → UI (vanilla JS) dividida en 41 <script> clásicos (globales, no módulos ES),
@@ -28,7 +28,9 @@ renderer/     → UI (vanilla JS) dividida en 41 <script> clásicos (globales, n
   roles.js → funciones de gestión de roles jefe/empleado (modo clásico ↔ multi-empresa)
   sucursales.js → selector de sucursal en la barra, filtrado por sede
   migracion.js → «Traer de otro programa»: asistente para importar alumnos/clases (vista previa, deshacer)
-  cuadrar-km.js → pestaña «Cuadrar» de Cuadrar y generar km + franja de aviso en Prácticas
+  kilometros.js → página Kilómetros unificada: asistente que recomienda y combina (cuadrar, encajar, encadenar, máximo, rango, solapes), mapa, solapes, ocultar huecos
+  clase-editor.js → editor de clases: añadir/editar/encajar en ¼ con km recalculados y firma borrada si cambia la cantidad
+  cuadrar-km.js → avisos de Cuadrar km (franja en Prácticas, tramos sin explicar)
   historial-pantallas.js → botones laterales del ratón / Alt+←→: pantalla anterior y siguiente
   alumnos-repetidos.js → aviso en Alumnos, separar nombre y apellidos y juntar dos fichas de la misma persona
   datepicker.js, validaciones.js → fechas escribibles con calendario; DNI/CP/teléfono/email/matrícula validados
@@ -41,6 +43,7 @@ db/           → CRUD + algoritmos de km, por módulo
   core.js         → rutas, caché de data.json, save/nextId, logs, backups
   vehiculos.js, profesores.js, tarifas.js, alumnos.js, practicas.js, pagos.js, csv.js
   km-algoritmos.js → solapamientos, relleno masivo, corrección
+  clases-sesion.js, plan-km.js → editor de clases (proponer/aplicar, ubicar km, desplazar) y asistente de km (recomendar/simular pasos combinados)
   cuadre-km.js → Cuadrar km: ordena por fecha y hora, arregla km imposibles, reparte huecos entre clases sin km (vista previa, aplicar y deshacer)
   estadisticas.js  → resumen, dashboard, timeline, estadísticas por profesor
   sucursales.js → CRUD sucursales (modo multi-empresa con migración pendiente)
@@ -87,7 +90,10 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-10-07. El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-10-07 (v1.32.0). El detalle histórico completo está en HISTORIAL.md._
+
+- **v1.32.0 (2026-10-07, código listo y SUBIDO; pendiente de PUBLICAR escritorio y DESPLEGAR web; sin migraciones):** **Registro rápido arreglado** (fecha y coche se leen al actuar; antes se quedaba en el día en que se abrió); **editor de clases** (`renderer/clase-editor.js`, `db/clases-sesion.js`): ¼ ½ ¾, añadir una clase olvidada ENTRE otras con los km recalculados (vista previa, desplazar las siguientes, deshacer) y cambiar el nº de clases **borrando la firma** para que el alumno firme otra vez; **Kilómetros unificado** (`renderer/kilometros.js`, `db/plan-km.js`): un asistente que analiza el coche, recomienda el plan más lógico, ofrece otras opciones y deja **combinar** pasos (sustituye a «Generar km»), con **Ocultar huecos**; animaciones suaves tipo iPhone en escritorio y web.
+- **Web móvil (v1.32.0):** deslizador de clases hasta 5 con puntos cada ¼ («1 + ½ de práctica (1 h 8 min)» al soltarlo), **una acción solo una vez** (`unaVez` en todos los botones que escriben + `iniciar-practica` idempotente; prueba `web-remote/tests/doble-toque.cjs`), tarjeta «Firmas pendientes» en Hoy y «Corregir cuántas clases fueron» en el detalle (`/api/corregir-clases`, borra la firma de la sesión). Jest 627/69 (2 suites necesitan `xlsx` y no corren en la nube) + test:api 99 + smoke + barrido + Playwright.
 
 - **v1.31.0 (2026-10-07, escritorio PUBLICADO y web DESPLEGADA; migración `2026-10-07_seguridad.sql` APLICADA, datos intactos 37/1500/38; Electron 44):** fechas que se escriben (barras solas, mes/año de un clic; `renderer/datepicker.js`), DNI/NIE/CIF, CP→poblaciones (GeoNames), teléfono, email y matrícula validados (`renderer/validaciones.js`); columna «En la app» de Puesta en marcha; **exportar todos los datos** a Excel/CSV/JSON (`db/exportar.js`); Cuadrar km → **modo avanzado** con **compañeros sin registrar** (`renderer/cuadre-avanzado.js`, `companeros_km`; no crean alumnos ni clases) y la ficha DGT marca con «*» los km calculados.
 - **Seguridad y legal (v1.31.0):** ventana con sandbox/CSP/navegación bloqueada, bloqueo con PIN, cerrar sesión en los demás dispositivos, contraseña mínima 10, perfiles sin alta por email (fallo de secuestro entre clientes), funciones `anon` revocadas, web con cabeceras de seguridad, sin CDN externo y funciones en Dublín (`dub1`). Textos legales en `/legal/` (`scripts/paginas-legales.js`, `VERSION_LEGAL`), aceptación en la app, hoja de protección de datos, contrato de enseñanza y registro de actividades en PDF, anonimización y plazos de conservación (`db/privacidad.js`). Resumen y tareas del propietario en `LEGAL.md` (Vercel/Supabase Pro antes de vender) y `CHANGELOG-SECURITY.md`. Jest 614/67 + test:api 91 + smoke + barrido.
