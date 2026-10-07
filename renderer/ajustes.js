@@ -353,6 +353,8 @@ function guardarCentroDatosDesdeAjustes() {
     rellenar_fecha: document.getElementById('centro-rellenar-fecha')?.checked !== false
   };
   try { localStorage.setItem(CENTRO_DATOS_KEY, JSON.stringify(centro)); } catch (e) {}
+  // Nombre y contacto del responsable de los datos: también para la web del móvil
+  if (window.api.setCentroEmpresa) window.api.setCentroEmpresa(centro).catch(() => {});
 }
 
 const PREF_DASHBOARD_KEY = 'kmalumnos_dashboard_stats';
@@ -459,6 +461,8 @@ const AJ_ICO = {
   centro: '<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/>',
   copias: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
   actualizaciones: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+  seguridad: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  legal: '<path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 7a4 4 0 0 0 6 0Z"/><path d="m19 7-3 7a4 4 0 0 0 6 0Z"/><path d="M8 21h8"/>',
   puesta: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>'
 };
 const AJ_SECCIONES = [
@@ -472,6 +476,8 @@ const AJ_SECCIONES = [
   { id: 'vehiculos', titulo: 'Combustible', desc: 'Precio y consumo para estimar costes' },
   { id: 'centro', titulo: 'Datos del centro (DGT)', desc: 'Cabecera de la ficha oficial de prácticas' },
   { id: 'copias', titulo: 'Copias de seguridad', desc: 'Guardar y restaurar todos los datos' },
+  { id: 'seguridad', titulo: 'Seguridad de este PC', desc: 'Bloqueo con PIN y cierre de sesión en los demás dispositivos' },
+  { id: 'legal', titulo: 'Legal y privacidad', desc: 'Condiciones, documentos para alumnos, plazos de conservación' },
   { id: 'actualizaciones', titulo: 'Actualizaciones y ayuda', desc: 'Versión instalada y tutorial' }
 ];
 
@@ -486,6 +492,8 @@ async function estadoCuadroAjustes(id) {
     if (id === 'vehiculos') return `${Number(getPrecioCombustible()).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 3 })} €/L · ${fmtDec(getConsumoMedio())} L/100 km`;
     if (id === 'centro') { const c = getCentroDatos(); return c.denominacion || c.numero ? (c.denominacion || 'Nº ' + c.numero) : 'Sin rellenar'; }
     if (id === 'actualizaciones') return 'Versión ' + (await window.api.getVersion());
+    if (id === 'seguridad') { const b = await window.api.bloqueoEstado(); return b.activo ? 'App con PIN' : 'Sin PIN'; }
+    if (id === 'legal') { const ac = await window.api.getAceptacionLegal(); return ac && ac.version === VERSION_LEGAL ? 'Condiciones aceptadas' : 'Condiciones pendientes de aceptar'; }
   } catch (e) { /* un estado que no se puede leer no impide ver el cuadro */ }
   return '';
 }
@@ -525,6 +533,8 @@ function ajustesAbrir(id) {
   if (id === 'zonas') renderZonasUI();
   if (id === 'menu') renderPersonalizarMenu();
   if (id === 'cobros') renderCobrosUI();
+  if (id === 'seguridad' && typeof renderSeguridadUI === 'function') renderSeguridadUI();
+  if (id === 'legal' && typeof renderLegalUI === 'function') renderLegalUI();
   const cont = document.getElementById('content');
   if (cont) cont.scrollTop = 0;
 }

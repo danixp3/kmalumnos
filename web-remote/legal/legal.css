@@ -1,0 +1,38 @@
+/* Páginas legales de AulaMovil (aviso legal, privacidad, condiciones…). Sin
+   recursos externos: fuentes del propio sitio y colores con tema claro/oscuro. */
+@font-face { font-family: 'Barlow'; font-weight: 400; font-display: swap; src: url('/fonts/barlow-400-latin.woff2') format('woff2'); }
+@font-face { font-family: 'Barlow'; font-weight: 600; font-display: swap; src: url('/fonts/barlow-600-latin.woff2') format('woff2'); }
+@font-face { font-family: 'Barlow Condensed'; font-weight: 700; font-display: swap; src: url('/fonts/barlow-condensed-700-latin.woff2') format('woff2'); }
+:root {
+  --ink: #14161B; --muted: #5E6068; --line: #E3E1DB; --bg: #F3F2EE; --card: #FFFFFF; --amber: #FFB81C; --amber-ink: #8A5800; --soft: #FFF3D1;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --ink: #ECEBE7; --muted: #A3A6AE; --line: #2A2D35; --bg: #0F1115; --card: #171A20; --amber-ink: #FFCB5C; --soft: #2A2210; }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 'Barlow', system-ui, 'Segoe UI', sans-serif; }
+header.cab { background: #14161B; color: #F3F2EE; padding: 14px 16px; }
+header.cab .dentro { max-width: 860px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+header.cab img { width: 34px; height: 34px; border-radius: 8px; background: #fff; }
+header.cab a { color: inherit; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; }
+nav.legal { max-width: 860px; margin: 14px auto 0; padding: 0 16px; display: flex; flex-wrap: wrap; gap: 6px; }
+nav.legal a { font-size: 14px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); text-decoration: none; background: var(--card); }
+nav.legal a[aria-current="page"] { background: var(--amber); border-color: var(--amber); color: #14161B; font-weight: 600; }
+main { max-width: 860px; margin: 16px auto 40px; padding: 28px 22px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+@media (max-width: 600px) { main { margin: 12px 8px 32px; padding: 20px 16px; } }
+h1 { font-family: 'Barlow Condensed', sans-serif; font-size: 34px; line-height: 1.1; margin: 0 0 6px; }
+h2 { font-family: 'Barlow Condensed', sans-serif; font-size: 23px; margin: 30px 0 8px; }
+h3 { font-size: 17px; margin: 20px 0 6px; }
+p, li { color: var(--ink); }
+.version { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+.nota { background: var(--soft); border-left: 4px solid var(--amber); padding: 10px 14px; border-radius: 8px; font-size: 15px; }
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; margin: 10px 0; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .03em; }
+.tabla { overflow-x: auto; }
+a { color: var(--amber-ink); }
+code { font-size: 13.5px; background: var(--bg); padding: 1px 5px; border-radius: 5px; }
+footer.pie { max-width: 860px; margin: 0 auto 30px; padding: 0 16px; color: var(--muted); font-size: 13px; }
+@media print { header.cab, nav.legal, footer.pie { display: none; } main { border: none; margin: 0; } body { background: #fff; } }

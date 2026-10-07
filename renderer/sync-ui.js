@@ -147,6 +147,7 @@ async function refrescarEstadoCuenta() {
     elEstado.style.color = 'var(--success, #10b981)';
     elConectado.classList.remove('hidden');
     elDesconectado.classList.add('hidden');
+    if (typeof comprobarAceptacionLegal === 'function') comprobarAceptacionLegal();
   } else {
     elEstado.textContent = '';
     elConectado.classList.add('hidden');
@@ -291,8 +292,8 @@ async function crearCuentaEmpresa() {
     showToast('crear-empresa-alert', 'Introduce email y contraseña.', 'err');
     return;
   }
-  if (password.length < 8) {
-    showToast('crear-empresa-alert', 'La contraseña debe tener al menos 8 caracteres.', 'err');
+  if (password.length < 10) {
+    showToast('crear-empresa-alert', 'La contraseña debe tener al menos 10 caracteres (mejor una frase que no uses en otra web).', 'err');
     return;
   }
   if (password !== password2) {
@@ -396,6 +397,14 @@ function cancelarCrearEmpresa() {
 // Cerrar sesión (o «Cambiar de cuenta», despues = 'otra'): antes se sube a la
 // nube lo pendiente. Los datos de esta cuenta se quedan en el PC y vuelven
 // al entrar otra vez con ella; con otra cuenta se cambian solos.
+async function cerrarOtrasSesionesUI() {
+  if (!await confirmar('Se cerrará la sesión de la cuenta en TODOS los demás dispositivos: los móviles y tablets de los profesores y los otros ordenadores tendrán que volver a entrar con el email y la contraseña.\n\nEste PC sigue conectado.\n\n¿Cerrar las demás sesiones?', { titulo: 'Cerrar sesión en los demás dispositivos', textoAceptar: 'Cerrar las demás', peligro: true })) return;
+  const r = await window.api.cerrarOtrasSesiones();
+  const id = document.querySelector('[data-aj-seccion="seguridad"]:not([hidden])') ? 'cuenta-seguridad-toast2' : 'cuenta-seguridad-toast';
+  if (r && r.ok) showToast(id, '✓ Listo: los demás dispositivos tendrán que volver a iniciar sesión. Si alguien pudo ver la contraseña, cámbiala ahora.', 'ok');
+  else showToast(id, 'No se pudo: ' + ((r && r.msg) || 'sin conexión') + '.', 'err');
+}
+
 async function cerrarSesionEmpresa(despues) {
   const estado = await window.api.getEstadoCuenta();
   const email = (estado && estado.email) || 'esta cuenta';

@@ -1,0 +1,512 @@
+[
+ {
+  "nombre": "Electron",
+  "version": "44.6.0",
+  "licencia": "MIT",
+  "autor": "OpenJS Foundation and Electron contributors"
+ },
+ {
+  "nombre": "Chromium",
+  "version": "",
+  "licencia": "BSD-3-Clause y otras (ver chrome://credits)",
+  "autor": "The Chromium Authors"
+ },
+ {
+  "nombre": "Node.js",
+  "version": "",
+  "licencia": "MIT",
+  "autor": "Node.js contributors"
+ },
+ {
+  "nombre": "Barlow y Barlow Condensed (tipografías)",
+  "version": "",
+  "licencia": "SIL Open Font License 1.1",
+  "autor": "Jeremy Tribby"
+ },
+ {
+  "nombre": "IBM Plex Mono (tipografía)",
+  "version": "",
+  "licencia": "SIL Open Font License 1.1",
+  "autor": "IBM Corp."
+ },
+ {
+  "nombre": "Códigos postales de España",
+  "version": "",
+  "licencia": "CC BY 4.0",
+  "autor": "GeoNames (www.geonames.org)"
+ },
+ {
+  "nombre": "Iconos estilo Lucide",
+  "version": "",
+  "licencia": "ISC",
+  "autor": "Lucide contributors"
+ },
+ {
+  "nombre": "@nodable/entities",
+  "version": "3.1.0",
+  "licencia": "MIT",
+  "autor": "Amit Gupta"
+ },
+ {
+  "nombre": "@pdf-lib/standard-fonts",
+  "version": "1.0.0",
+  "licencia": "MIT",
+  "autor": "Andrew Dillon"
+ },
+ {
+  "nombre": "@pdf-lib/upng",
+  "version": "1.0.1",
+  "licencia": "MIT",
+  "autor": "photopea"
+ },
+ {
+  "nombre": "@supabase/auth-js",
+  "version": "2.110.3",
+  "licencia": "MIT",
+  "autor": "Supabase"
+ },
+ {
+  "nombre": "@supabase/functions-js",
+  "version": "2.110.3",
+  "licencia": "MIT",
+  "autor": "Supabase"
+ },
+ {
+  "nombre": "@supabase/phoenix",
+  "version": "0.4.4",
+  "licencia": "MIT",
+  "autor": "Chris McCord"
+ },
+ {
+  "nombre": "@supabase/postgrest-js",
+  "version": "2.110.3",
+  "licencia": "MIT",
+  "autor": "Supabase"
+ },
+ {
+  "nombre": "@supabase/realtime-js",
+  "version": "2.110.3",
+  "licencia": "MIT",
+  "autor": "Supabase"
+ },
+ {
+  "nombre": "@supabase/storage-js",
+  "version": "2.110.3",
+  "licencia": "MIT",
+  "autor": "Supabase"
+ },
+ {
+  "nombre": "@supabase/supabase-js",
+  "version": "2.110.3",
+  "licencia": "MIT",
+  "autor": "Supabase"
+ },
+ {
+  "nombre": "anynum",
+  "version": "1.0.1",
+  "licencia": "MIT",
+  "autor": "Amit Gupta"
+ },
+ {
+  "nombre": "argparse",
+  "version": "2.0.1",
+  "licencia": "Python-2.0",
+  "autor": ""
+ },
+ {
+  "nombre": "available-typed-arrays",
+  "version": "1.0.7",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "browserify-aes",
+  "version": "1.2.0",
+  "licencia": "MIT",
+  "autor": ""
+ },
+ {
+  "nombre": "buffer-xor",
+  "version": "1.0.3",
+  "licencia": "MIT",
+  "autor": "Daniel Cousens"
+ },
+ {
+  "nombre": "builder-util-runtime",
+  "version": "9.7.0",
+  "licencia": "MIT",
+  "autor": "Vladimir Krivosheev"
+ },
+ {
+  "nombre": "call-bind",
+  "version": "1.0.9",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "call-bind-apply-helpers",
+  "version": "1.0.2",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "call-bound",
+  "version": "1.0.4",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "cipher-base",
+  "version": "1.0.7",
+  "licencia": "MIT",
+  "autor": "Calvin Metcalf"
+ },
+ {
+  "nombre": "create-hash",
+  "version": "1.2.0",
+  "licencia": "MIT",
+  "autor": ""
+ },
+ {
+  "nombre": "debug",
+  "version": "4.4.3",
+  "licencia": "MIT",
+  "autor": "Josh Junon"
+ },
+ {
+  "nombre": "define-data-property",
+  "version": "1.1.4",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "dunder-proto",
+  "version": "1.0.1",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "electron-updater",
+  "version": "6.8.9",
+  "licencia": "MIT",
+  "autor": "Vladimir Krivosheev"
+ },
+ {
+  "nombre": "es-define-property",
+  "version": "1.0.1",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "es-errors",
+  "version": "1.3.0",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "es-object-atoms",
+  "version": "1.1.2",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "evp_bytestokey",
+  "version": "1.0.3",
+  "licencia": "MIT",
+  "autor": "Calvin Metcalf"
+ },
+ {
+  "nombre": "fast-xml-builder",
+  "version": "1.3.1",
+  "licencia": "MIT",
+  "autor": "Amit Gupta"
+ },
+ {
+  "nombre": "fast-xml-parser",
+  "version": "5.11.2",
+  "licencia": "MIT",
+  "autor": "Amit Gupta"
+ },
+ {
+  "nombre": "for-each",
+  "version": "0.3.5",
+  "licencia": "MIT",
+  "autor": "Raynos"
+ },
+ {
+  "nombre": "fs-extra",
+  "version": "10.1.0",
+  "licencia": "MIT",
+  "autor": "JP Richardson"
+ },
+ {
+  "nombre": "function-bind",
+  "version": "1.1.2",
+  "licencia": "MIT",
+  "autor": "Raynos"
+ },
+ {
+  "nombre": "get-intrinsic",
+  "version": "1.3.0",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "get-proto",
+  "version": "1.0.1",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "gopd",
+  "version": "1.2.0",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "graceful-fs",
+  "version": "4.2.11",
+  "licencia": "ISC",
+  "autor": ""
+ },
+ {
+  "nombre": "has-property-descriptors",
+  "version": "1.0.2",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "has-symbols",
+  "version": "1.1.0",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "has-tostringtag",
+  "version": "1.0.2",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "hasown",
+  "version": "2.0.4",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "iceberg-js",
+  "version": "0.8.1",
+  "licencia": "MIT",
+  "autor": "mandarini"
+ },
+ {
+  "nombre": "inherits",
+  "version": "2.0.4",
+  "licencia": "ISC",
+  "autor": ""
+ },
+ {
+  "nombre": "is-callable",
+  "version": "1.2.7",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "is-typed-array",
+  "version": "1.1.15",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "is-unsafe",
+  "version": "2.0.2",
+  "licencia": "MIT",
+  "autor": "Amit Gupta"
+ },
+ {
+  "nombre": "isarray",
+  "version": "2.0.5",
+  "licencia": "MIT",
+  "autor": "Julian Gruber"
+ },
+ {
+  "nombre": "js-yaml",
+  "version": "4.3.0",
+  "licencia": "MIT",
+  "autor": "Vladimir Zapparov"
+ },
+ {
+  "nombre": "jsonfile",
+  "version": "6.2.1",
+  "licencia": "MIT",
+  "autor": "JP Richardson"
+ },
+ {
+  "nombre": "lazy-val",
+  "version": "1.0.5",
+  "licencia": "MIT",
+  "autor": "Vladimir Krivosheev"
+ },
+ {
+  "nombre": "lodash.escaperegexp",
+  "version": "4.1.2",
+  "licencia": "MIT",
+  "autor": "John-David Dalton"
+ },
+ {
+  "nombre": "lodash.isequal",
+  "version": "4.5.0",
+  "licencia": "MIT",
+  "autor": "John-David Dalton"
+ },
+ {
+  "nombre": "math-intrinsics",
+  "version": "1.1.0",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "md5.js",
+  "version": "1.3.5",
+  "licencia": "MIT",
+  "autor": "Kirill Fomichev"
+ },
+ {
+  "nombre": "mdb-reader",
+  "version": "3.2.0",
+  "licencia": "MIT",
+  "autor": "Andi Pätzold"
+ },
+ {
+  "nombre": "ms",
+  "version": "2.1.3",
+  "licencia": "MIT",
+  "autor": ""
+ },
+ {
+  "nombre": "pako",
+  "version": "2.2.0",
+  "licencia": "(MIT AND Zlib)",
+  "autor": ""
+ },
+ {
+  "nombre": "pako",
+  "version": "1.0.11",
+  "licencia": "(MIT AND Zlib)",
+  "autor": ""
+ },
+ {
+  "nombre": "path-expression-matcher",
+  "version": "1.6.2",
+  "licencia": "MIT",
+  "autor": "Amit Gupta"
+ },
+ {
+  "nombre": "pdf-lib",
+  "version": "1.17.1",
+  "licencia": "MIT",
+  "autor": "Andrew Dillon"
+ },
+ {
+  "nombre": "possible-typed-array-names",
+  "version": "1.1.0",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "safe-buffer",
+  "version": "5.2.1",
+  "licencia": "MIT",
+  "autor": "Feross Aboukhadijeh"
+ },
+ {
+  "nombre": "safe-buffer",
+  "version": "5.1.2",
+  "licencia": "MIT",
+  "autor": "Feross Aboukhadijeh"
+ },
+ {
+  "nombre": "sax",
+  "version": "1.6.0",
+  "licencia": "BlueOak-1.0.0",
+  "autor": "Isaac Z. Schlueter"
+ },
+ {
+  "nombre": "semver",
+  "version": "7.7.4",
+  "licencia": "ISC",
+  "autor": "GitHub Inc."
+ },
+ {
+  "nombre": "set-function-length",
+  "version": "1.2.2",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "strnum",
+  "version": "2.4.2",
+  "licencia": "MIT",
+  "autor": "Amit Gupta"
+ },
+ {
+  "nombre": "tiny-typed-emitter",
+  "version": "2.1.0",
+  "licencia": "MIT",
+  "autor": "Zurab Benashvili"
+ },
+ {
+  "nombre": "to-buffer",
+  "version": "1.2.2",
+  "licencia": "MIT",
+  "autor": "Mathias Buus"
+ },
+ {
+  "nombre": "tslib",
+  "version": "2.8.1",
+  "licencia": "0BSD",
+  "autor": "Microsoft Corp."
+ },
+ {
+  "nombre": "tslib",
+  "version": "1.14.1",
+  "licencia": "0BSD",
+  "autor": "Microsoft Corp."
+ },
+ {
+  "nombre": "typed-array-buffer",
+  "version": "1.0.3",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "universalify",
+  "version": "2.0.1",
+  "licencia": "MIT",
+  "autor": "Ryan Zimmerman"
+ },
+ {
+  "nombre": "which-typed-array",
+  "version": "1.1.24",
+  "licencia": "MIT",
+  "autor": "Jordan Harband"
+ },
+ {
+  "nombre": "ws",
+  "version": "8.21.0",
+  "licencia": "MIT",
+  "autor": "Einar Otto Stangvik"
+ },
+ {
+  "nombre": "xlsx",
+  "version": "0.20.3",
+  "licencia": "Apache-2.0",
+  "autor": "sheetjs"
+ },
+ {
+  "nombre": "xml-naming",
+  "version": "0.3.0",
+  "licencia": "MIT",
+  "autor": "Amit Gupta"
+ }
+]

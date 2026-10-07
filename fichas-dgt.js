@@ -271,11 +271,17 @@ async function generarFichaDGT(datos) {
     anio: rellenarFecha ? (datos.anio || String(hoy.getFullYear())) : '',
   };
   // "Ejercicio": lo calcula getDatosFichaDGT por día ("1 CLASE" / "2 CLASES")
+  // marcarCalculados (por defecto sí): los km que calculó la app llevan «*» y
+  // una nota al pie, para que la ficha diga la verdad sobre su origen (art. 40
+  // RD 1295/2003: las fichas se conservan a disposición de Tráfico).
+  const marcar = datos.marcarCalculados !== false;
+  const conAst = (v, si) => (si && v !== '' && v != null ? `${v}*` : v);
   const practicas = (datos.practicas || []).map(p => ({
     fecha: p.fecha, hora: p.hora, ejercicio: p.ejercicio || (p.clases === 1 ? '1 CLASE' : '2 CLASES'),
-    km_inicial: p.km_inicial, km_final: p.km_final,
+    km_inicial: conAst(p.km_inicial, marcar && p.km_calculados), km_final: conAst(p.km_final, marcar && p.km_calculados),
     firma_alumno: p.firma_alumno || null, firma_profesor: p.firma_profesor || null,
   }));
+  const hayCalculados = marcar && practicas.some(p => /\*$/.test(String(p.km_final || '')));
 
   const out = await PDFDocument.create();
   const nPag1 = mapa.ficha1.filas.length;      // 11
@@ -288,6 +294,12 @@ async function generarFichaDGT(datos) {
     idx += porCont;
   }
 
+  if (hayCalculados) {
+    const fuente = await out.embedFont(StandardFonts.Helvetica);
+    for (const page of out.getPages()) {
+      page.drawText('* Km calculados por el programa de gestión a partir del cuentakilómetros del vehículo (no anotados en el momento de la clase).', { x: 21, y: 8, size: 6.5, font: fuente });
+    }
+  }
   // useObjectStreams:false → xref clásico, máxima compatibilidad con visores/impresoras
   return out.save({ useObjectStreams: false });
 }

@@ -88,7 +88,14 @@ export default async function handler(req, res) {
   try {
     const supabase = getSupabaseAnon();
 
-    const { data, error } = await supabase.rpc('alumno_email_existe', { p_email: emailNormalizado });
+    // Seguridad (2026-10): la comprobación va con el secreto del servidor
+    // (alumno_email_existe_srv): desde fuera ya no se puede preguntar a la base
+    // de datos si un correo es de un alumno. Mientras la migración no esté
+    // aplicada, se usa la función antigua.
+    let { data, error } = await supabase.rpc('alumno_email_existe_srv', { p_secreto: process.env.AVISOS_SECRETO || '', p_email: emailNormalizado });
+    if (error && (error.code === '42883' || error.code === 'PGRST202')) {
+      ({ data, error } = await supabase.rpc('alumno_email_existe', { p_email: emailNormalizado }));
+    }
 
     if (error) {
       // La función RPC todavía no existe (migración 2026-08-05 no aplicada):

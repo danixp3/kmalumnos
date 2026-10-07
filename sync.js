@@ -921,7 +921,28 @@ async function listarEmpleados() {
 // falta añadirla en una migración posterior antes de que esta función sirva
 // contra producción. Aquí se deja implementada y probada con mocks para que
 // el resto del flujo (UI, IPC, mensajes de error) esté listo.
+// Cierra la sesión de la cuenta en TODOS los demás dispositivos (móviles,
+// tablets, otros PCs) y deja abierta solo la de este PC. Para una tablet
+// perdida o un profesor que deja la autoescuela; después conviene cambiar la
+// contraseña si alguien más pudo verla.
+async function cerrarOtrasSesiones() {
+  const sb = await ensureClient();
+  if (!sb || !_empresaId) return { ok: false, msg: _authError || 'Inicia sesión con la cuenta de la autoescuela primero.' };
+  try {
+    const { error } = await sb.auth.signOut({ scope: 'others' });
+    if (error) return { ok: false, msg: error.message };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+}
+
 async function invitarEmpleado(email, rol, sucursal_id) {
+  // Seguridad (2026-10-07): meter la cuenta de otra persona en tu empresa solo
+  // con su email, sin que lo acepte, permitía dejar fuera de sus datos a otra
+  // autoescuela. La base de datos ya no lo permite (migración 2026-10-07_seguridad).
+  return { ok: false, msg: 'Por seguridad, ya no se pueden añadir cuentas de empleado solo con el email. Escribe a soporte si necesitas cuentas separadas.' };
+  // eslint-disable-next-line no-unreachable
   const perfil = await getPerfilActual();
   if (!perfil.disponible) return { ok: false, msg: 'La gestión de empleados todavía no está disponible en esta cuenta.' };
   if (perfil.rol !== 'jefe') return { ok: false, msg: 'Solo el jefe puede invitar empleados.' };
@@ -2065,7 +2086,9 @@ async function _syncInterno() {
           // suben si este PC los tiene. Mandar null borraría en la nube, p. ej.,
           // una firma hecha después de que este PC bajara la práctica.
           if (movilOn) {
-            if (p.firma) payload.firma = p.firma;
+            // Alumno anonimizado (derecho de supresión): su firma se borra también en la nube
+            if (p.firma_borrar) payload.firma = null;
+            else if (p.firma) payload.firma = p.firma;
             if (Array.isArray(p.trabajado)) payload.trabajado = p.trabajado;
             if (p.tipo_detalle) payload.tipo_detalle = p.tipo_detalle;
             if (p.hora_fin) payload.hora_fin = p.hora_fin;
@@ -3151,6 +3174,7 @@ function onConflictos(cb) {
 module.exports = {
   sync,
   pushAll,
+  cerrarOtrasSesiones,
   markDirty,
   markDeleted,
   markDirtyVarios,

@@ -194,7 +194,7 @@ if (typeof module !== 'undefined' && module.exports) {
 // ── Enganche en la interfaz ───────────────────────────────────────────────────
 if (typeof document !== 'undefined') {
   const TIPOS = [
-    ['documento', /(^|[-_])(dni|nif|nie)$/i],
+    ['documento', /(^|[-_])(dni|nif|nie|cif)$/i],
     ['cp', /(^|[-_])(cp|codigo_postal|codigo-postal)$/i],
     ['telefono', /(^|[-_])(telefono2?|tel|movil)$/i],
     ['email', /(^|[-_])email$/i],

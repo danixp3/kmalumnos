@@ -44,7 +44,7 @@ const BUSCADOR_DESTINOS = [
   { titulo: 'Conflictos de km', sub: 'Kilómetros', page: 'kilometros', tab: 'conflictos', kw: 'kilometros conflictos solapamientos errores km incoherencias' },
 
   // Generar km
-  { titulo: 'Cuadrar km', sub: 'Cuentakilómetros coherente de cada coche', page: 'generar-km', tab: 'cuadrar', kw: 'cuadrar cuadre km kilometros huecos sin asignar solapan solapamientos incoherentes ordenar repartir faltan clases revisar arreglar' },
+  { titulo: 'Cuadrar km', sub: 'Cuentakilómetros coherente de cada coche', page: 'generar-km', tab: 'cuadrar', kw: 'cuadrar cuadre km kilometros huecos sin asignar solapan solapamientos incoherentes ordenar repartir faltan clases revisar arreglar modo avanzado planning compañeros fantasma sin registrar aprobaron' },
   { titulo: 'Generar km', sub: 'Generación de kilómetros', page: 'generar-km', kw: 'generar generacion kilometros km rellenar relleno masivo blanco encadenado maximo rango odometro' },
   { titulo: 'Generar hasta un máximo', sub: 'Generar km', page: 'generar-km', tab: 'maximo', kw: 'generar km maximo tope final odometro hacia atras' },
   { titulo: 'Generar por rango', sub: 'Generar km', page: 'generar-km', tab: 'rango', kw: 'generar km rango desde hasta media variacion repartir distribuir' },
@@ -67,6 +67,12 @@ const BUSCADOR_DESTINOS = [
   { titulo: 'Restaurar copia de seguridad', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-restaurar-backup', kw: 'restaurar copia seguridad backup archivo recuperar cargar' },
   { titulo: 'Buscar actualizaciones', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-actualizaciones', kw: 'actualizaciones actualizar version update buscar' },
   { titulo: 'Clases y kilómetros', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-clases', kw: 'preferencias rango km por defecto minutos clase duracion cancelacion plazo devolucion' },
+  { titulo: 'Legal y privacidad', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-legal', kw: 'legal privacidad rgpd lopd proteccion datos condiciones aviso cookies encargo tratamiento licencias' },
+  { titulo: 'Contrato de enseñanza', sub: 'Ajustes · Legal y privacidad', page: 'ajustes', anchor: 'aj-legal-docs', kw: 'contrato ensenanza alumno firmar articulo 42 modelo documentos' },
+  { titulo: 'Hoja de protección de datos', sub: 'Ajustes · Legal y privacidad', page: 'ajustes', anchor: 'aj-legal-docs', kw: 'proteccion datos rgpd clausula informativa consentimiento alumno firmar' },
+  { titulo: 'Registro de actividades de tratamiento', sub: 'Ajustes · Legal y privacidad', page: 'ajustes', anchor: 'aj-legal-docs', kw: 'registro actividades tratamiento rat rgpd articulo 30' },
+  { titulo: 'Conservación y anonimización de alumnos', sub: 'Ajustes · Legal y privacidad', page: 'ajustes', anchor: 'aj-legal-conservacion', kw: 'conservacion plazo borrar anonimizar suprimir supresion olvido antiguos alumnos rgpd' },
+  { titulo: 'Bloqueo con PIN', sub: 'Ajustes · Seguridad de este PC', page: 'ajustes', anchor: 'aj-seguridad', kw: 'pin bloqueo bloquear contraseña seguridad inactividad cerrar sesion dispositivos tablet perdida' },
   { titulo: 'Panel principal', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-panel', kw: 'tarjetas panel graficos personalizar dashboard inicio' },
   { titulo: 'Cobros (matrícula, conceptos, precio por clase, IVA)', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-cobros', kw: 'matricula tasa iva importe cobros conceptos alta soporte informatico tarifas precio clase permiso' },
   { titulo: 'Combustible', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-combustible', kw: 'combustible precio consumo litros coste gasolina diesel' },

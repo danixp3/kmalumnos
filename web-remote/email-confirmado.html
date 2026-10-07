@@ -153,6 +153,7 @@
 
 </div>
 
+<script src="/vendor/supabase-2.110.3.js"></script>
 <script>
   const SUPABASE_URL = 'https://dmwoqugdnwgkcqtixhyw.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtd29xdWdkbndna2NxdGl4aHl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjA5NjYsImV4cCI6MjA5OTU5Njk2Nn0.8XhWdS0ohrCbZcKpHWKsJz22rY8ASA4IkgpbtE_pHkc';
@@ -185,7 +186,7 @@
       return;
     }
 
-    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+    const { createClient } = window.supabase; // librería servida desde la propia web (versión fija, sin CDN externo)
     // Sin overrides: detectSessionInUrl (activo por defecto) procesa el token
     // de confirmación de la URL y deja la sesión creada; a diferencia de
     // reset-password.html no hay evento PASSWORD_RECOVERY propio, así que se

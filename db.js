@@ -47,6 +47,7 @@ module.exports = {
   ...require('./db/ariauto'),
   ...require('./db/exportar'),
   ...require('./db/codigos-postales'),
+  ...require('./db/privacidad'),
 
   getLogs: core.getLogs,
   clearLogs: core.clearLogs,

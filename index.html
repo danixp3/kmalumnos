@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Seguridad: solo se carga lo que va dentro de la app (sin scripts, estilos ni conexiones de fuera) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' data: blob:; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
 <title>AulaMovil — Gestión de prácticas</title>
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -911,7 +913,10 @@
                 <button type="button" onclick="abrirFichaDGT(currentAlumnoId)">Ficha oficial DGT</button>
                 <button type="button" onclick="this.closest('details').open=false;abrirSepararNombres([currentAlumnoId])">Separar nombre y apellidos</button>
                 <button type="button" onclick="this.closest('details').open=false;abrirJuntarConOtro(currentAlumnoId)">Juntar con otra ficha (repetido)…</button>
+                <button type="button" onclick="this.closest('details').open=false;documentoAlumnoUI('contrato')">Contrato de enseñanza</button>
+                <button type="button" onclick="this.closest('details').open=false;documentoAlumnoUI('proteccion')">Hoja de protección de datos</button>
                 <button type="button" onclick="this.closest('details').open=false;exportarDatosAlumnoActual()">Exportar sus datos (derecho de acceso)…</button>
+                <button type="button" class="menu-fila-borrar" onclick="this.closest('details').open=false;anonimizarAlumnoUI()">Anonimizar (derecho de supresión)…</button>
               </div>
             </details>
             <button class="btn btn-outline" onclick="abrirNuevaReservaAlumno()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Programar clase</button>
@@ -1723,6 +1728,11 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Cerrar sesión
               </button>
             </div>
+            <div class="aj-seguridad">
+              <div><b>¿Se ha perdido una tablet o un profesor ha dejado la autoescuela?</b><br><span>Cierra la sesión de la cuenta en todos los demás móviles, tablets y ordenadores. Este PC sigue conectado. Después, si alguien pudo ver la contraseña, cámbiala.</span></div>
+              <button class="btn btn-outline" onclick="cerrarOtrasSesionesUI()">Cerrar la sesión en los demás dispositivos</button>
+            </div>
+            <div id="cuenta-seguridad-toast" class="hidden" style="margin-top:10px"></div>
           </div>
         </div>
       </div>
@@ -1744,10 +1754,7 @@
           <div class="card-title-icon" style="background:var(--accent-light);color:var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
           Empleados
         </div>
-        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Da de alta a otras personas de tu autoescuela con su propia cuenta. Un empleado no ve Pagos ni las estadísticas de profesores.</p>
-        <button class="btn btn-primary" onclick="abrirInvitarEmpleado()" style="margin-bottom:14px">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Invitar empleado
-        </button>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Cuentas de tu autoescuela con rol de empleado (no ven Pagos ni las estadísticas de profesores). Por seguridad, ya no se puede meter a otra cuenta en tu autoescuela solo con su email: los profesores entran en el móvil con la cuenta de la autoescuela y eligen su perfil. Si necesitas cuentas de empleado separadas, escribe a soporte.</p>
         <div class="table-wrap">
           <table id="tabla-empleados">
             <thead><tr><th>Nombre</th><th>Rol</th><th>Sucursal</th><th>Acciones</th></tr></thead>
@@ -2060,6 +2067,62 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Seleccionar backup y restaurar...
         </button>
         <div id="restaurar-err" class="hidden alert alert-err" style="margin-top:14px"></div>
+      </div>
+      </div>
+
+      <div class="aj-seccion" data-aj-seccion="seguridad" hidden>
+      <div class="card" id="aj-seguridad">
+        <div class="card-title">Bloqueo de la app con PIN</div>
+        <div id="aj-seguridad-bloqueo"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Si se pierde un móvil o alguien deja la autoescuela</div>
+        <p class="aj-intro">Cierra la sesión de la cuenta en todos los demás móviles, tablets y ordenadores (este PC sigue conectado). Si alguien pudo ver la contraseña, cámbiala después.</p>
+        <button type="button" class="btn btn-outline" onclick="cerrarOtrasSesionesUI()">Cerrar la sesión en los demás dispositivos</button>
+        <div id="cuenta-seguridad-toast2" class="hidden" style="margin-top:10px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Recomendaciones para este PC</div>
+        <ul class="aj-lista">
+          <li>Entra en Windows con un usuario con contraseña o PIN y bloquea la pantalla al levantarte (tecla Windows + L).</li>
+          <li>Activa el cifrado del disco: Configuración → Privacidad y seguridad → <b>Cifrado del dispositivo</b> (o BitLocker en Windows Pro). Si roban el portátil, nadie podrá leer los datos de los alumnos.</li>
+          <li>Mantén Windows y el antivirus actualizados y guarda de vez en cuando una copia de seguridad fuera del PC (Ajustes → Copias de seguridad).</li>
+          <li>En los móviles de los profesores, bloqueo de pantalla con PIN, huella o cara.</li>
+        </ul>
+      </div>
+      </div>
+
+      <div class="aj-seccion" data-aj-seccion="legal" hidden>
+      <div class="card" id="aj-legal">
+        <div class="card-title">Textos legales de AulaMovil</div>
+        <p class="aj-intro" id="legal-aceptacion"></p>
+        <div class="legal-botones">
+          <button type="button" class="btn btn-outline btn-sm" onclick="window.api.abrirLegal('condiciones')">Condiciones de uso</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="window.api.abrirLegal('encargo-tratamiento')">Contrato de encargo del tratamiento</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="window.api.abrirLegal('privacidad')">Política de privacidad</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="window.api.abrirLegal('aviso-legal')">Aviso legal</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="window.api.abrirLegal('cookies')">Cookies</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="window.api.abrirLegal('alumnos')">Información para alumnos</button>
+        </div>
+      </div>
+      <div class="card" id="aj-legal-docs">
+        <div class="card-title">Documentos de la autoescuela</div>
+        <p class="aj-intro" id="legal-responsable"></p>
+        <p class="aj-intro">La autoescuela es la responsable de los datos de sus alumnos y personal. Estos documentos salen con los datos del centro; los de un alumno concreto, con sus datos, desde su ficha (Documentos).</p>
+        <div class="legal-docs">
+          <button type="button" class="legal-doc" onclick="documentoLegalUI('proteccion')"><b>Hoja de protección de datos</b><span>Lo que hay que informar al alumno al matricularse (art. 13 RGPD), con las casillas de consentimiento y su firma.</span></button>
+          <button type="button" class="legal-doc" onclick="documentoLegalUI('contrato')"><b>Contrato de enseñanza</b><span>Obligatorio con cada alumno (art. 42 RD 1295/2003), con tus precios, duración de clase y política de anulación.</span></button>
+          <button type="button" class="legal-doc" onclick="documentoLegalUI('registro')"><b>Registro de actividades de tratamiento</b><span>El registro que pide el art. 30 RGPD, ya rellenado con lo que hace la autoescuela con AulaMovil.</span></button>
+        </div>
+      </div>
+      <div class="card" id="aj-legal-conservacion">
+        <div class="card-title">Conservación y supresión de datos</div>
+        <div id="legal-conservacion"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Licencias de terceros</div>
+        <p class="aj-intro">AulaMovil usa estos componentes de código abierto y datos libres. Códigos postales: © GeoNames (www.geonames.org), licencia CC BY 4.0.</p>
+        <div id="legal-licencias" class="table-wrap" style="max-height:340px;overflow:auto"></div>
       </div>
       </div>
 
@@ -2950,6 +3013,13 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
       </label>
       <p style="font-size:12px;color:var(--text-faint);margin-top:4px">Desmárcalo si el alumno aún no está listo para el examen: el pie saldrá sin firmar, para firmarlo a mano.</p>
     </div>
+    <div class="form-group" style="margin-top:4px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="ficha-dgt-marcar-calculados" checked style="width:auto">
+        Señalar con * los km que calculó la app (recomendado)
+      </label>
+      <p style="font-size:12px;color:var(--text-faint);margin-top:4px">La ficha de prácticas se guarda a disposición de Tráfico (art. 40 del Reglamento de autoescuelas). Si quitas la marca, la autoescuela responde de que esos km coinciden con los reales.</p>
+    </div>
     <div id="ficha-dgt-aviso" class="hidden alert alert-warn" style="margin-top:12px"></div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-ficha-dgt')">Cancelar</button>
@@ -3786,6 +3856,8 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/historial-pantallas.js"></script>
 <script src="renderer/alumnos-repetidos.js"></script>
 <script src="renderer/exportar-datos.js"></script>
+<script src="renderer/bloqueo.js"></script>
+<script src="renderer/legal.js"></script>
 <script src="renderer/arranque.js"></script>
 </body>
 </html>

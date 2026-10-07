@@ -51,6 +51,67 @@ function loadSyncCreds() {
   }
 }
 
+// ─── BLOQUEO DE LA APP CON PIN ─────────────────────────────────────────────────
+// Opcional (Ajustes → Seguridad de este PC): al abrir la app y tras unos minutos
+// sin usarla se pide un PIN. Se guarda solo su huella (scrypt + sal) en
+// userData/bloqueo.json; tras 5 fallos seguidos hay que esperar (cada vez más).
+// Si se olvida, se quita con la contraseña de la cuenta de la autoescuela.
+const crypto = require('crypto');
+const archivoBloqueo = () => path.join(app.getPath('userData'), 'bloqueo.json');
+function leerBloqueo() {
+  try { const b = JSON.parse(fs.readFileSync(archivoBloqueo(), 'utf-8')); return b && b.hash && b.sal ? b : null; } catch (e) { return null; }
+}
+const huellaPin = (pin, sal) => crypto.scryptSync(String(pin), Buffer.from(sal, 'hex'), 32, { N: 16384, r: 8, p: 1 }).toString('hex');
+const pinValido = pin => /^\d{4,8}$/.test(String(pin || ''));
+const MINUTOS_BLOQUEO = [0, 5, 10, 15, 30, 60];
+const bloqueoFallos = { n: 0, hasta: 0 };
+function comprobarPin(pin) {
+  const b = leerBloqueo();
+  if (!b) return { ok: true };
+  const ahora = Date.now();
+  if (ahora < bloqueoFallos.hasta) return { ok: false, espera: Math.ceil((bloqueoFallos.hasta - ahora) / 1000) };
+  const ok = pinValido(pin) && crypto.timingSafeEqual(Buffer.from(huellaPin(pin, b.sal), 'hex'), Buffer.from(b.hash, 'hex'));
+  if (ok) { bloqueoFallos.n = 0; bloqueoFallos.hasta = 0; return { ok: true }; }
+  bloqueoFallos.n++;
+  if (bloqueoFallos.n >= 5) bloqueoFallos.hasta = ahora + Math.min(15 * 60, 30 * 2 ** (bloqueoFallos.n - 5)) * 1000;
+  return { ok: false, quedan: Math.max(0, 5 - bloqueoFallos.n), espera: bloqueoFallos.hasta > ahora ? Math.ceil((bloqueoFallos.hasta - ahora) / 1000) : 0 };
+}
+ipcMain.handle('bloqueo-estado', () => { const b = leerBloqueo(); return { activo: !!b, minutos: b && MINUTOS_BLOQUEO.includes(b.minutos) ? b.minutos : 15 }; });
+ipcMain.handle('bloqueo-comprobar', (_, pin) => comprobarPin(pin));
+ipcMain.handle('bloqueo-poner', (_, pinActual, pinNuevo, minutos) => {
+  if (leerBloqueo() && !comprobarPin(pinActual).ok) return { ok: false, msg: 'El PIN actual no es correcto.' };
+  if (!pinValido(pinNuevo)) return { ok: false, msg: 'El PIN tiene que tener de 4 a 8 números.' };
+  const sal = crypto.randomBytes(16).toString('hex');
+  const m = MINUTOS_BLOQUEO.includes(Number(minutos)) ? Number(minutos) : 15;
+  fs.writeFileSync(archivoBloqueo(), JSON.stringify({ sal, hash: huellaPin(pinNuevo, sal), minutos: m }), 'utf-8');
+  return { ok: true };
+});
+ipcMain.handle('bloqueo-minutos', (_, minutos) => {
+  const b = leerBloqueo();
+  if (!b || !MINUTOS_BLOQUEO.includes(Number(minutos))) return { ok: false };
+  b.minutos = Number(minutos);
+  fs.writeFileSync(archivoBloqueo(), JSON.stringify(b), 'utf-8');
+  return { ok: true };
+});
+ipcMain.handle('bloqueo-quitar', (_, pin) => {
+  if (!comprobarPin(pin).ok) return { ok: false, msg: 'El PIN no es correcto.' };
+  try { fs.unlinkSync(archivoBloqueo()); } catch (e) { /* ya no estaba */ }
+  return { ok: true };
+});
+// PIN olvidado: con la contraseña de la cuenta de la autoescuela guardada en este PC
+ipcMain.handle('bloqueo-olvidado', (_, password) => {
+  const creds = loadSyncCreds();
+  if (!creds) return { ok: false, msg: 'Este PC no tiene guardada la cuenta de la autoescuela: no se puede comprobar la contraseña.' };
+  const a = Buffer.from(String(password || '')), b = Buffer.from(String(creds.password));
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    const r = comprobarPin('x'); // cuenta como intento fallido (misma espera que el PIN)
+    return { ok: false, msg: 'La contraseña no es correcta.', espera: r.espera || 0 };
+  }
+  try { fs.unlinkSync(archivoBloqueo()); } catch (e) { /* ya no estaba */ }
+  bloqueoFallos.n = 0; bloqueoFallos.hasta = 0;
+  return { ok: true };
+});
+
 // ─── PREFERENCIAS DE UI (tema) ─────────────────────────────────────────────────
 // Color de fondo de la ventana según el tema elegido, para que al abrir no haya
 // parpadeo claro→oscuro mientras carga index.html (backgroundColor se aplica
@@ -99,7 +160,13 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      // La interfaz corre aislada del sistema (sin Node, en el sandbox de
+      // Chromium): todo lo que toca archivos pasa por los IPC de este archivo.
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      webviewTag: false
     },
     icon: path.join(__dirname, 'icon.png'),
     title: 'AulaMovil - Autoescuela'
@@ -108,6 +175,7 @@ function createWindow() {
   // que cambia si se arranca con otro script de entrada (p. ej. npm run smoke).
   mainWin.loadFile(path.join(__dirname, 'index.html'));
   mainWin.setMenuBarVisibility(false);
+  blindarVentana(mainWin);
 
   // Los botones laterales del ratón (atrás/adelante) no deben navegar el
   // historial de Electron: los captura el renderer para ir a la pantalla
@@ -126,6 +194,38 @@ function createWindow() {
   });
   iniciarSensorBarra(mainWin);
 }
+
+// ─── BLINDAJE DE LA VENTANA ──────────────────────────────────────────────────
+// La ventana solo muestra index.html: no navega a ninguna otra página, no abre
+// ventanas nuevas y no concede permisos (cámara, micrófono, ubicación…). Los
+// enlaces https que haya en la interfaz se abren en el navegador del sistema.
+const PAGINA_APP = 'file://' + path.join(__dirname, 'index.html').replace(/\\/g, '/');
+function esPaginaApp(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'file:' && decodeURIComponent(u.pathname).replace(/^\/+/, '').toLowerCase() === PAGINA_APP.replace(/^file:\/+/, '').toLowerCase();
+  } catch (e) { return false; }
+}
+function abrirFuera(url) {
+  try { if (new URL(url).protocol === 'https:') shell.openExternal(url); } catch (e) { /* url no válida: nada */ }
+}
+function blindarVentana(win) {
+  const wc = win.webContents;
+  wc.on('will-navigate', (e, url) => {
+    if (esPaginaApp(url)) return; // recargar la propia app (restaurar copia…)
+    e.preventDefault();
+    abrirFuera(url);
+  });
+  wc.on('will-redirect', (e, url) => { if (!esPaginaApp(url)) e.preventDefault(); });
+  wc.setWindowOpenHandler(({ url }) => { abrirFuera(url); return { action: 'deny' }; });
+  wc.on('will-attach-webview', e => e.preventDefault());
+}
+const PERMISOS_PERMITIDOS = new Set(['clipboard-sanitized-write', 'fullscreen']);
+app.whenReady().then(() => {
+  const { session } = require('electron');
+  session.defaultSession.setPermissionRequestHandler((wc, permiso, cb) => cb(PERMISOS_PERMITIDOS.has(permiso)));
+  session.defaultSession.setPermissionCheckHandler((wc, permiso) => PERMISOS_PERMITIDOS.has(permiso));
+});
 
 // ─── SENSOR DE LA BARRA DE TÍTULO ────────────────────────────────────────────
 // La barra de título es zona de arrastre de la ventana (-webkit-app-region:
@@ -720,6 +820,69 @@ ipcMain.handle('mostrar-exportado', (_, ruta) => {
   return true;
 });
 
+// ─── LEGAL Y PRIVACIDAD ───────────────────────────────────────────────────────
+// Conservación/supresión de alumnos (db/privacidad.js), documentos para firmar
+// (hoja de protección de datos, contrato de enseñanza, registro de actividades)
+// en PDF, aceptación de las condiciones y textos legales públicos.
+const URL_LEGAL = 'https://aulamovil.vercel.app/legal/';
+ipcMain.handle('get-alumnos-para-suprimir', (_, anios) => db.getAlumnosParaSuprimir(anios));
+ipcMain.handle('anonimizar-alumnos', (_, ids, motivo) => {
+  const r = db.anonimizarAlumnos(ids, motivo === 'plazo' ? 'plazo' : 'supresion');
+  // Su foto y sus documentos adjuntos se borran de este PC
+  for (const id of r.ids || []) {
+    try {
+      const dirF = _dirFotos();
+      if (fs.existsSync(dirF)) for (const f of fs.readdirSync(dirF)) if (f.startsWith('alumno_' + id + '.')) fs.unlinkSync(path.join(dirF, f));
+      fs.rmSync(_dirDocumentosAlumno(id), { recursive: true, force: true });
+    } catch (e) { console.error('No se pudieron borrar los archivos del alumno', id, e.message); }
+  }
+  return r;
+});
+// HTML (lo arma la interfaz) → PDF con la impresora de Chromium, en una ventana
+// oculta SIN JavaScript ni acceso a nada: solo pinta el documento.
+ipcMain.handle('documento-pdf', async (_, opciones) => {
+  const { html, nombre } = opciones || {};
+  if (typeof html !== 'string' || html.length > 3000000) return { ok: false, msg: 'Documento no válido.' };
+  let win = null;
+  try {
+    win = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false, contextIsolation: true, nodeIntegration: false, images: true } });
+    await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    const pdf = await win.webContents.printToPDF({ pageSize: 'A4', printBackground: true, margins: { marginType: 'custom', top: 0.55, bottom: 0.55, left: 0.6, right: 0.6 } });
+    const r = await dialog.showSaveDialog(mainWin, { title: 'Guardar documento', defaultPath: (sanitizarNombre(nombre || 'documento') || 'documento') + '.pdf', filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+    fs.writeFileSync(r.filePath, pdf);
+    shell.openPath(r.filePath);
+    return { ok: true, path: r.filePath };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  } finally {
+    if (win && !win.isDestroyed()) win.destroy();
+  }
+});
+ipcMain.handle('abrir-legal', (_, pagina) => {
+  const p = String(pagina || 'index');
+  if (!/^[a-z-]{1,40}$/.test(p)) return false;
+  shell.openExternal(URL_LEGAL + (p === 'index' ? '' : p + '.html'));
+  return true;
+});
+ipcMain.handle('get-aceptacion-legal', () => db.getAjusteEmpresa('legal_aceptacion'));
+ipcMain.handle('aceptar-legal', (_, version, quien) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(version || ''))) return false;
+  const valor = { version: String(version), fecha: new Date().toISOString(), quien: String(quien || '').slice(0, 120), app: app.getVersion() };
+  db.setAjusteEmpresa('legal_aceptacion', valor);
+  return valor;
+});
+// Datos públicos de la autoescuela para la web (nombre y contacto del responsable)
+ipcMain.handle('set-centro-empresa', (_, c) => {
+  const x = c && typeof c === 'object' ? c : {};
+  const t = v => String(v == null ? '' : v).trim().slice(0, 160);
+  db.setAjusteEmpresa('centro', { denominacion: t(x.denominacion), razon_social: t(x.razon_social), cif: t(x.cif), direccion: t(x.direccion), codigo_postal: t(x.codigo_postal), poblacion: t(x.poblacion), provincia: t(x.provincia), telefono: t(x.telefono), email: t(x.email) });
+  return true;
+});
+ipcMain.handle('licencias-terceros', () => {
+  try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'assets', 'licencias-terceros.json'), 'utf-8')); } catch (e) { return []; }
+});
+
 // Código postal → provincia y poblaciones (lista de GeoNames, sin conexión)
 ipcMain.handle('buscar-codigo-postal', (_, cp) => db.buscarCodigoPostal(cp));
 
@@ -763,6 +926,7 @@ ipcMain.handle('exportar-csv', async (_, opciones) => {
 ipcMain.handle('generar-ficha-dgt', async (_, opciones) => {
   try {
     const { alumnoId, tipo, centro, rellenarFecha, comprobarFirmas } = opciones || {};
+    const marcarCalculados = !opciones || opciones.marcarCalculados !== false;
     const firmarPie = !opciones || opciones.firmarPie !== false;
     const datosAlumno = db.getDatosFichaDGT(alumnoId, tipo === 'destreza' ? 'destreza' : 'circulacion');
     if (!datosAlumno) return { ok: false, msg: 'Alumno no encontrado.' };
@@ -788,6 +952,7 @@ ipcMain.handle('generar-ficha-dgt', async (_, opciones) => {
       profesor: datosAlumno.profesor,
       director: datosAlumno.director,
       firmarPie,
+      marcarCalculados,
       practicas: datosAlumno.practicas,
       rellenarFecha: rellenarFecha !== false,
     });
@@ -939,9 +1104,12 @@ ipcMain.handle('borrar-foto-alumno', (_, id) => {
   }
 });
 
+// Extensiones que Windows ejecuta al abrirlas: no se adjuntan ni se abren desde la app
+const EXTENSIONES_EJECUTABLES = /\.(exe|com|bat|cmd|scr|pif|cpl|msi|msp|msc|ps1|psm1|vbs|vbe|js|jse|jar|wsf|wsh|hta|lnk|url|reg|inf|application|gadget|dll|sys|appx|msix)$/i;
 ipcMain.handle('adjuntar-documento-alumno', (_, id, nombre, dataUrl) => {
   try {
     if (!Number.isInteger(id)) return { ok: false, msg: 'Id de alumno no válido' };
+    if (EXTENSIONES_EJECUTABLES.test(String(nombre || ''))) return { ok: false, msg: 'Por seguridad no se pueden adjuntar programas ni accesos directos. Adjunta PDF, imágenes o documentos.' };
     if (typeof dataUrl !== 'string' || dataUrl.indexOf(',') === -1) {
       return { ok: false, msg: 'Fichero inválido' };
     }
@@ -980,6 +1148,7 @@ ipcMain.handle('abrir-documento-alumno', (_, ruta) => {
     const base = path.resolve(_dirUserData(), 'documentos') + path.sep;
     const resuelta = path.resolve(String(ruta || ''));
     if (!resuelta.startsWith(base)) return { ok: false, msg: 'Ruta no permitida' };
+    if (EXTENSIONES_EJECUTABLES.test(resuelta)) return { ok: false, msg: 'Por seguridad este tipo de archivo no se abre desde la app.' };
     shell.openPath(resuelta);
     return { ok: true };
   } catch (e) {
@@ -1017,6 +1186,7 @@ ipcMain.handle('install-update', () => {
 
 // ─── SYNC IPC HANDLERS ────────────────────────────────────────────────────────
 ipcMain.handle('sync-now', async () => sync.sync());
+ipcMain.handle('cerrar-otras-sesiones', async () => sync.cerrarOtrasSesiones());
 ipcMain.handle('sync-push-all', async () => sync.pushAll());
 ipcMain.handle('sync-status', () => sync.getStatus());
 
