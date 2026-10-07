@@ -57,6 +57,13 @@ La ventana de escritorio es `frame: false` (sin marco nativo): la barra de títu
 
 `index.html` (SPA móvil del profesor, rediseño 2026-09-29: Hoy → Iniciar → En curso → Km final (escritos o «Los pone la app») → Firma; mapa fino en /cambiar-web) + `api/`: `_utils.js` (CORS, validación, `requireAuth` con JWT Bearer de Supabase Auth, `getSupabase(token)` → RLS por empresa, `conFallbackColumnas` para columnas de migraciones no aplicadas), `vehiculos`/`alumnos`/`hoy`/`historial`/`practicas-alumno`/`profesores`/`agenda-profesor` (GET), `practica` (POST clásico km=0,0), `registrar-clase` (POST, clase completa hecha sin cobertura; reenviable sin duplicar), `iniciar-practica`/`finalizar-practica`/`firmar-practica` (POST, flujo en curso), `anotar-practica` (POST, clase olvidada hasta 30 días atrás; km escritos, `km_auto` o sin km), `km-coche` (GET, clase anterior/siguiente del coche en un día y hora), `crear-alumno` (nombre y apellidos separados, DNI, teléfono; 409 `posible_duplicado`; carga los cobros de alta de `ajustes_empresa.conceptos_cobro`), `cancelar-practica` (soft delete, solo `source='web-remote'`), `alumno-*` (portal del alumno). Envs en Vercel: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SYNC_EMAIL`, `SYNC_PASSWORD` (ya no hay PIN). **Sin conexión (2026-10-06):** `web-remote/offline.js` + bloque «SIN CONEXIÓN» de `index.html` (cola en IndexedDB, caché de lecturas, clases hechas sin red) — detalle en `/cambiar-web`. Pruebas: `npm run test:api` (api + offline + service worker). Tocar web-remote ⇒ desplegar con /desplegar-web.
 
+## Seguridad y legal (2026-10-07) — no romper
+
+- Electron 44 con `sandbox`, CSP en `index.html` y navegación bloqueada: nada de recursos externos ni `window.open` en el renderer (PDF/impresión: IPC `documento-pdf`). En la web, CSP por `vercel.json`: todo servido desde el propio sitio.
+- RLS por empresa en todas las tablas; `perfiles` sin inserción directa (migración `2026-10-07_seguridad.sql`). Funciones nuevas `SECURITY DEFINER`: `set search_path` y `revoke ... from public, anon`.
+- Datos personales: borrar = anonimizar (`db/privacidad.js`), exportar = `db/exportar.js`; las exportaciones y anonimizaciones quedan en el historial. Km que pone la app → `tipo_detalle = 'km_auto'` (la ficha DGT los marca con «*»).
+- Textos legales: `scripts/paginas-legales.js` + `VERSION_LEGAL` (también en `renderer/legal.js`); al cambiar condiciones, subir la versión en los dos. Resumen en `LEGAL.md`.
+
 ## Checklist de invariantes (repasar SIEMPRE antes de codificar)
 
 1. **Toda mutación de datos en `db/` debe llamar a `markDirty`/`markDeleted`** — incluidas las masivas e indirectas. Olvidarlo dejó 113 prácticas con km=0 en la nube (v1.3.12).

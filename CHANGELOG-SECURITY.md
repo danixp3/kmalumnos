@@ -1,3 +1,47 @@
+# Seguridad de AulaMovil
+
+## Auditoría de octubre de 2026 (v1.31.0)
+
+Revisión completa de la app de escritorio, la web del móvil, la base de datos en la nube y el repositorio.
+
+### Corregido
+
+| Hallazgo | Riesgo | Solución |
+|---|---|---|
+| Un jefe de cualquier autoescuela podía meter como «empleado» la cuenta de otra recién registrada solo con su email (`buscar_uid_por_email` + inserción directa en `perfiles`) y dejarla fuera de sus datos | Alto (secuestro de cuenta entre clientes) | Migración `2026-10-07_seguridad.sql`: sin inserción directa en `perfiles`, sin búsqueda de usuarios por email y el dueño de un perfil no se puede cambiar (trigger). La app ya no ofrece invitar por email |
+| Funciones internas de la base de datos ejecutables sin sesión (`anon`) | Medio (enumeración) | Revocadas; «¿es alumno este correo?» solo con el secreto del servidor (`alumno_email_existe_srv`) |
+| Portal del alumno identificado solo por el email del token | Bajo (exige email confirmado, ya activo) | Defensa extra: comprueba en `auth.users` que el email está confirmado |
+| Electron 33 sin soporte (parches de Chromium) | Alto | Electron 44.6.0 |
+| Ventana sin sandbox, sin bloqueo de navegación ni de ventanas nuevas, sin política de contenido, permisos del navegador abiertos | Medio | `sandbox`, `will-navigate`/`setWindowOpenHandler` (https al navegador del sistema), CSP en `index.html`, permisos denegados salvo portapapeles |
+| Documentos adjuntos ejecutables (.exe, .bat, .lnk…) se podían abrir desde la ficha | Medio | Bloqueados al adjuntar y al abrir |
+| `date-utils.js` no iba en el instalador (fallaban las flechas de día de Registro rápido) | Fallo funcional | Añadido a `build.files` + test que comprueba todos los `<script>` |
+| Web sin cabeceras de seguridad | Medio | CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, COOP; `/api` con `Cache-Control: no-store` |
+| Librería de login cargada desde un CDN externo sin versión fija (`@supabase/supabase-js@2`) en las páginas de contraseña, confirmación y portal | Medio (cadena de suministro) | Servida desde la propia web, versión fija (`/vendor/supabase-2.110.3.js`) |
+| Funciones de la web ejecutándose en Washington (EE. UU.) | Cumplimiento RGPD y latencia | `regions: ["dub1"]` (Dublín, junto a la base de datos de Irlanda) |
+| Copia offline de alumnos se quedaba en el teléfono al cerrar sesión o al entrar otra cuenta | Medio (dispositivo compartido o perdido) | Se borra al cerrar sesión y al cambiar de cuenta (la cola de envíos se conserva) |
+| Sesiones sin caducidad y sin forma de cerrarlas en todos los dispositivos | Medio | Ajustes → Seguridad: «Cerrar la sesión en los demás dispositivos» (`signOut({ scope: 'others' })`) |
+| PC de la oficina abierto | Medio | Bloqueo opcional con PIN (huella scrypt, espera creciente tras 5 fallos, bloqueo por inactividad, desbloqueo con la contraseña de la cuenta) |
+| Contraseña mínima de 6 caracteres | Bajo | 10 en la app y en Supabase Auth |
+| Archivo con nombres reales de alumnos (`registro_kilometraje_alumnos.csv`) en el repositorio público desde la v1.0.0 | Medio (datos personales públicos) | Quitado del árbol y en `.gitignore`. **Sigue en el historial**: ver `LEGAL.md` § 3.9 |
+
+### Comprobado y correcto
+
+- RLS activo en todas las tablas, aislamiento por `empresa_id` en la base de datos; un empleado no puede cambiarse el rol ni la empresa (trigger existente).
+- Sin secretos en el repositorio ni en su historial (la clave pública `anon` es pública por diseño; el token de gestión está en `.mcp.json`, ignorado).
+- Confirmación de email obligatoria, rotación de tokens de refresco, datos en `eu-west-1`.
+- Todo dato pintado en las interfaces pasa por `esc()`; IPC con rutas validadas; credenciales del PC cifradas con DPAPI (`safeStorage`).
+- Dependencias: licencias permisivas; ninguna GPL.
+
+### Pendiente (del propietario)
+
+- Supabase Pro: protección de contraseñas filtradas (HaveIBeenPwned), caducidad de sesiones por inactividad, copias diarias.
+- Vercel Pro (necesario además para uso comercial).
+- Firma de código del instalador (Authenticode): hoy la actualización se verifica por hash del propio GitHub.
+- Extensión `pg_net` en el esquema `public` (aviso del linter de Supabase; moverla exige recrear la tarea de avisos).
+- Repositorio público: decidir si pasa a privado con un repositorio aparte para las actualizaciones.
+
+---
+
 # CHANGELOG — Auditoría y mejoras de seguridad (Julio 2026)
 
 ## Resumen ejecutivo
@@ -130,7 +174,7 @@ function escapeHtml(str) {
 ```
 SUPABASE_URL     = https://dmwoqugdnwgkcqtixhyw.supabase.co
 SUPABASE_ANON_KEY = [REDACTED]
-API_PIN          = 2004
+API_PIN          = (sistema de PIN retirado; ya no se usa)
 ```
 
 ### URLs
@@ -168,7 +212,7 @@ API_PIN          = 2004
 ## Cómo usar web-remote
 
 1. Ir a https://kmalumnos-remote.vercel.app
-2. Introducir PIN: **2004**
+2. (El PIN se retiró: ahora se entra con la cuenta de la autoescuela)
 3. Seleccionar alumno y vehículo
 4. Clic en "Registrar práctica"
 5. Los km se dejan en 0 (se rellenan después en la app de escritorio)

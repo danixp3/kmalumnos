@@ -1,6 +1,6 @@
 # Checklist del propietario — cosas que solo puedes hacer tú
 
-_Registro vivo de tareas que requieren tu cuenta, tus credenciales o una decisión tuya. Yo (el asistente) NO las hago solo. Al final revisamos esto junto. Última actualización: 2026-08-05._
+_Registro vivo de tareas que requieren tu cuenta, tus credenciales o una decisión tuya. Yo (el asistente) NO las hago solo. Al final revisamos esto junto. Última actualización: 2026-10-07._
 
 ## Ahora mismo (para que el portal del alumno funcione end-to-end)
 
@@ -15,6 +15,17 @@ _(Nada más obligatorio aquí: la parte "para que funcione" está completa.)_
 
 - [x] **Agenda** revisada y mejorada con tus peticiones (2026-08-05): duración de clase configurable en Ajustes (45 min por defecto), la reserva se define por "nº de prácticas" (calcula la duración sola), y al marcar "realizada" se crean solas esas prácticas para el alumno (km a 0, para rellenar). ✓
 - [x] **Portal del alumno probado de punta a punta y funcionando** ✓ (2026-08-05): correo → enlace → ver prácticas. Confirmado por el propietario.
+
+## Antes de vender (marco legal y seguridad, 2026-10-07 — detalle en `LEGAL.md`)
+
+- [ ] **Vercel → plan Pro.** Hobby es solo para uso personal no comercial y no incluye contrato de tratamiento de datos.
+- [ ] **Supabase → plan Pro** y firmar su DPA (Dashboard → Organization → Legal Documents). Activar después: protección de contraseñas filtradas y caducidad de sesiones por inactividad (p. ej. 30 días).
+- [ ] **SMTP propio** en Supabase Auth (ahora solo 2 correos por hora).
+- [ ] **Alta fiscal** y facturar el servicio con un programa VeriFactu cuando toque (1-7-2027 si no eres sociedad).
+- [ ] **Abogado**: revisar condiciones, contrato de encargo y privacidad (están en https://aulamovil.vercel.app/legal/).
+- [ ] Recomendado: seguro de responsabilidad civil profesional, marca «AulaMovil» en la OEPM, certificado de firma de código para el instalador.
+- [ ] **Repositorio público**: decidir si se pone privado (con un repositorio público aparte solo para las actualizaciones) y si se limpia del historial el CSV con nombres de alumnos que se subió en la v1.0.0.
+- [ ] En la app: Ajustes → Datos del centro (razón social, CIF, dirección, email) para que salgan en los documentos legales; aceptar las condiciones; entregar a cada alumno la hoja de protección de datos y el contrato de enseñanza.
 
 ## Decisiones de negocio pendientes
 
