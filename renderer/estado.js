@@ -102,10 +102,9 @@ document.querySelectorAll('#sidebar nav a').forEach(link => {
     if (page === 'examenes') loadExamenes();
     if (page === 'practicas-global') loadPracticasGlobal();
     if (page === 'kilometros') {
-      const activeTab = document.querySelector('#page-kilometros .page-tab.active')?.dataset.tab || 'mapa';
+      const activeTab = document.querySelector('#page-kilometros .page-tab.active')?.dataset.tab || 'asistente';
       cambiarTabKilometros(activeTab);
     }
-    if (page === 'generar-km') loadGenerarKm();
     if (page === 'cuadre-avanzado') loadCuadreAvanzado();
     if (page === 'datos') {
       const activeTab = document.querySelector('#page-datos .page-tab.active')?.dataset.tab || 'importar';

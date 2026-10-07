@@ -3,18 +3,9 @@
 // horizontal de barras por alumno.
 
 // ─── TIMELINE DEL VEHÍCULO ───────────────────────────────────────────────────
-async function loadTimelineSelect() {
-  const vehiculos = await window.api.getVehiculos();
-  const sel = document.getElementById('timeline-vehiculo');
-  if (!sel) return;
-  sel.innerHTML = vehiculos.length
-    ? vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + v.matricula + ')' : ''}${v.activo === false ? ' · retirado' : ''}</option>`).join('')
-    : '<option value="">Sin vehículos</option>';
-  loadTimeline();
-}
-
+// El coche se elige arriba, en la pantalla de Kilómetros (#km-vehiculo).
 async function loadTimeline() {
-  const sel = document.getElementById('timeline-vehiculo');
+  const sel = document.getElementById('km-vehiculo');
   const result = document.getElementById('timeline-result');
   const resumen = document.getElementById('timeline-resumen');
   if (!sel || !result) return;
@@ -33,6 +24,7 @@ async function loadTimeline() {
   const sinKm = practicas.filter(p => p.sin_km);
   resumen.textContent = `${practicas.length} prácticas · ${conKm.length} con km · ${sinKm.length} sin km`;
 
+  const ocultarHuecos = typeof kmOcultarHuecos === 'function' && kmOcultarHuecos();
   let html = '<div class="table-wrap"><table><thead><tr>'
     + '<th>#</th><th>Alumno</th><th>Fecha</th><th>Km inicial</th><th>Km final</th><th>Recorrido</th><th>Estado</th>'
     + '</tr></thead><tbody>';
@@ -50,7 +42,7 @@ async function loadTimeline() {
     } else if (p.gap !== null && p.gap < 0) {
       rowStyle = ' style="background:var(--danger-bg-soft)"';
       estadoCell = `<span style="color:var(--danger-fg-soft);font-size:12px;font-weight:600">Solapa ${fmt(p.gap)} km</span>`;
-    } else if (p.gap !== null && p.gap > 0) {
+    } else if (p.gap !== null && p.gap > 0 && !ocultarHuecos) {
       rowStyle = ' style="background:var(--warn-bg-soft)"';
       estadoCell = `<span style="color:var(--warn-fg-soft);font-size:12px;font-weight:600">Hueco +${fmt(p.gap)} km</span>`;
     }
@@ -89,8 +81,38 @@ const CHART_PALETTE = [
 // mapa se puede ampliar (rueda, doble clic, botones, teclado), mover
 // (arrastrar) y enfocar de un clic cada «tramo» con prácticas. La tira de
 // abajo (minimapa) enseña siempre el conjunto y qué parte se está viendo.
-const TL = { datos: null, vista: null, barras: [], arrastre: null };
+const TL = { datos: null, vista: null, barras: [], cortes: [], arrastre: null };
+const TL_HUECO_MIN = 15;      // un hueco más corto que esto es normal y no se comprime
 const TL_ANCHO_MIN_KM = 20;   // zoom máximo: unos 20 km de ancho de barra
+
+// «Ocultar huecos»: los tramos de km sin clases (más largos de TL_HUECO_MIN) se encogen a un
+// punto, así las clases quedan juntas. Devuelve funciones para pasar de km reales a la
+// coordenada del mapa (comp) y de vuelta (real); sin huecos que ocultar son la identidad.
+function tlMapaCompacto(conKm, activo) {
+  const ident = { comp: x => x, real: x => x, cortes: [] };
+  if (!activo) return ident;
+  const orden = conKm.slice().sort((a, b) => a.km_inicial - b.km_inicial);
+  const cortes = [];
+  let fin = null;
+  for (const p of orden) {
+    if (fin !== null && p.km_inicial - fin > TL_HUECO_MIN) cortes.push({ ini: fin, fin: p.km_inicial, largo: p.km_inicial - fin });
+    fin = fin === null ? p.km_final : Math.max(fin, p.km_final);
+  }
+  if (!cortes.length) return ident;
+  let acum = 0;
+  cortes.forEach(c => { c.cIni = c.ini - acum; acum += c.largo; });
+  const comp = km => {
+    let desc = 0;
+    for (const c of cortes) { if (km >= c.fin) desc += c.largo; else if (km > c.ini) { desc += km - c.ini; break; } else break; }
+    return km - desc;
+  };
+  const real = c => {
+    let suma = 0;
+    for (const x of cortes) { if (c > x.cIni) suma += x.largo; else break; }
+    return c + suma;
+  };
+  return { comp, real, cortes: cortes.map(c => ({ ...c, c: c.cIni })) };
+}
 
 function renderTimelineChart(practicas, vid) {
   const wrap = document.getElementById('timeline-chart-wrap');
@@ -102,8 +124,10 @@ function renderTimelineChart(practicas, vid) {
   if (!conKm.length) { wrap.style.display = 'none'; TL.datos = null; return; }
   wrap.style.display = 'block';
 
-  const kmMin = Math.min(...conKm.map(p => p.km_inicial));
-  const kmMax = Math.max(...conKm.map(p => p.km_final));
+  const compacto = typeof kmOcultarHuecos === 'function' && kmOcultarHuecos();
+  const mapa = tlMapaCompacto(conKm, compacto);
+  const kmMin = mapa.comp(Math.min(...conKm.map(p => p.km_inicial)));
+  const kmMax = mapa.comp(Math.max(...conKm.map(p => p.km_final)));
 
   // Mapa alumno → color
   const alumnos = [...new Set(conKm.map(p => p.alumno_nombre))];
@@ -128,8 +152,8 @@ function renderTimelineChart(practicas, vid) {
   }
 
   // Si se recarga el mismo coche se conserva el zoom; si cambia, se ve todo.
-  const mismoCoche = TL.datos && TL.datos.vid === vid && TL.vista;
-  TL.datos = { vid, conKm, kmMin, kmMax, colorMap, tramos: tlTramos(conKm, kmMin, kmMax) };
+  const mismoCoche = TL.datos && TL.datos.vid === vid && TL.datos.compacto === compacto && TL.vista;
+  TL.datos = { vid, conKm, kmMin, kmMax, colorMap, mapa, compacto, tramos: compacto ? [] : tlTramos(conKm, kmMin, kmMax) };
   if (!mismoCoche) TL.vista = tlVistaCompleta();
 
   barsEl.innerHTML = '';
@@ -174,13 +198,25 @@ function renderTimelineChart(practicas, vid) {
     });
 
     barsEl.appendChild(bar);
-    return { el: bar, p };
+    return { el: bar, p, ci: mapa.comp(p.km_inicial), cf: mapa.comp(p.km_final) };
+  });
+
+  // Marcas donde se ha escondido un hueco (con el aviso de cuánto era)
+  TL.cortes.forEach(c => c.el.remove());
+  TL.cortes = mapa.cortes.map(c => {
+    const el = document.createElement('div');
+    el.className = 'tl-corte';
+    el.title = `Hueco de ${fmt(c.largo)} km oculto`;
+    barsEl.appendChild(el);
+    return { el, c: c.c, largo: c.largo };
   });
 
   // Minimapa: todas las prácticas a escala completa (no cambia con el zoom)
   const rangoTotal = (kmMax - kmMin) || 1;
-  document.getElementById('tl-mini-barras').innerHTML = conKm.map(p =>
-    `<i style="left:${((p.km_inicial - kmMin) / rangoTotal) * 100}%;width:${((p.km_final - p.km_inicial) / rangoTotal) * 100}%;background:${colorMap[p.alumno_nombre]}"></i>`).join('');
+  document.getElementById('tl-mini-barras').innerHTML = conKm.map(p => {
+    const ci = mapa.comp(p.km_inicial), cf = mapa.comp(p.km_final);
+    return `<i style="left:${((ci - kmMin) / rangoTotal) * 100}%;width:${((cf - ci) / rangoTotal) * 100}%;background:${colorMap[p.alumno_nombre]}"></i>`;
+  }).join('');
 
   tlEnganchar();
   tlPintar();
@@ -254,17 +290,27 @@ function tlPintar() {
   const ancho = v.max - v.min;
   const aPct = km => ((km - v.min) / ancho) * 100;
   const minPct = (3 / anchoPx) * 100;   // que hasta la práctica más corta se vea (3 px)
-  for (const { el, p } of TL.barras) {
-    const fuera = p.km_final < v.min || p.km_inicial > v.max;
+  for (const { el, ci, cf } of TL.barras) {
+    const fuera = cf < v.min || ci > v.max;
     el.style.display = fuera ? 'none' : '';
     if (fuera) continue;
-    el.style.left = aPct(p.km_inicial) + '%';
-    el.style.width = Math.max(((p.km_final - p.km_inicial) / ancho) * 100, minPct) + '%';
+    el.style.left = aPct(ci) + '%';
+    el.style.width = Math.max(((cf - ci) / ancho) * 100, minPct) + '%';
+  }
+  for (const k of TL.cortes) {
+    const fuera = k.c < v.min || k.c > v.max;
+    k.el.style.display = fuera ? 'none' : '';
+    if (!fuera) k.el.style.left = aPct(k.c) + '%';
   }
 
+  // Marcas del eje en km REALES (con huecos ocultos no están a la misma distancia)
+  const mp = d.mapa;
+  const kmReales = tlMarcas(mp.real(v.min), mp.real(v.max), anchoPx);
+  const dentroDeHueco = km => mp.cortes.some(c => km > c.ini && km < c.fin);
   const eje = document.getElementById('timeline-chart-axis');
-  eje.innerHTML = tlMarcas(v.min, v.max, anchoPx)
-    .map(km => ({ km, x: aPct(km) }))
+  eje.innerHTML = kmReales
+    .filter(km => !dentroDeHueco(km))
+    .map(km => ({ km, x: aPct(mp.comp(km)) }))
     .filter(m => m.x >= 4 && m.x <= 96)
     .map(m => `<span style="left:${m.x}%">${fmt(m.km)} km</span>`).join('');
 
@@ -277,9 +323,10 @@ function tlPintar() {
   ventana.style.left = Math.max(0, ((v.min - d.kmMin) / rangoDatos) * 100) + '%';
   ventana.style.width = Math.max(1.2, Math.min(100, (ancho / rangoDatos) * 100)) + '%';
 
+  const kmHistoria = Math.round(mp.real(d.kmMax) - mp.real(d.kmMin));
   document.getElementById('tl-zoom-info').textContent = enZoom
-    ? `${fmt(Math.round(Math.max(v.min, d.kmMin)))} – ${fmt(Math.round(Math.min(v.max, d.kmMax)))} km · ×${fmt(Math.round(total / ancho * 10) / 10)}`
-    : `${fmt(Math.round(d.kmMax - d.kmMin))} km de historia`;
+    ? `${fmt(Math.round(mp.real(Math.max(v.min, d.kmMin))))} – ${fmt(Math.round(mp.real(Math.min(v.max, d.kmMax))))} km · ×${fmt(Math.round(total / ancho * 10) / 10)}`
+    : `${fmt(kmHistoria)} km de historia${d.compacto && mp.cortes.length ? ` · ${mp.cortes.length} ${mp.cortes.length === 1 ? 'hueco oculto' : 'huecos ocultos'}` : ''}`;
   document.getElementById('tl-ver-todo').disabled = !enZoom;
 
   const tramosEl = document.getElementById('tl-tramos');

@@ -9,9 +9,13 @@ const { app } = require('electron');
 
 let dataPath;
 let _data = null;
+// Mientras dura una simulación (ver simular) los datos son una copia: no se escribe
+// en disco y no se marca nada para la nube.
+let _simulando = 0;
 
 // Referencia lazy a sync para evitar dependencia circular
 function _sync() {
+  if (_simulando) return null;
   try { return require('../sync'); } catch { return null; }
 }
 
@@ -303,6 +307,7 @@ function getLastSaveError() {
 }
 
 function save() {
+  if (_simulando) return true;
   try {
     const dataStr = JSON.stringify(_data, null, 2);
     const filePath = getDataPath();
@@ -341,6 +346,26 @@ function nextId(type) {
   return id;
 }
 
+/**
+ * Ejecuta `fn` sobre una COPIA de los datos: lo que haga (crear, cambiar o borrar
+ * clases, aplicar un cuadre de km...) no se guarda en disco ni se marca para la
+ * nube, y al terminar los datos reales quedan exactamente como estaban. Sirve para
+ * enseñar «cómo quedaría» una cadena de pasos antes de tocar nada: cada paso trabaja
+ * sobre lo que dejó el anterior, igual que cuando se aplican de verdad.
+ */
+function simular(fn) {
+  const real = load();
+  const copia = typeof structuredClone === 'function' ? structuredClone(real) : JSON.parse(JSON.stringify(real));
+  _data = copia;
+  _simulando++;
+  try {
+    return fn(copia);
+  } finally {
+    _simulando--;
+    _data = real;
+  }
+}
+
 module.exports = {
   // Uso interno entre módulos de db/
   _sync,
@@ -348,6 +373,7 @@ module.exports = {
   load,
   save,
   nextId,
+  simular,
   fmtFechaLog,
   addLog,
   getLastSaveError,

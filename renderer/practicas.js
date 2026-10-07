@@ -30,17 +30,7 @@ function volverAlumnos() {
   loadAlumnos();
 }
 
-// El alta de una práctica vive en un modal (botón "Añadir práctica" de la ficha).
-function abrirNuevaPractica() {
-  if (!currentAlumnoId) return;
-  document.getElementById('p-fecha').value = hoyISO();
-  document.getElementById('p-ki').value = '';
-  document.getElementById('p-kf').value = '';
-  document.getElementById('p-hora-inicio').value = '';
-  document.getElementById('km-preview').classList.add('hidden');
-  aplicarRangoPref('p-min', 'p-max');
-  openModal('modal-practica-nueva');
-}
+// Añadir y editar clases: renderer/clase-editor.js (abrirNuevaPractica, openEditPractica).
 
 async function abrirNuevaReservaAlumno() {
   if (!currentAlumnoId) return;
@@ -313,8 +303,6 @@ async function loadPracticas() {
       : (p.sinCerrar ? `<span class="pill pill-warn" title="La práctica se abrió desde el móvil y no se cerró">Sin cerrar · km ${fmt(p.km_inicial)}</span>`
         : (p.sinKm ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : `${fmt(p.km_inicial)} → ${fmt(p.km_final)}`));
     const diffCell = p.enCurso || p.sinKm || p.sinCerrar ? guion : `<b>${fmtDec(p.km)}</b>`;
-    const profesorIdArg = p.profesor_id != null ? p.profesor_id : 'null';
-    const horaArg = p.hora_inicio ? `'${p.hora_inicio}'` : 'null';
     return `<tr${p.sinKm ? ' style="background:var(--warn-bg-soft)"' : ''}>
       <td class="num-mono">${p.n}</td>
       <td>${esc(p.fecha === hoyISO() ? 'Hoy, ' + diaMes(p.fecha) : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase()))}${p.tipo === 'pista' ? ' <span class="pill pill-line" style="font-size:11px;padding:1px 7px">Pista</span>' : ''}${p.fraccion > 0 && p.fraccion < 1 ? ` <span class="pill pill-line" style="font-size:11px;padding:1px 7px" title="Fracción de clase: se cobra en proporción">${fmtClases(p.fraccion)} clase</span>` : ''}</td>
@@ -325,7 +313,7 @@ async function loadPracticas() {
       <td>${p.profesor_nombre ? esc(p.profesor_nombre) : guion}</td>
       <td>${celdaFirma(p)}</td>
       <td class="acciones-fila">
-        <button class="btn btn-gray btn-sm btn-icon" title="Editar práctica" aria-label="Editar práctica" onclick="openEditPractica(${p.id},'${p.fecha}',${p.km_inicial},${p.km_final},${profesorIdArg},'${p.tipo}',${horaArg},${p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : 'null'})">${fichaSvg('<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>', 13)}</button>
+        <button class="btn btn-gray btn-sm btn-icon" title="Editar práctica" aria-label="Editar práctica" onclick="openEditPractica(${p.id})">${fichaSvg('<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>', 13)}</button>
         <button class="btn btn-gray btn-sm btn-icon btn-borrar" title="Borrar práctica" aria-label="Borrar práctica" onclick="deletePractica(${p.id})">${fichaSvg('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>', 13)}</button>
       </td>
     </tr>`;
@@ -334,120 +322,10 @@ async function loadPracticas() {
   if (typeof comprobarTutorial === 'function') comprobarTutorial('ficha'); // primera vez que se abre una ficha
 }
 
-async function generarKmPractica() {
-  if (!currentAlumnoId) return;
-  const min = parseFloat(document.getElementById('p-min').value) || 40;
-  const max = parseFloat(document.getElementById('p-max').value) || 45;
-
-  // Obtener km de partida: última práctica del alumno o km del vehículo
-  let kmBase = 0;
-  const ultima = await window.api.getUltimaPractica(currentAlumnoId);
-  if (ultima) {
-    kmBase = ultima.km_final;
-  } else if (currentAlumnoVehiculoId) {
-    const vehiculos = await window.api.getVehiculos();
-    const v = vehiculos.find(x => x.id === currentAlumnoVehiculoId);
-    if (v) kmBase = v.km_actual;
-  }
-
-  const result = await window.api.generarKm(kmBase, min, max);
-  document.getElementById('p-ki').value = result.km_inicial;
-  document.getElementById('p-kf').value = result.km_final;
-
-  const preview = document.getElementById('km-preview');
-  preview.textContent = `Generado: ${fmt(result.km_inicial)} → ${fmt(result.km_final)}  (+${result.diff} km)`;
-  preview.classList.remove('hidden');
-}
-
-async function addPractica() {
-  if (!currentAlumnoId) return;
-  const fecha = document.getElementById('p-fecha').value;
-  const kiRaw = document.getElementById('p-ki').value;
-  const kfRaw = document.getElementById('p-kf').value;
-
-  if (!fecha) { alert('Selecciona una fecha.'); return; }
-
-  const vid = currentAlumnoVehiculoId;
-  if (!vid) { alert('El alumno no tiene un vehículo asignado. Asígnale uno primero.'); return; }
-
-  // Si los km están vacíos se guardan como 0,0 para rellenar luego
-  let ki = parseFloat(kiRaw);
-  let kf = parseFloat(kfRaw);
-  const sinKm = isNaN(ki) || isNaN(kf);
-
-  if (!sinKm && kf <= ki) { alert('El km final debe ser mayor que el km inicial.'); return; }
-
-  if (sinKm) { ki = 0; kf = 0; }
-
-  const tipo = document.getElementById('p-tipo')?.value || 'circulacion';
-  const horaInicio = document.getElementById('p-hora-inicio')?.value || null;
-  await window.api.addPractica(currentAlumnoId, vid, fecha, ki, kf, null, tipo, getSucursalActual(), horaInicio);
-  document.getElementById('p-ki').value = '';
-  document.getElementById('p-kf').value = '';
-  document.getElementById('p-hora-inicio').value = '';
-  document.getElementById('km-preview').classList.add('hidden');
-  closeModal('modal-practica-nueva');
-  loadPracticas();
-}
-
 async function deletePractica(id) {
   if (!await confirmar('¿Borrar esta práctica?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deletePractica(id);
   loadPracticas();
-}
-
-async function openEditPractica(id, fecha, ki, kf, profesorId, tipo, horaInicio, fraccion) {
-  document.getElementById('edit-p-id').value = id;
-  document.getElementById('edit-p-fecha').value = fecha;
-  document.getElementById('edit-p-ki').value = ki;
-  document.getElementById('edit-p-kf').value = kf;
-  document.getElementById('edit-p-tipo').value = tipo || 'circulacion';
-  document.getElementById('edit-p-hora-inicio').value = horaInicio || '';
-  document.getElementById('edit-p-fraccion').value = fraccion > 0 && fraccion < 1 ? String(fraccion) : '';
-  await llenarSelectProfesores('edit-p-profesor', profesorId);
-  openModal('modal-practica');
-}
-
-async function savePractica() {
-  const id = parseInt(document.getElementById('edit-p-id').value);
-  const fecha = document.getElementById('edit-p-fecha').value;
-  const ki = parseFloat(document.getElementById('edit-p-ki').value);
-  const kf = parseFloat(document.getElementById('edit-p-kf').value);
-  const profesorId = document.getElementById('edit-p-profesor').value;
-  const tipo = document.getElementById('edit-p-tipo').value || 'circulacion';
-  const horaInicio = document.getElementById('edit-p-hora-inicio').value || null;
-  const fraccion = parseFloat(document.getElementById('edit-p-fraccion').value) || null;
-  if (!fecha || isNaN(ki) || isNaN(kf)) { alert('Rellena todos los campos.'); return; }
-  if (kf <= ki && !(ki === 0 && kf === 0)) { alert('El km final debe ser mayor que el inicial (o deja los dos en 0 para dejar la clase sin km).'); return; }
-
-  // Validación cruzada: comprobar solapamiento con otras prácticas del mismo vehículo
-  const vid = currentAlumnoVehiculoId;
-  if (vid) {
-    const conflictos = await window.api.validarSolapamiento(vid, fecha, ki, kf, id);
-    if (conflictos.length) {
-      const detalle = conflictos.map(c =>
-        `• ${c.alumno} — ${fmtFecha(c.fecha)}: ${fmt(c.km_inicial)} → ${fmt(c.km_final)}`
-      ).join('\n');
-      const continuar = await confirmar(
-        `Estos km se solapan con ${conflictos.length} práctica(s) del mismo vehículo:\n\n${detalle}\n\n¿Guardar igualmente?`
-      );
-      if (!continuar) return;
-    }
-  }
-
-  await window.api.updatePractica(id, fecha, ki, kf, profesorId, tipo, horaInicio, fraccion);
-  closeModal('modal-practica');
-  // Si venimos de la pestaña Conflictos (Kilómetros), recargar esa vista; si no, las prácticas del alumno
-  const kilometrosPage = document.getElementById('page-kilometros');
-  const conflictosTab = document.getElementById('tab-kilometros-conflictos');
-  const practicasGlobalPage = document.getElementById('page-practicas-global');
-  if (kilometrosPage && kilometrosPage.classList.contains('active') && conflictosTab && conflictosTab.classList.contains('active')) {
-    loadSolapamientos();
-  } else if (practicasGlobalPage && practicasGlobalPage.classList.contains('active')) {
-    fetchPracticasGlobal();
-  } else {
-    loadPracticas();
-  }
 }
 
 // ─── DUPLICADOS ──────────────────────────────────────────────────────────────

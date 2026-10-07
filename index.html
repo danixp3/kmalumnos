@@ -111,7 +111,6 @@
         Kilómetros
       </a>
       <!-- Hermana de Kilómetros: se llega desde sus pestañas (renderer/menu.js) -->
-      <a data-page="generar-km" data-hermano-de="kilometros" class="nav-hermano">Cuadrar y generar km</a>
       <a data-page="cuadre-avanzado" data-hermano-de="kilometros" class="nav-hermano">Cuadrar km · modo avanzado</a>
 
       <div class="nav-sep"></div>
@@ -532,7 +531,7 @@
           <div class="page-subtitle">Kilometraje y continuidad del cuentakilómetros</div>
         </div>
         <div class="page-actions">
-          <button class="btn btn-outline" onclick="navegarA('generar-km')" title="Rellenar los km de las prácticas en blanco (Kilómetros → Generar km)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Generar km</button>
+          <button class="btn btn-outline" onclick="navegarA('generar-km')" title="Rellenar los km de las prácticas en blanco (Kilómetros → Asistente)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Generar km</button>
           <button class="btn btn-primary" onclick="abrirNuevoVehiculo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Añadir vehículo</button>
         </div>
       </div>
@@ -570,8 +569,8 @@
           Kilómetros en blanco
         </div>
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-          <p style="font-size:12.5px;color:var(--text-muted);margin:0;flex:1;min-width:260px">El relleno de kilómetros de las prácticas en blanco está ahora en un solo sitio, <b>Kilómetros → Generar km</b>, con tres métodos: encadenado desde el odómetro (el relleno de siempre), hasta un km máximo o por rango.</p>
-          <button class="btn btn-primary" onclick="navegarA('generar-km')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Ir a Generar km</button>
+          <p style="font-size:12.5px;color:var(--text-muted);margin:0;flex:1;min-width:260px">Analizar y rellenar los kilómetros está ahora en un solo sitio, <b>Kilómetros</b>: el asistente propone lo más lógico y se pueden combinar los métodos (cuadrar, encadenar desde el odómetro, hasta un km máximo, por rango…).</p>
+          <button class="btn btn-primary" onclick="navegarA('generar-km')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Ir a Kilómetros</button>
         </div>
       </div>
 
@@ -1301,35 +1300,45 @@
       <div class="tabla-pie" id="pg-pie"></div>
     </div>
 
-    <!-- ── KILÓMETROS (Mapa del vehículo + Conflictos) ── -->
+    <!-- ── KILÓMETROS: asistente + mapa del coche + solapes, en una sola pantalla ── -->
     <div id="page-kilometros" class="page">
       <div class="page-header">
         <div>
-          <div class="page-title">Cuadrar y generar km</div>
-          <div class="page-subtitle">Deja coherente el cuentakilómetros de cada coche y rellena los km de las clases en blanco</div>
+          <div class="page-title">Kilómetros</div>
+          <div class="page-subtitle">El asistente propone lo más lógico y puedes combinar los métodos</div>
         </div>
+        <div class="page-actions">
+          <label class="km-switch" title="Esconde los tramos de km sin explicar: no se avisa de ellos y, en el mapa, se juntan las clases sin el espacio vacío entre medio">
+            <input type="checkbox" id="km-ocultar-huecos" onchange="kmOcultarHuecosCambiar(this.checked)">
+            <span class="km-switch-pista"><i></i></span>
+            <span>Ocultar huecos</span>
+          </label>
+          <button class="btn btn-outline" onclick="kmAnadirClase()" title="Una clase que se olvidó: se coloca sola entre las otras del coche, con sus km">+ Añadir clase</button>
+        </div>
+      </div>
+
+      <div class="card km-barra">
+        <div class="form-group" style="margin:0">
+          <label for="km-vehiculo">Vehículo</label>
+          <select id="km-vehiculo" style="width:240px" onchange="kmCambioVehiculo()"></select>
+        </div>
+        <div id="km-chips" class="cuadre-chips"></div>
       </div>
 
       <div class="page-tabs" id="kilometros-tabs">
-        <button class="page-tab active" data-tab="mapa" onclick="cambiarTabKilometros('mapa')">Mapa del vehículo</button>
-        <button class="page-tab" data-tab="conflictos" onclick="cambiarTabKilometros('conflictos')">Conflictos</button>
-        <button class="page-tab" data-tab="generar" onclick="navegarA('generar-km')">Generar km</button>
+        <button class="page-tab active" data-tab="asistente" onclick="cambiarTabKilometros('asistente')">Asistente</button>
+        <button class="page-tab" data-tab="mapa" onclick="cambiarTabKilometros('mapa')">Mapa del vehículo</button>
+        <button class="page-tab" data-tab="conflictos" onclick="cambiarTabKilometros('conflictos')">Solapes</button>
+      </div>
+
+      <!-- ASISTENTE (renderer/kilometros.js): diagnóstico, plan recomendado y otras opciones combinables -->
+      <div class="tab-content active" id="tab-kilometros-asistente">
+        <div id="km-asistente"><div class="card"><p class="empty">Elige un vehículo…</p></div></div>
       </div>
 
       <!-- MAPA DEL VEHÍCULO (antes Timeline) -->
-      <div class="tab-content active" id="tab-kilometros-mapa">
-        <div class="card">
-          <div class="form-row" style="align-items:flex-end;gap:12px">
-            <div class="form-group">
-              <label>Vehículo</label>
-              <select id="timeline-vehiculo" style="width:200px" onchange="loadTimeline()"></select>
-            </div>
-            <button class="btn btn-primary" onclick="loadTimeline()" style="align-self:flex-end">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Actualizar
-            </button>
-            <span id="timeline-resumen" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
-          </div>
-        </div>
+      <div class="tab-content" id="tab-kilometros-mapa">
+        <p id="timeline-resumen" class="km-mapa-resumen"></p>
 
         <!-- Gráfico visual de km -->
         <div id="timeline-chart-wrap" style="display:none;margin-bottom:16px">
@@ -1392,7 +1401,6 @@
       </div>
     </div>
 
-    <!-- ── GENERAR KM (sección unificada de generación de kilómetros) ──── -->
     <!-- CUADRAR KM · MODO AVANZADO (renderer/cuadre-avanzado.js) -->
     <div id="page-cuadre-avanzado" class="page">
       <div class="page-header">
@@ -1430,124 +1438,6 @@
           <div id="cav-plan" class="cav-plan"><p class="empty">Calculando…</p></div>
         </section>
       </div>
-    </div>
-
-    <div id="page-generar-km" class="page">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Cuadrar y generar km</div>
-          <div class="page-subtitle">Deja coherente el cuentakilómetros de cada coche y rellena los km de las clases en blanco</div>
-        </div>
-      </div>
-
-      <div class="page-tabs">
-        <button class="page-tab" onclick="navegarA('kilometros','mapa')">Mapa del vehículo</button>
-        <button class="page-tab" onclick="navegarA('kilometros','conflictos')">Conflictos</button>
-        <button class="page-tab active">Cuadrar y generar km</button>
-      </div>
-      <p class="page-intro">Elige el coche. <strong>Cuadrar</strong> ordena sus clases por fecha y hora, arregla los km que no encajan y reparte los huecos entre las clases sin km; el resto de métodos rellenan a mano las clases en blanco.</p>
-
-      <div class="card">
-        <div class="form-row" style="align-items:flex-end;gap:12px">
-          <div class="form-group">
-            <label>Vehículo</label>
-            <select id="gk-vehiculo" style="width:220px" onchange="gkCambioVehiculo()"></select>
-          </div>
-          <span id="gk-sinKm" style="font-size:12.5px;color:var(--text-muted);align-self:center"></span>
-        </div>
-      </div>
-
-      <div class="page-tabs" id="generar-km-tabs">
-        <button class="page-tab active" data-tab="cuadrar" onclick="cambiarTabGenerarKm('cuadrar')">Cuadrar</button>
-        <button class="page-tab" data-tab="encadenado" onclick="cambiarTabGenerarKm('encadenado')">Encadenado</button>
-        <button class="page-tab" data-tab="maximo" onclick="cambiarTabGenerarKm('maximo')">Hasta un máximo</button>
-        <button class="page-tab" data-tab="rango" onclick="cambiarTabGenerarKm('rango')">Por rango</button>
-      </div>
-
-      <!-- CUADRAR: ordena por tiempo, arregla km que no encajan y reparte los huecos (renderer/cuadrar-km.js) -->
-      <div class="tab-content active" id="tab-generar-km-cuadrar">
-        <div id="cuadre-cuerpo"><div class="card"><p class="empty">Elige un vehículo…</p></div></div>
-      </div>
-
-      <!-- MODO ENCADENADO: desde el odómetro actual hacia delante -->
-      <div class="tab-content" id="tab-generar-km-encadenado">
-        <div class="card">
-          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Rellena las prácticas en blanco <strong>hacia delante</strong>, empezando en el odómetro actual del vehículo (o en el tope inicial que indiques). A cada práctica le suma un incremento aleatorio dentro del rango.</p>
-          <div class="form-row" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
-            <div class="form-group">
-              <label>Km por práctica (mín — máx)</label>
-              <div class="range-group">
-                <input type="number" id="gk-enc-min" value="40" min="1" max="999">
-                <span class="range-sep">—</span>
-                <input type="number" id="gk-enc-max" value="45" min="1" max="999">
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Tope odómetro (opcional)</label>
-              <div class="range-group">
-                <input type="number" id="gk-enc-inicio" placeholder="Inicio" min="0" style="width:90px" title="Km inicial del odómetro (vacío = usar el del vehículo)">
-                <span class="range-sep">→</span>
-                <input type="number" id="gk-enc-final" placeholder="Final" min="0" style="width:90px" title="Km máximo del odómetro (vacío = sin límite)">
-              </div>
-            </div>
-            <button class="btn btn-warn" onclick="gkGenerarEncadenado()" style="align-self:flex-end">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar
-            </button>
-          </div>
-          <div id="gk-enc-alert" class="hidden" style="margin-top:12px"></div>
-        </div>
-      </div>
-
-      <!-- MODO HASTA UN MÁXIMO: hacia atrás desde un km máximo -->
-      <div class="tab-content" id="tab-generar-km-maximo">
-        <div class="card">
-          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Indica el <strong>kilometraje máximo</strong> donde debe terminar el odómetro. La práctica en blanco más reciente acabará justo en ese número y las anteriores se calculan <strong>restando hacia atrás</strong>, con un incremento aleatorio por práctica.</p>
-          <div class="form-row" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
-            <div class="form-group">
-              <label>Km máximo (odómetro final)</label>
-              <input type="number" id="gk-max-maximo" placeholder="Ej. 189000" min="1" style="width:140px">
-            </div>
-            <div class="form-group">
-              <label>Km por práctica (mín — máx)</label>
-              <div class="range-group">
-                <input type="number" id="gk-max-min" value="40" min="1" max="999">
-                <span class="range-sep">—</span>
-                <input type="number" id="gk-max-max" value="45" min="1" max="999">
-              </div>
-            </div>
-            <button class="btn btn-primary" onclick="gkPreview('maximo')" style="align-self:flex-end">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Previsualizar
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- MODO POR RANGO: distribuir entre desde y hasta con media + variación -->
-      <div class="tab-content" id="tab-generar-km-rango">
-        <div class="card">
-          <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px">Reparte las prácticas en blanco para que el odómetro vaya <strong>desde</strong> un km <strong>hasta</strong> otro. Cada práctica recibe la media del tramo con una <strong>variación</strong> aleatoria (±) para que no queden todas iguales; el total cuadra exactamente en el km final.</p>
-          <div class="form-row" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
-            <div class="form-group">
-              <label>Rango del odómetro (desde → hasta)</label>
-              <div class="range-group">
-                <input type="number" id="gk-rango-desde" placeholder="Desde" min="0" style="width:110px">
-                <span class="range-sep">→</span>
-                <input type="number" id="gk-rango-hasta" placeholder="Hasta" min="0" style="width:110px">
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Variación ± (km)</label>
-              <input type="number" id="gk-rango-variacion" value="5" min="0" max="999" style="width:90px" title="Cuánto puede subir o bajar cada práctica respecto a la media">
-            </div>
-            <button class="btn btn-primary" onclick="gkPreview('rango')" style="align-self:flex-end">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Previsualizar
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Previsualización + aplicar (compartido por los modos máximo y rango) -->
-      <div id="gk-preview" class="hidden"></div>
     </div>
 
     <!-- ── HISTORIAL / AUDITORÍA (solo jefe) ──────────────────────────── -->
@@ -1807,7 +1697,7 @@
             <span class="range-sep">—</span>
             <input type="number" id="pref-km-max" min="1" max="999" title="Máximo km por práctica" onchange="guardarRangoPrefDesdeAjustes()">
           </div>
-          <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">Km por práctica al generar km en este ordenador (Generar km, puesta en marcha, importar).</div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px">Km por práctica al generar km en este ordenador (Kilómetros, puesta en marcha, importar).</div>
         </div>
         <div class="form-group">
           <label>Km que pone el móvil (cada 2 clases)</label>
@@ -2577,19 +2467,20 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
       <div class="card">
         <div class="card-title">
           <div class="card-title-icon" style="background:var(--accent-light);color:var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-          Fecha y Vehículo
+          Día y coche
         </div>
         <div class="form-row" style="align-items:flex-end;gap:16px">
           <div class="form-group">
-            <label>Fecha</label>
+            <label>Día</label>
             <div style="display:flex;align-items:center;gap:6px">
-              <button class="btn btn-gray btn-icon" onclick="cambiarFechaRR(-1)" title="Día anterior">
+              <button class="btn btn-gray btn-icon" onclick="cambiarFechaRR(-1)" title="Día anterior" aria-label="Día anterior">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
               </button>
-              <input type="date" id="rr-fecha" style="width:140px">
-              <button class="btn btn-gray btn-icon" onclick="cambiarFechaRR(1)" title="Día siguiente">
+              <input type="date" id="rr-fecha" style="width:140px" onchange="loadRegistroRapido()">
+              <button class="btn btn-gray btn-icon" onclick="cambiarFechaRR(1)" title="Día siguiente" aria-label="Día siguiente">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
+              <button class="btn btn-outline btn-sm" onclick="irHoyRR()" title="Volver a hoy">Hoy</button>
             </div>
           </div>
           <div class="form-group">
@@ -2608,9 +2499,23 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
             </select>
           </div>
         </div>
+        <div class="rr-opciones">
+          <div class="rr-paso-grupo">
+            <span class="rr-opc-etq">Cada clic suma</span>
+            <div class="ce-seg rr-seg" id="rr-paso" role="group" aria-label="Cuánto suma cada clic">
+              <button type="button" data-p="0.25" onclick="rrElegirPaso(0.25)">¼</button>
+              <button type="button" data-p="0.5" onclick="rrElegirPaso(0.5)">½</button>
+              <button type="button" data-p="1" onclick="rrElegirPaso(1)">1 clase</button>
+            </div>
+          </div>
+          <label class="rr-km-auto" title="Cada clase nueva se coloca sola en el hueco de km que le toca por día y hora; si no cabe, queda sin km (nunca mueve otras clases)">
+            <input type="checkbox" id="rr-km-auto" onchange="rrCambiarKmAuto(this.checked)"> Poner los km solos <small>(encajándola entre las clases del coche)</small>
+          </label>
+        </div>
       </div>
 
       <div id="rr-alert" class="hidden alert" style="margin-bottom:16px"></div>
+      <div id="rr-sinkm" class="hidden"></div>
 
       <div id="rr-alumnos-wrap" style="display:none">
         <div class="card" style="padding:16px 20px">
@@ -2621,8 +2526,8 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
             </div>
             <span id="rr-contador" style="font-size:12px;color:var(--text-muted)"></span>
           </div>
-          <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Haz clic en cada alumno que hizo práctica ese día (los seleccionados aparecen en verde). Clic derecho para descontar la última práctica registrada ese día.</p>
-          <div id="rr-lista" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:10px"></div>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Haz clic en cada alumno que hizo clase ese día (los que la hicieron salen en verde); cada clic suma lo que marques arriba (¼, ½ o 1 clase). Clic derecho o «−» para quitar. Con ✎ eliges cuántas clases fueron, la hora y los km con todo detalle.</p>
+          <div id="rr-lista" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(330px, 1fr));gap:10px"></div>
         </div>
       </div>
 
@@ -3409,108 +3314,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
   </div>
 </div>
 
-<!-- ═══ MODAL EDITAR PRÁCTICA ══════════════════════════════ -->
-    <!-- Añadir práctica a mano (antes tarjeta fija en la ficha): se abre con "Añadir práctica" -->
-    <div class="overlay" id="modal-practica-nueva">
-      <div class="modal modal-ancho">
-        <div class="modal-header">
-          <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
-          <h3>Nueva práctica</h3>
-        </div>
-          <div class="form-row" style="align-items:flex-end;gap:10px">
-            <div class="form-group">
-              <label>Fecha</label>
-              <input type="date" id="p-fecha" style="width:150px">
-            </div>
-            <div class="form-group">
-              <label>Km inicial</label>
-              <input type="number" id="p-ki" placeholder="Auto" min="0" step="0.1">
-            </div>
-            <div class="form-group">
-              <label>Km final</label>
-              <input type="number" id="p-kf" placeholder="Auto" min="0" step="0.1">
-            </div>
-            <div class="form-group">
-              <label>Rango de generación (km)</label>
-              <div class="range-group">
-                <input type="number" id="p-min" value="40" min="1" max="200" title="Mínimo">
-                <span class="range-sep">—</span>
-                <input type="number" id="p-max" value="45" min="1" max="200" title="Máximo">
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Tipo</label>
-              <select id="p-tipo" style="width:130px">
-                <option value="circulacion" selected>Circulación</option>
-                <option value="pista">Pista</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Hora de inicio</label>
-              <input type="time" id="p-hora-inicio" style="width:110px">
-            </div>
-          </div>
-        <div id="km-preview" class="hidden alert alert-info" style="margin-top:12px;margin-bottom:0"></div>
-        <div class="modal-actions">
-          <button class="btn btn-gray" onclick="closeModal('modal-practica-nueva')">Cancelar</button>
-          <button class="btn btn-warn" onclick="generarKmPractica()" style="align-self:flex-end"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generar km</button>
-          <button class="btn btn-success" onclick="addPractica()" style="align-self:flex-end">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Añadir práctica
-            </button>
-        </div>
-      </div>
-    </div>
-
-<div class="overlay" id="modal-practica">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-header-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
-      <h3>Editar práctica</h3>
-    </div>
-    <input type="hidden" id="edit-p-id">
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Fecha</label>
-      <input type="date" id="edit-p-fecha" style="width:100%">
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Km inicial</label>
-      <input type="number" id="edit-p-ki" min="0" step="0.1" style="width:100%">
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Km final</label>
-      <input type="number" id="edit-p-kf" min="0" step="0.1" style="width:100%">
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Profesor</label>
-      <select id="edit-p-profesor" style="width:100%"><option value="">— Sin profesor —</option></select>
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Tipo de práctica</label>
-      <select id="edit-p-tipo">
-        <option value="circulacion">Circulación</option>
-        <option value="pista">Pista</option>
-      </select>
-    </div>
-    <div class="form-group" style="margin-bottom:14px">
-      <label>Cuánto vale</label>
-      <select id="edit-p-fraccion" title="Las fracciones se cobran en proporción a la tarifa">
-        <option value="">Clase entera</option>
-        <option value="0.75">¾ de clase</option>
-        <option value="0.5">½ clase</option>
-        <option value="0.25">¼ de clase</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Hora de inicio</label>
-      <input type="time" id="edit-p-hora-inicio" style="width:100%">
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-gray" onclick="closeModal('modal-practica')">Cancelar</button>
-      <button class="btn btn-primary" onclick="savePractica()">Guardar cambios</button>
-    </div>
-  </div>
-</div>
+<!-- El alta y la edición de clases viven en renderer/clase-editor.js (ventana creada en JS) -->
 
 <div class="overlay" id="modal-duplicados">
   <div class="modal" style="max-width:720px">
@@ -3821,6 +3625,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/profesores.js"></script>
 <script src="renderer/alumnos.js"></script>
 <script src="renderer/practicas.js"></script>
+<script src="renderer/clase-editor.js"></script>
 <script src="renderer/practicas-global.js"></script>
 <script src="renderer/pagos.js"></script>
 <script src="renderer/csv.js"></script>
@@ -3847,7 +3652,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/informes.js"></script>
 <script src="renderer/caja.js"></script>
 <script src="renderer/agenda-visual.js"></script>
-<script src="renderer/generar-km.js"></script>
+<script src="renderer/kilometros.js"></script>
 <script src="renderer/cuadrar-km.js"></script>
 <script src="renderer/cuadre-avanzado.js"></script>
 <script src="renderer/menu.js"></script>

@@ -128,8 +128,7 @@ function togglePracticaGlobal(id) {
 async function editarPracticaGlobal(id) {
   const p = practicasGlobalCache.find(x => x.id === id);
   if (!p) return;
-  currentAlumnoVehiculoId = p.vehiculo_id;   // para la validación de solapamientos al guardar
-  await openEditPractica(p.id, p.fecha, p.km_inicial, p.km_final, p.profesor_id, p.tipo, p.hora_inicio, p.fraccion);
+  await openEditPractica(p.id);
 }
 
 function verFichaDesdePracticas(alumnoId, vehiculoId, nombre) {
@@ -141,7 +140,7 @@ function detallePracticaGlobal(p) {
   let km;
   if (p.en_curso) km = '<span class="pill pill-dark"><span class="pill-dot"></span>En curso — el km final se fija al terminar</span>';
   else if (p.sin_cerrar) km = '<span class="pill pill-warn">Sin cerrar: falta el km final (empezó en el km ' + fmtMiles(p.km_inicial) + ')</span>';
-  else if (p.sin_km) km = '<span class="pill pill-warn">Sin kilómetros: se rellenan en Cuadrar y generar km</span>';
+  else if (p.sin_km) km = '<span class="pill pill-warn">Sin kilómetros: se rellenan en Kilómetros</span>';
   else {
     km = `<div class="num-mono" style="font-size:16px"><b>${fmtMiles(p.km_inicial)}</b> → <b>${fmtMiles(p.km_final)}</b> <span style="color:var(--text-muted);font-weight:400">· ${fmtDec(p.km_recorridos)} km</span></div>`;
     const c = p.continuidad;
@@ -152,6 +151,7 @@ function detallePracticaGlobal(p) {
       if (c.diferencia === 0) km += `<div class="cont-ok">${svgMini('ficha').replace(SVG_MINI.ficha, '<path d="M5 12.5l4.5 4.5L19 7.5"/>')} Km inicial igual al final anterior (${cuando}).</div>`;
       else if (c.pequeno) km += `<div class="cont-suave">El coche hizo ${fmtMiles(c.diferencia)} km entre las dos clases (anterior: ${cuando}, km ${fmtMiles(c.km_final_anterior)}).</div>`;
       else if (c.companeros) km += `<div class="cont-suave">Hueco de ${fmtMiles(c.diferencia)} km: clases de compañeros que no están en la app (Cuadrar km → modo avanzado).</div>`;
+      else if (c.diferencia > 0 && typeof kmOcultarHuecos === 'function' && kmOcultarHuecos()) { /* «Ocultar huecos»: sin aviso */ }
       else if (c.revisado) km += `<div class="cont-suave">Hueco de ${fmtMiles(c.diferencia)} km dado por revisado (otro uso del coche o clases fuera de la app). <a href="#" onclick="cuadreRevisarDesdeLista('${c.clave_hueco}', false);return false">Volver a avisar</a></div>`;
       else km += `<div class="cont-aviso">${c.diferencia > 0 ? `Hueco de ${fmtMiles(c.diferencia)} km` : `Se solapa ${fmtMiles(-c.diferencia)} km`} respecto al final anterior (${cuando}: ${fmtMiles(c.km_final_anterior)}). `
         + `<a href="#" onclick="cuadreIrA(${p.vehiculo_id});return false">Cuadrar km de este coche</a>${c.diferencia > 0 ? ` · <a href="#" onclick="cuadreRevisarDesdeLista('${c.clave_hueco}', true);return false">Dar por revisado</a>` : ` · <a href="#" onclick="cuadreIrA(${p.vehiculo_id}, ${p.id});return false">Encajar esta clase a continuación de la anterior</a>`}</div>`;

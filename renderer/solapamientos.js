@@ -23,7 +23,7 @@ async function loadSolapamientos() {
   });
 
   const vehiculosAfectados = Object.keys(porVehiculo).length;
-  let html = `<div class="alert alert-info" style="margin-bottom:16px">Consejo: <strong>Cuadrar km</strong> ordena las clases por fecha y hora, reparte los huecos y arregla los km imposibles con vista previa y deshacer. <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="navegarA('generar-km','cuadrar')">Abrir Cuadrar km</button></div>
+  let html = `<div class="alert alert-info" style="margin-bottom:16px">Consejo: el <strong>asistente de km</strong> ordena las clases por fecha y hora, reparte los huecos y arregla los km imposibles con vista previa y deshacer. <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="navegarA('kilometros','asistente')">Abrir el asistente de km</button></div>
     <div class="alert alert-err" style="margin-bottom:16px">Se encontraron <strong>${conflictos.length}</strong> solapamiento(s) en <strong>${vehiculosAfectados}</strong> vehículo(s). Pulsa <strong>Corregir todo automáticamente</strong> para que el programa reordene todos los km.</div>`;
 
   for (const [vehiculo, lista] of Object.entries(porVehiculo)) {

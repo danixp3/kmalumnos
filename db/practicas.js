@@ -297,11 +297,17 @@ function getAlumnosPorVehiculo(vehiculo_id, fecha) {
       p.fecha === fecha
     );
     const nota = practicasHoy.length > 0 ? (practicasHoy[0].nota || '') : '';
+    const vivasHoy = practicasHoy.filter(p => !p.deleted);
+    const primera = vivasHoy.slice().sort((x, y) => (x.hora_inicio || '99:99').localeCompare(y.hora_inicio || '99:99') || x.id - y.id)[0];
     return {
       id: a.id,
       nombre: nombreCorto(a),
       permiso: a.permiso,
       num_practicas: practicasHoy.length,
+      // Lo que valen en clases (1, ½, ¼…) y la hora de la primera
+      clases: Math.round(vivasHoy.reduce((s, p) => s + clasesDePractica(p), 0) * 4) / 4,
+      hora_inicio: primera ? primera.hora_inicio || null : null,
+      sin_km: vivasHoy.filter(p => !(p.km_final > 0)).length,
       nota: nota
     };
   });

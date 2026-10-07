@@ -753,10 +753,20 @@ function deshacerCuadreKm(id) {
     tocados.push(p.id);
   }
   if (s && tocados.length) s.markDirtyVarios('practicas', tocados);
+  // Las clases que creó una inserción con «desplazar las siguientes» también se quitan (si siguen como las dejó)
+  const quitadas = [];
+  for (const c of reg.creadas || []) {
+    const p = d.practicas.find(x => x.id === c.id && !x.deleted);
+    if (p && p.km_inicial === c.km_inicial && p.km_final === c.km_final) quitadas.push(p.id);
+  }
+  if (quitadas.length) {
+    d.practicas = d.practicas.filter(p => !quitadas.includes(p.id));
+    if (s) s.markDeletedVarios('practicas', quitadas);
+  }
   d.cuadres_km = lista.filter(c => c !== reg);
-  addLog('correccion', `Cuadrar km ${reg.vehiculo}: deshecho (${tocados.length} clase(s) devueltas a como estaban)`, []);
+  addLog('correccion', `Cuadrar km ${reg.vehiculo}: deshecho (${tocados.length} clase(s) devueltas a como estaban${quitadas.length ? `, ${quitadas.length} clase(s) nuevas quitadas` : ''})`, []);
   save();
-  return { deshechos: tocados.length, omitidos, errores: [] };
+  return { deshechos: tocados.length, quitadas: quitadas.length, omitidos, errores: [] };
 }
 
 // ─── huecos revisados ───────────────────────────────────────────────────────
@@ -829,4 +839,5 @@ module.exports = {
   mapaContinuidad, TOLERANCIA_HUECO,
   getCompanerosKm, setCompanerosKm, huecoDeCompaneros, normalizarCompanero,
   _analizarCoche: analizarCoche, _repartirKm: repartirKm,
+  _ordenTiempo: ordenTiempo, _kmTipicoVariado: kmTipicoVariado, _confianza: confianza,
 };

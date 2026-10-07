@@ -81,7 +81,7 @@ const TUTORIAL_PASOS = {
       texto: 'Cada práctica debe empezar en el km donde acabó la anterior. Los tramos rayados en rojo son kilómetros que nadie ha registrado.' },
     { sel: '#veh-relleno', pos: 'bottom',
       titulo: 'Km en blanco',
-      texto: 'Las prácticas que se quedaron sin kilómetros se rellenan en Kilómetros → Generar km, con tres métodos distintos.' }
+      texto: 'Las prácticas que se quedaron sin kilómetros se rellenan en Kilómetros, donde el asistente propone lo más lógico y se pueden combinar los métodos.' }
   ],
   'registro-rapido': [
     { sel: '#rr-vehiculo', pos: 'bottom',
@@ -109,23 +109,18 @@ const TUTORIAL_PASOS = {
       texto: 'Anotar pago registra un ingreso del alumno. Desglose marca como pagadas primero las prácticas más antiguas, así ves qué queda pendiente.' }
   ],
   kilometros: [
+    { sel: '#km-vehiculo', pos: 'bottom', antes: () => cambiarTabKilometros('asistente'),
+      titulo: 'Elige el coche',
+      texto: 'Todo lo de los kilómetros está en esta pantalla. Arriba ves cuántas clases del coche están sin km, no encajan, se solapan o dejan huecos.' },
+    { sel: '#km-asistente', pos: 'top',
+      titulo: 'El asistente propone lo más lógico',
+      texto: 'Mira el coche y te dice qué hacer y por qué. Los pasos se pueden quitar, reordenar, cambiar y combinar con las otras formas de generar km. Abajo ves cómo quedaría todo junto antes de aplicar, y después se puede deshacer.' },
     { sel: '#tab-kilometros-mapa', pos: 'bottom', antes: () => cambiarTabKilometros('mapa'),
       titulo: 'Mapa del vehículo',
-      texto: 'Visualiza la línea de tiempo de kilómetros del vehículo elegido: cada tramo es una práctica.' },
+      texto: 'Visualiza la línea de tiempo de kilómetros del vehículo elegido: cada tramo es una práctica. «Ocultar huecos» (arriba a la derecha) junta las clases sin el espacio vacío de en medio.' },
     { sel: '#tab-kilometros-conflictos', pos: 'top', antes: () => cambiarTabKilometros('conflictos'),
-      titulo: '¿Qué es un solapamiento?',
-      texto: 'Ocurre cuando dos prácticas del mismo vehículo comparten el mismo tramo de km. "Corregir todo automáticamente" los reordena respetando la duración de cada una.' },
-    { sel: '#kilometros-tabs', pos: 'bottom',
-      titulo: 'Generar km',
-      texto: 'La tercera pestaña rellena los km de las prácticas en blanco: encadenado desde el odómetro, hasta un km máximo o repartido en un rango.' }
-  ],
-  'generar-km': [
-    { sel: '#gk-vehiculo', pos: 'bottom',
-      titulo: 'Elige el vehículo',
-      texto: 'Al lado verás cuántas prácticas de ese coche tienen los km en blanco.' },
-    { sel: '#generar-km-tabs', pos: 'bottom',
-      titulo: 'Tres formas de generar',
-      texto: 'Encadenado: sigue desde el odómetro actual. Hasta un máximo: das el km final y se reparte hacia atrás. Por rango: entre dos km con una media. Los dos últimos te enseñan el resultado antes de guardarlo.' }
+      titulo: '¿Qué es un solape?',
+      texto: 'Ocurre cuando dos prácticas del mismo vehículo comparten el mismo tramo de km. «Corregir todo automáticamente» los reordena respetando la duración de cada una.' }
   ],
   reservas: [
     { sel: '#page-reservas .page-tabs', pos: 'bottom',
