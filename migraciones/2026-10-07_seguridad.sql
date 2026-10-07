@@ -203,3 +203,10 @@ revoke all on function public.perfiles_usuario_inmutable() from public, anon, au
 drop trigger if exists perfiles_usuario_inmutable on public.perfiles;
 create trigger perfiles_usuario_inmutable before update on public.perfiles
   for each row execute function public.perfiles_usuario_inmutable();
+
+-- 5. Las funciones con secreto solo las llama el servidor (sin sesión, rol anon)
+revoke execute on function public.alumno_email_existe_srv(text, text) from authenticated;
+revoke execute on function public.tomar_avisos_vencidos(text) from public, authenticated;
+revoke execute on function public.quitar_suscripcion(text, text) from public, authenticated;
+grant execute on function public.tomar_avisos_vencidos(text) to anon, service_role;
+grant execute on function public.quitar_suscripcion(text, text) to anon, service_role;

@@ -15,3 +15,5 @@ create policy perfiles_insert_jefe on public.perfiles for insert to authenticate
   with check ((coalesce(rol_actual(), 'jefe'::text) = 'jefe'::text) and (empresa_id = coalesce(empresa_actual(), auth.uid())));
 drop trigger if exists perfiles_usuario_inmutable on public.perfiles;
 drop function if exists public.perfiles_usuario_inmutable();
+grant execute on function public.tomar_avisos_vencidos(text) to authenticated;
+grant execute on function public.quitar_suscripcion(text, text) to authenticated;
