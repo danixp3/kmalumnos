@@ -70,6 +70,9 @@ let _onStatusChange = null;
 // Callback para notificar a la UI cuántos conflictos reales hubo en el último
 // sync() (ver "DETECCIÓN DE CONFLICTOS" más abajo).
 let _onConflictos = null;
+// Callback para avisar a la UI de que este sync TRAJO datos de la nube (clases
+// del móvil, alumnos dados de alta en la web...): la pantalla abierta se repinta sola.
+let _onDatosNuevos = null;
 
 const STATUS = {
   OFFLINE:  'offline',
@@ -244,6 +247,7 @@ function saveData(data) {
 function setCredentials(email, password) {
   _creds = (email && password) ? { email, password } : null;
   supabase = null;
+  _sondeoVisto = null; // otra sesión/empresa: lo «visto» de la anterior ya no vale
   _authError = null;
   _empresaId = null;
   _perfilCache = null; // cambio de sesión: invalidar el perfil (rol/empresa) cacheado
@@ -283,6 +287,7 @@ function setCredentials(email, password) {
 function restaurarCredenciales(email, password) {
   _creds = (email && password) ? { email, password } : null;
   supabase = null;
+  _sondeoVisto = null; // otra sesión/empresa: lo «visto» de la anterior ya no vale
   _authError = null;
   _empresaId = null;
   _authOk = _creds ? _cargarAuthOkPersistido() : false;
@@ -2245,6 +2250,7 @@ async function _syncInterno() {
 
     const lastSync = pending.lastSync || '1970-01-01T00:00:00.000Z';
     let pulled = 0;
+    let practicasTraidas = 0; // las que llegaron nuevas o cambiadas (clases del móvil, del otro PC)
     let dataChanged = false;
 
     // Con sesión autenticada, cada bajada se filtra por empresa_id (uid de la
@@ -2523,7 +2529,7 @@ async function _syncInterno() {
                   local, practica, conflictos);
                 data.practicas[idx] = practica;
                 dataChanged = true;
-                pulled++;
+                pulled++; practicasTraidas++;
               }
               // Si local es más reciente, no sobrescribir (el usuario editó localmente)
             } else {
@@ -2531,7 +2537,7 @@ async function _syncInterno() {
               // Actualizar seq si hace falta
               _avanzarSeq(data, 'p', rp.id);
               dataChanged = true;
-              pulled++;
+              pulled++; practicasTraidas++;
             }
           }
           if (practicasFuera.size) data.practicas = data.practicas.filter(p => !practicasFuera.has(p.id));
@@ -2805,6 +2811,7 @@ async function _syncInterno() {
     }
     pending.lastSync = new Date(inicioSync - MARGEN_LASTSYNC_MS).toISOString();
     savePending(pending);
+    if (pulled > 0 && _onDatosNuevos) { try { _onDatosNuevos({ pulled, practicas: practicasTraidas }); } catch (e) { /* la UI no debe tumbar el sync */ } }
 
     if (erroresSubida.length) {
       // Siguen en la cola y se reintentan en el próximo sync; la UI lo avisa.
@@ -3149,24 +3156,103 @@ async function pushAll() {
 
 // ─── AUTO-SYNC ────────────────────────────────────────────────────────────────
 
+// ─── SONDEO RÁPIDO (casi en vivo) ────────────────────────────────────────────
+// Un sync completo cada 2 minutos hacía que las clases que un profesor guarda en
+// el móvil tardaran hasta 2 min en verse en el ordenador de la oficina. Ahora,
+// además, cada pocos segundos se hace una pregunta barata a la nube: «¿cuál es
+// la última modificación de cada tabla que escribe la web?» (una fila por tabla).
+// Solo si ha cambiado algo respecto a lo último visto se lanza el sync completo,
+// que ya sabe bajar y mezclar. Sin cambios = unas pocas consultas ligeras y nada más.
+// La web escribe: prácticas (clases), alumnos (altas), profesores (firma, coche
+// habitual) y reservas (solicitudes del portal del alumno).
+const TABLAS_SONDEO = ['practicas', 'alumnos', 'profesores', 'reservas'];
+let _sondeoVisto = null;          // { tabla: última updated_at vista tras un sync correcto }
+let _sondeoTimer = null;
+let _sondeoActivo = false;
+let _sondeoEnCurso = false;
+let _sondeoRitmoMs = 12 * 1000;   // con la ventana a la vista; en segundo plano baja (setRitmoSondeo)
+
+async function sondearNube() {
+  if (_sondeoEnCurso || _syncPromesa || currentStatus === STATUS.SYNCING) return { ok: true, ocupado: true };
+  _sondeoEnCurso = true;
+  try {
+    const sb = await ensureClient();
+    if (!sb) return { ok: false, motivo: 'sin sesión' };
+    const marcas = await Promise.all(TABLAS_SONDEO.map(async t => {
+      try {
+        const { data, error } = await _conEmpresa(sb.from(t).select('updated_at')).order('updated_at', { ascending: false }).limit(1);
+        if (error) return { error: true };
+        return { marca: data && data[0] && data[0].updated_at ? String(data[0].updated_at) : '' };
+      } catch (e) { return { error: true }; }
+    }));
+    // Una tabla que da error (p. ej. aún sin migración) se ignora; si fallan todas, no hay conexión
+    if (marcas.every(m => m.error)) return { ok: false, motivo: 'sin respuesta' };
+    const actual = {};
+    TABLAS_SONDEO.forEach((t, i) => { actual[t] = marcas[i].error ? '' : marcas[i].marca; });
+    const hayNovedad = !_sondeoVisto || TABLAS_SONDEO.some(t => actual[t] !== (_sondeoVisto[t] || ''));
+    if (!hayNovedad) return { ok: true, novedades: false };
+    const r = await module.exports.sync();
+    // Solo se da por visto si el sync llegó a bajar (con errores de SUBIDA también baja: no repetir cada pocos segundos)
+    if (r && (r.ok || r.pulled !== undefined)) _sondeoVisto = actual;
+    return { ok: !!(r && r.ok), novedades: true, pulled: r && r.pulled };
+  } catch (e) {
+    return { ok: false, motivo: e.message };
+  } finally {
+    _sondeoEnCurso = false;
+  }
+}
+
+function _programarSondeo() {
+  if (_sondeoTimer) clearTimeout(_sondeoTimer);
+  if (!_sondeoActivo) return;
+  _sondeoTimer = setTimeout(async () => {
+    _sondeoTimer = null;
+    try { await sondearNube(); } catch (e) { /* el siguiente turno lo reintenta */ }
+    _programarSondeo();
+  }, _sondeoRitmoMs);
+  if (typeof _sondeoTimer.unref === 'function') _sondeoTimer.unref();
+}
+
+// Más lento con la ventana minimizada o sin foco, rápido al volver (lo llama main.js)
+function setRitmoSondeo(ms) {
+  _sondeoRitmoMs = Math.max(5000, Number(ms) || 12000);
+  if (_sondeoActivo) _programarSondeo();
+}
+
+// Preguntar ya (al volver a la ventana, al despertar el PC, al recuperar internet)
+function sondearAhora() {
+  if (!_sondeoActivo) return Promise.resolve({ ok: false, motivo: 'inactivo' });
+  return sondearNube();
+}
+
 function startAutoSync(intervalMs = 2 * 60 * 1000) {
   // Arma el mecanismo de sync inmediato (debounce tras cada cambio local)
   _syncInmediatoActivo = true;
   // Sync inmediato al arrancar
-  const initialTimer = setTimeout(() => sync(), 3000);
+  const initialTimer = setTimeout(() => sync(), 1000);
   if (typeof initialTimer.unref === 'function') initialTimer.unref();
-  // Luego cada intervalMs
+  // Luego cada intervalMs (red de seguridad) y el sondeo rápido de novedades
   _syncTimer = setInterval(() => sync(), intervalMs);
+  _sondeoActivo = true;
+  _sondeoVisto = null;
+  _programarSondeo();
 }
 
 function stopAutoSync() {
   if (_syncTimer) { clearInterval(_syncTimer); _syncTimer = null; }
   _syncInmediatoActivo = false;
   if (_syncInmediatoTimer) { clearTimeout(_syncInmediatoTimer); _syncInmediatoTimer = null; }
+  _sondeoActivo = false;
+  if (_sondeoTimer) { clearTimeout(_sondeoTimer); _sondeoTimer = null; }
 }
 
 function onStatusChange(cb) {
   _onStatusChange = cb;
+}
+
+// cb({ pulled, practicas }) se llama cada vez que un sync trae datos nuevos de la nube.
+function onDatosNuevos(cb) {
+  _onDatosNuevos = cb;
 }
 
 // cb recibe el array de conflictos { tabla, id, ganador, cambios } del último
@@ -3188,6 +3274,10 @@ module.exports = {
   STATUS,
   startAutoSync,
   stopAutoSync,
+  sondearNube,
+  sondearAhora,
+  setRitmoSondeo,
+  onDatosNuevos,
   onStatusChange,
   onConflictos,
   setCredentials,

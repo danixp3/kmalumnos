@@ -2984,6 +2984,8 @@
   .upd-pastilla-icono { display: inline-flex; color: var(--accent-text, var(--accent)); }
   .upd-pastilla-texto { flex: 1; display: flex; gap: 8px; justify-content: space-between; font-weight: 600; }
   .upd-pastilla-texto b { font-family: var(--font-mono); font-weight: 600; }
+  .upd-pastilla-texto { flex-wrap: wrap; align-items: baseline; }
+  .upd-pastilla-texto small { flex-basis: 100%; font-weight: 400; font-size: 11.5px; color: var(--text-muted); }
   .upd-pastilla-barra { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--border); }
   .upd-pastilla-barra span { display: block; height: 100%; background: var(--accent); transition: width .25s ease; }
   .upd-pastilla-cerrar { border: none; background: none; color: var(--text-muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }

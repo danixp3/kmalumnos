@@ -13,14 +13,17 @@ const SYNC_LABELS = {
 
 const AJUSTES_SYNC_COLORS = { ok: '#2E9E6B', syncing: '#FFB81C', pending: '#E09A00', offline: '#8C8F97', error: '#D0392B' };
 
+let syncUltimoOk = null;
 function updateSyncBar(status, reason) {
   const bar   = document.getElementById('sync-bar');
   const label = document.getElementById('sync-label');
   if (bar && label) {
     bar.dataset.status = status;
     label.textContent  = SYNC_LABELS[status] || status;
-    // Al pasar el ratón por encima se ve el motivo exacto del error
-    bar.title = (status === 'error' && reason) ? 'Motivo: ' + reason : '';
+    // Al pasar el ratón por encima se ve el motivo exacto del error (o cuándo se actualizó por última vez)
+    if (status === 'ok') syncUltimoOk = new Date();
+    bar.title = (status === 'error' && reason) ? 'Motivo: ' + reason
+      : (status === 'ok' && syncUltimoOk ? 'Al día · última comprobación a las ' + syncUltimoOk.toTimeString().slice(0, 5) : '');
   }
 
   // Segundo indicador, grande y legible, en Ajustes
@@ -51,11 +54,9 @@ async function syncNow() {
   const res = await window.api.syncNow();
   if (res && res.ok) {
     updateSyncBar('ok');
-    // Si se bajaron prácticas nuevas, recargar vista actual
-    if (res.pulled > 0) {
-      loadDashboard();
-      if (currentAlumnoId) loadPracticas();
-    }
+    // Si se bajaron datos nuevos, repintar la pantalla abierta (main.js lo avisa también por
+    // 'datos-actualizados'; aquí se hace ya, sin esperar, porque el usuario acaba de pedirlo)
+    if (res.pulled > 0) refrescarPantallaActual({ pulled: res.pulled }, { avisar: false, ya: true });
   } else {
     updateSyncBar(res && res.reason === 'Sin conexión a internet' ? 'offline' : 'error', res?.reason);
   }
@@ -64,12 +65,96 @@ async function syncNow() {
 // Escuchar cambios de estado desde main.js
 window.api.onSyncStatus((status, reason) => {
   updateSyncBar(status, reason);
-  // Si llegaron datos nuevos (ok tras sync), refrescar
-  if (status === 'ok') {
-    loadDashboard();
-    if (currentAlumnoId) loadPracticas();
-  }
+  // Con el Panel a la vista se mantiene al día tras cada sync correcto (es barato);
+  // el resto de pantallas se repintan solo cuando llegan datos nuevos (abajo).
+  if (status === 'ok' && document.getElementById('page-dashboard')?.classList.contains('active')) loadDashboard();
 });
+
+// ─── DATOS NUEVOS DE LA NUBE: la pantalla abierta se actualiza sola ───────────
+// main.js avisa ('datos-actualizados') cada vez que un sync TRAE algo: clases que
+// un profesor acaba de guardar en el móvil, un alumno dado de alta en la web,
+// cambios del otro ordenador. Antes solo se repintaban el Panel y la ficha
+// abierta, así que en Prácticas, Registro rápido o Agenda había que pulsar
+// «Sincronizar» y entrar otra vez para ver lo nuevo. Ahora se repinta la pantalla
+// que se está mirando, salvo que justo se esté escribiendo o haya una ventana
+// abierta: en ese caso espera a que se cierre (sin pisar lo que se está haciendo).
+const REFRESCO_PANTALLAS = {
+  'dashboard': () => loadDashboard(),
+  'practicas-global': () => loadPracticasGlobal(),
+  'registro-rapido': () => loadRegistroRapido(),
+  'reservas': () => loadReservas(),
+  'agenda-visual': () => loadAgendaVisual(),
+  'profesores': () => { loadProfesores(); loadStatsProfesores(); },
+  'alumnos': () => { if (currentAlumnoId) return loadPracticas(); return loadAlumnos(); }
+};
+
+let refrescoPendiente = null;   // { pulled, practicas } acumulado mientras no era buen momento
+let refrescoTimer = null;
+let refrescoDesde = 0;
+
+function paginaActivaId() {
+  const el = document.querySelector('.page.active');
+  return el ? el.id.replace(/^page-/, '') : '';
+}
+
+// Última tecla pulsada: un campo con el cursor dentro no cuenta como «escribiendo» si hace rato que no se teclea
+let refrescoUltimaTecla = 0;
+document.addEventListener('keydown', () => { refrescoUltimaTecla = Date.now(); }, true);
+
+// ¿Se está escribiendo o hay algo a medias? Entonces no se toca la pantalla.
+function hayAlgoEditandose() {
+  if (document.querySelector('.overlay.open:not(.cerrando), .dp-pop.dp-visible')) return true;
+  const a = document.activeElement;
+  if (Date.now() - refrescoUltimaTecla < 8000 && a && a.closest && a.closest('.page.active') &&
+      a.matches('input:not([type=checkbox]):not([type=radio]):not([type=button]), textarea, select')) return true;
+  if (typeof pmSucio !== 'undefined' && pmSucio) return true;
+  if (typeof fdEditando !== 'undefined' && fdEditando) return true;
+  if (typeof tutorialEnCurso === 'function' && tutorialEnCurso()) return true;
+  return false;
+}
+
+// Para main.js (instalar una versión nueva sola solo si nadie está a medias de nada)
+function appOcupada() {
+  if (document.querySelector('.overlay.open:not(.cerrando):not(#modal-actualizacion)')) return true;
+  if (typeof pmSucio !== 'undefined' && pmSucio) return true;
+  if (typeof fdEditando !== 'undefined' && fdEditando) return true;
+  if (typeof tutorialEnCurso === 'function' && tutorialEnCurso()) return true;
+  return false;
+}
+
+function textoClasesNuevas(n) {
+  return n === 1 ? 'Se ha recibido 1 clase nueva' : `Se han recibido ${n} clases nuevas`;
+}
+
+// opciones.avisar: enseñar el aviso «Se han recibido N clases nuevas» (por defecto sí)
+// opciones.ya: repintar sin esperar al pequeño margen que agrupa avisos seguidos
+function refrescarPantallaActual(info, opciones = {}) {
+  const acumulado = refrescoPendiente || { pulled: 0, practicas: 0 };
+  refrescoPendiente = { pulled: acumulado.pulled + ((info && info.pulled) || 0), practicas: acumulado.practicas + ((info && info.practicas) || 0), avisar: opciones.avisar !== false };
+  refrescoDesde = refrescoDesde || Date.now();
+  clearTimeout(refrescoTimer);
+  refrescoTimer = setTimeout(intentarRefresco, opciones.ya ? 0 : 400);
+}
+
+function intentarRefresco() {
+  refrescoTimer = null;
+  if (!refrescoPendiente) return;
+  // Si no es buen momento se reintenta cada 2 s (hasta 2 min: después, lo recoge la próxima navegación)
+  if (hayAlgoEditandose()) {
+    if (Date.now() - refrescoDesde > 120000) { refrescoPendiente = null; refrescoDesde = 0; return; }
+    refrescoTimer = setTimeout(intentarRefresco, 2000);
+    return;
+  }
+  const info = refrescoPendiente;
+  refrescoPendiente = null; refrescoDesde = 0;
+  const repintar = REFRESCO_PANTALLAS[paginaActivaId()];
+  try { if (repintar) Promise.resolve(repintar()).catch(() => {}); } catch (e) { /* una pantalla que falla no debe romper las demás */ }
+  if (info.avisar && info.practicas > 0 && typeof toastApp === 'function') toastApp(textoClasesNuevas(info.practicas));
+}
+
+window.api.onDatosActualizados((info) => refrescarPantallaActual(info));
+// Al recuperar internet, preguntar a la nube enseguida (sin esperar al siguiente turno)
+window.addEventListener('online', () => { window.api.sondearNube().catch(() => {}); });
 
 // Obtener estado inicial
 window.api.getSyncStatus().then(s => updateSyncBar(s || 'offline'));
