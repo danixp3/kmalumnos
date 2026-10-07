@@ -10,6 +10,7 @@ app.setPath('userData', path.join(app.getPath('appData'), 'KMAlumnos'));
 
 const db = require('./db');
 const sync = require('./sync');
+const actualizaciones = require('./actualizaciones');
 const { autoUpdater } = require('electron-updater');
 const { sanitizarNombre, extensionDeDataUrl } = require('./utils-ficheros');
 
@@ -141,7 +142,8 @@ function leerFondoGuardado() {
   return '#f6f7f9';
 }
 
-// NO descargar automáticamente - preguntar primero
+// La descarga la lanza la propia app (descargarUpdate), según la preferencia del PC
+// «Descargar las versiones nuevas solas» (por defecto sí): ver ACTUALIZACIONES.
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.logger = require('electron').app ? null : console;
@@ -193,6 +195,17 @@ function createWindow() {
     if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('ventana-maximizada', false);
   });
   iniciarSensorBarra(mainWin);
+
+  // Casi en vivo: con la ventana a la vista y en primer plano se pregunta a la
+  // nube cada pocos segundos; al volver a ella, al momento. Sin foco o
+  // minimizada, más despacio (y al volver se actualiza enseguida).
+  const alPrimerPlano = () => { sync.setRitmoSondeo(12 * 1000); sync.sondearAhora().catch(() => {}); comprobarActualizacion(false); };
+  mainWin.on('focus', alPrimerPlano);
+  mainWin.on('restore', alPrimerPlano);
+  mainWin.on('show', alPrimerPlano);
+  mainWin.on('blur', () => sync.setRitmoSondeo(30 * 1000));
+  mainWin.on('minimize', () => sync.setRitmoSondeo(90 * 1000));
+  mainWin.on('hide', () => sync.setRitmoSondeo(90 * 1000));
 }
 
 // ─── BLINDAJE DE LA VENTANA ──────────────────────────────────────────────────
@@ -259,9 +272,11 @@ function iniciarSensorBarra(win) {
 
 app.whenReady().then(() => {
   createWindow();
-  // Comprueba actualizaciones 3s después de arrancar (no bloquea el inicio).
+  // Comprueba actualizaciones 3s después de arrancar (no bloquea el inicio) y
+  // luego cada rato y al volver a la ventana (ver ACTUALIZACIONES).
   // checkForUpdates y no checkForUpdatesAndNotify: los avisos son de la app.
-  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 3000);
+  setTimeout(() => comprobarActualizacion(true), 3000);
+  iniciarVigilanciaActualizaciones();
 
   // Cargar credenciales de sincronización (si el usuario ya las configuró)
   const creds = loadSyncCreds();
@@ -269,6 +284,18 @@ app.whenReady().then(() => {
 
   // Arrancar sync automático (cada 2 min)
   sync.startAutoSync(2 * 60 * 1000);
+
+  // Un sync que TRAE datos (clases del móvil, altas hechas en la web, cambios
+  // del otro PC): la pantalla abierta se repinta sola (renderer/sync-ui.js).
+  sync.onDatosNuevos((info) => {
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('datos-actualizados', info);
+  });
+
+  // Al despertar el PC o desbloquear la sesión: preguntar a la nube ya
+  const { powerMonitor } = require('electron');
+  const alDespertar = () => { sync.sondearAhora().catch(() => {}); comprobarActualizacion(false); };
+  powerMonitor.on('resume', alDespertar);
+  powerMonitor.on('unlock-screen', alDespertar);
 
   // Notificar a la UI cuando cambia el estado de sync
   // (el motivo del error viaja junto al estado para poder mostrarlo en la UI)
@@ -319,11 +346,14 @@ autoUpdater.on('update-not-available', () => {
 autoUpdater.on('update-available', (info) => {
   if (isDownloading || estadoUpdate.fase === 'descargada') return; // ya en marcha: nada que preguntar
   const archivo = (info.files || [])[0] || {};
+  const auto = leerPrefsUpdate().descargarSolas;
   estadoUpdate = {
     fase: 'disponible', version: info.version, actual: app.getVersion(),
     notas: textoNotas(info.releaseNotes), tamano: archivo.size || null,
+    auto, // true = la app la descarga sola y no se pregunta nada
   };
   avisarUpdate('update-available');
+  if (auto) descargarUpdate();
 });
 
 function descargarUpdate() {
@@ -366,6 +396,63 @@ autoUpdater.on('update-downloaded', (info) => {
   estadoUpdate = { ...estadoUpdate, fase: 'descargada', version: (info && info.version) || estadoUpdate.version, pct: 100 };
   avisarUpdate('update-downloaded');
 });
+
+// ── Vigilancia automática ──────────────────────────────────────────────────
+// La app se entera sola de que hay una versión nueva (mirando cada 20 min, al
+// volver a la ventana y al despertar el PC), la baja en segundo plano y, cuando
+// nadie está usando el ordenador, la instala y se vuelve a abrir. Si se cierra
+// la app antes, se instala al cerrar (autoInstallOnAppQuit). Nadie tiene que
+// entrar en Ajustes ni cerrar y abrir la app. Las preferencias son de este PC.
+function getUpdatePrefsPath() { return path.join(app.getPath('userData'), 'update-prefs.json'); }
+
+function leerPrefsUpdate() {
+  try { return actualizaciones.normalizarPrefs(JSON.parse(fs.readFileSync(getUpdatePrefsPath(), 'utf-8'))); }
+  catch (e) { return actualizaciones.normalizarPrefs(null); }
+}
+
+function guardarPrefsUpdate(nuevas) {
+  const prefs = actualizaciones.normalizarPrefs({ ...leerPrefsUpdate(), ...(nuevas || {}) });
+  try { fs.writeFileSync(getUpdatePrefsPath(), JSON.stringify(prefs), 'utf-8'); } catch (e) { console.error('No se pudieron guardar las preferencias de actualización:', e.message); }
+  // Si se acaba de activar la descarga automática y ya había una versión esperando, se baja ahora
+  if (prefs.descargarSolas && estadoUpdate.fase === 'disponible') { estadoUpdate = { ...estadoUpdate, auto: true }; descargarUpdate(); }
+  return prefs;
+}
+
+let ultimaComprobacionUpdate = 0;
+function comprobarActualizacion(forzar) {
+  if (!forzar && !actualizaciones.tocaComprobar(Date.now(), ultimaComprobacionUpdate)) return;
+  if (estadoUpdate.fase === 'descargando' || estadoUpdate.fase === 'descargada') return; // ya hay una en marcha
+  ultimaComprobacionUpdate = Date.now();
+  autoUpdater.checkForUpdates().catch(() => {});
+}
+
+let instalandoSola = false;
+async function instalarSiNadieUsa() {
+  if (instalandoSola || estadoUpdate.fase !== 'descargada') return;
+  const { powerMonitor } = require('electron');
+  let ocupada = false;
+  try {
+    if (mainWin && !mainWin.isDestroyed()) {
+      ocupada = !!(await mainWin.webContents.executeJavaScript("typeof appOcupada === 'function' ? appOcupada() : false"));
+    }
+  } catch (e) { ocupada = true; } // sin poder preguntar a la pantalla, mejor no tocar nada
+  const veredicto = actualizaciones.puedeInstalarSola({
+    fase: estadoUpdate.fase, prefs: leerPrefsUpdate(), inactivoSeg: powerMonitor.getSystemIdleTime(),
+    sincronizando: sync.getStatus() === sync.STATUS.SYNCING, ocupada
+  });
+  if (!veredicto.ok) return;
+  instalandoSola = true;
+  avisarUpdate('update-instalando', estadoUpdate.version);
+  // Unos segundos para que se vea el aviso y termine lo que se esté guardando
+  setTimeout(() => autoUpdater.quitAndInstall(true, true), 4000);
+}
+
+function iniciarVigilanciaActualizaciones() {
+  const t1 = setInterval(() => comprobarActualizacion(true), actualizaciones.COMPROBAR_CADA_MS);
+  const t2 = setInterval(() => { instalarSiNadieUsa().catch(() => {}); }, actualizaciones.MIRAR_SI_INSTALAR_CADA_MS);
+  if (typeof t1.unref === 'function') t1.unref();
+  if (typeof t2.unref === 'function') t2.unref();
+}
 
 app.on('window-all-closed', () => {
   sync.stopAutoSync();
@@ -1185,6 +1272,8 @@ ipcMain.handle('check-for-updates', async () => {
   } catch (e) { /* ya lo avisa autoUpdater.on('error') */ }
 });
 ipcMain.handle('estado-actualizacion', () => estadoUpdate);
+ipcMain.handle('get-update-prefs', () => leerPrefsUpdate());
+ipcMain.handle('set-update-prefs', (_, prefs) => guardarPrefsUpdate(prefs));
 ipcMain.handle('descargar-actualizacion', () => descargarUpdate());
 // Instalación silenciosa (sin el asistente de Windows) y se vuelve a abrir sola
 ipcMain.handle('install-update', () => {
@@ -1195,6 +1284,7 @@ ipcMain.handle('install-update', () => {
 
 // ─── SYNC IPC HANDLERS ────────────────────────────────────────────────────────
 ipcMain.handle('sync-now', async () => sync.sync());
+ipcMain.handle('sondear-nube', async () => sync.sondearAhora());
 ipcMain.handle('cerrar-otras-sesiones', async () => sync.cerrarOtrasSesiones());
 ipcMain.handle('sync-push-all', async () => sync.pushAll());
 ipcMain.handle('sync-status', () => sync.getStatus());

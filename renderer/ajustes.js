@@ -594,9 +594,13 @@ async function moverZonaUI(i, d) {
 }
 
 // ─── ACTUALIZACIONES ──────────────────────────────────────────────────────────
-// Ventanas propias (nada de cuadros de Windows), en dos pasos:
-//   1. Hay versión nueva → «¿Descargarla?» (con las novedades). Se descarga
-//      mientras se sigue trabajando; el progreso va en una pastilla abajo.
+// Ventanas propias (nada de cuadros de Windows). Por defecto TODO es automático
+// (preferencias de este PC, Ajustes → Actualizaciones): la app mira sola si hay
+// versión nueva (cada 20 min y al volver a la ventana), la descarga en segundo
+// plano (pastilla abajo con el progreso) y la instala cuando nadie usa el
+// ordenador o al cerrar la app; nadie tiene que ir a Ajustes ni reiniciar.
+// Con la descarga automática apagada vuelve el modo manual en dos pasos:
+//   1. Hay versión nueva → «¿Descargarla?» (con las novedades).
 //   2. Ya descargada → «¿Instalar ahora?». Si no, se instala sola al cerrar la
 //      app y la pastilla queda con «Instalar» por si se quiere antes.
 // El proceso principal (main.js → ACTUALIZACIONES) busca, descarga e instala;
@@ -605,6 +609,8 @@ async function moverZonaUI(i, d) {
 let updPreguntada = new Set();   // versiones ya preguntadas solas en esta sesión
 let updManual = false;           // la búsqueda la lanzó el usuario desde Ajustes
 let updEstado = { fase: 'nada' };
+let updPrefs = { descargarSolas: true, instalarSolas: true };  // las de este PC (main.js las guarda)
+let updEsperaModal = false;      // el usuario pidió buscar desde Ajustes: al terminar de bajar se le enseña «Instalar ahora»
 
 const UPD_ICONO = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
 const UPD_ICONO_OK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
@@ -627,6 +633,7 @@ function updModal() {
 // ya se hubiera dicho «Ahora no» al arrancar).
 function mostrarActualizacionDisponible(e, manual) {
   if (!e || e.fase !== 'disponible') return;
+  if (e.auto) return; // la app la descarga sola: no hay nada que preguntar
   if (!manual && updPreguntada.has(e.version)) return;
   updPreguntada.add(e.version);
   const ov = updModal();
@@ -704,7 +711,7 @@ function pintarPastillaUpd() {
       <span class="upd-pastilla-barra"><span style="width:${pct}%"></span></span>`;
   } else {
     el.innerHTML = `<span class="upd-pastilla-icono upd-icono-ok">${UPD_ICONO_OK.replace(/18/g, '15')}</span>
-      <span class="upd-pastilla-texto">Versión ${esc(e.version || '')} lista</span>
+      <span class="upd-pastilla-texto">Versión ${esc(e.version || '')} lista${updPrefs.instalarSolas ? '<small> · se instalará sola cuando no se use el ordenador</small>' : ''}</span>
       <button type="button" class="btn btn-primary btn-sm" id="upd-pastilla-instalar" onclick="instalarActualizacionUI()">Instalar</button>
       <button type="button" class="upd-pastilla-cerrar" title="Ocultar (se instalará al cerrar la app)" aria-label="Ocultar" onclick="document.getElementById('upd-pastilla').remove()">×</button>`;
   }
@@ -734,6 +741,7 @@ async function checkUpdates() {
   if (e && e.fase === 'disponible') return mostrarActualizacionDisponible(e, true);
   if (e && e.fase === 'descargando') return;
   updManual = true;
+  updEsperaModal = true;
   pintarBotonUpd('Buscando...');
   document.getElementById('update-bar').style.pointerEvents = 'none';
   window.api.checkForUpdates();
@@ -776,7 +784,15 @@ window.api.onUpdateDownloaded((e) => {
   if (bar) bar.style.pointerEvents = '';
   pintarBotonUpd(`Versión ${updEstado.version} lista — instalar`, 'rgba(16,185,129,.8)');
   pintarPastillaUpd();
-  mostrarActualizacionLista(updEstado);
+  // Sin ventanas que interrumpan: la pastilla avisa («se instalará sola…») y se instala cuando nadie usa el ordenador.
+  // Solo se pregunta si se pidió a mano o si se apagó la instalación automática.
+  if (updEsperaModal || !updPrefs.instalarSolas) mostrarActualizacionLista(updEstado);
+  updEsperaModal = false;
+});
+
+// Va a instalarse sola (llevaba un rato sin usarse): unos segundos de aviso y la app se reinicia
+window.api.onUpdateInstalando((version) => {
+  if (typeof toastApp === 'function') toastApp(`Instalando la versión ${version || 'nueva'}… la aplicación se reiniciará sola`);
 });
 
 window.api.onUpdateError((msg) => {
@@ -794,9 +810,35 @@ window.api.onUpdateError((msg) => {
   }
 });
 
+// Preferencias de este PC (interruptores de Ajustes → Actualizaciones)
+async function cargarPrefsUpd() {
+  try { updPrefs = await window.api.getUpdatePrefs() || updPrefs; } catch (e) { /* se queda con las de por defecto */ }
+  const a = document.getElementById('upd-pref-descargar'), b = document.getElementById('upd-pref-instalar');
+  if (a) a.checked = !!updPrefs.descargarSolas;
+  if (b) { b.checked = !!updPrefs.instalarSolas && !!updPrefs.descargarSolas; b.disabled = !updPrefs.descargarSolas; }
+}
+
+async function cambiarPrefUpd() {
+  const descargar = document.getElementById('upd-pref-descargar')?.checked !== false;
+  const instalar = document.getElementById('upd-pref-instalar')?.checked !== false;
+  try { updPrefs = await window.api.setUpdatePrefs({ descargarSolas: descargar, instalarSolas: descargar && instalar }) || updPrefs; } catch (e) { /* ya se verá al volver */ }
+  cargarPrefsUpd();
+  pintarPastillaUpd();
+}
+
+// Tras una actualización: decir una vez a qué versión se ha pasado
+(async () => {
+  try {
+    const v = await window.api.getVersion();
+    const antes = localStorage.getItem('km_ultima_version');
+    if (v) localStorage.setItem('km_ultima_version', v);
+    if (antes && v && antes !== v && typeof toastApp === 'function') setTimeout(() => toastApp(`AulaMovil se ha actualizado a la versión ${v}`), 2500);
+  } catch (e) { /* sin localStorage: no se avisa */ }
+})();
+
 // Por si el aviso llegó antes de que la pantalla estuviera lista
-refrescarEstadoUpd().then(e => {
+cargarPrefsUpd().then(refrescarEstadoUpd).then(e => {
   if (!e) return;
   if (e.fase === 'disponible') mostrarActualizacionDisponible(e, false);
-  else if (e.fase === 'descargada') mostrarActualizacionLista(e);
+  else if (e.fase === 'descargada' && !updPrefs.instalarSolas) mostrarActualizacionLista(e);
 });

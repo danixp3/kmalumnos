@@ -58,7 +58,8 @@ db/           → CRUD + algoritmos de km, por módulo
   lector-tablas.js → leer Excel/ODS/DBF (SheetJS) y CSV/TXT/texto pegado con cualquier separador y codificación
   codigos-postales.js → CP → provincia y poblaciones (assets/codigos-postales-es.json, GeoNames)
   privacidad.js → plazos de conservación y anonimización de alumnos (RGPD)
-sync.js       → sincronización bidireccional con Supabase (auto-sync cada 2 min), resolución de colisiones
+sync.js       → sincronización bidireccional con Supabase (sondeo de novedades cada 12 s + sync completo cada 2 min), resolución de colisiones
+actualizaciones.js → reglas de las actualizaciones automáticas (cuándo mirar, cuándo instalar sola); las usa main.js
 migraciones/  → migraciones SQL de Supabase escritas pero NO APLICADAS (roles + sucursales)
 web-remote/   → web móvil + API serverless (deploy: cd web-remote && vercel --prod --yes); instalable como app (PWA: manifest.webmanifest, sw.js, icons/) y que funciona SIN COBERTURA (offline.js: cola de envíos y caché en la tablet)
 CONTEXT.md    → documentación técnica detallada (arquitectura, funciones, endpoints)
@@ -90,7 +91,10 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-10-07 (v1.32.0). El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-10-07 (v1.33.0). El detalle histórico completo está en HISTORIAL.md._
+
+- **v1.33.0 (2026-10-07, código SUBIDO; pendiente PUBLICAR escritorio y DESPLEGAR web — incluye la 1.32.0; sin migraciones):** caso de la oficina (la clase del móvil no salía hasta pulsar Sincronizar). **Casi en vivo:** sondeo cada 12 s (`sondearNube`: una consulta ligera por tabla; solo si cambió algo corre el sync), al volver a la ventana/despertar el PC/recuperar internet; la pantalla abierta se repinta sola (`datos-actualizados`; antes solo Panel y ficha) y avisa «Se han recibido N clases nuevas», sin pisar ventanas abiertas ni lo que se esté escribiendo.
+- **Actualizaciones automáticas (v1.33.0):** la app mira cada 20 min y al volver a la ventana, descarga sola, y se instala sola tras 10 min sin tocar el ordenador (sin nada abierto ni sincronizando) o al cerrar; interruptores en Ajustes → Actualizaciones (`actualizaciones.js`, `update-prefs.json`). Jest 648/71 (2 suites necesitan `xlsx`, no corren en la nube) + smoke + barrido + prueba en vivo de ambos flujos.
 
 - **v1.32.0 (2026-10-07, código listo y SUBIDO; pendiente de PUBLICAR escritorio y DESPLEGAR web; sin migraciones):** **Registro rápido arreglado** (fecha y coche se leen al actuar; antes se quedaba en el día en que se abrió); **editor de clases** (`renderer/clase-editor.js`, `db/clases-sesion.js`): ¼ ½ ¾, añadir una clase olvidada ENTRE otras con los km recalculados (vista previa, desplazar las siguientes, deshacer) y cambiar el nº de clases **borrando la firma** para que el alumno firme otra vez; **Kilómetros unificado** (`renderer/kilometros.js`, `db/plan-km.js`): un asistente que analiza el coche, recomienda el plan más lógico, ofrece otras opciones y deja **combinar** pasos (sustituye a «Generar km»), con **Ocultar huecos**; animaciones suaves tipo iPhone en escritorio y web.
 - **Web móvil (v1.32.0):** deslizador de clases hasta 5 con puntos cada ¼ («1 + ½ de práctica (1 h 8 min)» al soltarlo), **una acción solo una vez** (`unaVez` en todos los botones que escriben + `iniciar-practica` idempotente; prueba `web-remote/tests/doble-toque.cjs`), tarjeta «Firmas pendientes» en Hoy y «Corregir cuántas clases fueron» en el detalle (`/api/corregir-clases`, borra la firma de la sesión). Jest 627/69 (2 suites necesitan `xlsx` y no corren en la nube) + test:api 99 + smoke + barrido + Playwright.
