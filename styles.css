@@ -3175,3 +3175,61 @@
 .km-otra-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.4; flex: 1; }
 .km-otra .btn { align-self: flex-start; }
 .km-huecos-ocultos { font-size: 12.5px; color: var(--text-faint); margin: 4px 4px 14px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOVIMIENTO (estilo iPhone): muelles suaves y nada brusco.
+   --ios = la curva de las hojas y pantallas de iOS · --muelle = rebote corto.
+   Todo se apaga con «reducir movimiento» (más abajo).
+   ══════════════════════════════════════════════════════════════════════════ */
+:root { --ios: cubic-bezier(.32, .72, 0, 1); --muelle: cubic-bezier(.34, 1.5, .5, 1); }
+
+/* Ventanas: entran con un muelle suave sobre un fondo que se desenfoca, y se van con un fundido */
+.overlay { transition: opacity .22s ease; }
+.overlay.open { animation: overlayIn .28s ease; }
+.overlay.open .modal { animation: modalIos .5s var(--ios); }
+.overlay.cerrando { opacity: 0; pointer-events: none; }
+.overlay.cerrando .modal { transform: scale(.97) translateY(6px); opacity: 0; transition: transform .2s ease, opacity .18s ease; }
+@keyframes modalIos { 0% { opacity: 0; transform: scale(.94) translateY(16px); } 100% { opacity: 1; transform: none; } }
+
+/* Pulsar: el botón se hunde un poco y vuelve con un pequeño rebote */
+.btn, .page-tab, .quick-card, .rr-item, .rr-counter-btn, .ce-paso, .ce-chip, .ce-seg button, #sidebar nav a, .km-otra, .pill.firma-pill {
+  -webkit-tap-highlight-color: transparent;
+}
+.btn { transition: background .15s ease, border-color .15s ease, box-shadow .2s ease, color .15s ease, filter .15s ease, opacity .15s ease, transform .32s var(--muelle); }
+.btn:active:not(:disabled) { transform: scale(.965); transition-duration: .1s, .1s, .1s, .1s, .1s, .1s, .1s; }
+.page-tab { transition: background .2s ease, color .2s ease, box-shadow .25s ease, transform .3s var(--muelle); }
+.page-tab:active { transform: scale(.95); transition-duration: .1s; }
+.page-tab.active { animation: tabIos .38s var(--muelle); }
+@keyframes tabIos { from { transform: scale(.93); } to { transform: none; } }
+#sidebar nav a { transition: background .18s ease, color .18s ease, transform .3s var(--muelle), padding-left .25s var(--ios); }
+#sidebar nav a:active { transform: scale(.97); transition-duration: .1s; }
+.quick-card { transition: all .22s ease, transform .35s var(--muelle); }
+.quick-card:hover { transform: translateY(-2px); }
+.quick-card:active { transform: scale(.985); transition-duration: .1s; }
+.rr-item { transition: border-color .18s ease, background .18s ease, transform .3s var(--muelle); }
+.rr-item:active { transform: scale(.985); transition-duration: .1s; }
+.rr-counter-btn:active, .ce-paso:active:not(:disabled) { transform: scale(.88); }
+.ce-paso, .rr-counter-btn { transition: background .15s ease, color .15s ease, border-color .15s ease, transform .3s var(--muelle); }
+.ce-chip:active { transform: scale(.92); }
+.ce-chip.on { animation: tabIos .35s var(--muelle); }
+
+/* Menús «⋯» y desplegables: salen con un pequeño muelle desde su esquina */
+.menu-fila[open] > .menu-fila-lista { animation: menuIos .3s var(--muelle); transform-origin: top right; }
+@keyframes menuIos { from { opacity: 0; transform: scale(.92) translateY(-4px); } to { opacity: 1; transform: none; } }
+.cir-res { transition: background .12s ease; }
+
+/* Tarjetas del asistente de km, los pasos y las filas de resultados */
+.cuadre-tabla tbody tr { animation: filaIosIn .4s var(--ios) backwards; }
+.cuadre-tabla tbody tr:nth-child(1) { animation-delay: .02s; } .cuadre-tabla tbody tr:nth-child(2) { animation-delay: .05s; }
+.cuadre-tabla tbody tr:nth-child(3) { animation-delay: .08s; } .cuadre-tabla tbody tr:nth-child(4) { animation-delay: .11s; }
+.cuadre-tabla tbody tr:nth-child(5) { animation-delay: .14s; } .cuadre-tabla tbody tr:nth-child(n+6) { animation-delay: .17s; }
+@keyframes filaIosIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.km-recom { animation: filaIosIn .5s var(--ios) backwards; }
+.ce-fila { animation: filaIosIn .35s var(--ios) backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay.open, .overlay.open .modal, .overlay.cerrando .modal, .page-tab.active, .ce-chip.on, .menu-fila[open] > .menu-fila-lista,
+  .cuadre-tabla tbody tr, .km-recom, .ce-fila, .km-paso, .ce-pop, .rr-counter-num.rr-num-pop, .toast-app { animation: none !important; }
+  .overlay, .btn, .page-tab, .quick-card, .rr-item, .rr-counter-btn, .ce-paso, .ce-chip, #sidebar nav a, .km-otra, .toast-app, .km-switch-pista, .km-switch-pista i { transition: none !important; }
+  .btn:active, .page-tab:active, .quick-card:hover, .quick-card:active, .rr-item:active, .ce-paso:active, .km-otra:hover { transform: none !important; }
+}

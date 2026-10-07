@@ -49,7 +49,7 @@ function navRegistrar(estado = navEstadoActual()) {
 
 // ¿Hay algo abierto encima (ventana, diálogo, calendario)?
 function navHayAlgoEncima() {
-  return !!document.querySelector('.overlay.open, .dp-pop.dp-visible');
+  return !!document.querySelector('.overlay.open:not(.cerrando), .dp-pop.dp-visible');
 }
 
 async function navPuedeSalir() {

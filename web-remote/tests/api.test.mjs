@@ -8,7 +8,7 @@ const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const TOKEN = `x.${b64({ sub: 'emp1' })}.y`;
 
 async function llamar(nombre, { method = 'POST', body, query } = {}) {
-  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor','km-coche','estado-practica'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
+  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor','km-coche','estado-practica','corregir-clases'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
   let status = 200, json;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
   await mod.default({ method, headers: { authorization: 'Bearer ' + TOKEN }, body, query }, res);
@@ -978,4 +978,82 @@ test('estado-practica: dice si la clase sigue en curso, ya está cerrada, se can
   assert.equal((await est(practica_id)).estado, 'cancelada');
   assert.equal((await est(999)).estado, 'no_existe');
   assert.equal((await llamar('estado-practica', { method: 'GET', query: { id: 'x' } })).status, 400);
+});
+
+// ─── Corregir cuántas clases fue una sesión (borra la firma para que el alumno vuelva a firmar) ───
+const FIRMA_P = 'data:image/png;base64,iVBORw0KGgo=';
+function sesionCerrada({ n = 1, firmada = true, source = 'web-remote', fecha = hoy() } = {}) {
+  const t = base();
+  t.practicas = [];
+  const total = 60;
+  const partes = n === 2 ? [[1000, 1030, '10:00', '10:45', null], [1030, 1060, '10:45', '11:30', null]] : [[1000, 1060, '10:00', '11:30', null]];
+  partes.forEach(([ki, kf, h1, h2, fr], i) => t.practicas.push({ id: 10 + i, alumno_id: 2, vehiculo_id: 1, fecha, hora_inicio: h1, hora_fin: h2, km_inicial: ki, km_final: kf, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: 'emp1', source, firma: firmada ? FIRMA_P : null, fraccion: fr }));
+  void total;
+  return t;
+}
+
+test('corregir-clases: de 1 a 1 ½ conserva los km y las horas de la sesión, añade la media clase y borra la firma', async () => {
+  reiniciar(sesionCerrada());
+  const r = await llamar('corregir-clases', { body: { practica_id: 10, n_clases: 1.5, hoy: hoy() } });
+  assert.equal(r.status, 200); assert.equal(r.json.ok, true);
+  assert.equal(r.json.clases, 1.5); assert.equal(r.json.antes, 1); assert.equal(r.json.firmas_borradas, 1);
+  const filas = BD.tablas.practicas.filter(p => !p.deleted).sort((a, b) => a.km_inicial - b.km_inicial);
+  assert.deepEqual(filas.map(p => [p.km_inicial, p.km_final, p.fraccion ?? null]), [[1000, 1040, null], [1040, 1060, 0.5]]);
+  // 90 min de 10:00 a 11:30 partidos en 1 + ½: una clase de 60 min y la media de 30
+  assert.deepEqual(filas.map(p => [p.hora_inicio, p.hora_fin]), [['10:00', '11:00'], ['11:00', '11:30']]);
+  assert.ok(filas.every(p => !p.firma));
+  assert.ok(filas.every(p => p.source === 'web-remote' && p.alumno_id === 2 && p.vehiculo_id === 1));
+  // el detalle ya la enseña sin firmar y lista para volver a firmar
+  const d = await llamar('practica-detalle', { method: 'GET', query: { id: '10' } });
+  assert.equal(d.json.practica.firma, null);
+});
+
+test('corregir-clases: tras corregir una clase de ayer, sale en «Firmas pendientes» de Hoy', async () => {
+  const ayer = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  reiniciar(sesionCerrada({ fecha: ayer }));
+  assert.equal((await llamar('hoy', { method: 'GET', query: { fecha: hoy(), hoy: hoy(), profesor_id: '1' } })).json.sin_firma.length, 0);
+  await llamar('corregir-clases', { body: { practica_id: 10, n_clases: 1.5, hoy: hoy() } });
+  const h = await llamar('hoy', { method: 'GET', query: { fecha: hoy(), hoy: hoy(), profesor_id: '1' } });
+  assert.deepEqual(h.json.sin_firma.map(p => p.id).sort(), [10, 11]);
+});
+
+test('corregir-clases: de 2 a 1 quita la práctica que sobra (borrado suave) y deja los km de la sesión en la que queda', async () => {
+  reiniciar(sesionCerrada({ n: 2 }));
+  const r = await llamar('corregir-clases', { body: { practica_id: 11, n_clases: 1, hoy: hoy() } });
+  assert.equal(r.status, 200); assert.equal(r.json.firmas_borradas, 2);
+  const vivas = BD.tablas.practicas.filter(p => !p.deleted);
+  assert.equal(vivas.length, 1);
+  assert.deepEqual([vivas[0].km_inicial, vivas[0].km_final, vivas[0].fraccion ?? null, vivas[0].firma], [1000, 1060, null, null]);
+  assert.equal(BD.tablas.practicas.find(p => p.id === 11).deleted, true);
+});
+
+test('corregir-clases: misma cantidad no toca nada; valida cantidad, clase cerrada, origen y antigüedad', async () => {
+  reiniciar(sesionCerrada());
+  const igual = await llamar('corregir-clases', { body: { practica_id: 10, n_clases: 1, hoy: hoy() } });
+  assert.equal(igual.json.sin_cambios, true); assert.equal(BD.tablas.practicas[0].firma, FIRMA_P);
+  assert.equal((await llamar('corregir-clases', { body: { practica_id: 10, n_clases: 1.3 } })).status, 400);
+  assert.equal((await llamar('corregir-clases', { body: { practica_id: 10, n_clases: 9 } })).status, 400);
+  assert.equal((await llamar('corregir-clases', { body: { practica_id: 999, n_clases: 2 } })).status, 404);
+  reiniciar(sesionCerrada({ source: 'desktop' }));
+  assert.equal((await llamar('corregir-clases', { body: { practica_id: 10, n_clases: 2, hoy: hoy() } })).status, 403);
+  reiniciar(sesionCerrada({ fecha: '2026-01-02' }));
+  assert.equal((await llamar('corregir-clases', { body: { practica_id: 10, n_clases: 2, hoy: hoy() } })).status, 403);
+  const t = sesionCerrada(); t.practicas[0].km_final = 0;
+  reiniciar(t);
+  assert.equal((await llamar('corregir-clases', { body: { practica_id: 10, n_clases: 2, hoy: hoy() } })).status, 409);
+});
+
+test('corregir-clases: si los km no llegan para tantas clases se rechaza sin tocar nada', async () => {
+  const t = sesionCerrada(); t.practicas[0].km_inicial = 1000; t.practicas[0].km_final = 1002;
+  reiniciar(t);
+  const r = await llamar('corregir-clases', { body: { practica_id: 10, n_clases: 3, hoy: hoy() } });
+  assert.equal(r.status, 400); assert.equal(BD.tablas.practicas.length, 1); assert.equal(BD.tablas.practicas[0].firma, FIRMA_P);
+});
+
+test('practica-detalle: dice si la sesión se puede corregir (clases del móvil de los últimos 30 días) y cuántas clases tiene', async () => {
+  reiniciar(sesionCerrada({ n: 2 }));
+  const d = await llamar('practica-detalle', { method: 'GET', query: { id: '10' } });
+  assert.deepEqual(d.json.practica.corregible, { ids: [10, 11], n: 2 });
+  reiniciar(sesionCerrada({ source: 'desktop' }));
+  assert.equal((await llamar('practica-detalle', { method: 'GET', query: { id: '10' } })).json.practica.corregible, null);
 });
