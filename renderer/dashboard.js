@@ -106,7 +106,7 @@ function pintarKpisPanel(p) {
   document.getElementById('kpi-revisar-flag').classList.toggle('hidden', inc === 0);
   const enlace = document.getElementById('kpi-revisar-link');
   enlace.classList.toggle('hidden', inc === 0);
-  enlace.onclick = () => (p.sinKm > 0 ? navegarA('generar-km') : navegarA('kilometros', 'conflictos'));
+  enlace.onclick = () => (p.sinKm > 0 ? navegarA('kilometros', 'asistente') : navegarA('kilometros', 'conflictos'));
   set('kpi-revisar-sub', inc === 0
     ? 'Sin km en blanco ni solapamientos'
     : `${p.sinKm} sin km · ${p.solapamientos} solapamiento${p.solapamientos === 1 ? '' : 's'}`);
@@ -258,7 +258,7 @@ async function pintarAvisosPanel(p) {
   if (p.sinKm > 0) avisos.push({ nivel: 'err', ic: 'aviso', orden: 0,
     tit: `${p.sinKm} ${p.sinKm === 1 ? 'práctica sin km' : 'prácticas sin km'}`,
     desc: 'Genera los kilómetros de las prácticas en blanco respetando el odómetro del vehículo.',
-    btn: btn('Rellenar', "navegarA('generar-km')") });
+    btn: btn('Rellenar', "navegarA('kilometros', 'asistente')") });
   if (p.solapamientos > 0) avisos.push({ nivel: 'err', ic: 'aviso', orden: 0,
     tit: `${p.solapamientos} ${p.solapamientos === 1 ? 'solapamiento' : 'solapamientos'} de km`,
     desc: 'Hay prácticas cuyo tramo de kilómetros se pisa con otra del mismo vehículo.',
