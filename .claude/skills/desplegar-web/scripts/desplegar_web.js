@@ -19,8 +19,12 @@ const fileList = execSync('git ls-files', { cwd: WEB, encoding: 'utf-8' })
   // Las pruebas (Supabase falso, servidor local) no se publican
   .filter(f => f && f !== '.gitignore' && !f.startsWith('tests/'));
 
+// Región de las funciones (vercel.json → regions; Dublín, junto a la base de datos de Irlanda)
+const vercelJson = JSON.parse(fs.readFileSync(path.join(WEB, 'vercel.json'), 'utf-8'));
+const regiones = Array.isArray(vercelJson.regions) && vercelJson.regions.length ? { regions: vercelJson.regions } : {};
+
 async function main() {
-  console.log(`proyecto: ${proj.projectName} | archivos: ${fileList.length}`);
+  console.log(`proyecto: ${proj.projectName} | archivos: ${fileList.length} | región: ${(regiones.regions || ['por defecto']).join(', ')}`);
   if (DRY) { fileList.forEach(f => console.log('  ' + f)); return; }
 
   const files = fileList.map(f => ({
@@ -32,7 +36,8 @@ async function main() {
   const res = await fetch(`https://api.vercel.com/v13/deployments?teamId=${proj.orgId}`, {
     method: 'POST',
     headers: { Authorization: auth, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: proj.projectName, project: proj.projectName, target: 'production', files })
+    // La API no aplica sola el «regions» de vercel.json (la CLI sí lo manda): se pasa aquí
+    body: JSON.stringify({ name: proj.projectName, project: proj.projectName, target: 'production', files, ...regiones })
   });
   const dep = await res.json();
   if (!res.ok) { console.error('ERROR al crear deployment:', JSON.stringify(dep)); process.exit(1); }

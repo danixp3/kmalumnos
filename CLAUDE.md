@@ -13,7 +13,7 @@ Aplicación de escritorio (Windows) para una autoescuela: gestiona vehículos, a
 ```
 main.js       → proceso principal Electron: ventana, IPC handlers, auto-updater
 preload.js    → contextBridge, expone window.api al renderer
-index.html    → SPA (solo HTML), enlaza styles.css y los 41 <script> de renderer/
+index.html    → SPA (solo HTML), enlaza styles.css y los 46 <script> de renderer/ (CSP: nada externo)
 styles.css    → CSS de la app de escritorio (sistema ámbar/tinta), temas [data-theme="oscuro"/"negro"], paleta de gráficos
 fonts/        → Barlow, Barlow Condensed, IBM Plex Mono (woff2 locales; también en web-remote/fonts/)
 renderer/     → UI (vanilla JS) dividida en 41 <script> clásicos (globales, no módulos ES),
@@ -31,6 +31,10 @@ renderer/     → UI (vanilla JS) dividida en 41 <script> clásicos (globales, n
   cuadrar-km.js → pestaña «Cuadrar» de Cuadrar y generar km + franja de aviso en Prácticas
   historial-pantallas.js → botones laterales del ratón / Alt+←→: pantalla anterior y siguiente
   alumnos-repetidos.js → aviso en Alumnos, separar nombre y apellidos y juntar dos fichas de la misma persona
+  datepicker.js, validaciones.js → fechas escribibles con calendario; DNI/CP/teléfono/email/matrícula validados
+  exportar-datos.js → exportar todos los datos (Excel/CSV/JSON) y los de un alumno
+  cuadre-avanzado.js → Cuadrar km · modo avanzado (planning y compañeros sin registrar)
+  bloqueo.js, legal.js → bloqueo con PIN; condiciones, documentos legales, anonimización
   arranque.js → bienvenida + código de arranque (siempre el último)
 db.js         → índice de 40 líneas que re-exporta db/ (misma superficie pública, 51 exports)
 db/           → CRUD + algoritmos de km, por módulo
@@ -49,12 +53,15 @@ db/           → CRUD + algoritmos de km, por módulo
   campos-extra.js → campos ampliados de alumnos/profesores/vehículos (nº de registro y su siguiente número, sexo, nacionalidad…, coche habitual del profesor y coche en uso/retirado)
   exportar.js → alumnos (todos sus datos) y exámenes filtrados a CSV para Excel
   lector-tablas.js → leer Excel/ODS/DBF (SheetJS) y CSV/TXT/texto pegado con cualquier separador y codificación
+  codigos-postales.js → CP → provincia y poblaciones (assets/codigos-postales-es.json, GeoNames)
+  privacidad.js → plazos de conservación y anonimización de alumnos (RGPD)
 sync.js       → sincronización bidireccional con Supabase (auto-sync cada 2 min), resolución de colisiones
 migraciones/  → migraciones SQL de Supabase escritas pero NO APLICADAS (roles + sucursales)
 web-remote/   → web móvil + API serverless (deploy: cd web-remote && vercel --prod --yes); instalable como app (PWA: manifest.webmanifest, sw.js, icons/) y que funciona SIN COBERTURA (offline.js: cola de envíos y caché en la tablet)
 CONTEXT.md    → documentación técnica detallada (arquitectura, funciones, endpoints)
 RELEASE.md    → proceso paso a paso para publicar una nueva versión (automatizado en /publicar-release)
-CHANGELOG-SECURITY.md → auditoría de seguridad de julio 2026 y pendientes
+CHANGELOG-SECURITY.md → auditorías de seguridad (octubre y julio 2026) y pendientes
+LEGAL.md      → marco legal (RGPD, LSSI, RD 1295/2003, VeriFactu…), qué cubre la app y tareas del propietario
 HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto pasado)
 .claude/skills/ → skills del proyecto: publicar-release, desplegar-web, diagnostico-sync, etc.
 ```
@@ -80,9 +87,12 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-10-06 (madrugada). El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-10-07. El detalle histórico completo está en HISTORIAL.md._
 
-- **v1.30.0 (2026-10-06 madrugada, LISTA EN `main` con `package.json` 1.30.0, SIN PUBLICAR: falta generar el instalador y la release con `/publicar-release` desde el PC —en la nube no hay Electron, `xlsx` ni token de GitHub— y `/desplegar-web`; incluye la 1.29.1; sin migraciones):** caso del 06/10 (dos móviles con la misma clase, km encima de otros). Web: el móvil se entera de que otro teléfono canceló/cerró su clase (`/api/estado-practica`; guardarla igualmente con sus km o descartarla), `iniciar-practica` rechaza km menor que el último del coche (409 `km_menor_anterior`), `finalizar-practica` no pisa una clase ya cerrada, `cancelar-practica` pide confirmar si es una clase en curso de otro profesor; y la web es fluida (flechas de día instantáneas con caché/precarga, consultas en paralelo, lista de alumnos por tandas). Escritorio: Cuadrar km → **«Encajar desde aquí»** (`proponerEncajeKm`: la clase elegida empieza donde acabó la anterior y las siguientes se recalculan con el baremo; vista previa, aplicar y deshacer) y nombre + 1.er apellido del alumno en Prácticas, Panel, Pagos, Agenda, etc. (`core.nombreCorto`). Jest 564/62 (`migracion.test.js` solo falla en la nube por `xlsx`) + test:api 90.
+- **v1.31.0 (2026-10-07, escritorio PUBLICADO y web DESPLEGADA; migración `2026-10-07_seguridad.sql` APLICADA, datos intactos 37/1500/38; Electron 44):** fechas que se escriben (barras solas, mes/año de un clic; `renderer/datepicker.js`), DNI/NIE/CIF, CP→poblaciones (GeoNames), teléfono, email y matrícula validados (`renderer/validaciones.js`); columna «En la app» de Puesta en marcha; **exportar todos los datos** a Excel/CSV/JSON (`db/exportar.js`); Cuadrar km → **modo avanzado** con **compañeros sin registrar** (`renderer/cuadre-avanzado.js`, `companeros_km`; no crean alumnos ni clases) y la ficha DGT marca con «*» los km calculados.
+- **Seguridad y legal (v1.31.0):** ventana con sandbox/CSP/navegación bloqueada, bloqueo con PIN, cerrar sesión en los demás dispositivos, contraseña mínima 10, perfiles sin alta por email (fallo de secuestro entre clientes), funciones `anon` revocadas, web con cabeceras de seguridad, sin CDN externo y funciones en Dublín (`dub1`). Textos legales en `/legal/` (`scripts/paginas-legales.js`, `VERSION_LEGAL`), aceptación en la app, hoja de protección de datos, contrato de enseñanza y registro de actividades en PDF, anonimización y plazos de conservación (`db/privacidad.js`). Resumen y tareas del propietario en `LEGAL.md` (Vercel/Supabase Pro antes de vender) y `CHANGELOG-SECURITY.md`. Jest 614/67 + test:api 91 + smoke + barrido.
+
+- **v1.30.0 (2026-10-06 noche, escritorio PUBLICADO con auto-update verificado y web DESPLEGADA; incluye la 1.29.1; sin migraciones):** caso del 06/10 (dos móviles con la misma clase, km encima de otros). Web: el móvil se entera de que otro teléfono canceló/cerró su clase (`/api/estado-practica`; guardarla igualmente con sus km o descartarla), `iniciar-practica` rechaza km menor que el último del coche (409 `km_menor_anterior`), `finalizar-practica` no pisa una clase ya cerrada, `cancelar-practica` pide confirmar si es una clase en curso de otro profesor; y la web es fluida (flechas de día instantáneas con caché/precarga, consultas en paralelo, lista de alumnos por tandas). Escritorio: Cuadrar km → **«Encajar desde aquí»** (`proponerEncajeKm`: la clase elegida empieza donde acabó la anterior y las siguientes se recalculan con el baremo; vista previa, aplicar y deshacer) y nombre + 1.er apellido del alumno en Prácticas, Panel, Pagos, Agenda, etc. (`core.nombreCorto`). Jest 583/63 + test:api 90.
 
 - **v1.29.1 (2026-10-06 noche) — ficha del alumno en modo ventana (escritorio PUBLICADO):** el calendario «Días de práctica» y «Qué ha practicado» se pisaban con la columna derecha estrecha (290 px a 1200 px de ventana; también a 1366). Ahora esas tarjetas se adaptan a su propio ancho (`container-type` + `@container` en `styles.css`), `.card-head` baja la nota bajo el título y la leyenda del calendario se ve en tema oscuro. Solo CSS, sin migraciones. Jest 568/62 + smoke + barrido OK.
 
