@@ -101,6 +101,10 @@
     --info-bg: #E7EDFB;
     --info-fg: #1E4FB8;
     --info-border: #A9BDEB;
+    /* Procedencia (datos traídos de otro programa): verde azulado, distinto de los estados */
+    --proc-bg: #E2F2EF;
+    --proc-fg: #0E655B;
+    --proc-border: #A7D8D0;
     --tag-b-bg: #E7EDFB;
     --tag-b-fg: #1E4FB8;
     --tag-c-bg: #F3E8F7;
@@ -187,6 +191,9 @@
     --info-bg: #1A2444;
     --info-fg: #B7C8F5;
     --info-border: #2F4A9A;
+    --proc-bg: #12302C;
+    --proc-fg: #8ED8CC;
+    --proc-border: #23564F;
     --tag-b-bg: #1A2444;
     --tag-b-fg: #B7C8F5;
     --tag-c-bg: #2E1A3A;
@@ -273,6 +280,9 @@
     --info-bg: #10172E;
     --info-fg: #A5BAF0;
     --info-border: #263C80;
+    --proc-bg: #0B211E;
+    --proc-fg: #7FCFC2;
+    --proc-border: #1B4842;
     --tag-b-bg: #10172E;
     --tag-b-fg: #A5BAF0;
     --tag-c-bg: #1F1029;
@@ -3235,3 +3245,55 @@
   .overlay, .btn, .page-tab, .quick-card, .rr-item, .rr-counter-btn, .ce-paso, .ce-chip, #sidebar nav a, .km-otra, .toast-app, .km-switch-pista, .km-switch-pista i { transition: none !important; }
   .btn:active, .page-tab:active, .quick-card:hover, .quick-card:active, .rr-item:active, .ce-paso:active, .km-otra:hover { transform: none !important; }
 }
+
+/* ── Procedencia: datos traídos de otro programa (renderer/procedencia.js) ── */
+.tag-proc {
+  display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 700; line-height: 1; white-space: nowrap; vertical-align: middle;
+  background: var(--proc-bg); color: var(--proc-fg); box-shadow: inset 0 0 0 1px var(--proc-border);
+}
+.tag-proc svg { flex-shrink: 0; }
+.ficha-quien h1 .tag-proc { height: 24px; font-size: 12.5px; padding: 0 10px; font-family: var(--font-ui); letter-spacing: 0; }
+#f-alumnos-procedencia[hidden], .filtro-inline[hidden] { display: none !important; }
+/* Cabecera de grupo dentro de una tabla («Creados en AulaMovil» / «Traídos de …») */
+tbody.tb-grupo-cab tr:hover td, tr.grupo-proc:hover td { background: transparent; }
+tr.grupo-proc td { padding: 0 !important; border-bottom: 1px solid var(--border); background: var(--surface-2, var(--btn-gray-bg)); }
+.grupo-proc-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; border: none; background: transparent;
+  color: var(--text); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer;
+}
+.grupo-proc-btn:hover { background: color-mix(in srgb, var(--proc-bg) 55%, transparent); }
+.grupo-proc-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+tr.grupo-proc:not(.grupo-proc-app) .grupo-proc-btn { color: var(--proc-fg); }
+tr.grupo-proc:not(.grupo-proc-app) td { background: var(--proc-bg); }
+.grupo-proc-btn b { font-weight: 700; }
+.grupo-proc-chev { flex-shrink: 0; transition: transform .18s ease; }
+tr.grupo-proc.plegado .grupo-proc-chev { transform: rotate(-90deg); }
+.grupo-proc-n { color: var(--text-muted); font-weight: 600; }
+tr.grupo-proc:not(.grupo-proc-app) .grupo-proc-n, tr.grupo-proc:not(.grupo-proc-app) .grupo-proc-fecha { color: inherit; opacity: .8; }
+.grupo-proc-fecha { margin-left: auto; font-size: 12.5px; color: var(--text-muted); }
+tr.grupo-proc-pag td { padding: 8px 14px !important; font-size: 12.5px; color: var(--text-muted); }
+tr.grupo-proc-pag td { display: table-cell; }
+tr.grupo-proc-pag td > span:first-child { margin-right: 12px; }
+/* Ficha del alumno: línea que separa las clases de cada procedencia */
+tr.fila-sep-proc td {
+  padding: 7px 12px !important; font-size: 12.5px; font-weight: 600; letter-spacing: .01em;
+  background: var(--proc-bg); color: var(--proc-fg); border-top: 2px solid var(--proc-border);
+}
+tr.fila-sep-proc.fila-sep-app td { background: var(--surface-2, var(--btn-gray-bg)); color: var(--text-muted); border-top-color: var(--border-strong); }
+tr.fila-sep-proc td svg { vertical-align: -1px; margin-right: 4px; }
+/* Ajustes → Datos de otros programas */
+.proc-lista { display: flex; flex-direction: column; gap: 8px; max-width: 900px; }
+.proc-fila {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card);
+}
+.proc-fila-app { background: var(--surface-2, var(--btn-gray-bg)); }
+.proc-fila-txt { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 3px; }
+.proc-fila-txt > b { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+.proc-fila-txt small { font-size: 12.5px; color: var(--text-muted); }
+.proc-fecha { font-size: 12.5px; color: var(--text-muted); }
+.proc-fila-acc { display: flex; gap: 8px; flex-wrap: wrap; }
+.mg-proc input { width: 220px; margin: 0 6px; }
+.mg-proc small { display: block; margin-top: 3px; }
+

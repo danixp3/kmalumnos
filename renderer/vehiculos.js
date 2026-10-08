@@ -75,7 +75,7 @@ function pintarTarjetasVehiculos(panel) {
           </details>
         </div>
       </div>
-      <h3 class="veh-nombre">${esc(v.nombre)}</h3>
+      <h3 class="veh-nombre">${esc(v.nombre)}${datos.procedencia ? ' ' + etiquetaProcedencia(datos.procedencia) : ''}</h3>
       <div class="veh-sub">${[[datos.marca, datos.modelo].filter(Boolean).map(esc).join(' '), datos.cambio === 'automatico' ? 'automático' : '', v.profesor_habitual ? esc(v.profesor_habitual) + ' · profesor habitual' : 'Sin profesor habitual'].filter(Boolean).join(' · ')}</div>
       <div class="veh-odo"><span class="num-mono">${fmtMiles(v.km_actual)}</span><span class="veh-odo-u">km</span>${v.registro_hora ? `<span class="veh-odo-r">registro de las ${esc(v.registro_hora)}</span>` : ''}</div>
       <div class="veh-kpis">

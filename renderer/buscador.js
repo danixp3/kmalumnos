@@ -74,6 +74,7 @@ const BUSCADOR_DESTINOS = [
   { titulo: 'Cobros (matrícula, conceptos, precio por clase, IVA)', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-cobros', kw: 'matricula tasa iva importe cobros conceptos alta soporte informatico tarifas precio clase permiso' },
   { titulo: 'Combustible', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-pref-combustible', kw: 'combustible precio consumo litros coste gasolina diesel' },
   { titulo: 'Zonas de prácticas', sub: 'Ajustes · la web del móvil', page: 'ajustes', anchor: 'aj-zonas', kw: 'zonas recorridas practica web movil centro poligono autovia circuito' },
+  { titulo: 'Datos de otros programas', sub: 'Ajustes · lo traído del programa anterior', page: 'ajustes', anchor: 'aj-procedencia', kw: 'procedencia importados traidos programa anterior ariauto etiqueta separar antes despues migracion' },
   { titulo: 'Personalizar menú', sub: 'Ajustes · qué funciones se ven', page: 'ajustes', anchor: 'aj-menu', kw: 'menu lateral ocultar mostrar funciones personalizar barra simplificar' },
   { titulo: 'Datos del centro (DGT)', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-centro-dgt', kw: 'centro autoescuela dgt numero seccion ficha oficial' },
   { titulo: 'Volver a ver el tutorial', sub: 'Ajustes', page: 'ajustes', anchor: 'aj-ayuda', kw: 'tutorial ayuda guia reiniciar volver ver' },

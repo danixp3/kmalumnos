@@ -6,6 +6,7 @@
 // cada PC lleva el suyo propio en su data.json.
 
 const { load, save, nextId, addLog, filtrarPorSucursal } = require('./core');
+const { coincideProcedencia } = require('./procedencia');
 
 const TIPOS_VALIDOS = ['teorico', 'maniobras', 'circulacion'];
 const RESULTADOS_VALIDOS = ['pendiente', 'apto', 'no_apto', 'aplazado', 'no_presentado'];
@@ -236,18 +237,21 @@ function buscarExamenes(filtros = {}, sucursalId) {
   const texto = sinTildes(filtros.texto).trim();
   const palabras = texto ? texto.split(/\s+/) : [];
   const filas = [];
-  const permisos = new Set(), examinadores = new Set(), profesIds = new Set();
+  const permisos = new Set(), examinadores = new Set(), profesIds = new Set(), procedencias = new Set();
   for (const p of todos) {
     const a = alumnos.get(p.alumno_id) || null;
     const permiso = p.permiso || (a ? a.permiso : null) || null;
     if (permiso) permisos.add(permiso);
     if (p.examinador) examinadores.add(p.examinador);
     if (p.profesor_id != null) profesIds.add(p.profesor_id);
+    if (p.procedencia) procedencias.add(p.procedencia);
     if (filtros.tipo && p.tipo !== filtros.tipo) continue;
     if (filtros.resultado && p.resultado !== filtros.resultado) continue;
     if (filtros.profesor_id && String(p.profesor_id || '') !== String(filtros.profesor_id)) continue;
     if (filtros.permiso && permiso !== filtros.permiso) continue;
     if (filtros.examinador && p.examinador !== filtros.examinador) continue;
+    // Traídos de otro programa ('__otros'), creados aquí ('__app') o de un programa concreto
+    if (!coincideProcedencia(p.procedencia, filtros.procedencia)) continue;
     if (filtros.desde && (p.fecha || '') < filtros.desde) continue;
     if (filtros.hasta && (p.fecha || '') > filtros.hasta) continue;
     if (filtros.cuando === 'proximos' && !((p.fecha || '') >= hoy && p.resultado === 'pendiente')) continue;
@@ -280,6 +284,7 @@ function buscarExamenes(filtros = {}, sucursalId) {
     opciones: {
       permisos: [...permisos].sort(),
       examinadores: [...examinadores].sort((x, y) => x.localeCompare(y, 'es')),
+      procedencias: [...procedencias].sort((x, y) => x.localeCompare(y, 'es')),
       profesores: [...profesIds].map(id => ({ id, nombre: profes.get(id) ? profes.get(id).nombre : `Profesor ${id}` })).sort((x, y) => x.nombre.localeCompare(y.nombre, 'es'))
     }
   };

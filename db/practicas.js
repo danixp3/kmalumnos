@@ -5,6 +5,7 @@
 const { load, save, nextId, _sync, addLog, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, hoyLocalISO,
   clasesDePractica, fmtClases, firmaValida, nombreCorto } = require('./core');
 const { directorResuelto } = require('./ajustes-empresa');
+const { coincideProcedencia } = require('./procedencia');
 const { mapaContinuidad, getHuecosRevisados, TOLERANCIA_HUECO, getCompanerosKm, huecoDeCompaneros } = require('./cuadre-km');
 
 // Profesor que firma una clase: el que la dio; si no consta, el del alumno; y
@@ -187,7 +188,7 @@ function getPracticaDetalle(id) {
 
 function getTodasPracticas(filtros = {}) {
   const d = load();
-  const { desde, hasta, alumno_id, vehiculo_id, profesor_id, tipo, sucursal_id } = filtros || {};
+  const { desde, hasta, alumno_id, vehiculo_id, profesor_id, tipo, sucursal_id, procedencia } = filtros || {};
   const hoy = (filtros && filtros.hoy) || hoyLocalISO();
 
   const vivas = d.practicas.filter(p => !p.deleted);
@@ -218,6 +219,8 @@ function getTodasPracticas(filtros = {}) {
     .filter(p => vehiculo_id === undefined || vehiculo_id === null || vehiculo_id === '' || p.vehiculo_id === parseInt(vehiculo_id))
     .filter(p => profesor_id === undefined || profesor_id === null || profesor_id === '' || p.profesor_id === parseInt(profesor_id))
     .filter(p => !tipo || (p.tipo || 'circulacion') === tipo)
+    // Procedencia: '' todas, '__app' creadas en AulaMovil, '__otros' traídas de otro programa, o un programa
+    .filter(p => coincideProcedencia(p.procedencia, procedencia))
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id)
     .map(p => {
       const a = d.alumnos.find(x => x.id === p.alumno_id);
@@ -255,6 +258,7 @@ function getTodasPracticas(filtros = {}) {
         trabajado: Array.isArray(p.trabajado) ? p.trabajado : [],
         hora_fin: p.hora_fin || null,
         origen: p.source || null,
+        procedencia: p.procedencia || null,
         // Continuidad con la práctica anterior del mismo coche (null si es la primera o no hay km).
         km_incoherente: cont.incoherente || null,
         continuidad: (pv && !sinKm && !sinCerrar) ? {

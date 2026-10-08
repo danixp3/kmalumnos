@@ -50,6 +50,7 @@ module.exports = {
   ...require('./db/exportar'),
   ...require('./db/codigos-postales'),
   ...require('./db/privacidad'),
+  ...require('./db/procedencia'),
 
   getLogs: core.getLogs,
   clearLogs: core.clearLogs,

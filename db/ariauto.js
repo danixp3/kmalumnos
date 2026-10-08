@@ -45,6 +45,7 @@ const { normTexto, claveNombre, capitalizarNombre, limpiarDni, limpiarTelefono, 
 const { nombreDe, limpiarMatricula, registrarImportacion, buscadorParecidos } = mig._interno;
 const { CAMPOS_EXTRA, extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
 const { sugerirCocheProfesor } = require('./profesores');
+const { etiquetarCreados } = require('./procedencia');
 
 const NOTA_ARIAUTO = 'Importado de Ariauto';
 const MAX_PREVIA = 400;
@@ -1179,6 +1180,8 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
 
   const actualizadosAlumnos = registro.actualizados.filter(x => !x.tabla).length;
   registro.resumen = { ...plan.resumen, creadosAlumnos: registro.creados.alumnos.length, actualizadosAlumnos };
+  // Todo lo que entra queda marcado «Ariauto» (db/procedencia.js)
+  registro.procedencia = etiquetarCreados(d, registro.creados, 'Ariauto', ahora).nombre;
   registrarImportacion(d, registro);
   addLog('importacion', `Datos traídos de Ariauto (${registro.archivo}): ${registro.creados.alumnos.length} alumnos nuevos, ${actualizadosAlumnos} completados, ${registro.creados.practicas.length} clases con su fecha, ${registro.creados.presentaciones.length} exámenes, ${registro.creados.cargos.length} cargos y ${registro.creados.pagos.length} pagos`, []);
   save();
