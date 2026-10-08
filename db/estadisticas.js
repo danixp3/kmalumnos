@@ -2,7 +2,7 @@
 // Resumen general, tarjetas opcionales del dashboard y timeline de prácticas
 // de un vehículo (con detección de huecos/solapamientos frente a la anterior).
 
-const { load, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, nombreCorto } = require('./core');
+const { load, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, nombreCorto, alumnoTerminado } = require('./core');
 const { getSolapamientos } = require('./km-algoritmos');
 const { getDeudas } = require('./pagos');
 const { vehiculoEnUso } = require('./campos-extra');
@@ -18,7 +18,7 @@ function getResumen(sucursalId) {
   const vehiculos = filtrarPorSucursal(d.vehiculos, sucursalId);
   const alumnos = filtrarPorSucursal(d.alumnos, sucursalId);
   const practicas = filtrarPorSucursal(d.practicas, sucursalId);
-  const sinKm = practicas.filter(p => p.km_inicial === 0 && p.km_final === 0).length;
+  const sinKm = practicas.filter(p => p.km_inicial === 0 && p.km_final === 0 && p.tipo !== 'pista').length;
   // Contar solapamientos (no filtrado por sucursal: fuera del alcance de esta
   // funcionalidad, la detección de conflictos es global)
   const conflictos = getSolapamientos();
@@ -278,7 +278,8 @@ function _calcularSemaforo(practicasAlumno, previas = {}) {
  */
 function getSemaforoExamen() {
   const d = load();
-  const alumnos = d.alumnos.filter(a => !a.deleted);
+  // Los que ya no vienen (baja, inactivos, aprobados…) no tienen semáforo ni cuentan en el Panel
+  const alumnos = d.alumnos.filter(a => !a.deleted && !alumnoTerminado(a));
   const practicasPorAlumno = new Map();
   for (const p of d.practicas) {
     if (p.deleted) continue;
@@ -321,7 +322,8 @@ const RIESGO_DIAS_INACTIVIDAD = 30;
  */
 function getAlumnosEnRiesgo() {
   const d = load();
-  const alumnos = d.alumnos.filter(a => !a.deleted);
+  // Un alumno inactivo/de baja/aprobado ya no está «en riesgo de abandono»: no se avisa de él
+  const alumnos = d.alumnos.filter(a => !a.deleted && !alumnoTerminado(a));
   const practicasPorAlumno = new Map();
   for (const p of d.practicas) {
     if (p.deleted) continue;
@@ -646,7 +648,7 @@ function getPanel(hoy, sucursalId) {
     if (b.fecha_caducidad && b.fecha_caducidad < hoy) continue;
     if (saldo > 2 || b.n_clases <= 0) continue;
     const al = alumnos.find(a => a.id === b.alumno_id);
-    if (!al) continue;
+    if (!al || alumnoTerminado(al)) continue;
     const ex = pendientes.filter(x => x.alumno_id === al.id).sort((a, c) => a.fecha.localeCompare(c.fecha))[0];
     bonosCasiAgotados.push({
       bono_id: b.id, alumno_id: al.id, alumno: al.nombre,

@@ -175,3 +175,33 @@ test('sync sin la migración en la nube: no se mandan (ni en la subida completa)
   expect(res.ok).toBe(true);
   expect(mockRemote.tables.alumnos[0]).not.toHaveProperty('n_registro');
 });
+
+// ─── Permisos de cada coche (migración 2026-10-09): columna aparte ──────────────
+test('sync: los permisos del coche suben y bajan; un permiso nuevo llega de otro PC', async () => {
+  sync.setCredentials('jefe@test.com', 'password123');
+  const datos = datosSync(); datos.vehiculos[0].activo = true; datos.vehiculos[0].permisos = 'A2,A';
+  fs.writeFileSync(dataFile, JSON.stringify(datos), 'utf-8'); db._clearCache();
+  sync.markDirty('vehiculos', 1);
+  expect((await sync.sync()).ok).toBe(true);
+  expect(mockRemote.tables.vehiculos[0]).toMatchObject({ permisos: 'A2,A', marca: 'Seat' });
+  Object.assign(mockRemote.tables.vehiculos[0], { permisos: 'B', updated_at: futuro(5) });
+  expect((await sync.sync()).ok).toBe(true);
+  expect(leerLocal().vehiculos[0].permisos).toBe('B');
+});
+
+test('sync sin la columna de permisos en la nube: el resto de datos del coche sigue sincronizando y los permisos se conservan aquí', async () => {
+  mockRemote.columnasInexistentes = { vehiculos: ['permisos'] };
+  sync.setCredentials('jefe@test.com', 'password123');
+  const datos = datosSync(); datos.vehiculos[0].activo = false; datos.vehiculos[0].permisos = 'B';
+  fs.writeFileSync(dataFile, JSON.stringify(datos), 'utf-8'); db._clearCache();
+  sync.markDirty('vehiculos', 1);
+  expect((await sync.sync()).ok).toBe(true);
+  // Lo demás (retirado, marca…) llega a la nube; los permisos no, pero no se pierden
+  expect(mockRemote.tables.vehiculos[0]).toMatchObject({ activo: false, marca: 'Seat', poliza: '123' });
+  expect(mockRemote.tables.vehiculos[0]).not.toHaveProperty('permisos');
+  Object.assign(mockRemote.tables.vehiculos[0], { marca: 'Opel', updated_at: futuro(5) });
+  expect((await sync.sync()).ok).toBe(true);
+  expect(leerLocal().vehiculos[0]).toMatchObject({ marca: 'Opel', permisos: 'B' });
+  expect((await sync.pushAll()).ok).toBe(true);
+  expect(mockRemote.tables.vehiculos[0]).not.toHaveProperty('permisos');
+});

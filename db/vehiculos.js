@@ -5,7 +5,7 @@
 // rápido, móvil, selectores) ni sale en las estadísticas por coche.
 
 const { load, save, nextId, _sync, filtrarPorSucursal } = require('./core');
-const { extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
+const { extraerCamposExtra, camposExtraVacios, permisosDeVehiculo, permisosDeAlumno, vehiculoSirveParaAlumno } = require('./campos-extra');
 
 // sucursalId opcional: sin argumento (o null/'') devuelve todos los vehículos,
 // igual que antes de sucursales — ver filtrarPorSucursal en core.js. Los
@@ -74,6 +74,70 @@ function deleteVehiculo(id) {
   const s = _sync(); if (s) s.markDeleted('vehiculos', id);
 }
 
+// ─── PERMISOS DE CADA COCHE ──────────────────────────────────────────────────
+// Un coche puede tener puestos los permisos con los que se da clase («B»; «A2,A,A1,AM»).
+// Así a un alumno de moto no se le propone (ni se le enseña) el coche de B del profesor.
+// Sin permisos puestos, el coche vale para todos (como siempre).
+
+/**
+ * Permisos que parecen servir para un coche según cómo se ha usado: los de los
+ * alumnos que han dado clase en él (con al menos 2 clases). Solo lectura. [] si no se puede saber.
+ */
+function sugerirPermisosVehiculo(vehiculoId) {
+  const d = load();
+  const vid = parseInt(vehiculoId);
+  const alumnos = new Map(d.alumnos.filter(a => !a.deleted).map(a => [a.id, a]));
+  const cuenta = new Map();
+  for (const p of d.practicas) {
+    if (p.deleted || p.vehiculo_id !== vid) continue;
+    const a = alumnos.get(p.alumno_id);
+    if (a && a.permiso) cuenta.set(a.permiso, (cuenta.get(a.permiso) || 0) + 1);
+  }
+  // Solo lo que cuentan las clases dadas (los alumnos «asignados» al coche no son fiables: se asignaron sin mirar el permiso)
+  const permisos = [...cuenta.entries()].filter(([, n]) => n >= 2).map(([p]) => p);
+  const limpio = extraerCamposExtra('vehiculos', { permisos }).permisos; // en orden y solo permisos conocidos
+  return limpio ? permisosDeVehiculo({ permisos: limpio }) : [];
+}
+
+/**
+ * El coche que conviene proponer a un alumno de este permiso con este profesor:
+ *   · uno que sirva para su permiso (permiso marcado en el coche; los coches sin
+ *     permisos puestos valen pero puntúan menos),
+ *   · mejor si es el coche habitual del profesor, y si es el que él ha usado
+ *     últimamente con alumnos de ese permiso.
+ * Sin una señal clara (nada marcado y sin coche habitual que sirva) devuelve null:
+ * mejor no proponer ninguno que enseñar el coche de otro permiso. Solo lectura.
+ * `alumno` = { permiso, permisos?, profesor_id? }. Devuelve el id del coche o null.
+ */
+function sugerirCocheAlumno(alumno = {}) {
+  const d = load();
+  const al = { permiso: alumno.permiso || 'B', permisos: alumno.permisos || [] };
+  const permisosAl = new Set(permisosDeAlumno(al));
+  const pid = alumno.profesor_id ? parseInt(alumno.profesor_id) : null;
+  const prof = pid ? d.profesores.find(x => x.id === pid && !x.deleted) : null;
+  const candidatos = d.vehiculos.filter(v => !v.deleted && v.activo !== false && vehiculoSirveParaAlumno(v, al) !== 'no');
+  if (!candidatos.length) return null;
+  // Lo que ha usado el profesor (últimos 180 días) con alumnos de este permiso
+  const alumnos = new Map(d.alumnos.map(a => [a.id, a]));
+  const desde = new Date(Date.now() - 180 * 864e5).toISOString().slice(0, 10);
+  const usos = new Map(), usosTodos = new Map();
+  for (const p of d.practicas) {
+    if (p.deleted || (p.fecha || '') < desde) continue;
+    const a = alumnos.get(p.alumno_id);
+    if (!a || !permisosDeAlumno(a).some(x => permisosAl.has(x))) continue;
+    usosTodos.set(p.vehiculo_id, (usosTodos.get(p.vehiculo_id) || 0) + 1);
+    if (pid && p.profesor_id === pid) usos.set(p.vehiculo_id, (usos.get(p.vehiculo_id) || 0) + 1);
+  }
+  const maxProf = Math.max(0, ...usos.values()), maxTodos = Math.max(0, ...usosTodos.values());
+  const puntos = v => (vehiculoSirveParaAlumno(v, al) === 'si' ? 4 : 0)
+    + (prof && prof.vehiculo_id === v.id ? 3 : 0)
+    + (maxProf && usos.get(v.id) === maxProf ? 2 : 0)
+    + (maxTodos ? (usosTodos.get(v.id) || 0) / maxTodos : 0);
+  const mejor = candidatos.map(v => ({ v, p: puntos(v) })).sort((a, b) => b.p - a.p || a.v.nombre.localeCompare(b.v.nombre))[0];
+  return mejor && mejor.p >= 3 ? mejor.v.id : null;
+}
+
 module.exports = {
   getVehiculos, addVehiculo, updateVehiculoKm, updateVehiculo, setVehiculoActivo, deleteVehiculo,
+  sugerirPermisosVehiculo, sugerirCocheAlumno,
 };

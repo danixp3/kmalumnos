@@ -77,6 +77,7 @@ function pintarTarjetasVehiculos(panel) {
       </div>
       <h3 class="veh-nombre">${esc(v.nombre)}${datos.procedencia ? ' ' + etiquetaProcedencia(datos.procedencia) : ''}</h3>
       <div class="veh-sub">${[[datos.marca, datos.modelo].filter(Boolean).map(esc).join(' '), datos.cambio === 'automatico' ? 'automático' : '', v.profesor_habitual ? esc(v.profesor_habitual) + ' · profesor habitual' : 'Sin profesor habitual'].filter(Boolean).join(' · ')}</div>
+      <div class="veh-permisos-fila" title="Permisos con los que se da clase con este vehículo">${permisosDeCoche(datos).length ? permisosDeCoche(datos).map(tagPermiso).join(' ') : `<button type="button" class="veh-sin-permisos" onclick="openEditVehiculo(${v.id})">Indicar permisos…</button>`}</div>
       <div class="veh-odo"><span class="num-mono">${fmtMiles(v.km_actual)}</span><span class="veh-odo-u">km</span>${v.registro_hora ? `<span class="veh-odo-r">registro de las ${esc(v.registro_hora)}</span>` : ''}</div>
       <div class="veh-kpis">
         <div><span class="eyebrow">${mesTxt}</span><b class="num-mono">${fmtMiles(v.recorridos_mes)} km</b></div>
@@ -230,7 +231,23 @@ async function retirarVehiculo(id, enUso) {
   loadVehiculos();
 }
 
+// Casillas de permisos de un coche (alta y edición): los mismos del catálogo de vehículos
+const PERMISOS_COCHE = ['AM', 'A1', 'A2', 'A', 'B', 'BE', 'C1', 'C1E', 'C', 'CE', 'D1', 'D1E', 'D', 'DE', 'CAP', 'ADR'];
+const permisosDeCoche = v => String((v && v.permisos) || '').split(',').map(s => s.trim()).filter(Boolean);
+// ¿Sirve este coche para esos permisos? Sin permisos puestos en el coche, sí (como siempre).
+function cocheSirveParaPermisos(v, permisos) {
+  const de = permisosDeCoche(v);
+  return !de.length || [].concat(permisos || []).some(p => de.includes(p));
+}
+function pintarPermisosCoche(contId, marcados) {
+  const cont = document.getElementById(contId); if (!cont) return;
+  const set = new Set(marcados || []);
+  cont.innerHTML = PERMISOS_COCHE.map(p => `<label><input type="checkbox" value="${p}"${set.has(p) ? ' checked' : ''}> ${p}</label>`).join('');
+}
+const leerPermisosCoche = contId => [...document.querySelectorAll(`#${contId} input[type="checkbox"]:checked`)].map(cb => cb.value);
+
 function abrirNuevoVehiculo() {
+  pintarPermisosCoche('v-permisos', []);
   ['v-nombre', 'v-matricula', 'v-km'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   openModal('modal-vehiculo-nuevo');
   setTimeout(() => document.getElementById('v-nombre')?.focus(), 60);
@@ -323,7 +340,7 @@ async function addVehiculo() {
   const matricula = document.getElementById('v-matricula').value.trim();
   const km = parseFloat(document.getElementById('v-km').value) || 0;
   if (!nombre) { alert('Introduce un nombre para el vehículo.'); return; }
-  await window.api.addVehiculo(nombre, matricula, km, getSucursalActual());
+  await window.api.addVehiculo(nombre, matricula, km, getSucursalActual(), { permisos: leerPermisosCoche('v-permisos') });
   document.getElementById('v-nombre').value = '';
   document.getElementById('v-matricula').value = '';
   document.getElementById('v-km').value = '';
@@ -347,7 +364,20 @@ function openEditVehiculo(id) {
   document.getElementById('edit-v-km').value = v.km_actual || 0;
   for (const c of CAMPOS_VEHICULO_MODAL) { const el = document.getElementById('edit-v-' + c); if (el) el.value = v[c] || ''; }
   document.getElementById('edit-v-activo').checked = v.activo !== false;
+  pintarPermisosCoche('edit-v-permisos', permisosDeCoche(v));
+  pintarSugerenciaPermisosCoche(id, permisosDeCoche(v));
   openModal('modal-vehiculo');
+}
+
+// Si el coche no tiene permisos puestos, se propone lo que cuentan sus clases («Según sus clases: B»)
+async function pintarSugerenciaPermisosCoche(id, actuales) {
+  const cont = document.getElementById('edit-v-permisos-ayuda'); if (!cont) return;
+  cont.innerHTML = '';
+  if (actuales.length) return;
+  let sug = [];
+  try { sug = await window.api.sugerirPermisosVehiculo(id); } catch (e) { sug = []; }
+  if (!sug.length || parseInt(document.getElementById('edit-v-id').value) !== id) return;
+  cont.innerHTML = `Según las clases que se han dado con él: <b>${sug.map(esc).join(', ')}</b> <button type="button" class="btn btn-sm btn-outline" onclick="pintarPermisosCoche('edit-v-permisos', ${JSON.stringify(sug).replace(/"/g, '&quot;')}); this.parentNode.innerHTML = ''">Marcarlos</button>`;
 }
 
 async function saveVehiculo() {
@@ -357,7 +387,7 @@ async function saveVehiculo() {
   const km = parseFloat(document.getElementById('edit-v-km').value);
   if (!nombre) { alert('Introduce un nombre para el vehículo.'); return; }
   if (isNaN(km)) { alert('Introduce un km válido.'); return; }
-  const datos = { activo: document.getElementById('edit-v-activo').checked };
+  const datos = { activo: document.getElementById('edit-v-activo').checked, permisos: leerPermisosCoche('edit-v-permisos') };
   for (const c of CAMPOS_VEHICULO_MODAL) { const el = document.getElementById('edit-v-' + c); if (el) datos[c] = el.value.trim(); }
   const antes = vehiculosCache.find(x => x.id === id) || {};
   await window.api.updateVehiculo(id, nombre, matricula, datos);

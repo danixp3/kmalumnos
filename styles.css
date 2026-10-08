@@ -2492,13 +2492,17 @@
   .acciones-fila { white-space: nowrap; text-align: right; }
   .acciones-fila > .btn { vertical-align: middle; }
   .tabla-alumnos { table-layout: auto; }
-  .tabla-alumnos th, .tabla-alumnos td { padding-left: 10px; padding-right: 10px; }
+  .tabla-alumnos th, .tabla-alumnos td { padding-left: 8px; padding-right: 8px; }
+  .tabla-alumnos td.col-prof { max-width: 128px; }
   .tabla-alumnos th { white-space: nowrap; }
   /* «Última práctica» y «Próxima clase» en dos líneas: en una sola ensanchaban
      tanto la tabla que a 1366 px se cortaba la columna de acciones */
-  .tabla-alumnos th:nth-child(6), .tabla-alumnos th:nth-child(7) { white-space: normal; line-height: 1.25; }
-  .tabla-alumnos td:nth-child(6), .tabla-alumnos td:nth-child(7) { min-width: 84px; }
+  .tabla-alumnos th:nth-child(7), .tabla-alumnos th:nth-child(8) { white-space: normal; line-height: 1.25; }
+  .tabla-alumnos td:nth-child(7), .tabla-alumnos td:nth-child(8) { min-width: 84px; }
   .tabla-alumnos td:nth-child(2) { min-width: 190px; }
+  /* Alta: dd/mm/aa en cifras de ancho fijo, sin partirse */
+  .tabla-alumnos .col-alta { width: 1%; white-space: nowrap; font-family: var(--font-mono, 'IBM Plex Mono', monospace); font-size: 13px; color: var(--text-muted); }
+  .tabla-alumnos th.col-alta { font-family: inherit; }
   /* Nº de registro: estrecho, en cifras de ancho fijo */
   .tabla-alumnos .col-reg { width: 1%; white-space: nowrap; font-family: var(--font-mono, 'IBM Plex Mono', monospace); font-size: 13.5px; font-weight: 600; color: var(--text-muted); }
   .tabla-alumnos th.col-reg { font-family: inherit; }
@@ -2518,6 +2522,29 @@
   .menu-fila-lista .menu-fila-borrar { color: var(--danger); }
   .menu-fila-lista .menu-fila-borrar:hover { background: var(--danger-light); }
   .tabla-pie { display: flex; justify-content: space-between; gap: 12px; padding: 10px 4px 0; font-size: 13px; color: var(--text-muted); }
+
+  /* Estado del alumno: la pastilla se pulsa y abre la lista de estados */
+  .estado-menu { margin-left: 0; }
+  .estado-btn { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px 2px 0; border-radius: 999px; color: var(--text-faint); }
+  .estado-btn:hover { color: var(--text); }
+  .estado-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .estado-menu .menu-fila-lista { min-width: 250px; }
+  .estado-cab { padding: 6px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+  .estado-op .estado-ok { width: 14px; flex: none; color: var(--accent-text); font-weight: 800; }
+  .estado-op small { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--text-faint); }
+  .estado-op-actual { font-weight: 700; }
+  .estado-pie { margin: 4px 4px 2px; padding: 8px 6px 4px; border-top: 1px solid var(--border); font-size: 11.5px; line-height: 1.35; color: var(--text-muted); }
+  .menu-fila-lista .estado-antiguos { color: var(--accent-text); font-weight: 600; }
+
+  /* Aviso mientras se escribe: «¿Has escrito también los apellidos?» */
+  .sug-nombre { grid-column: 1 / -1; flex: 1 1 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 2px 0 6px; padding: 8px 12px; border-radius: 10px; background: var(--accent-light); color: var(--accent-text); font-size: 13px; }
+  .sug-nombre.hidden { display: none; }
+  .sug-nombre span { flex: 1 1 260px; }
+
+  /* Alumnos antiguos: barra de meses y tabla con scroll propio */
+  .aa-barra { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 12px; font-size: 13.5px; color: var(--text-muted); }
+  .aa-barra .seg button { height: 32px; padding: 0 12px; font-size: 13.5px; }
+  .aa-tabla { max-height: 46vh; overflow: auto; }
 
   /* Modal ancho de dos/tres columnas (alta de alumno, práctica...) */
   .modal-ancho { width: 860px; }
@@ -2542,6 +2569,7 @@
   .ficha-quien { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 6px; }
   .ficha-quien h1 { margin: 0; font-family: var(--font-display); font-size: 38px; font-weight: 700; line-height: 1; }
   .ficha-linea { font-size: 15px; color: var(--btn-gray-fg); }
+  .ficha-linea-estado { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
   .ficha-contacto { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--text-muted); }
   .ficha-dato { display: inline-flex; align-items: center; gap: 6px; }
   .ficha-expedientes { margin-top: 8px; font-size: 13px; color: var(--text-muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -3300,3 +3328,89 @@ tr.fila-sep-proc td svg { vertical-align: -1px; margin-right: 4px; }
 .mg-proc input { width: 220px; margin: 0 6px; }
 .mg-proc small { display: block; margin-top: 3px; }
 
+/* ── CADUCIDADES: una tabla por tipo (2026-10-09) ─────────────────────────── */
+.venc-barra { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 16px; }
+.venc-chips { flex-wrap: wrap; }
+.venc-chips button { position: relative; }
+.venc-punto { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--warn-fg-soft); vertical-align: middle; }
+.venc-punto-mal { background: var(--danger); }
+.venc-terminados { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; }
+.venc-terminados input { margin: 0; flex: none; }
+.venc-card .card-title { flex-wrap: wrap; row-gap: 4px; margin-bottom: 14px; }
+.venc-ic { background: var(--accent-light); color: var(--accent-text); }
+.venc-cuenta { margin-left: auto; font-size: 13px; font-weight: 500; color: var(--text-muted); }
+.venc-mal { color: var(--danger); font-weight: 700; }
+.venc-pronto { color: var(--warn-fg); font-weight: 700; }
+.tabla-venc td.venc-entidad { font-weight: 600; }
+.tabla-venc td.venc-fecha small { display: block; margin-top: 2px; font-size: 12px; color: var(--text-muted); }
+.tabla-venc td.venc-acciones { white-space: nowrap; text-align: right; width: 1%; }
+.tabla-venc td.venc-acciones .btn + .btn { margin-left: 4px; }
+.tabla-venc tr.venc-hecha td { opacity: .6; }
+.tabla-venc tr.venc-hecha td.venc-acciones { opacity: 1; }
+
+/* ── CASILLAS Y OPCIONES: nunca a todo lo ancho (2026-10-09) ───────────────────
+   Las ventanas anchas daban `width:100% !important` a todo input: una casilla de
+   verificación ocupaba la fila entera y quedaba centrada encima de su texto. */
+.modal input[type="checkbox"], .modal input[type="radio"],
+.modal-ancho input[type="checkbox"], .modal-ancho input[type="radio"],
+.fd-form input[type="checkbox"], .fd-form input[type="radio"] { width: auto !important; flex: none; }
+
+/* ── Permisos de cada vehículo ── */
+.veh-permisos-fila { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 24px; margin: 8px 0 0; }
+.veh-sin-permisos { padding: 0; border: none; background: none; color: var(--text-faint); font-family: inherit; font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.veh-sin-permisos:hover { color: var(--accent-text); }
+.veh-permisos .permisos-checks { gap: 8px 16px; padding-top: 2px; }
+.veh-permisos .permisos-checks label { font-size: 14px; font-weight: 600; cursor: pointer; }
+.veh-permisos-ayuda { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; font-size: 13px; color: var(--text-muted); }
+.veh-permisos-ayuda:empty { display: none; }
+
+/* ── Ficha DGT: una ficha por tipo y profesor ── */
+.ficha-ops { display: flex; flex-direction: column; gap: 8px; }
+.ficha-op { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); cursor: pointer; font-weight: 500; color: var(--text); }
+.ficha-op:hover { border-color: var(--text-faint); }
+.ficha-op input { margin-top: 3px; }
+.ficha-op-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ficha-op-tit { font-size: 14.5px; }
+.ficha-op-prof { color: var(--text-muted); font-weight: 600; }
+.ficha-op small { font-size: 12.5px; font-weight: 400; color: var(--text-muted); }
+.ficha-nota { margin: 8px 0 0; font-size: 12.5px; color: var(--text-muted); }
+.ficha-nota:empty { display: none; }
+
+/* ── Cambio de profesor ── */
+.cp-quien { margin: 4px 0 14px; font-size: 14px; color: var(--text-muted); }
+.cp-form { margin-bottom: 14px; }
+.cp-resumen { padding: 12px 14px; border-radius: 10px; background: var(--surface-2); font-size: 13.5px; line-height: 1.45; color: var(--text); }
+.cp-resumen ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.ficha-profes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin-top: 8px; }
+.ficha-profes-et { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.ficha-prof { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); font-size: 13px; }
+.ficha-prof small { font-size: 12px; color: var(--text-muted); }
+.ficha-prof.actual { border-color: var(--accent); background: var(--accent-light); }
+.ficha-prof-flecha { color: var(--text-faint); }
+
+/* ── ESPACIADOS Y DETALLES (2026-10-09) ─────────────────────────────────────────
+   Cosas que quedaban pegadas a lo de al lado o sin estilo. */
+/* Filtros (Desde/Hasta…) encima de una tabla: separados de ella */
+.form-row + .table-wrap, .form-row + table, .form-row + .card, .form-row + .tabla-scroll { margin-top: 16px; }
+/* Botón «Añadir…» o nota justo debajo de una tabla */
+.table-wrap + .btn, .table-wrap + p, .cuadre-tabla + .cuadre-nota { margin-top: 12px; }
+.pm-paso .table-wrap + .btn { margin-top: 12px; }
+.btn + .aj-intro, .btn + p.aj-intro { margin-top: 12px; }
+/* Resúmenes en recuadro (Informes, Exámenes, Captación) */
+.stat-box { flex: 1 1 130px; min-width: 120px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.stat-label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.stat-value { margin-top: 6px; font-family: var(--font-display); font-size: 30px; font-weight: 700; line-height: 1.1; color: var(--text); }
+.stat-sub { margin-top: 4px; font-size: 13px; color: var(--text-muted); }
+.stats-row { margin-bottom: 16px; }
+/* Panel: las tarjetas de abajo en dos columnas apiladas, sin huecos vacíos */
+.panel-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.panel-col > .card { margin-bottom: 0 !important; }
+.panel-col > .card.hidden { display: none; }
+/* Alta de alumno: las fechas ocupan lo mismo que los demás campos */
+.modal-ancho .form-row .form-group > .datepicker { width: 100% !important; }
+
+/* Ventanas: los campos apilados dentro de una fila se separan lo mismo que los demás (antes 24 px: hueco + margen) */
+.modal:not(.modal-ancho) .form-row { row-gap: 0; }
+/* Ficha del alumno: la pastilla de estado va en la misma línea que el resto de datos */
+.ficha-linea-estado { display: block; }
+.ficha-linea-estado .estado-menu { margin-right: 8px; vertical-align: middle; }

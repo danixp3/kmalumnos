@@ -51,6 +51,17 @@ function fichaSvg(d, w, extra) {
   return `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra || ''}>${d}</svg>`;
 }
 
+// Profesores que le han dado clase: si ha tenido más de uno, cada uno con sus clases y fechas (lo
+// que se quedó con cada uno al cambiar de profesor), y el botón para cambiarlo de profesor.
+function filaProfesoresFicha(f) {
+  const lista = (f.profesores || []).filter(p => p.id != null);
+  const chips = lista.length > 1 ? lista.map(p => {
+    const periodo = p.desde === p.hasta ? fmtFecha(p.desde) : `${fmtFecha(p.desde)} – ${fmtFecha(p.hasta)}`;
+    return `<span class="ficha-prof${p.actual ? ' actual' : ''}" title="${p.actual ? 'Su profesor ahora' : 'Le dio estas clases; salen en su ficha DGT'}"><b>${esc(nombrePropio(p.nombre || 'Profesor'))}</b> <small>${fmtClases(p.clases)} ${p.clases > 0 && p.clases <= 1 ? 'clase' : 'clases'} · ${periodo}</small></span>`;
+  }).join('<span class="ficha-prof-flecha" aria-hidden="true">→</span>') : '';
+  return `<div class="ficha-profes">${chips ? `<span class="ficha-profes-et">Profesores</span>${chips}` : ''}<button type="button" class="btn btn-sm btn-outline" onclick="abrirCambioProfesor(${f.alumno.id})" title="Pasa al alumno a otro profesor: lo ya dado se queda con quien lo dio">Cambiar de profesor</button></div>`;
+}
+
 function pintarCabeceraFicha(f) {
   const a = f.alumno;
   const nombreCompleto = [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
@@ -96,8 +107,9 @@ function pintarCabeceraFicha(f) {
     <div class="ficha-cab-fila">
       <span class="avatar-ini avatar-ini-lg" aria-hidden="true" data-ini="${esc(iniciales(nombreCompleto))}">${esc(iniciales(nombreCompleto))}</span>
       <div class="ficha-quien">
-        <h1>${esc(nombreCompleto)}${estado === 'baja' ? ' <span class="pill pill-err" style="vertical-align:middle">Baja</span>' : estado === 'inactivo' ? ' <span class="pill pill-line" style="vertical-align:middle">Inactivo</span>' : ''}${a.procedencia ? ' ' + etiquetaProcedencia(a.procedencia, { larga: true }) : ''}</h1>
-        <span class="ficha-linea">${linea1}</span>
+        <h1>${esc(nombreCompleto)}${a.procedencia ? ' ' + etiquetaProcedencia(a.procedencia, { larga: true }) : ''}</h1>
+        <span class="ficha-linea ficha-linea-estado">${pillEstadoAlumno(a)}<span>${linea1}</span></span>
+        ${filaProfesoresFicha(f)}
         <div class="ficha-contacto">${contacto}</div>
         ${(f.otros_expedientes || []).length ? `<div class="ficha-expedientes" title="La misma persona con otro permiso o curso: cada uno es un expediente con su nº">Otros expedientes: ${f.otros_expedientes.map(x =>
           `<button type="button" class="pill pill-line ficha-exp" onclick="verPracticas(${x.id},${x.vehiculo_id || 'null'},'${esc(x.nombre)}')">${x.n_registro ? 'Nº ' + esc(x.n_registro) + ' · ' : ''}${esc(x.permiso)}${x.estado ? ' · ' + esc(ESTADO_ALUMNO_TEXTO[x.estado] || x.estado) : ''}</button>`).join(' ')}</div>` : ''}

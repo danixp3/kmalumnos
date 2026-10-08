@@ -17,7 +17,7 @@
 const { load, save, nextId, _sync, addLog, crearBackup } = require('./core');
 const { contarClasesAnteriores } = require('./clases-anteriores');
 const { leerCantidadClases, aCuartos, fmtClases } = require('./core');
-const { siguienteNRegistro, alumnoConNRegistro } = require('./campos-extra');
+const { siguienteNRegistro, alumnoConNRegistro, vehiculoSirveParaAlumno } = require('./campos-extra');
 
 // Los que ya terminaron no se listan aquí (tras traer los de otro programa
 // serían cientos): esta pantalla es para los que están dando clase.
@@ -63,7 +63,7 @@ function getPuestaEnMarcha() {
   }
   const anteriores = contarClasesAnteriores(d);
   const vehiculos = d.vehiculos.filter(v => !v.deleted).map(v => ({
-    id: v.id, nombre: v.nombre, matricula: v.matricula || '', km_actual: Math.round(v.km_actual || 0),
+    id: v.id, nombre: v.nombre, matricula: v.matricula || '', activo: v.activo !== false, km_actual: Math.round(v.km_actual || 0),
     practicas: (porVehiculo.get(v.id) || {}).n || 0, km_max_practicas: (porVehiculo.get(v.id) || {}).maxKm || 0
   })).sort((a, b) => a.nombre.localeCompare(b.nombre));
   const profesores = d.profesores.filter(p => !p.deleted).map(p => ({ id: p.id, nombre: p.nombre, vehiculo_id: p.vehiculo_id || null }))
@@ -241,7 +241,8 @@ function guardarPuestaEnMarcha({ vehiculos = [], profesores = [], alumnos = [] }
       if (!campos.vehiculo_id && campos.profesor_id) {
         const pr = d.profesores.find(y => y.id === campos.profesor_id);
         const v = pr && pr.vehiculo_id ? d.vehiculos.find(y => y.id === pr.vehiculo_id && !y.deleted && y.activo !== false) : null;
-        if (v) campos.vehiculo_id = v.id;
+        // Solo si el coche sirve para el permiso del alumno (un alumno de moto no hereda el coche de B)
+        if (v && vehiculoSirveParaAlumno(v, { permiso: campos.permiso || 'B' }) !== 'no') campos.vehiculo_id = v.id;
       }
       d.alumnos.push({
         id, nombre, ...campos, n_registro: nReg || siguienteNRegistro(d.alumnos), sucursal_id: null, email: null, n_inscripcion: null,

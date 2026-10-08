@@ -46,7 +46,8 @@ async function principal() {
   const [ancho, alto] = (process.env.CAPTURAS_TAM || '1366x768').split('x').map(Number);
   const v = ventana(); if (v.isMaximized()) v.unmaximize(); v.setContentSize(ancho, alto); await espera(600);
   for (const [nombre, js] of PASOS) {
-    try { await ev(js); } catch (e) { console.log(nombre, 'ERROR', e.message); }
+    // Lo que devuelve el paso (si no es true) se muestra: sirve para medir anchos, contar cosas…
+    try { const r = await ev(js); if (r !== true && r !== undefined) console.log(nombre, '→', typeof r === 'string' ? r : JSON.stringify(r)); } catch (e) { console.log(nombre, 'ERROR', e.message); }
     await espera(1400);
     const img = await v.webContents.capturePage();
     fs.writeFileSync(path.join(SALIDA, nombre + '.png'), img.toPNG());

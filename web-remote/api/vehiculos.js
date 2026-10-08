@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, getSupabase, withRetry, handleSupabaseError } from './_utils.js';
+import { setCorsHeaders, requireAuth, getSupabase, withRetry, handleSupabaseError, esErrorColumnaInexistente } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -13,15 +13,18 @@ export default async function handler(req, res) {
 
   // Los coches retirados en el escritorio (activo = false) no se ofrecen para
   // dar clase. Si la base aún no tiene la columna, se piden todos como antes.
-  const pedir = conActivo => withRetry(() => {
-    let q = supabase.from('vehiculos').select('id, nombre, matricula, km_actual')
+  // `permisos` = los permisos con los que se da clase con el coche (migración 2026-10-09): la web no
+  // propone un coche de B a un alumno de moto. Si esa columna aún no existe, se piden sin ella.
+  const pedir = (conActivo, conPermisos) => withRetry(() => {
+    let q = supabase.from('vehiculos').select(conPermisos ? 'id, nombre, matricula, km_actual, permisos' : 'id, nombre, matricula, km_actual')
       .eq('deleted', false)
       .eq('empresa_id', auth.empresaId);
     if (conActivo) q = q.neq('activo', false);
     return q.order('nombre');
   });
-  let { data, error } = await pedir(true);
-  if (error && /activo/.test(`${error.message || ''} ${error.details || ''}`)) ({ data, error } = await pedir(false));
+  let { data, error } = await pedir(true, true);
+  if (error && esErrorColumnaInexistente(error) && /permisos/.test(`${error.message || ''} ${error.details || ''}`)) ({ data, error } = await pedir(true, false));
+  if (error && /activo/.test(`${error.message || ''} ${error.details || ''}`)) ({ data, error } = await pedir(false, false));
 
   if (handleSupabaseError(error, res, 'Error al obtener vehículos')) return;
   const vehiculos = data || [];

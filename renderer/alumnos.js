@@ -15,16 +15,24 @@ const ESTADO_ALUMNO_TEXTO = {
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
 async function loadVehiculosSelect() {
   vehiculosCache = await window.api.getVehiculos();
-  ['a-vehiculo'].forEach(selId => {
-    const sel = document.getElementById(selId);
-    sel.innerHTML = '<option value="">-- Sin asignar --</option>';
-    vehiculosCache.filter(v => v.activo !== false).forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v.id;
-      opt.textContent = `${v.nombre}${v.matricula ? ' (' + v.matricula + ')' : ''}`;
-      sel.appendChild(opt);
-    });
-  });
+  rellenarCochesAlta('');
+}
+
+// Coches que se ofrecen en el alta: los que sirven para el permiso elegido (un coche con
+// «B» marcado no se ofrece a un alumno de moto); los que no tienen permisos puestos valen para todos.
+function rellenarCochesAlta(seleccionado) {
+  const sel = document.getElementById('a-vehiculo'); if (!sel) return;
+  const permiso = document.getElementById('a-permiso')?.value || 'B';
+  const previo = seleccionado !== undefined ? String(seleccionado || '') : sel.value;
+  sel.innerHTML = '<option value="">-- Sin asignar --</option>' + vehiculosCache.filter(v => v.activo !== false && cocheSirveParaPermisos(v, permiso))
+    .map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('');
+  if ([...sel.options].some(o => o.value === previo)) sel.value = previo;
+}
+
+// Al cambiar el permiso: se vuelven a ofrecer los coches que sirven y se propone el del profesor
+async function altaPermisoCambiado() {
+  rellenarCochesAlta();
+  await altaSugerirCoche();
 }
 
 async function loadAlumnos() {
@@ -71,6 +79,8 @@ function poblarFiltrosAlumnos() {
   let haySinAsignar = false;
   alumnosCache.forEach(a => {
     if (a.vehiculo_id) {
+      // Un coche retirado no sale en el filtro (salvo que ya esté elegido)
+      if (a.vehiculo_retirado && String(a.vehiculo_id) !== vehiculoActual) return;
       if (!vehiculosVistos.has(a.vehiculo_id)) {
         vehiculosVistos.set(a.vehiculo_id, a.vehiculo_nombre || `Vehículo ${a.vehiculo_id}`);
       }
@@ -138,7 +148,8 @@ function ordenarAlumnos(col) {
     alumnosSort.dir *= -1;
   } else {
     alumnosSort.col = col;
-    alumnosSort.dir = 1;
+    // El alta se mira de más nueva a más antigua: lo que se busca son los últimos en llegar
+    alumnosSort.dir = col === 'alta' ? -1 : 1;
   }
   renderAlumnosTabla();
 }
@@ -194,16 +205,56 @@ function pintarTabsAlumnos() {
   if (resumen) resumen.textContent = `${fmtMiles(alumnosConteoTabs.activos ?? 0)} en prácticas · ${fmtMiles(alumnosCache.length)} en total`;
 }
 
-// Pastilla de estado: lo más útil de un vistazo (en clase > final de ciclo > examen > nuevo > estado).
-function pillEstadoAlumno(a) {
+// Pastilla de estado: el estado real del alumno (el que se edita). Solo «En clase
+// ahora» (en directo) y «Nuevo» (alumno sin estado puesto y sin clases) son deducidos.
+function pastillaEstadoAlumno(a) {
   const estado = a.estado || 'activo';
   if (a.en_clase_ahora) return '<span class="pill pill-dark"><span class="pill-dot"></span>En clase ahora</span>';
   if (estado === 'baja' || estado === 'no_apto') return `<span class="pill pill-err">${esc(ESTADO_ALUMNO_TEXTO[estado])}</span>`;
   if (estado === 'apto' || estado === 'aprobado') return `<span class="pill pill-ok">${esc(ESTADO_ALUMNO_TEXTO[estado])}</span>`;
   if (estado === 'inactivo') return `<span class="pill pill-line" title="Dejó de venir sin darse de baja">${esc(ESTADO_ALUMNO_TEXTO[estado])}</span>`;
-  if (a.proximo_examen) return '<span class="pill pill-info"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>Examen programado</span>';
-  if (enTabAlumnos(a, 'nuevos') && a.num_practicas === 0) return '<span class="pill pill-line">Nuevo</span>';
+  if (estado === 'activo' && enTabAlumnos(a, 'nuevos') && a.num_practicas === 0) return '<span class="pill pill-line">Nuevo</span>';
   return `<span class="pill">${esc(ESTADO_ALUMNO_TEXTO[estado] || estado)}</span>`;
+}
+
+// Estados que se pueden poner a mano y qué significa cada uno
+const ESTADOS_ELEGIBLES = [
+  ['matriculado', 'Se ha apuntado'], ['en_teorica', 'Está con la teoría'], ['apto_teorico', 'Ya aprobó el teórico'],
+  ['en_practicas', 'Está dando clases prácticas'], ['presentado', 'Tiene o ha hecho el examen'],
+  ['apto', 'Aprobó el permiso'], ['no_apto', 'Suspendió y no sigue'], ['baja', 'Se dio de baja'],
+  ['inactivo', 'Dejó de venir sin terminar el permiso']
+];
+// Con estos estados el alumno deja de salir en avisos, caducidades y listas de clase
+const ESTADOS_QUE_APARCAN = ['apto', 'no_apto', 'baja', 'inactivo'];
+
+// El estado se cambia con un clic en su pastilla (menú desplegable)
+function pillEstadoAlumno(a) {
+  const actual = a.estado || 'activo';
+  const opciones = ESTADOS_ELEGIBLES.map(([k, ayuda]) =>
+    `<button type="button" class="estado-op${k === actual ? ' estado-op-actual' : ''}" onclick="cambiarEstadoAlumnoUI(${a.id},'${k}')" title="${esc(ayuda)}"><span class="estado-ok" aria-hidden="true">${k === actual ? '✓' : ''}</span>${esc(ESTADO_ALUMNO_TEXTO[k])}${ESTADOS_QUE_APARCAN.includes(k) ? '<small>sin avisos</small>' : ''}</button>`).join('');
+  return `<details class="menu-fila estado-menu"><summary class="estado-btn" title="Cambiar el estado de este alumno" aria-label="Estado: ${esc(ESTADO_ALUMNO_TEXTO[actual] || actual)}. Cambiar">${pastillaEstadoAlumno(a)}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></summary>
+    <div class="menu-fila-lista"><div class="estado-cab">Estado del alumno</div>${opciones}
+      <div class="estado-pie">Apto, no apto, baja e inactivo no salen en avisos ni caducidades.</div>
+      <button type="button" class="estado-antiguos" onclick="abrirAlumnosAntiguos()">Pasar alumnos antiguos a inactivos…</button></div></details>`;
+}
+
+let estadoDeshacer = null; // lo que había antes del último cambio de estado (para «Deshacer»)
+async function cambiarEstadoAlumnoUI(id, estado) {
+  const r = await window.api.setEstadoAlumnos([id], estado);
+  if (!r || !r.ok) { await avisar((r && r.error) || 'No se pudo cambiar el estado.'); return; }
+  if (!r.cambiados) return;
+  estadoDeshacer = r.anteriores;
+  await refrescarTrasRevisarAlumnos();
+  const a = alumnosCache.find(x => x.id === id);
+  const aparca = ESTADOS_QUE_APARCAN.includes(estado);
+  avisoConDeshacer(`${a ? nombrePropio(a.nombre) : 'El alumno'} ahora está «${ESTADO_ALUMNO_TEXTO[estado]}»${aparca ? ': ya no saldrá en avisos ni caducidades' : ''}.`, 'deshacerEstadoAlumnoUI()');
+}
+async function deshacerEstadoAlumnoUI() {
+  if (!estadoDeshacer || !estadoDeshacer.length) return;
+  await window.api.restaurarEstadosAlumnos(estadoDeshacer);
+  estadoDeshacer = null;
+  await refrescarTrasRevisarAlumnos();
+  showToast('alumnos-alta-toast', 'Deshecho: el estado vuelve a ser el de antes.', 'ok');
 }
 
 function celdaClasesAlumno(a) {
@@ -213,7 +264,7 @@ function celdaClasesAlumno(a) {
     const resto = pocas ? ` · <span class="bono-aviso">${a.bono.saldo === 0 ? 'agotado' : (a.bono.saldo === 1 ? 'queda 1' : 'quedan ' + a.bono.saldo)}</span>` : '';
     return `<div class="bono" title="${esc(a.bono.nombre || 'Bono')}: ${a.bono.usadas} usadas de ${a.bono.total}"><div><b>${a.bono.usadas}</b> de ${a.bono.total}${resto}</div><div class="bono-barra${pocas ? ' bono-poco' : ''}"><span style="width:${pct}%"></span></div></div>`;
   }
-  return `<div class="bono"><div><b>${fmtClases(a.num_practicas)}</b> ${a.num_practicas > 0 && a.num_practicas <= 1 ? 'clase' : 'clases'}</div>${a.minutos_sobrantes > 0 ? `<small title="Minutos de clases por minutos del móvil; se anotan al llegar a ¼ de clase">+${fmtDec(a.minutos_sobrantes)} min</small>` : ''}</div>`;
+  return `<div class="bono" title="${fmtClases(a.num_practicas)} ${a.num_practicas > 0 && a.num_practicas <= 1 ? 'clase' : 'clases'}"><div><b>${fmtClases(a.num_practicas)}</b></div>${a.minutos_sobrantes > 0 ? `<small title="Minutos de clases por minutos del móvil; se anotan al llegar a ¼ de clase">+${fmtDec(a.minutos_sobrantes)} min</small>` : ''}</div>`;
 }
 
 const SVG_MINI = {
@@ -222,7 +273,8 @@ const SVG_MINI = {
   editar: '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>',
   borrar: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
   ficha: '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>',
-  retirar: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/>'
+  retirar: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/>',
+  profesor: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M17 11l2 2 4-4"/>'
 };
 const svgMini = k => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVG_MINI[k]}</svg>`;
 
@@ -272,6 +324,11 @@ function alumnosFiltrados() {
       if (col === 'practicas') return (a.num_practicas - b.num_practicas) * dir;
       if (col === 'km') return ((a.km_total || 0) - (b.km_total || 0)) * dir;
       if (col === 'ultima') return ((a.ultima_fecha || '') < (b.ultima_fecha || '') ? -1 : (a.ultima_fecha || '') > (b.ultima_fecha || '') ? 1 : 0) * dir;
+      if (col === 'alta') {
+        // Sin fecha de alta siempre al final, se ordene como se ordene
+        if (!a.fecha_alta || !b.fecha_alta) return !a.fecha_alta && !b.fecha_alta ? 0 : (a.fecha_alta ? -1 : 1);
+        return a.fecha_alta.localeCompare(b.fecha_alta) * dir || COLLATOR_ES.compare(a.nombre || '', b.nombre || '');
+      }
       if (col === 'examen') {
         // Con examen primero (el más cercano arriba); sin examen al final, por nombre.
         const ea = a.proximo_examen ? a.proximo_examen.fecha : '9999-12-31';
@@ -291,6 +348,12 @@ function alumnosFiltrados() {
   return filtrados;
 }
 
+// «15/12/25»: la fecha de alta cabe en una columna estrecha (la completa va en el título)
+function fechaAltaCorta(iso) {
+  const [y, m, d] = String(iso || '').split('-');
+  return y && m && d ? `${d}/${m}/${y.slice(-2)}` : String(iso || '');
+}
+
 function filaAlumnoHTML(a) {
   const semTexto = { verde: 'Listo', ambar: 'Casi', rojo: 'Lejos' };
   const guion = '<span style="color:var(--text-faint)">—</span>';
@@ -301,7 +364,8 @@ function filaAlumnoHTML(a) {
   const otrosPermisos = (a.permisos || []).map(p => tagPermiso(p)).join(' ');
   const apellidos = [a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ');
   const nombreCompleto = apellidos ? `${a.nombre} ${apellidos}` : a.nombre;
-  const sub = [a.telefono ? esc(a.telefono) : '', a.fecha_alta ? 'Alta el ' + diaMes(a.fecha_alta) : ''].filter(Boolean).join(' · ');
+  const sub = a.telefono ? esc(a.telefono) : '';
+  const alta = a.fecha_alta ? `<span title="Alta el ${esc(fmtFecha(a.fecha_alta))}">${esc(fechaAltaCorta(a.fecha_alta))}</span>` : guion;
   const nombreArg = esc(a.nombre);
   const examen = a.proximo_examen
     ? `<div class="examen-fecha">${diaMes(a.proximo_examen.fecha)}</div>${pillSemaforo}`
@@ -320,7 +384,8 @@ function filaAlumnoHTML(a) {
           </div>
         </div>
       </td>
-      <td>${a.profesor_nombre ? esc(a.profesor_nombre) : '<span style="color:var(--text-faint)">Sin asignar</span>'}${a.vehiculo_matricula ? '<div class="al-sub">' + placaHTML(a.vehiculo_matricula) + '</div>' : (a.vehiculo_nombre ? '<div class="al-sub">' + esc(a.vehiculo_nombre) + '</div>' : '')}</td>
+      <td class="col-alta">${alta}</td>
+      <td class="col-prof">${a.profesor_nombre ? `<span title="${esc(a.profesor_nombre)}">${esc(nombrePropio(a.profesor_nombre))}</span>` : '<span style="color:var(--text-faint)">Sin asignar</span>'}${a.vehiculo_matricula ? '<div class="al-sub">' + placaHTML(a.vehiculo_matricula) + '</div>' : (a.vehiculo_nombre ? '<div class="al-sub">' + esc(a.vehiculo_nombre) + '</div>' : '')}</td>
       <td>${celdaClasesAlumno(a)}</td>
       <td class="col-num num-mono">${a.km_total ? '<b>' + fmtMiles(a.km_total) + '</b>' : guion}</td>
       <td>${a.ultima_fecha ? esc(fechaRelativa(a.ultima_fecha, a.ultima_hora)) : guion}</td>
@@ -335,6 +400,7 @@ function filaAlumnoHTML(a) {
             <button type="button" onclick="verAnotaciones(${a.id},'${nombreArg}')">${svgMini('nota')} Anotaciones</button>
             <button type="button" onclick="abrirEconomiaAlumno(${a.id},'${nombreArg}')">${svgMini('euro')} Economía</button>
             <button type="button" onclick="openEditAlumno(${a.id})">${svgMini('editar')} Editar datos</button>
+            <button type="button" onclick="abrirCambioProfesor(${a.id})">${svgMini('profesor')} Cambiar de profesor</button>
             <button type="button" class="menu-fila-borrar" onclick="deleteAlumno(${a.id},'${nombreArg}')">${svgMini('borrar')} Borrar</button>
           </div>
         </details>
@@ -350,25 +416,25 @@ function renderAlumnosTabla() {
   actualizarIndicadoresOrdenAlumnos();
 
   const pie = document.getElementById('alumnos-pie');
-  const NOMBRE_ORDEN = { examen: 'próximo examen', nombre: 'nombre', practicas: 'clases', km: 'km', ultima: 'última práctica', profesor: 'profesor', estado: 'estado', permiso: 'permiso', vehiculo: 'vehículo', registro: 'nº de registro' };
+  const NOMBRE_ORDEN = { examen: 'próximo examen', nombre: 'nombre', practicas: 'clases', km: 'km', ultima: 'última práctica', alta: 'fecha de alta', profesor: 'profesor', estado: 'estado', permiso: 'permiso', vehiculo: 'vehículo', registro: 'nº de registro' };
   const { col } = alumnosSort;
   if (pie) pie.innerHTML = `<span>Mostrando ${fmtMiles(filtrados.length)} de ${fmtMiles(alumnosCache.length)} alumnos</span><span>${col ? 'Ordenado por ' + (NOMBRE_ORDEN[col] || col) : ''}</span>`;
 
   if (!alumnosCache.length) {
     pintarPorTandas(tbody, [], () => '');
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">No hay alumnos registrados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">No hay alumnos registrados</td></tr>';
     return;
   }
   if (!filtrados.length) {
     pintarPorTandas(tbody, [], () => '');
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">Ningún alumno coincide con los filtros</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">Ningún alumno coincide con los filtros</td></tr>';
     return;
   }
   // Separados por procedencia (Ajustes → Datos de otros programas): un grupo
   // plegable por programa debajo de los creados en AulaMovil
   if (separarProcedencia() && alumnosCache.some(a => a.procedencia)) { pintarGruposAlumnos(tbody, filtrados); return; }
   // Las primeras filas al momento; el resto según se baja (miles de alumnos)
-  pintarPorTandas(tbody, filtrados, filaAlumnoHTML, { tanda: 60, columnas: 9 });
+  pintarPorTandas(tbody, filtrados, filaAlumnoHTML, { tanda: 60, columnas: 11 });
 }
 
 // Cada grupo = un <tbody> de cabecera (se pulsa para abrir/cerrar) y otro con
@@ -381,13 +447,13 @@ function pintarGruposAlumnos(tbody, filtrados) {
     if (!g.items.length) continue;
     const cab = document.createElement('tbody');
     cab.className = 'tb-grupo tb-grupo-cab';
-    cab.innerHTML = cabeceraGrupoProcedencia('alumnos', g, g.items.length, 10, ['alumno', 'alumnos']);
+    cab.innerHTML = cabeceraGrupoProcedencia('alumnos', g, g.items.length, 11, ['alumno', 'alumnos']);
     tabla.appendChild(cab);
     if (grupoProcPlegado('alumnos', g.clave)) continue;
     const cuerpo = document.createElement('tbody');
     cuerpo.className = 'tb-grupo';
     tabla.appendChild(cuerpo);
-    pintarPorTandas(cuerpo, g.items, filaAlumnoHTML, { tanda: 60, columnas: 10 });
+    pintarPorTandas(cuerpo, g.items, filaAlumnoHTML, { tanda: 60, columnas: 11 });
   }
 }
 function quitarGruposAlumnos(tbody) {
@@ -520,12 +586,17 @@ async function addAlumno() {
 
 // Al elegir el profesor, el coche asignado pasa a ser su coche habitual (si
 // aún no se había elegido otro).
-async function altaProfesorCambiado() {
-  const pid = document.getElementById('a-profesor')?.value;
+async function altaProfesorCambiado() { await altaSugerirCoche(); }
+
+// El coche que conviene para este permiso con este profesor (su habitual si sirve para el permiso; si
+// no, el que ha usado con alumnos de ese permiso). Solo si aún no se ha elegido otro.
+async function altaSugerirCoche() {
   const sel = document.getElementById('a-vehiculo');
-  if (!pid || !sel || sel.value) return;
-  const vid = await window.api.getVehiculoDeProfesor(parseInt(pid)).catch(() => null);
-  if (vid && [...sel.options].some(o => o.value === String(vid))) sel.value = String(vid);
+  if (!sel || sel.value) return;
+  const permiso = document.getElementById('a-permiso')?.value || 'B';
+  const pid = document.getElementById('a-profesor')?.value;
+  const vid = await window.api.sugerirCocheAlumno({ permiso, profesor_id: pid ? parseInt(pid) : null }).catch(() => null);
+  if (vid && !sel.value && [...sel.options].some(o => o.value === String(vid))) sel.value = String(vid);
 }
 
 // Cobros de alta: los conceptos de Ajustes → Cobros marcados «Al dar de alta»
@@ -691,8 +762,11 @@ function fdEntrada(a, campo) {
     }
     case 'vehiculo': {
       // Los retirados no se ofrecen (salvo el que ya tenga asignado)
-      const coches = fdListas.vehiculos.filter(x => x.activo !== false || x.id === a.vehiculo_id);
-      const lista = [['', '— Sin asignar —'], ...coches.map(x => [String(x.id), `${x.nombre}${x.matricula ? ' (' + x.matricula + ')' : ''}${x.activo === false ? ' · retirado' : ''}`])];
+      // Solo los coches de su permiso (los que no tienen permisos puestos valen para todos); el que ya
+      // tiene asignado se conserva en la lista aunque no sea de su permiso, avisando de ello
+      const suyos = [a.permiso, ...(a.permisos || [])];
+      const coches = fdListas.vehiculos.filter(x => x.id === a.vehiculo_id || (x.activo !== false && cocheSirveParaPermisos(x, suyos)));
+      const lista = [['', '— Sin asignar —'], ...coches.map(x => [String(x.id), `${x.nombre}${x.matricula ? ' (' + x.matricula + ')' : ''}${x.activo === false ? ' · retirado' : (!cocheSirveParaPermisos(x, suyos) ? ' · no es de su permiso' : '')}`])];
       return `<select ${attr}>${opciones(lista, a.vehiculo_id || '')}</select>`;
     }
     case 'permisos': {
@@ -1103,10 +1177,48 @@ async function deletePagoEconomia(id) {
 
 const FICHA_FIRMAR_PIE_KEY = 'km_ficha_firmar_pie';
 
+// Fichas que se pueden sacar del alumno (una por tipo de clase y por profesor) y cuáles se marcan
+let fichaDgtOpciones = [];
+const FICHA_TIPO_TEXTO = { destreza: 'Destreza (pista)', circulacion: 'Circulación' };
+
+function pintarOpcionesFichaDGT() {
+  const cont = document.getElementById('ficha-dgt-fichas');
+  if (!cont) return;
+  if (!fichaDgtOpciones.length) {
+    cont.innerHTML = '<div class="fd-vacio">Este alumno todavía no tiene clases, así que no hay ficha que sacar.</div>';
+  } else {
+    cont.innerHTML = fichaDgtOpciones.map((f, i) => {
+      const clases = `${fmtClases(f.clases)} ${f.clases > 0 && f.clases <= 1 ? 'clase' : 'clases'}`;
+      const periodo = f.desde === f.hasta ? fmtFecha(f.desde) : `del ${fmtFecha(f.desde)} al ${fmtFecha(f.hasta)}`;
+      return `<label class="ficha-op"><input type="checkbox" data-i="${i}" checked onchange="contarFichasDGT()">
+        <span class="ficha-op-txt"><span class="ficha-op-tit"><b>${FICHA_TIPO_TEXTO[f.tipo]}</b>${f.profesor_nombre ? ` <span class="ficha-op-prof">${esc(nombrePropio(f.profesor_nombre))}</span>` : ''}</span>
+        <small>${clases} · ${periodo}</small></span></label>`;
+    }).join('');
+  }
+  contarFichasDGT();
+}
+
+// Cuántas fichas están marcadas: sin ninguna no se puede generar; con varias salen en una carpeta
+function contarFichasDGT() {
+  const marcadas = document.querySelectorAll('#ficha-dgt-fichas input:checked').length;
+  const nota = document.getElementById('ficha-dgt-fichas-nota');
+  const dosProfes = new Set(fichaDgtOpciones.map(f => f.profesor_id)).size > 1;
+  if (nota) nota.textContent = !fichaDgtOpciones.length ? '' : marcadas > 1
+    ? `Se guardarán ${marcadas} archivos en la carpeta que elijas${dosProfes ? '; cada ficha lleva los datos y la firma del profesor que dio esas clases' : ''}.`
+    : (dosProfes ? 'Este alumno ha tenido más de un profesor: cada uno tiene su propia ficha, con sus datos y su firma.' : '');
+  const b = document.getElementById('ficha-dgt-generar');
+  if (b) b.disabled = !marcadas;
+}
+
 async function abrirFichaDGT(alumnoId) {
   document.getElementById('ficha-dgt-alumno-id').value = alumnoId;
-  const rDestreza = document.querySelector('input[name="ficha-dgt-tipo"][value="destreza"]');
-  if (rDestreza) rDestreza.checked = true;
+  fichaDgtOpciones = [];
+  document.getElementById('ficha-dgt-fichas').innerHTML = '<div class="fd-vacio">Mirando sus clases…</div>';
+  window.api.getFichasDGTAlumno(alumnoId).then(r => {
+    if (parseInt(document.getElementById('ficha-dgt-alumno-id').value) !== alumnoId) return;
+    fichaDgtOpciones = r ? r.fichas : [];
+    pintarOpcionesFichaDGT();
+  }).catch(() => { fichaDgtOpciones = []; pintarOpcionesFichaDGT(); });
   // Firmar el pie (certificado): se recuerda lo último elegido en este PC
   let firmarPie = true;
   try { firmarPie = localStorage.getItem(FICHA_FIRMAR_PIE_KEY) !== '0'; } catch (e) {}
@@ -1124,7 +1236,10 @@ async function abrirFichaDGT(alumnoId) {
 
 async function generarFichaDGTUI(firmasYaPedidas = false) {
   const alumnoId = parseInt(document.getElementById('ficha-dgt-alumno-id').value);
-  const tipo = document.querySelector('input[name="ficha-dgt-tipo"]:checked')?.value || 'destreza';
+  const fichas = [...document.querySelectorAll('#ficha-dgt-fichas input:checked')]
+    .map(cb => fichaDgtOpciones[parseInt(cb.dataset.i)]).filter(Boolean)
+    .map(f => ({ tipo: f.tipo, profesor_id: f.profesor_id }));
+  if (!fichas.length) { await avisar('Marca al menos una ficha.'); return; }
   const centro = (typeof getCentroDatos === 'function') ? getCentroDatos() : {};
   // Preferencia de Ajustes: rellenar o no la fecha del documento (pie de la
   // ficha; por defecto true, solo se omite si el usuario la desmarcó).
@@ -1132,7 +1247,7 @@ async function generarFichaDGTUI(firmasYaPedidas = false) {
   const firmarPie = document.getElementById('ficha-dgt-firmar-pie').checked;
   try { localStorage.setItem(FICHA_FIRMAR_PIE_KEY, firmarPie ? '1' : '0'); } catch (e) {}
   const marcarCalculados = document.getElementById('ficha-dgt-marcar-calculados')?.checked !== false;
-  const r = await window.api.generarFichaDGT({ alumnoId, tipo, centro, rellenarFecha, firmarPie, marcarCalculados, comprobarFirmas: !firmasYaPedidas });
+  const r = await window.api.generarFichaDGT({ alumnoId, fichas, centro, rellenarFecha, firmarPie, marcarCalculados, comprobarFirmas: !firmasYaPedidas });
   // El profesor de estas clases (o el del pie) o el director aún no han
   // guardado su firma: se les pide ahora (una vez; sirve para todas las
   // fichas) o se saca sin ella.
@@ -1162,7 +1277,9 @@ Crea su perfil y su firma una vez y saldrá en todas las fichas. Si no quieres f
     const sinFirma = r.sinFirmaAlumno ? `
 
 ${r.sinFirmaAlumno} de ${r.dias} ${r.dias === 1 ? 'día no tiene' : 'días no tienen'} firma del alumno (se registraron sin firmar en el móvil): esas casillas quedan en blanco para firmarlas a mano.` : '';
-    await avisar(`Ficha generada (${fmtClases(r.nClases)} ${r.nClases === 1 ? 'clase' : 'clases'}).${sinFirma}`);
+    await avisar(r.nFichas > 1
+      ? `${r.nFichas} fichas generadas (${fmtClases(r.nClases)} ${r.nClases === 1 ? 'clase' : 'clases'} en total):\n${r.archivos.map(a => `· ${FICHA_TIPO_TEXTO[a.tipo]}${a.profesor ? ' · ' + nombrePropio(a.profesor) : ''}: ${fmtClases(a.clases)} ${a.clases === 1 ? 'clase' : 'clases'}`).join('\n')}${sinFirma}`
+      : `Ficha generada (${fmtClases(r.nClases)} ${r.nClases === 1 ? 'clase' : 'clases'}).${sinFirma}`);
   } else if (!r || !r.canceled) {
     await avisar((r && r.msg) || 'No se pudo generar la ficha.');
   }

@@ -112,7 +112,8 @@ function repartirKm(total, pesos, variacion = 0.12) {
 function analizarCoche(d, vid, hoy = hoyLocalISO(), rehacer = null) {
   const med = kmTipicoClase(d);
   const lim = limitesCredibles(med);
-  const vivas = d.practicas.filter(p => !p.deleted && p.vehiculo_id === vid).sort(ordenTiempo);
+  // Las clases de pista sin km quedan fuera: no están en la carretera, así que no hay km que cuadrarles
+  const vivas = d.practicas.filter(p => !p.deleted && p.vehiculo_id === vid && !(p.tipo === 'pista' && sinKm(p))).sort(ordenTiempo);
 
   // Copias de trabajo (no se toca nada de los datos)
   const items = vivas.map(p => ({

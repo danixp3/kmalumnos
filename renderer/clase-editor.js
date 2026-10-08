@@ -45,7 +45,11 @@ async function abrirEditorClase(opciones = {}) {
   };
   if (!CE.vehiculo_id && CE.vehiculos.length) {
     const a = CE.alumnos.find(x => x.id === CE.alumno_id);
-    CE.vehiculo_id = (a && a.vehiculo_id) || CE.vehiculos[0].id;
+    // El coche del alumno si sirve para su permiso; si no, el primero que sirva
+    const suyos = a ? [a.permiso, ...(a.permisos || [])] : [];
+    const sirve = v => !a || cocheSirveParaPermisos(v, suyos);
+    const suyo = a && a.vehiculo_id && CE.vehiculos.find(v => v.id === a.vehiculo_id && sirve(v));
+    CE.vehiculo_id = (suyo || CE.vehiculos.find(sirve) || CE.vehiculos[0]).id;
   }
   if (CE.profesor_id == null && CE.modo === 'nueva') {
     const a = CE.alumnos.find(x => x.id === CE.alumno_id);
@@ -170,7 +174,19 @@ function ceModoKm(m) {
   CE.km.desplazar = false;
   ceMarcar(); ceProgramar();
 }
+// Al elegir al alumno de una clase nueva se pone el coche que le toca (el suyo si sirve para su permiso)
+function ceVehiculoDelAlumno() {
+  const sel = document.getElementById('ce-vehiculo'); const a = CE.alumnos.find(x => x.id === parseInt(ceNum('ce-alumno')));
+  if (!sel || !a) return;
+  const suyos = [a.permiso, ...(a.permisos || [])];
+  const sirve = v => cocheSirveParaPermisos(v, suyos);
+  const suyo = a.vehiculo_id && CE.vehiculos.find(v => v.id === a.vehiculo_id && sirve(v));
+  const actual = CE.vehiculos.find(v => v.id === parseInt(sel.value));
+  const elegido = suyo || (actual && sirve(actual) ? actual : CE.vehiculos.find(sirve));
+  if (elegido) sel.value = String(elegido.id);
+}
 function ceCambio(que) {
+  if (que === 'alumno' && CE.modo === 'nueva') ceVehiculoDelAlumno();
   if (que === 'fecha' || que === 'vehiculo' || que === 'alumno' || que === 'hora') CE.km.desplazar = false;
   // Cambiar el día, la hora o el coche de una clase existente: lo normal es que los km ya no encajen
   if (CE.modo === 'editar' && (que === 'fecha' || que === 'vehiculo') && CE.km.modo === 'mantener') {

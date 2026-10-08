@@ -803,8 +803,18 @@ const _practicasFraccionDisponible = sb => _columnasDisponibles(sb, 'practicas',
 const _alumnosMinutosDisponible = sb => _columnasDisponibles(sb, 'alumnos', 'minutos_sobrantes');
 // Migración 2026-10-03: datos completos de alumnos, profesores y coches (los
 // de Ariauto) y coches retirados (db/campos-extra.js). Un grupo por tabla.
-const _extraDisponible = (sb, tabla) => _columnasDisponibles(sb, tabla, Object.keys(CAMPOS_EXTRA[tabla]).join(', '));
+// Algunas columnas se detectan APARTE (migración posterior): si faltan en la nube, el resto de los campos
+// ampliados de esa tabla sigue sincronizando. 2026-10-09: permisos de cada coche.
+const CAMPOS_EXTRA_APARTE = { vehiculos: ['permisos'] };
+const _aparteOn = {};   // tabla → { columna: está en la nube }, lo rellena _extraTablas en cada sync
+const _extraBase = tabla => Object.keys(CAMPOS_EXTRA[tabla]).filter(c => !(CAMPOS_EXTRA_APARTE[tabla] || []).includes(c));
+const _columnaAparteOn = (tabla, c) => !(CAMPOS_EXTRA_APARTE[tabla] || []).includes(c) || !!(_aparteOn[tabla] && _aparteOn[tabla][c]);
+const _extraDisponible = (sb, tabla) => _columnasDisponibles(sb, tabla, _extraBase(tabla).join(', '));
 async function _extraTablas(sb) {
+  for (const [tabla, cols] of Object.entries(CAMPOS_EXTRA_APARTE)) {
+    _aparteOn[tabla] = {};
+    for (const c of cols) _aparteOn[tabla][c] = await _columnasDisponibles(sb, tabla, c);
+  }
   return {
     alumnos: await _extraDisponible(sb, 'alumnos'),
     profesores: await _extraDisponible(sb, 'profesores'),
@@ -813,7 +823,7 @@ async function _extraTablas(sb) {
 }
 // Subida: los campos ampliados del registro local, limpios.
 function _ponerExtra(tabla, payload, local) {
-  for (const [c, t] of Object.entries(CAMPOS_EXTRA[tabla])) payload[c] = normalizarCampoExtra(t, local[c]);
+  for (const [c, t] of Object.entries(CAMPOS_EXTRA[tabla])) if (_columnaAparteOn(tabla, c)) payload[c] = normalizarCampoExtra(t, local[c]);
   return payload;
 }
 // Bajada: lo que trae la nube; si la fila no trae la columna (nube sin la
@@ -830,7 +840,7 @@ function _traerExtra(tabla, destino, remoto, local) {
 function _quitarExtra(tabla, obj, on) {
   const out = { ...obj };
   for (const [c, t] of Object.entries(CAMPOS_EXTRA[tabla])) {
-    if (on) out[c] = normalizarCampoExtra(t, obj[c]); else delete out[c];
+    if (on && _columnaAparteOn(tabla, c)) out[c] = normalizarCampoExtra(t, obj[c]); else delete out[c];
   }
   return out;
 }

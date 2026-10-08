@@ -133,8 +133,12 @@ async function recorrerSecciones() {
       var pg = document.getElementById('page-${p}');
       if (!pg) return { abiertos: [], avisos: ['sin contenedor #page-${p}'] };
       var avisos = [], abiertos = [];
+      // Con miles de filas (alumnos o exámenes traídos de otro programa) se pulsan solo los botones de
+      // las 12 primeras: el resto de filas son iguales y pulsarlas todas tardaba minutos
+      var enFilas = 0;
       var bs = Array.from(pg.querySelectorAll('button')).filter(function(b){
         if (b.offsetParent === null) return false;
+        if (b.closest('tbody') && ++enFilas > 12) return false;
         return !/imprimir|pdf|exportar|borrar|eliminar|csv|sincronizar|publicar/i.test(b.textContent || '');
       });
       bs.forEach(function(b){

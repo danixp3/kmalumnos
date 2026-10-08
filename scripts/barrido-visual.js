@@ -38,11 +38,13 @@ const DETECTOR = String.raw`(function(){
   var pg = document.querySelector('.page.active'); if (!pg) return { solapes: [], cortes: [], desbordes: [] };
   var visible = function (el) { var r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return null; var cs = getComputedStyle(el); if (cs.visibility === 'hidden' || cs.display === 'none' || cs.opacity === '0') return null; if (el.closest('details:not([open]) > :not(summary)')) return null; return r; };
   var nombre = function (el) { var s = el.tagName.toLowerCase(); if (el.id) s += '#' + el.id; else if (typeof el.className === 'string' && el.className.trim()) s += '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.'); var p = el.parentElement; return (p ? (p.id ? '#' + p.id : (typeof p.className === 'string' && p.className.trim() ? '.' + p.className.trim().split(/\s+/)[0] : p.tagName.toLowerCase())) + ' > ' : '') + s; };
+  // Texto que queda fuera de lo visible de un contenedor con scroll/recorte (p. ej. las filas de una tabla con scroll propio): no se pisa con nada, no se ve
+  var enPantalla = function (el, r) { for (var p = el.parentElement; p && p !== pg.parentElement; p = p.parentElement) { var cs = getComputedStyle(p); if (/(auto|scroll|hidden|clip)/.test(cs.overflowY) || /(auto|scroll|hidden|clip)/.test(cs.overflowX)) { var pr = p.getBoundingClientRect(); if (r.top >= pr.bottom - 1 || r.bottom <= pr.top + 1 || r.left >= pr.right - 1 || r.right <= pr.left + 1) return false; } } return true; };
   var cruza = function (A, B, mx, my) { return Math.min(A.right, B.right) - Math.max(A.left, B.left) > mx && Math.min(A.bottom, B.bottom) - Math.max(A.top, B.top) > my; };
   // 1) Textos HTML que se pisan
   var hojas = [], w = document.createTreeWalker(pg, NodeFilter.SHOW_TEXT, null), n;
   while ((n = w.nextNode())) { if (!n.textContent.trim()) continue; var el = n.parentElement; if (!el || el.closest('svg,script,style,option,select,.overlay,.menu-fila-lista') || hojas.indexOf(el) >= 0) continue; hojas.push(el); }
-  var cajas = hojas.map(function (el) { if (!visible(el)) return null; var rg = document.createRange(); rg.selectNodeContents(el); return { el: el, rs: Array.from(rg.getClientRects()).filter(function (r) { return r.width > 1 && r.height > 1; }) }; }).filter(Boolean);
+  var cajas = hojas.map(function (el) { if (!visible(el)) return null; var rg = document.createRange(); rg.selectNodeContents(el); return { el: el, rs: Array.from(rg.getClientRects()).filter(function (r) { return r.width > 1 && r.height > 1 && enPantalla(el, r); }) }; }).filter(function (x) { return x && x.rs.length; });
   var solapes = [];
   for (var i = 0; i < cajas.length; i++) for (var j = i + 1; j < cajas.length; j++) {
     var a = cajas[i], b = cajas[j]; if (a.el.contains(b.el) || b.el.contains(a.el)) continue;

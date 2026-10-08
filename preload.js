@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('api', {
   updateVehiculoKm: (id, km)                 => ipcRenderer.invoke('update-vehiculo-km', id, km),
   updateVehiculo:   (id, n, m, datos)        => ipcRenderer.invoke('update-vehiculo', id, n, m, datos),
   setVehiculoActivo: (id, activo)            => ipcRenderer.invoke('set-vehiculo-activo', id, activo),
+  sugerirPermisosVehiculo: (id)              => ipcRenderer.invoke('sugerir-permisos-vehiculo', id),
+  sugerirCocheAlumno: (alumno)               => ipcRenderer.invoke('sugerir-coche-alumno', alumno),
 
   // Profesores
   getProfesores:    (sucursalId)             => ipcRenderer.invoke('get-profesores', sucursalId),
@@ -48,6 +50,13 @@ contextBridge.exposeInMainWorld('api', {
   deleteAlumno: (id)                         => ipcRenderer.invoke('delete-alumno', id),
   updateAlumnoCampos: (id, campos)           => ipcRenderer.invoke('update-alumno-campos', id, campos),
   proponerSepararNombres: (ids)              => ipcRenderer.invoke('proponer-separar-nombres', ids),
+  proponerSepararNombreTexto: (nombre, ap1, ap2) => ipcRenderer.invoke('proponer-separar-nombre-texto', nombre, ap1, ap2),
+  setEstadoAlumnos: (ids, estado)            => ipcRenderer.invoke('set-estado-alumnos', ids, estado),
+  cambiarProfesorAlumno: (id, profesorId, opciones) => ipcRenderer.invoke('cambiar-profesor-alumno', id, profesorId, opciones),
+  deshacerCambioProfesorAlumno: (anterior)   => ipcRenderer.invoke('deshacer-cambio-profesor-alumno', anterior),
+  getFichasDGTAlumno: (id)                   => ipcRenderer.invoke('get-fichas-dgt-alumno', id),
+  restaurarEstadosAlumnos: (anteriores)      => ipcRenderer.invoke('restaurar-estados-alumnos', anteriores),
+  proponerAlumnosInactivos: (opciones, sucursalId) => ipcRenderer.invoke('proponer-alumnos-inactivos', opciones, sucursalId),
   aplicarSepararNombres: (lista)             => ipcRenderer.invoke('aplicar-separar-nombres', lista),
   buscarAlumnosRepetidos: ()                 => ipcRenderer.invoke('buscar-alumnos-repetidos'),
   previaFusionAlumnos: (queda, seVa)         => ipcRenderer.invoke('previa-fusion-alumnos', queda, seVa),

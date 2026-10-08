@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
   const supabase = getSupabase(auth.token);
 
-  const { alumno_id, fecha, profesor_id } = req.body || {};
+  const { alumno_id, fecha, profesor_id, vehiculo_id, tipo } = req.body || {};
 
   // Validar alumno_id
   const alumnoIdVal = validators.positiveInt(alumno_id, 'alumno_id');
@@ -63,7 +63,16 @@ export default async function handler(req, res) {
     return res.status(404).json({ error: 'Alumno no encontrado' });
   }
 
-  if (!alumno.vehiculo_id) {
+  // El coche con el que se da la clase: el que llega de la pantalla (si es de la empresa) o, si no, el del alumno
+  let vehiculoFinal = alumno.vehiculo_id;
+  if (vehiculo_id !== null && vehiculo_id !== undefined && vehiculo_id !== '') {
+    const vidVal = validators.positiveInt(vehiculo_id, 'vehiculo_id');
+    if (!vidVal.valid) return res.status(400).json({ error: vidVal.error });
+    const { data: veh } = await supabase.from('vehiculos').select('id').eq('id', vidVal.value).eq('deleted', false).eq('empresa_id', auth.empresaId).maybeSingle();
+    if (!veh) return res.status(400).json({ error: 'El vehículo especificado no existe' });
+    vehiculoFinal = vidVal.value;
+  }
+  if (!vehiculoFinal) {
     return res.status(400).json({ error: 'El alumno no tiene vehículo asignado' });
   }
 
@@ -86,8 +95,9 @@ export default async function handler(req, res) {
   // reparar_secuencias y se reintenta una vez.
   const nuevaPractica = {
     alumno_id: alumno.id,
-    vehiculo_id: alumno.vehiculo_id,
+    vehiculo_id: vehiculoFinal,
     fecha: fechaVal.value,
+    tipo: tipo === 'pista' ? 'pista' : 'circulacion',
     km_inicial: 0,
     km_final: 0,
     deleted: false,

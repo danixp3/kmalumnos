@@ -150,6 +150,10 @@ const FIRMA_MAX = 200000;
 function firmaValida(f) {
   return typeof f === 'string' && f.length <= FIRMA_MAX && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(f);
 }
+// Alumnos que ya no vienen a clase (dados de baja, aprobados, inactivos…): no deben
+// salir en avisos, semáforos, caducidades ni listas de «quién viene hoy».
+const ESTADOS_ALUMNO_TERMINADO = ['baja', 'aprobado', 'apto', 'no_apto', 'inactivo'];
+const alumnoTerminado = a => !!a && ESTADOS_ALUMNO_TERMINADO.includes(a.estado);
 // Nombre y primer apellido del alumno: así se distinguen dos personas que se llaman igual.
 // Si el nombre ya trae el apellido (datos traídos de otro programa) no se repite.
 function nombreCorto(a) {
@@ -382,6 +386,8 @@ module.exports = {
   esPracticaSinCerrar,
   hoyLocalISO,
   nombreCorto,
+  ESTADOS_ALUMNO_TERMINADO,
+  alumnoTerminado,
   clasesDePractica,
   fmtClases,
   aCuartos,

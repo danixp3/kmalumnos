@@ -23,9 +23,15 @@ const CAMPOS_EXTRA = {
   },
   vehiculos: {
     activo: 'activo', marca: 'texto', modelo: 'texto', fecha_alta: 'fecha', fecha_baja: 'fecha',
-    aseguradora: 'texto', poliza: 'texto', itv_ultima: 'fecha', cambio: 'cambio', observaciones: 'texto'
+    aseguradora: 'texto', poliza: 'texto', itv_ultima: 'fecha', cambio: 'cambio', observaciones: 'texto',
+    // Para qué permisos se da clase con este coche (migración 2026-10-09_vehiculo_permisos): «B»,
+    // «A2,A,A1,AM»… Vacío = no se ha dicho (vale para todos, como antes).
+    permisos: 'permisos'
   }
 };
+
+// Permisos que se pueden marcar en un coche, en el orden en que se guardan
+const PERMISOS_VEHICULO = ['AM', 'A1', 'A2', 'A', 'B', 'BE', 'C1', 'C1E', 'C', 'CE', 'D1', 'D1E', 'D', 'DE', 'CAP', 'ADR'];
 
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -46,6 +52,12 @@ function normalizarCampoExtra(tipo, valor) {
       if (/^(H|V|1|HOMBRE|VAR[OÓ]N|MASC|MASCULINO)$/.test(s)) return 'H';
       if (/^(M|F|2|MUJER|FEM|FEMENINO)$/.test(s)) return 'M';
       return null;
+    }
+    case 'permisos': {
+      // «A2, A» / ['A2','A'] → «A2,A» (solo permisos conocidos, sin repetir, en orden fijo)
+      const set = new Set(t.toUpperCase().split(/[\s,;|]+/).filter(Boolean));
+      const orden = PERMISOS_VEHICULO.filter(p => set.has(p));
+      return orden.length ? orden.join(',') : null;
     }
     case 'cambio': {
       const s = t.toLowerCase();
@@ -77,6 +89,20 @@ function camposExtraVacios(tabla) {
 
 // Coche retirado = activo === false (los antiguos, sin la marca, están en uso).
 const vehiculoEnUso = v => !!v && v.activo !== false;
+
+// Permisos de un coche como lista ([] = sin decir)
+const permisosDeVehiculo = v => String((v && v.permisos) || '').split(',').map(s => s.trim()).filter(Boolean);
+// Permisos que cursa un alumno: el principal y los otros
+const permisosDeAlumno = a => [...new Set([a && a.permiso, ...((a && a.permisos) || [])].map(p => String(p || '').trim().toUpperCase()).filter(Boolean))];
+
+// ¿Sirve este coche para dar clase a este alumno? 'si' = su permiso está entre los del coche,
+// 'libre' = el coche no tiene permisos puestos (no se sabe, vale como siempre), 'no' = tiene
+// permisos y el del alumno no está (p. ej. el coche de B para un alumno de moto).
+function vehiculoSirveParaAlumno(v, alumno) {
+  const de = permisosDeVehiculo(v);
+  if (!de.length) return 'libre';
+  return permisosDeAlumno(alumno).some(p => de.includes(p)) ? 'si' : 'no';
+}
 
 // ─── Nº DE REGISTRO DEL ALUMNO ───────────────────────────────────────────────
 // El número que identifica a cada alumno (el «Nº ALUMNO» de Ariauto). El
@@ -113,4 +139,4 @@ function alumnoConNRegistro(alumnos, n, exceptoId = null) {
   return (alumnos || []).find(a => a && !a.deleted && a.id !== exceptoId && String(a.n_registro == null ? '' : a.n_registro).trim() === t) || null;
 }
 
-module.exports = { CAMPOS_EXTRA, normalizarCampoExtra, extraerCamposExtra, camposExtraVacios, vehiculoEnUso, siguienteNRegistro, alumnoConNRegistro };
+module.exports = { CAMPOS_EXTRA, PERMISOS_VEHICULO, normalizarCampoExtra, extraerCamposExtra, camposExtraVacios, vehiculoEnUso, permisosDeVehiculo, permisosDeAlumno, vehiculoSirveParaAlumno, siguienteNRegistro, alumnoConNRegistro };

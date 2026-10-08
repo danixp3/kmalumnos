@@ -5,6 +5,7 @@
 const { load, save, nextId, _sync, addLog, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, hoyLocalISO,
   clasesDePractica, fmtClases, firmaValida, nombreCorto } = require('./core');
 const { directorResuelto } = require('./ajustes-empresa');
+const { permisosDeVehiculo, vehiculoSirveParaAlumno } = require('./campos-extra');
 const { coincideProcedencia } = require('./procedencia');
 const { mapaContinuidad, getHuecosRevisados, TOLERANCIA_HUECO, getCompanerosKm, huecoDeCompaneros } = require('./cuadre-km');
 
@@ -188,7 +189,9 @@ function getPracticaDetalle(id) {
 
 function getTodasPracticas(filtros = {}) {
   const d = load();
-  const { desde, hasta, alumno_id, vehiculo_id, profesor_id, tipo, sucursal_id, procedencia } = filtros || {};
+  const { desde, hasta, alumno_id, vehiculo_id, profesor_id, tipo, sucursal_id, procedencia, permiso } = filtros || {};
+  // Permiso del alumno de cada clase (filtro «Permiso» de Prácticas): sin permiso indicado, todos
+  const permisoDe = new Map(d.alumnos.map(a => [a.id, a.permiso || '']));
   const hoy = (filtros && filtros.hoy) || hoyLocalISO();
 
   const vivas = d.practicas.filter(p => !p.deleted);
@@ -219,6 +222,7 @@ function getTodasPracticas(filtros = {}) {
     .filter(p => vehiculo_id === undefined || vehiculo_id === null || vehiculo_id === '' || p.vehiculo_id === parseInt(vehiculo_id))
     .filter(p => profesor_id === undefined || profesor_id === null || profesor_id === '' || p.profesor_id === parseInt(profesor_id))
     .filter(p => !tipo || (p.tipo || 'circulacion') === tipo)
+    .filter(p => !permiso || permisoDe.get(p.alumno_id) === permiso)
     // Procedencia: '' todas, '__app' creadas en AulaMovil, '__otros' traídas de otro programa, o un programa
     .filter(p => coincideProcedencia(p.procedencia, procedencia))
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id)
@@ -237,6 +241,7 @@ function getTodasPracticas(filtros = {}) {
         fecha: p.fecha,
         alumno_id: p.alumno_id,
         alumno_nombre: a ? nombreCorto(a) : '—',
+        alumno_permiso: a ? a.permiso || null : null,
         vehiculo_id: p.vehiculo_id,
         vehiculo_nombre: v ? v.nombre : '—',
         vehiculo_matricula: v ? v.matricula || null : null,
@@ -248,7 +253,9 @@ function getTodasPracticas(filtros = {}) {
         km_recorridos: (sinKm || enCurso || sinCerrar) ? 0 : p.km_final - p.km_inicial,
         tipo: p.tipo || 'circulacion',
         hora_inicio: p.hora_inicio || null,
-        sin_km: sinKm,
+        // Una clase de pista sin km no está «pendiente de km»: no sale en rojo ni se rellena
+        sin_km: sinKm && p.tipo !== 'pista',
+        sin_km_pista: sinKm && p.tipo === 'pista',
         en_curso: enCurso,
         sin_cerrar: sinCerrar,
         clase_n: claseN.get(p.id) || null,
@@ -289,8 +296,19 @@ function getAlumnosPorVehiculo(vehiculo_id, fecha) {
   // salvo que tengan clase ese día
   const TERMINADOS = ['baja', 'aprobado', 'apto', 'no_apto', 'inactivo'];
   const conClase = new Set(d.practicas.filter(p => p.fecha === fecha && p.vehiculo_id === vid && !p.deleted).map(p => p.alumno_id));
+  // Con permisos puestos en el coche: salen también los alumnos de esos permisos que no tienen coche
+  // (o tienen uno que no es de su permiso); y no sale quien lo tiene asignado pero es de otro permiso
+  const veh = d.vehiculos.find(v => v.id === vid);
+  const vehiculos = new Map(d.vehiculos.map(v => [v.id, v]));
+  const conPermisos = !!veh && veh.activo !== false && permisosDeVehiculo(veh).length > 0;
+  const entra = a => {
+    if (a.vehiculo_id === vid) return !conPermisos || vehiculoSirveParaAlumno(veh, a) !== 'no' || conClase.has(a.id);
+    if (!conPermisos || vehiculoSirveParaAlumno(veh, a) !== 'si') return false;
+    const suyo = vehiculos.get(a.vehiculo_id);
+    return !suyo || suyo.deleted || suyo.activo === false || vehiculoSirveParaAlumno(suyo, a) === 'no';
+  };
   const alumnos = d.alumnos
-    .filter(a => a.vehiculo_id === vid && !a.deleted && (!TERMINADOS.includes(a.estado) || conClase.has(a.id)))
+    .filter(a => entra(a) && !a.deleted && (!TERMINADOS.includes(a.estado) || conClase.has(a.id)))
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
   return alumnos.map(a => {
@@ -504,13 +522,19 @@ function eliminarPracticaPorFecha(vehiculo_id, fecha, alumno_id) {
  * datos del centro (esos vienen de Ajustes, en el proceso principal). Alumno
  * inexistente → null. Solo lectura, no marca sync.
  */
-function getDatosFichaDGT(alumno_id, tipo) {
+function getDatosFichaDGT(alumno_id, tipo, profesorId) {
   const d = load();
   const aid = parseInt(alumno_id);
   const a = d.alumnos.find(x => x.id === aid);
   if (!a) return null;
 
-  const prof = profesorDeClase(d, null, a);
+  // Con `profesorId` (id, o 0/'sin' = sin profesor) la ficha lleva solo las clases de ESE profesor y
+  // sus datos en la cabecera: un alumno que cambió de profesor tiene una ficha por cada uno.
+  // Sin él, todas las clases del tipo (y el profesor del alumno en la cabecera), como siempre.
+  const filtrarProf = profesorId !== undefined && profesorId !== null && profesorId !== 'todos';
+  const pidFiltro = !filtrarProf ? null : (profesorId === 'sin' || parseInt(profesorId) === 0 ? 0 : parseInt(profesorId));
+  const profDe = p => { const x = profesorDeClase(d, p, a); return x ? x.id : 0; };
+  const prof = !filtrarProf ? profesorDeClase(d, null, a) : (pidFiltro ? d.profesores.find(x => x.id === pidFiltro) || null : null);
   const tipoPractica = tipo === 'destreza' ? 'pista' : 'circulacion';
   const fmt = (f) => { if (!f) return ''; const [y, m, dd] = String(f).split('-'); return (y && m && dd) ? `${dd}/${m}/${y}` : String(f); };
   const km = (n) => (n == null ? '' : String(Number.isInteger(n) ? n : n));
@@ -521,7 +545,7 @@ function getDatosFichaDGT(alumno_id, tipo) {
   // por día que admite el impreso). Las fracciones (¼, ½, ¾) suman lo que valen:
   // "½ CLASE", "1 ½ CLASES".
   const delTipo = d.practicas
-    .filter(p => p.alumno_id === aid && !p.deleted && (p.tipo || 'circulacion') === tipoPractica)
+    .filter(p => p.alumno_id === aid && !p.deleted && (p.tipo || 'circulacion') === tipoPractica && (!filtrarProf || profDe(p) === pidFiltro))
     .sort((x, y) => x.fecha.localeCompare(y.fecha) || (x.hora_inicio || '99').localeCompare(y.hora_inicio || '99') ||
       (x.km_inicial || 0) - (y.km_inicial || 0) || x.id - y.id);
   const grupos = new Map();
@@ -543,7 +567,8 @@ function getDatosFichaDGT(alumno_id, tipo) {
     const firmante = g.map(p => profesorDeClase(d, p, a)).find(Boolean) || null;
     if (firmante && !firmaValida(firmante.firma)) sinFirma.set(firmante.id, firmante.nombre);
     return {
-      fecha: fmt(g[0].fecha), hora, km_inicial: km(primera.km_inicial), km_final: km(ultima.km_final),
+      // Sin km (clases de pista, o sin leer) las casillas quedan en blanco, no con «0»
+      fecha: fmt(g[0].fecha), hora, km_inicial: conKm.length ? km(primera.km_inicial) : '', km_final: conKm.length ? km(ultima.km_final) : '',
       // Km que no leyó nadie del cuentakilómetros: los puso la app (Cuadrar, Generar km, «Los pone la app»)
       km_calculados: conKm.some(p => p.tipo_detalle === 'km_auto'),
       clases, ejercicio: clases >= 2 ? '2 CLASES' : `${fmtClases(clases)} ${clases > 1 ? 'CLASES' : 'CLASE'}`,
@@ -568,6 +593,41 @@ function getDatosFichaDGT(alumno_id, tipo) {
     practicas,
     // Profesores de estas clases que aún no han guardado su firma (la app se la pide)
     profesores_sin_firma: [...sinFirma].map(([id, nombre]) => ({ id, nombre })),
+  };
+}
+
+/**
+ * Fichas DGT que se pueden sacar de un alumno: una por tipo de clase (pista/destreza o circulación) y
+ * por profesor que se las dio, con cuántas clases lleva cada una y de qué fechas. Un alumno de A2 tiene
+ * una de pista y otra de circulación; si cambió de profesor, una por cada profesor (cada una con sus
+ * datos y su firma). Solo lectura, no marca sync. null si el alumno no existe.
+ */
+function getFichasDGTAlumno(alumno_id) {
+  const d = load();
+  const aid = parseInt(alumno_id);
+  const a = d.alumnos.find(x => x.id === aid);
+  if (!a) return null;
+  const grupos = new Map();
+  for (const p of d.practicas) {
+    if (p.alumno_id !== aid || p.deleted || !p.fecha) continue;
+    const tipo = (p.tipo || 'circulacion') === 'pista' ? 'destreza' : 'circulacion';
+    const prof = profesorDeClase(d, p, a);
+    const pid = prof ? prof.id : 0;
+    const clave = `${tipo}|${pid}`;
+    if (!grupos.has(clave)) grupos.set(clave, { clave, tipo, profesor_id: pid, profesor_nombre: prof ? prof.nombre : '', clases: 0, dias: new Set(), desde: p.fecha, hasta: p.fecha });
+    const g = grupos.get(clave);
+    g.clases += clasesDePractica(p); g.dias.add(p.fecha);
+    if (p.fecha < g.desde) g.desde = p.fecha;
+    if (p.fecha > g.hasta) g.hasta = p.fecha;
+  }
+  const fichas = [...grupos.values()]
+    .map(g => ({ ...g, dias: g.dias.size }))
+    // El profesor más antiguo primero (el que empezó con el alumno), y circulación antes que pista
+    .sort((x, y) => x.desde.localeCompare(y.desde) || (x.tipo === y.tipo ? 0 : x.tipo === 'circulacion' ? -1 : 1));
+  return {
+    alumno: { id: a.id, nombre: [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' '), permiso: a.permiso || '' },
+    fichas,
+    profesores: [...new Set(fichas.map(f => f.profesor_id))].length
   };
 }
 
@@ -627,5 +687,5 @@ function deletePracticasBulk(ids) {
 module.exports = {
   getPracticasByAlumno, getUltimaPractica, addPractica, deletePractica, updatePractica, getTodasPracticas, getPracticaDetalle,
   getAlumnosPorVehiculo, registrarPracticasMasivas, eliminarPracticaPorFecha, ajustarPracticasAlumno, guardarNotaAlumno, setNotaPractica,
-  getFichaPracticasAlumno, getDatosFichaDGT, getPracticasDuplicadas, deletePracticasBulk,
+  getFichaPracticasAlumno, getDatosFichaDGT, getFichasDGTAlumno, getPracticasDuplicadas, deletePracticasBulk,
 };
