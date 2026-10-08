@@ -18,7 +18,8 @@ reiniciar({
               { id: 2, nombre: 'KIA AZUL', matricula: '6643LSC', km_actual: 295250, deleted: false, empresa_id: e, activo: true }],
   alumnos: [{ id: 1, nombre: 'NICOLAS', primer_apellido: 'PEREZ', permiso: 'B', vehiculo_id: 1, profesor_id: 1, deleted: false, empresa_id: e, estado: 'activo', clases_previas: 16 },
             { id: 2, nombre: 'MARICELY', primer_apellido: 'AMIGO', permiso: 'B', vehiculo_id: 1, profesor_id: 1, deleted: false, empresa_id: e, estado: 'activo', clases_previas: 15 },
-            { id: 3, nombre: 'HUGO', primer_apellido: 'CERDEIRA', permiso: 'B', vehiculo_id: 2, profesor_id: 1, deleted: false, empresa_id: e, estado: 'activo' }],
+            // Traído de otro programa (procedencia, 2026-10-08): sale con su etiqueta en las listas y la ficha
+            { id: 3, nombre: 'HUGO', primer_apellido: 'CERDEIRA', permiso: 'B', vehiculo_id: 2, profesor_id: 1, deleted: false, empresa_id: e, estado: 'activo', procedencia: 'Ariauto' }],
   profesores: [{ id: 1, nombre: 'JAVIER PÉREZ ALONSO', vehiculo_id: 1, deleted: false, empresa_id: e },
                { id: 2, nombre: 'MARTA GIL', vehiculo_id: 2, deleted: false, empresa_id: e }],
   practicas: [{ id: 1, alumno_id: 1, vehiculo_id: 1, fecha: hoy(), hora_inicio: '08:43', hora_fin: '09:08', km_inicial: 17793, km_final: 17816, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'web-remote', tipo_detalle: 'km_auto' },
