@@ -5,6 +5,9 @@
 
 const { load } = require('./core');
 const { buscarExamenes } = require('./convocatorias');
+const { TABLAS_PROCEDENCIA } = require('./procedencia');
+// Programa del que se trajo cada dato (db/procedencia.js); lo creado aquí, «AulaMovil»
+const procedenciaTxt = x => (x && x.procedencia) || 'AulaMovil';
 
 const fecha = v => (v && /^\d{4}-\d{2}-\d{2}/.test(v) ? `${v.slice(8, 10)}/${v.slice(5, 7)}/${v.slice(0, 4)}` : '');
 function celda(v) {
@@ -34,7 +37,7 @@ const COLUMNAS_ALUMNO = [
   ['Centro médico', a => a.centro_medico], ['Restricciones', a => a.restricciones],
   ['Tutor', a => a.tutor_nombre], ['DNI del tutor', a => a.tutor_dni],
   ['Facturar a', a => a.factura_nombre], ['NIF factura', a => a.factura_nif], ['Dirección factura', a => a.factura_direccion],
-  ['Nº inscripción (libro)', a => a.n_inscripcion], ['Observaciones', a => a.observaciones]
+  ['Nº inscripción (libro)', a => a.n_inscripcion], ['Observaciones', a => a.observaciones], ['Procedencia', procedenciaTxt]
 ];
 
 function exportarAlumnos({ ids } = {}) {
@@ -56,10 +59,10 @@ const RESULTADOS = { pendiente: 'Pendiente', apto: 'Apto', no_apto: 'No apto', a
 
 function exportarExamenes(filtros = {}, sucursalId) {
   const { filas } = buscarExamenes(filtros, sucursalId);
-  const cab = ['Fecha', 'Alumno', 'DNI/NIE', 'Nº registro', 'Tipo', 'Permiso', 'Resultado', 'Convocatoria', 'Nº solicitud', 'Profesor', 'Examinador', 'Coche', 'Fallos', 'Detalle de los fallos', 'Notas'];
+  const cab = ['Fecha', 'Alumno', 'DNI/NIE', 'Nº registro', 'Tipo', 'Permiso', 'Resultado', 'Convocatoria', 'Nº solicitud', 'Profesor', 'Examinador', 'Coche', 'Fallos', 'Detalle de los fallos', 'Notas', 'Procedencia'];
   const datos = filas.map(e => [fecha(e.fecha), e.alumno_nombre, e.alumno_dni, e.alumno_n_registro, TIPOS[e.tipo] || e.tipo, e.permiso,
     RESULTADOS[e.resultado] || e.resultado, e.n_convocatoria ? `${e.n_convocatoria}ª` : '', e.n_solicitud, e.profesor_nombre, e.examinador, e.vehiculo,
-    e.fallos != null ? e.fallos : '', e.fallos_detalle, e.nota]);
+    e.fallos != null ? e.fallos : '', e.fallos_detalle, e.nota, procedenciaTxt(e)]);
   return { csv: aCSV(cab, datos), total: datos.length, nombre: 'examenes' };
 }
 
@@ -151,6 +154,8 @@ const CONJUNTOS_EXPORTAR = [
     columnas: [['Fecha y hora', l => String(l.fecha || '').replace('T', ' ').slice(0, 19)], ['Tipo', l => l.tipo || ''], ['Descripción', l => l.descripcion || ''],
       ['Detalles', l => (Array.isArray(l.detalles) ? l.detalles.join(' | ') : (l.detalles || ''))]] }
 ];
+// Columna «Procedencia» al final de cada tabla que la tiene (la de alumnos ya va en COLUMNAS_ALUMNO)
+for (const c of CONJUNTOS_EXPORTAR) if (TABLAS_PROCEDENCIA[c.tabla] && c.tabla !== 'alumnos') c.columnas.push(['Procedencia', procedenciaTxt]);
 
 function _ctxExportar(d) {
   const mapa = l => new Map((l || []).map(x => [x.id, x]));

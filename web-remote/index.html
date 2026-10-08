@@ -47,6 +47,7 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
     --muted: #5E6068; --muted-2: #3A3D45; --faint: #6B6E76;
     --amber: #FFB81C; --amber-strong: #E09A00; --amber-ink: #8A5800; --amber-soft: #FFF3D1;
     --ok: #1D6B4F; --ok-soft: #E2F1E9; --err: #B42318; --err-soft: #FDECEA; --info: #1E4FB8; --info-soft: #E7EDFB;
+    --proc: #0E655B; --proc-soft: #E2F2EF;
     color-scheme: light;
     --font: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
@@ -63,6 +64,7 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
     --muted: #A3A6AE; --muted-2: #C9CBD1; --faint: #8C8F97;
     --amber-ink: #FFCF5C; --amber-soft: #33290F;
     --ok: #6EE7B7; --ok-soft: #10301F; --err: #FCA5A5; --err-soft: #3A1518; --info: #B7C8F5; --info-soft: #1A2444;
+    --proc: #8ED8CC; --proc-soft: #12302C;
     color-scheme: dark;
   }
   :root[data-tema="negro"], :root[data-tema="negro"] body.oscuro .hoja {
@@ -72,6 +74,7 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
     --muted: #A3A3A3; --muted-2: #D4D4D4; --faint: #8A8A8A;
     --amber-ink: #FFCF5C; --amber-soft: #241C08;
     --ok: #4ADE80; --ok-soft: #0A2318; --err: #F87171; --err-soft: #2A0F12; --info: #A5BAF0; --info-soft: #10172E;
+    --proc: #7FCFC2; --proc-soft: #0B211E;
     color-scheme: dark;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -177,6 +180,8 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .pill-warn { background: var(--amber-soft); color: var(--amber-ink); }
   .pill-err { background: var(--err-soft); color: var(--err); }
   .pill-info { background: var(--info-soft); color: var(--info); }
+  /* Alumno traído de otro programa (lo marca el escritorio al importarlo) */
+  .tag-proc { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; margin-left: 6px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1; vertical-align: middle; white-space: nowrap; background: var(--proc-soft); color: var(--proc); }
   .pill-dark { background: var(--ink); color: var(--on-ink); }
   .pill-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--amber); }
 
@@ -1460,8 +1465,10 @@ const alumno = id => S.alumnos.find(a => a.id === id);
 const nombreAlumno = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '';
 // Búsqueda de alumnos: por nombre y apellidos (sin tildes, todas las palabras) o por su nº de registro
 const sinTildes = t => String(t == null ? '' : t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-const coincideAlumno = (a, q) => { const texto = sinTildes(nombreAlumno(a) + ' ' + (a.n_registro || '')); return sinTildes(q).split(/\s+/).filter(Boolean).every(w => texto.includes(w)); };
+const coincideAlumno = (a, q) => { const texto = sinTildes(nombreAlumno(a) + ' ' + (a.n_registro || '') + ' ' + (a.procedencia || '')); return sinTildes(q).split(/\s+/).filter(Boolean).every(w => texto.includes(w)); };
 const nRegTxt = a => a && a.n_registro ? `<span class="mono">Nº ${esc(a.n_registro)}</span> · ` : '';
+// Etiqueta del programa del que se trajo el alumno («Ariauto»…); nada si se creó en AulaMovil
+const procTxt = a => a && a.procedencia ? `<span class="tag-proc" title="Traído de ${esc(a.procedencia)}">${esc(a.procedencia)}</span>` : '';
 // Clases y km TOTALES del alumno: las de la app + su punto de partida (lo que
 // hizo antes de usar la app, se configura en el escritorio).
 const clasesAlumno = a => a ? (a.clases || 0) + (a.clases_previas || 0) : 0;
@@ -1983,7 +1990,7 @@ function filtrarHojaAlumnos(q) {
   const lista = todos.slice(0, 60), resto = todos.length - lista.length;
   const caja = document.getElementById('hoja-alumnos'); if (!caja) return;
   caja.innerHTML = lista.length ? lista.map(a =>
-    `<button class="fila-alumno" onclick="fijarAlumnoIniciar(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">${nRegTxt(a)}Permiso ${esc(a.permiso)} · ${fmtC(clasesAlumno(a))} ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'}</div></div>${S.perfil && a.profesor_id === S.perfil.id ? '<span class="pill">Tuyo</span>' : ''}</button>`).join('')
+    `<button class="fila-alumno" onclick="fijarAlumnoIniciar(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}${procTxt(a)}</div><div class="fila-sub">${nRegTxt(a)}Permiso ${esc(a.permiso)} · ${fmtC(clasesAlumno(a))} ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'}</div></div>${S.perfil && a.profesor_id === S.perfil.id ? '<span class="pill">Tuyo</span>' : ''}</button>`).join('')
       + (resto > 0 ? `<div class="vacio"><small>Hay ${resto} alumnos más: escribe su nombre o nº para buscarlos.</small></div>` : '')
     : '<div class="vacio">Ningún alumno coincide.</div>';
 }
@@ -2944,7 +2951,7 @@ function pintarListaAlumnos() {
   const caja = document.getElementById('lista-alumnos'); if (!caja) return;
   caja.innerHTML = lista.length ? lista.map(a =>
     `<button class="fila-alumno" onclick="abrirFicha(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span>
-      <div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}</div><div class="fila-sub">${nRegTxt(a)}<b style="color:var(--ink)">${fmtC(clasesAlumno(a))}</b> ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'} · <span class="mono">${miles(kmAlumno(a))}</span> km</div></div>
+      <div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}${procTxt(a)}</div><div class="fila-sub">${nRegTxt(a)}<b style="color:var(--ink)">${fmtC(clasesAlumno(a))}</b> ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'} · <span class="mono">${miles(kmAlumno(a))}</span> km</div></div>
       ${clasesAlumno(a) > 0 ? '' : '<span class="pill pill-info">Nuevo</span>'}${ic('chev', 20, 'style="color:var(--faint)"')}</button>`).join('')
       + (resto ? `<button class="fila-alumno" style="justify-content:center;font-weight:600" onclick="S.alumnosMax+=ALUMNOS_TANDA;pintarListaAlumnos()">Ver ${Math.min(resto, ALUMNOS_TANDA)} más · quedan ${resto}</button>` : '')
     : (S.filtroAlumnos === 'mios' && !q
@@ -2996,7 +3003,7 @@ function renderFicha() {
   const proximas = (d.proximas || []).map(r => `<div class="fila"><span class="fila-hora" style="width:auto">${esc(fechaCorta(r.fecha))}</span><div class="fila-tit" style="flex:1">${esc(r.hora_inicio || '')} ${r.nota ? '· ' + esc(r.nota) : ''}</div>${r.estado === 'solicitada' ? '<span class="pill pill-warn">Solicitada</span>' : ''}</div>`).join('');
   cont.innerHTML = cab + `
     <div style="display:flex;align-items:center;gap:14px;margin:4px 0 16px"><span class="ini ini-lg">${esc(iniciales(nombre))}</span>
-      <div style="min-width:0"><div class="grande" style="font-size:34px">${esc(nombre)}</div><div class="fila-sub" style="font-size:15px">${nRegTxt(a.n_registro ? a : alumno(a.id))}Permiso ${esc(a.permiso)}${a.profesor_nombre ? ' · Prof. ' + esc(a.profesor_nombre) : ''}</div></div></div>
+      <div style="min-width:0"><div class="grande" style="font-size:34px">${esc(nombre)}</div><div class="fila-sub" style="font-size:15px">${nRegTxt(a.n_registro ? a : alumno(a.id))}Permiso ${esc(a.permiso)}${a.profesor_nombre ? ' · Prof. ' + esc(a.profesor_nombre) : ''}${procTxt(a.procedencia ? a : alumno(a.id))}</div></div></div>
     <div class="tres"><div class="stat-box osc"><span class="val">${fmtC(totalClases)}</span><span class="etq2">${totalClases > 0 && totalClases <= 1 ? 'clase hecha' : 'clases hechas'}</span></div>
       <div class="stat-box" style="background:var(--card);border:1px solid var(--line)"><span class="val">${miles(totalKm)}</span><span class="etq2">km recorridos</span></div>
       <div class="stat-box" style="background:var(--card);border:1px solid var(--line)"><span class="val">${horas}</span><span class="etq2">h al volante</span></div></div>

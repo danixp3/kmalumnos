@@ -28,6 +28,7 @@ renderer/     → UI (vanilla JS) dividida en 41 <script> clásicos (globales, n
   roles.js → funciones de gestión de roles jefe/empleado (modo clásico ↔ multi-empresa)
   sucursales.js → selector de sucursal en la barra, filtrado por sede
   migracion.js → «Traer de otro programa»: asistente para importar alumnos/clases (vista previa, deshacer)
+  procedencia.js → etiqueta «Traído de X», filtro «Procedencia», grupos plegables por programa y Ajustes → Datos de otros programas
   kilometros.js → página Kilómetros unificada: asistente que recomienda y combina (cuadrar, encajar, encadenar, máximo, rango, solapes), mapa, solapes, ocultar huecos
   clase-editor.js → editor de clases: añadir/editar/encajar en ¼ con km recalculados y firma borrada si cambia la cantidad
   cuadrar-km.js → avisos de Cuadrar km (franja en Prácticas, tramos sin explicar)
@@ -51,6 +52,7 @@ db/           → CRUD + algoritmos de km, por módulo
   puesta-en-marcha.js → arranque con datos reales: km de coches, punto de partida del alumno, borrar datos de prueba
   clases-anteriores.js → clases previas a la app: anotarlas a mano y crear las que falten con fecha y km (sin solapes)
   migracion.js → traer datos de otro programa: reconocer columnas, limpiar, emparejar sin duplicar, importar y deshacer
+  procedencia.js → programa del que viene cada dato (`procedencia`, null = creado en AulaMovil): marcar lo importado, renombrar/quitar, filtro
   ariauto.js → importar la base Access de Ariauto (alumnos con todos sus datos, exámenes, tasas, caducidades, coches, centro) y completar los ya traídos
   alumnos-repetidos.js → separar nombre y apellidos juntos, buscar fichas repetidas y juntarlas (vista previa, copia, deshacer)
   campos-extra.js → campos ampliados de alumnos/profesores/vehículos (nº de registro y su siguiente número, sexo, nacionalidad…, coche habitual del profesor y coche en uso/retirado)
@@ -91,7 +93,10 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-10-08 (v1.33.0). El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-10-08 (v1.34.0). El detalle histórico completo está en HISTORIAL.md._
+
+- **v1.34.0 (2026-10-08, escritorio PUBLICADO y web DESPLEGADA; migración `2026-10-08_procedencia.sql` APLICADA, datos intactos 42/471/8/9):** **procedencia de los datos traídos de otro programa** (`db/procedencia.js`, `renderer/procedencia.js`): todo lo que entra por «Traer de otro programa» (se pide el nombre del programa) o Ariauto lleva `procedencia` (alumnos, clases, profesores, coches, pagos, cargos, exámenes, tasas, caducidades; sincroniza 6 tablas + `ajustes_empresa.procedencias` con la fecha). Etiqueta junto al nombre, filtro «Procedencia» (Alumnos, Prácticas, Exámenes), exportación, campo editable en la ficha y en el móvil.
+- **Separar lo traído (Ajustes → Datos de otros programas, por PC, activo por defecto):** Alumnos y Prácticas en grupos plegables «Creados en AulaMovil» / «Traídos de X» (Prácticas pagina por grupo) y en la ficha una línea marca dónde empiezan las clases de cada procedencia; renombrar o quitar la etiqueta. Las importaciones hechas con versiones anteriores se marcan solas al arrancar. Jest 683/72 + test:api 100 + smoke + barrido.
 
 - **v1.33.0 (2026-10-08, escritorio PUBLICADO con auto-update verificado `RELEASE-OK` y web DESPLEGADA — incluye la 1.32.0; sin migraciones; web comprobada sin sesión: portada 200 y endpoints 401, falta la prueba con login `probar_web.py`):** caso de la oficina (la clase del móvil no salía hasta pulsar Sincronizar). **Casi en vivo:** sondeo cada 12 s (`sondearNube`: una consulta ligera por tabla; solo si cambió algo corre el sync), al volver a la ventana/despertar el PC/recuperar internet; la pantalla abierta se repinta sola (`datos-actualizados`; antes solo Panel y ficha) y avisa «Se han recibido N clases nuevas», sin pisar ventanas abiertas ni lo que se esté escribiendo.
 - **Actualizaciones automáticas (v1.33.0):** la app mira cada 20 min y al volver a la ventana, descarga sola, y se instala sola tras 10 min sin tocar el ordenador (sin nada abierto ni sincronizando) o al cerrar; interruptores en Ajustes → Actualizaciones (`actualizaciones.js`, `update-prefs.json`). Jest 648/71 (2 suites necesitan `xlsx`, no corren en la nube) + smoke + barrido + prueba en vivo de ambos flujos.

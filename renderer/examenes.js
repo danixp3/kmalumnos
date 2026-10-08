@@ -105,7 +105,7 @@ function filtrosExamenes() {
   const v = id => (document.getElementById(id)?.value || '').trim();
   return {
     texto: v('ex-buscar'), desde: v('ex-desde'), hasta: v('ex-hasta'), tipo: v('ex-tipo'), resultado: v('ex-resultado'),
-    permiso: v('ex-permiso'), profesor_id: v('ex-profesor'), examinador: v('ex-examinador'),
+    permiso: v('ex-permiso'), profesor_id: v('ex-profesor'), examinador: v('ex-examinador'), procedencia: v('ex-procedencia'),
     cuando: examenesTab === 'todos' ? '' : examenesTab
   };
 }
@@ -119,7 +119,7 @@ function cambiarTabExamenes(tab) {
 }
 
 function limpiarFiltrosExamenes() {
-  ['ex-buscar', 'ex-desde', 'ex-hasta', 'ex-tipo', 'ex-resultado', 'ex-permiso', 'ex-profesor', 'ex-examinador'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['ex-buscar', 'ex-desde', 'ex-hasta', 'ex-tipo', 'ex-resultado', 'ex-permiso', 'ex-profesor', 'ex-examinador', 'ex-procedencia'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   buscarExamenesUI();
 }
 
@@ -137,6 +137,8 @@ function _pintarOpcionesExamenes(opciones) {
   rellenar('ex-examinador', 'Todos', opciones.examinadores.map(e => [e, e]));
   const dl = document.getElementById('ex-examinadores-lista');
   if (dl) dl.innerHTML = opciones.examinadores.map(e => `<option value="${esc(e)}">`).join('');
+  // Procedencia (traídos de otro programa): solo se ve si hay alguno (renderer/procedencia.js)
+  pintarFiltroProcedencia('ex-procedencia', opciones.procedencias || []);
 }
 
 async function buscarExamenesUI() {
@@ -181,7 +183,7 @@ function filaExamenHTML(p) {
   return `<tr${p.fecha >= hoy && p.resultado === 'pendiente' ? ' class="ex-proximo"' : ''}>
     <td class="num-mono" style="white-space:nowrap">${esc(fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase()))} ${f.y}</td>
     <td><a class="lnk" onclick="verFichaDesdePracticas(${p.alumno_id},${p.alumno_vehiculo_id || 'null'},'${nombreArg}')" title="Abrir la ficha del alumno">${esc(p.alumno_nombre)}</a>${sub ? `<div class="al-sub">${sub}</div>` : ''}</td>
-    <td>${TIPO_EXAMEN_LABEL[p.tipo] || esc(p.tipo)}${p.permiso ? ' ' + tagPermiso(p.permiso) : ''}</td>
+    <td>${TIPO_EXAMEN_LABEL[p.tipo] || esc(p.tipo)}${p.permiso ? ' ' + tagPermiso(p.permiso) : ''}${p.procedencia ? ' ' + etiquetaProcedencia(p.procedencia) : ''}</td>
     <td class="num-mono">${p.n_convocatoria ? p.n_convocatoria + 'ª' : guion}</td>
     <td>${p.profesor_nombre ? esc(p.profesor_nombre) : guion}</td>
     <td>${p.examinador ? esc(p.examinador) : guion}${p.vehiculo ? `<div class="al-sub">${placaHTML(p.vehiculo)}</div>` : ''}</td>

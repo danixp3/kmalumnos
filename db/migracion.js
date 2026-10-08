@@ -33,6 +33,7 @@
 const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO, leerCantidadClases, trozosDeClases, kmPorPesos, aCuartos, fmtClases } = require('./core');
 const { PERMISOS_VALIDOS } = require('./alumnos');
 const { normalizarCampoExtra, extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
+const { etiquetarCreados } = require('./procedencia');
 
 const MARCA_ANTERIOR = 'anterior';            // = db/clases-anteriores.js
 const NOTA_IMPORTADO = 'Importado del programa anterior';
@@ -1174,11 +1175,14 @@ function aplicarImportacion(entrada = {}) {
   }
 
   registro.resumen = { ...plan.resumen, creadosAlumnos: registro.creados.alumnos.length, actualizadosAlumnos: registro.actualizados.length, clasesCreadas: registro.creados.practicas.length };
+  // Todo lo que entra lleva el nombre del programa del que viene (db/procedencia.js)
+  registro.procedencia = etiquetarCreados(d, registro.creados, entrada.procedencia, registro.fecha).nombre;
+  registro.resumen.procedencia = registro.procedencia;
   registrarImportacion(d, registro);
   const qué = plan.tipo === 'alumnos'
     ? `${registro.creados.alumnos.length} alumnos nuevos y ${registro.actualizados.length} completados`
     : `${registro.creados.practicas.length} clases anteriores y ${registro.creados.alumnos.length} alumnos nuevos`;
-  addLog('importacion', `Datos traídos de otro programa (${registro.archivo}): ${qué}`, []);
+  addLog('importacion', `Datos traídos de ${registro.procedencia} (${registro.archivo}): ${qué}`, []);
   save();
   if (s) {
     s.markDirtyVarios('alumnos', tocados);
@@ -1202,6 +1206,7 @@ function getImportaciones() {
   const n = (i, k) => ((i.creados || {})[k] || []).length;
   return (d.importaciones || []).map(i => ({
     id: i.id, fecha: i.fecha, tipo: i.tipo, archivo: i.archivo, deshecha: i.deshecha,
+    procedencia: i.procedencia || (i.tipo === 'ariauto' ? 'Ariauto' : null),
     alumnos: n(i, 'alumnos'), actualizados: i.actualizados.filter(x => !x.tabla || x.tabla === 'alumnos').length, clases: n(i, 'practicas'),
     profesores: n(i, 'profesores'), vehiculos: n(i, 'vehiculos'),
     cargos: n(i, 'cargos'), pagos: n(i, 'pagos'), examenes: n(i, 'presentaciones')

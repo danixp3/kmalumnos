@@ -13,11 +13,19 @@ const MG_MAX_PREVIA = 300;
 const MG_OPC_DEFECTO = { soloEnCurso: true, actualizar: 'vacios', crearRelacionados: true, crearAlumnos: true, capitalizar: true, ordenNombre: 'nombre_apellidos' };
 const MG_NOMBRES_EXTRA = { profesor_id: 'profesor', vehiculo_id: 'coche', clases_previas: 'clases ya hechas', km_previos: 'km ya hechos' };
 const mgPl = (n, uno, varios) => `${fmtMiles(n)} ${n === 1 ? uno : varios}`;
-const mg = { tipo: 'alumnos', archivo: '', hojas: [], hoja: 0, det: null, mapeo: [], filaCabecera: -1, opciones: { ...MG_OPC_DEFECTO }, plan: null, filtro: 'todas', recordado: false, turno: 0 };
+const mg = { tipo: 'alumnos', archivo: '', hojas: [], hoja: 0, det: null, mapeo: [], filaCabecera: -1, opciones: { ...MG_OPC_DEFECTO }, plan: null, filtro: 'todas', recordado: false, turno: 0, procedencia: null };
+// Programa del que vienen los datos: todo lo que entra lleva esta etiqueta
+// (db/procedencia.js). Se recuerda el último que se escribió.
+const MG_PROCEDENCIA_KEY = 'km_migracion_procedencia';
+function mgProcedencia() {
+  if (mg.procedencia == null) { try { mg.procedencia = localStorage.getItem(MG_PROCEDENCIA_KEY) || ''; } catch (e) { mg.procedencia = ''; } }
+  return mg.procedencia;
+}
+const mgProcedenciaFinal = () => String(mgProcedencia() || '').replace(/\s+/g, ' ').trim() || 'Programa anterior';
 
 async function loadMigracion() {
   mgPintarTipo();
-  await mgPintarHistorial();
+  await Promise.all([mgPintarHistorial(), cargarProcedencias()]);
 }
 
 function mgPintarTipo() {
@@ -154,7 +162,10 @@ function mgPintarOpciones() {
   const o = mg.opciones, tiene = k => mg.mapeo.includes(k);
   const chk = (k, texto) => `<label class="mg-chk"><input type="checkbox" ${o[k] ? 'checked' : ''} onchange="mgOpcion('${k}', this.checked)"> ${texto}</label>`;
   const sel = (k, texto, ops, nota = '') => `<label class="mg-sel">${texto} <select onchange="mgOpcion('${k}', this.value)">${ops.map(([v, t]) => `<option value="${v}" ${o[k] === v ? 'selected' : ''}>${t}</option>`).join('')}</select>${nota ? ` <small>${nota}</small>` : ''}</label>`;
-  let h = '';
+  const progs = ((typeof procedenciasInfo !== 'undefined' && procedenciasInfo && procedenciasInfo.programas) || []).map(p => p.nombre);
+  let h = `<label class="mg-sel mg-proc">¿De qué programa vienen? <input type="text" id="mg-procedencia" maxlength="40" list="mg-procedencias" value="${esc(mgProcedencia())}" placeholder="Programa anterior" oninput="mg.procedencia=this.value" aria-label="Nombre del programa del que vienen los datos">
+    <datalist id="mg-procedencias">${progs.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
+    <small>Todo lo que entre llevará esta etiqueta para distinguirlo de lo creado en AulaMovil (Ajustes → Datos de otros programas).</small></label>`;
   if (mg.tipo === 'alumnos') {
     h += sel('actualizar', 'Si el alumno ya está en la app:', [['vacios', 'completar solo lo que le falte (recomendado)'], ['todo', 'poner los datos del archivo'], ['nada', 'no tocarlo']]);
     if (tiene('estado') || tiene('fecha_baja')) h += chk('soloEnCurso', 'Dejar fuera a los dados de baja y a los ya aprobados');
@@ -193,7 +204,7 @@ function mgEntrada() {
   const h = mg.hojas[mg.hoja];
   const suc = typeof getSucursalActual === 'function' ? getSucursalActual() : null;
   return {
-    tipo: mg.tipo, filas: h.filas, numFila: h.numFila, filaCabecera: mg.filaCabecera, mapeo: mg.mapeo, archivo: mg.archivo,
+    tipo: mg.tipo, filas: h.filas, numFila: h.numFila, filaCabecera: mg.filaCabecera, mapeo: mg.mapeo, archivo: mg.archivo, procedencia: mgProcedenciaFinal(),
     opciones: { ...mg.opciones, hoy: hoyISO(), duracion: getDuracionClaseMin(), sucursal_id: suc || null }
   };
 }
@@ -288,7 +299,7 @@ async function mgImportar() {
   const que = mg.plan.tipo === 'alumnos'
     ? `Entrarán ${mgPl(r.nuevos, 'alumno nuevo', 'alumnos nuevos')}${r.actualizar ? ` y se completarán los datos de ${mgPl(r.actualizar, 'alumno', 'alumnos')} que ya tienes (no se duplican):\n${lineas.join('\n')}${juntadas.length > lineas.length ? `\n… y ${fmtMiles(juntadas.length - lineas.length)} más` : ''}` : ''}${r.actualizar ? '' : '.'}`
     : `Entrarán ${mgPl(r.clases, 'clase anterior', 'clases anteriores')}${r.alumnosNuevos ? ` y ${mgPl(r.alumnosNuevos, 'alumno nuevo', 'alumnos nuevos')}` : ''}.`;
-  const ok = await confirmar(`${que}\n\nAntes se guarda una copia de seguridad, y podrás deshacer esta importación desde esta misma pantalla.`, { titulo: 'Importar', textoAceptar: 'Importar' });
+  const ok = await confirmar(`${que}\n\nTodo lo que entre quedará marcado como traído de «${mgProcedenciaFinal()}».\n\nAntes se guarda una copia de seguridad, y podrás deshacer esta importación desde esta misma pantalla.`, { titulo: 'Importar', textoAceptar: 'Importar' });
   if (!ok) return;
   const btn = document.getElementById('mg-btn-importar');
   btn.disabled = true; btn.textContent = 'Importando…';
@@ -299,6 +310,7 @@ async function mgImportar() {
     return;
   }
   mgRecordar();
+  try { localStorage.setItem(MG_PROCEDENCIA_KEY, mgProcedenciaFinal()); } catch (e) { /* sin almacenamiento: no se recuerda */ }
   mgPintarHecho(res, mg.plan.tipo);
   mg.hojas = []; mg.plan = null;
   document.getElementById('mg-pegar').value = '';
@@ -320,7 +332,8 @@ function mgPintarHecho(res, tipo) {
   botones.push(`<button class="btn btn-outline" onclick="navegarA('puesta-en-marcha')">${tipo === 'clases' && r.sinKm ? 'Dar km a las clases que no los traen' : 'Puesta en marcha: km de los coches y clases ya hechas'}</button>`);
   el.innerHTML = `<div class="pm-paso-cab"><span class="pm-num mg-num-ok">✓</span><div><h3>Hecho: ${que}</h3>
       <p>Se están subiendo a la nube: en unos segundos los profesores los verán en el móvil.${res.copia ? ' Copia de seguridad previa guardada.' : ''}
-      Si sigues dando de alta en tu programa anterior, repite esto con su lista cuando quieras: <b>solo entrarán los nuevos</b> y se recordarán estas columnas.</p></div></div>
+      Si sigues dando de alta en tu programa anterior, repite esto con su lista cuando quieras: <b>solo entrarán los nuevos</b> y se recordarán estas columnas.
+      Todo lo que ha entrado lleva la etiqueta ${etiquetaProcedencia(r.procedencia || mgProcedenciaFinal())}: en Alumnos y Prácticas sale aparte de lo creado en AulaMovil (Ajustes → Datos de otros programas).</p></div></div>
     <div class="mg-siguientes">${botones.join('')}</div>
     <div class="mg-basico"><div><b>¿Solo vas a usar AulaMovil para registrar las prácticas?</b> Deja en el menú lo básico (alumnos, prácticas, coches, km) y oculta cobros, caja, exámenes… Se puede volver a mostrar en Ajustes → Menú lateral.</div>
       <button class="btn btn-outline btn-sm" onclick="aplicarPresetMenu('basico');showToast('mg-toast','Menú reducido a lo básico. Para volver a verlo todo: Ajustes → Menú lateral.','ok')">Dejar el menú en lo básico</button></div>`;
@@ -340,7 +353,7 @@ async function mgPintarHistorial() {
     : `${mgPl(i.clases, 'clase', 'clases')}${i.alumnos ? `, ${mgPl(i.alumnos, 'alumno nuevo', 'alumnos nuevos')}` : ''}`;
   document.getElementById('mg-historial').innerHTML = `<div class="table-wrap"><table>
     <thead><tr><th>Cuándo</th><th>De dónde</th><th>Qué entró</th><th></th></tr></thead>
-    <tbody>${lista.map(i => `<tr><td class="num-mono">${cuando(i.fecha)}</td><td>${esc(i.archivo)}</td>
+    <tbody>${lista.map(i => `<tr><td class="num-mono">${cuando(i.fecha)}</td><td>${esc(i.archivo)}${i.procedencia ? ' ' + etiquetaProcedencia(i.procedencia) : ''}</td>
       <td>${que(i)}${i.profesores || i.vehiculos ? ` <small>(+ ${[i.profesores && mgPl(i.profesores, 'profesor', 'profesores'), i.vehiculos && mgPl(i.vehiculos, 'coche', 'coches')].filter(Boolean).join(', ')})</small>` : ''}</td>
       <td style="text-align:right">${i.deshecha ? `<span class="pill pill-line">Deshecha el ${esc(cuando(i.deshecha))}</span>` : `<button class="btn btn-sm btn-outline" onclick="mgDeshacer('${esc(i.id)}')">Deshacer</button>`}</td></tr>`).join('')}</tbody></table></div>`;
 }
@@ -503,7 +516,7 @@ async function mgAriautoImportar() {
   const lineas = juntadas.slice(0, 12).map(x => `• «${x.nombre}» (Ariauto${x.n_registro ? ' nº ' + x.n_registro : ''}) → «${x.nombreApp || x.nombre}» de la app`);
   const fusiones = r.completar ? `\n\nSe juntan con alumnos que ya tienes (${fmtMiles(r.completar)}; no se crean repetidos y sus clases de la app se conservan):\n${lineas.join('\n')}${r.completar > lineas.length ? `\n… y ${fmtMiles(r.completar - lineas.length)} más (en la lista de abajo)` : ''}` : '';
   const dudosos = r.revisar ? `\n\n${mgPl(r.revisar, 'ficha dudosa no se toca', 'fichas dudosas no se tocan')} (puedes decidirlas en la lista).` : '';
-  const ok = await confirmar(`${r.nuevos ? `Entrarán ${mgPl(r.nuevos, 'alumno nuevo', 'alumnos nuevos')}` : 'No entra ningún alumno nuevo'}${r.conCambios ? ` y se completarán ${mgPl(r.conCambios, 'alumno', 'alumnos')} que ya tienes (sin tocar sus clases anotadas)` : ''}${r.clasesConFecha ? `, ${mgPl(r.clasesConFecha, 'clase', 'clases')} con su día` : ''}${r.examenes ? `, ${mgPl(r.examenes, 'examen', 'exámenes')}` : ''}${mga.opciones.economia ? ', cargos y pagos' : ''}.${fusiones}${dudosos}\n\nAntes se guarda una copia de seguridad, y podrás deshacer esta importación desde esta misma pantalla.`, { titulo: 'Importar de Ariauto', textoAceptar: r.completar ? 'Importar y juntar' : (r.nuevos ? 'Importar' : 'Completar') });
+  const ok = await confirmar(`${r.nuevos ? `Entrarán ${mgPl(r.nuevos, 'alumno nuevo', 'alumnos nuevos')}` : 'No entra ningún alumno nuevo'}${r.conCambios ? ` y se completarán ${mgPl(r.conCambios, 'alumno', 'alumnos')} que ya tienes (sin tocar sus clases anotadas)` : ''}${r.clasesConFecha ? `, ${mgPl(r.clasesConFecha, 'clase', 'clases')} con su día` : ''}${r.examenes ? `, ${mgPl(r.examenes, 'examen', 'exámenes')}` : ''}${mga.opciones.economia ? ', cargos y pagos' : ''}.${fusiones}${dudosos}\n\nTodo lo que entre quedará marcado como traído de «Ariauto».\n\nAntes se guarda una copia de seguridad, y podrás deshacer esta importación desde esta misma pantalla.`, { titulo: 'Importar de Ariauto', textoAceptar: r.completar ? 'Importar y juntar' : (r.nuevos ? 'Importar' : 'Completar') });
   if (!ok) return;
   const btn = document.getElementById('mg-ariauto-btn');
   btn.disabled = true; btn.textContent = 'Importando…';
@@ -529,7 +542,8 @@ async function mgAriautoImportar() {
   const el = document.getElementById('mg-paso-hecho');
   el.innerHTML = `<div class="pm-paso-cab"><span class="pm-num mg-num-ok">✓</span><div><h3>Hecho: ${mgPl(x.creadosAlumnos, 'alumno nuevo', 'alumnos nuevos')}${x.actualizadosAlumnos ? ` y ${mgPl(x.actualizadosAlumnos, 'completado', 'completados')}` : ''} desde Ariauto</h3>
       <p>Se están subiendo a la nube: en unos segundos los profesores los verán en el móvil.${res.copia ? ' Copia de seguridad previa guardada.' : ''}${centro ? ' Los datos del centro que faltaban se han rellenado con los de Ariauto (Ajustes → Datos del centro).' : ''}
-      Cada dato está en su sitio de la ficha del alumno (nº de registro, sexo, nacionalidad, tutor…); sus clases de Ariauto, con su día, en su ficha y en la ficha DGT (como las anotadas en Puesta en marcha); los exámenes, con su examinador y sus fallos, en Exámenes.${x.creadosAlumnos ? ' Los alumnos nuevos que des de alta a partir de ahora siguen la numeración (nº de registro) de Ariauto.' : ''}</p></div></div>
+      Cada dato está en su sitio de la ficha del alumno (nº de registro, sexo, nacionalidad, tutor…); sus clases de Ariauto, con su día, en su ficha y en la ficha DGT (como las anotadas en Puesta en marcha); los exámenes, con su examinador y sus fallos, en Exámenes.${x.creadosAlumnos ? ' Los alumnos nuevos que des de alta a partir de ahora siguen la numeración (nº de registro) de Ariauto.' : ''}
+      Todo lo que ha entrado lleva la etiqueta ${etiquetaProcedencia('Ariauto')}: en Alumnos y Prácticas sale aparte de lo creado en AulaMovil (Ajustes → Datos de otros programas).</p></div></div>
     <div class="mg-siguientes"><button class="btn btn-outline" onclick="navegarA('alumnos')">Ver los alumnos</button>
       <button class="btn btn-outline" onclick="navegarA('puesta-en-marcha')">Puesta en marcha: km de los coches y clases ya hechas</button>
       <button class="btn btn-outline" onclick="navegarA('vencimientos')">Ver caducidades (ITV, seguros, DNI)</button></div>`;

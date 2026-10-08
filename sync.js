@@ -13,6 +13,7 @@ const path = require('path');
 const { app } = require('electron');
 const { createClient } = require('@supabase/supabase-js');
 const { CAMPOS_EXTRA, normalizarCampoExtra } = require('./db/campos-extra');
+const { normalizarProcedencia, TABLAS_PROCEDENCIA_NUBE } = require('./db/procedencia');
 
 // Polyfill WebSocket for Node.js (required by supabase-js realtime)
 if (typeof globalThis.WebSocket === 'undefined') {
@@ -831,6 +832,31 @@ function _quitarExtra(tabla, obj, on) {
   for (const [c, t] of Object.entries(CAMPOS_EXTRA[tabla])) {
     if (on) out[c] = normalizarCampoExtra(t, obj[c]); else delete out[c];
   }
+  return out;
+}
+
+// Migración 2026-10-08: procedencia = programa del que se trajo cada dato
+// («Ariauto»…; null = creado en AulaMovil, db/procedencia.js). Una columna por
+// tabla, detectada aparte: sin ella en la nube no se manda ni se pide.
+async function _procedenciaTablas(sb) {
+  const out = {};
+  for (const t of TABLAS_PROCEDENCIA_NUBE) out[t] = await _columnasDisponibles(sb, t, 'procedencia');
+  return out;
+}
+function _ponerProcedencia(on, payload, local) {
+  if (on) payload.procedencia = normalizarProcedencia(local.procedencia);
+  return payload;
+}
+// Bajada: lo que diga la nube; si la fila no trae la columna, se conserva la de este PC
+function _traerProcedencia(destino, remoto, local) {
+  if (remoto && 'procedencia' in remoto) destino.procedencia = normalizarProcedencia(remoto.procedencia);
+  else if (local && local.procedencia) destino.procedencia = local.procedencia;
+  return destino;
+}
+// Subida completa: sin la columna en la nube el upsert entero fallaría
+function _quitarProcedencia(obj, on) {
+  const out = { ...obj };
+  if (on) out.procedencia = normalizarProcedencia(obj.procedencia); else delete out.procedencia;
   return out;
 }
 
@@ -1881,6 +1907,7 @@ async function _syncInterno() {
     const firmaProfOn = await _profesoresFirmaDisponible(sb);
     const fraccionOn = await _practicasFraccionDisponible(sb);
     const extraOn = await _extraTablas(sb);
+    const procOn = await _procedenciaTablas(sb);
     // Marcas locales que cambian al subir (firma_pendiente): hay que guardar data.json.
     let marcasLocales = false;
     // Conflicto de empresa sin resolver (ver sección "PROPIETARIO DE LOS DATOS
@@ -1966,6 +1993,7 @@ async function _syncInterno() {
           if (_empresaId) payload.empresa_id = _empresaId;
           if (sucursalesOn) payload.sucursal_id = v.sucursal_id != null ? v.sucursal_id : null;
           if (extraOn.vehiculos) _ponerExtra('vehiculos', payload, v);
+          _ponerProcedencia(procOn.vehiculos, payload, v);
           // v.id: la reconciliación por matrícula puede haberle dado el id remoto.
           if (subidaOk(await sb.from('vehiculos').upsert(payload, { onConflict: 'id' }), 'vehiculos', v.id)) hecho('vehiculos', id);
         }
@@ -1988,6 +2016,7 @@ async function _syncInterno() {
           if (sucursalesOn) payload.sucursal_id = pr.sucursal_id != null ? pr.sucursal_id : null;
           if (profesoresDniOn) payload.dni = pr.dni || null;
           if (extraOn.profesores) _ponerExtra('profesores', payload, pr);
+          _ponerProcedencia(procOn.profesores, payload, pr);
           // La firma solo viaja cuando se cambió en este PC (firma_pendiente):
           // así editar el nombre aquí nunca pisa una firma hecha en el móvil.
           const conFirma = firmaProfOn && pr.firma_pendiente;
@@ -2065,6 +2094,7 @@ async function _syncInterno() {
             payload.km_previos = a.km_previos > 0 ? Math.round(a.km_previos) : null;
           }
           if (extraOn.alumnos) _ponerExtra('alumnos', payload, a);
+          _ponerProcedencia(procOn.alumnos, payload, a);
           loteAlumnos.push([id, payload, a]);
         }
       }
@@ -2104,6 +2134,7 @@ async function _syncInterno() {
           }
           if (zonasOn && Array.isArray(p.zonas)) payload.zonas = p.zonas;
           if (fraccionOn) payload.fraccion = p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : null;
+          _ponerProcedencia(procOn.practicas, payload, p);
           lotePracticas.push([id, payload, p]);
         }
       }
@@ -2134,6 +2165,7 @@ async function _syncInterno() {
         if (_empresaId) payload.empresa_id = _empresaId;
         if (sucursalesOn) payload.sucursal_id = pg.sucursal_id != null ? pg.sucursal_id : null;
         if (pagosCamposOn) { payload.forma_pago = pg.forma_pago || null; payload.empleado = pg.empleado || null; }
+        _ponerProcedencia(procOn.pagos, payload, pg);
         lotePagos.push([id, payload, pg]);
       }
       await subirEnLotes('pagos', lotePagos);
@@ -2207,6 +2239,7 @@ async function _syncInterno() {
         };
         if (_empresaId) payload.empresa_id = _empresaId;
         if (sucursalesOn) payload.sucursal_id = c.sucursal_id != null ? c.sucursal_id : null;
+        _ponerProcedencia(procOn.cargos, payload, c);
         loteCargos.push([id, payload, c]);
       }
       await subirEnLotes('cargos', loteCargos);
@@ -2278,12 +2311,12 @@ async function _syncInterno() {
           continue;
         }
         if (idx === -1) {
-          data.vehiculos.push(_traerExtra('vehiculos', {
+          data.vehiculos.push(_traerProcedencia(_traerExtra('vehiculos', {
             id: rv.id, nombre: rv.nombre, matricula: rv.matricula || '',
             km_actual: parseFloat(rv.km_actual) || 0,
             sucursal_id: rv.sucursal_id != null ? rv.sucursal_id : null,
             updated_at: rv.updated_at
-          }, rv, null));
+          }, rv, null), rv, null));
           _avanzarSeq(data, 'v', rv.id);
           dataChanged = true;
           pulled++;
@@ -2291,11 +2324,11 @@ async function _syncInterno() {
           const localUpdated  = data.vehiculos[idx].updated_at || '1970-01-01T00:00:00.000Z';
           const remoteUpdated = rv.updated_at || '1970-01-01T00:00:00.000Z';
           if (remoteUpdated > localUpdated) {
-            const nuevo = _traerExtra('vehiculos', {
+            const nuevo = _traerProcedencia(_traerExtra('vehiculos', {
               nombre: rv.nombre, matricula: rv.matricula || '',
               km_actual: parseFloat(rv.km_actual) || 0,
               sucursal_id: rv.sucursal_id != null ? rv.sucursal_id : null
-            }, rv, data.vehiculos[idx]);
+            }, rv, data.vehiculos[idx]), rv, data.vehiculos[idx]);
             _detectarYRegistrarConflicto(data, 'vehiculos', pending.vehiculos,
               rv.id, ['nombre', 'matricula', 'km_actual'], data.vehiculos[idx], nuevo, conflictos);
             Object.assign(data.vehiculos[idx], nuevo, { updated_at: rv.updated_at });
@@ -2326,13 +2359,13 @@ async function _syncInterno() {
           continue;
         }
         if (idx === -1) {
-          data.profesores.push(_traerExtra('profesores', {
+          data.profesores.push(_traerProcedencia(_traerExtra('profesores', {
             id: rp.id, nombre: rp.nombre, nota: rp.nota || '',
             sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null,
             dni: rp.dni != null ? rp.dni : null,
             firma: typeof rp.firma === 'string' ? rp.firma : null,
             updated_at: rp.updated_at
-          }, rp, null));
+          }, rp, null), rp, null));
           _avanzarSeq(data, 'pf', rp.id);
           dataChanged = true;
           pulled++;
@@ -2340,7 +2373,7 @@ async function _syncInterno() {
           const localUpdated  = data.profesores[idx].updated_at || '1970-01-01T00:00:00.000Z';
           const remoteUpdated = rp.updated_at || '1970-01-01T00:00:00.000Z';
           if (remoteUpdated > localUpdated) {
-            const nuevo = _traerExtra('profesores', { nombre: rp.nombre, nota: rp.nota || '', sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null, dni: rp.dni != null ? rp.dni : null }, rp, data.profesores[idx]);
+            const nuevo = _traerProcedencia(_traerExtra('profesores', { nombre: rp.nombre, nota: rp.nota || '', sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null, dni: rp.dni != null ? rp.dni : null }, rp, data.profesores[idx]), rp, data.profesores[idx]);
             _detectarYRegistrarConflicto(data, 'profesores', pending.profesores,
               rp.id, ['nombre', 'nota', 'dni'], data.profesores[idx], nuevo, conflictos);
             // Firma: manda la nube, salvo que aquí haya una cambiada sin subir aún.
@@ -2451,6 +2484,7 @@ async function _syncInterno() {
           updated_at: ra.updated_at
         };
         _traerExtra('alumnos', alumno, ra, idx !== -1 ? data.alumnos[idx] : null);
+        _traerProcedencia(alumno, ra, idx !== -1 ? data.alumnos[idx] : null);
         if (idx !== -1) {
           // Comparar timestamps: solo sobrescribir si el remoto es más reciente
           const local = data.alumnos[idx];
@@ -2517,6 +2551,7 @@ async function _syncInterno() {
               source: rp.source != null ? rp.source : null,
               updated_at: rp.updated_at
             };
+            _traerProcedencia(practica, rp, idx !== -1 ? data.practicas[idx] : null);
             if (idx !== -1) {
               // Comparar timestamps: solo sobrescribir si el remoto es más reciente
               const local = data.practicas[idx];
@@ -2566,14 +2601,14 @@ async function _syncInterno() {
           }
           if (idx === -1) {
             posPagos.set(rpg.id, data.pagos.length);
-            data.pagos.push({
+            data.pagos.push(_traerProcedencia({
               id: rpg.id, alumno_id: rpg.alumno_id, fecha: rpg.fecha,
               cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || '',
               sucursal_id: rpg.sucursal_id != null ? rpg.sucursal_id : null,
               forma_pago: rpg.forma_pago != null ? rpg.forma_pago : null,
               empleado: rpg.empleado != null ? rpg.empleado : null,
               updated_at: rpg.updated_at
-            });
+            }, rpg, null));
             _avanzarSeq(data, 'pg', rpg.id);
             dataChanged = true;
             pulled++;
@@ -2581,13 +2616,13 @@ async function _syncInterno() {
             const localUpdated  = data.pagos[idx].updated_at || '1970-01-01T00:00:00.000Z';
             const remoteUpdated = rpg.updated_at || '1970-01-01T00:00:00.000Z';
             if (remoteUpdated > localUpdated) {
-              const nuevo = {
+              const nuevo = _traerProcedencia({
                 alumno_id: rpg.alumno_id, fecha: rpg.fecha,
                 cantidad: parseFloat(rpg.cantidad) || 0, nota: rpg.nota || '',
                 sucursal_id: rpg.sucursal_id != null ? rpg.sucursal_id : null,
                 forma_pago: rpg.forma_pago != null ? rpg.forma_pago : null,
                 empleado: rpg.empleado != null ? rpg.empleado : null
-              };
+              }, rpg, data.pagos[idx]);
               _detectarYRegistrarConflicto(data, 'pagos', pending.pagos,
                 rpg.id, ['alumno_id', 'fecha', 'cantidad', 'nota'], data.pagos[idx], nuevo, conflictos);
               Object.assign(data.pagos[idx], nuevo, { updated_at: rpg.updated_at });
@@ -2730,6 +2765,7 @@ async function _syncInterno() {
               deleted: !!rc.deleted,
               updated_at: rc.updated_at
             };
+            _traerProcedencia(cargo, rc, idx !== -1 ? data.cargos[idx] : null);
             if (idx === -1) {
               posCargos.set(rc.id, data.cargos.push(cargo) - 1);
               _avanzarSeq(data, 'cargo', rc.id);
@@ -3026,6 +3062,7 @@ async function pushAll() {
     // Punto de partida del alumno (migración 2026-10-01), mismo cuidado que quitarFichaDgt.
     const previasOn = await _alumnosPreviasDisponible(sb);
     const extraOn = await _extraTablas(sb);
+    const procOn = await _procedenciaTablas(sb);
     const quitarPrevias = obj => {
       const { clases_previas, km_previos, minutos_sobrantes, ...resto } = obj;
       if (!previasOn) return resto;
@@ -3056,12 +3093,12 @@ async function pushAll() {
     // Subir en orden: vehiculos → profesores → tarifas → alumnos → practicas → pagos
     if (data.vehiculos.length) {
       await subirTodo('vehiculos',
-        data.vehiculos.map(v => _quitarExtra('vehiculos', quitarSucursal({ ...v, ...conEmpresaTag, deleted: false, updated_at: now }), extraOn.vehiculos)),
+        data.vehiculos.map(v => _quitarProcedencia(_quitarExtra('vehiculos', quitarSucursal({ ...v, ...conEmpresaTag, deleted: false, updated_at: now }), extraOn.vehiculos), procOn.vehiculos)),
         'subida completa');
     }
     if (data.profesores.length) {
       await subirTodo('profesores',
-        data.profesores.map(p => _quitarExtra('profesores', quitarDniProfesor(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })), extraOn.profesores)),
+        data.profesores.map(p => _quitarProcedencia(_quitarExtra('profesores', quitarDniProfesor(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })), extraOn.profesores), procOn.profesores)),
         'subida completa');
     }
     if (data.tarifas.length) {
@@ -3071,12 +3108,12 @@ async function pushAll() {
     }
     if (data.alumnos.length) {
       await subirTodo('alumnos',
-        data.alumnos.map(a => _quitarExtra('alumnos', quitarPrevias(quitarFichaDgt(quitarPermisos(quitarLibro(quitarDatos(quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now }))))))), extraOn.alumnos)),
+        data.alumnos.map(a => _quitarProcedencia(_quitarExtra('alumnos', quitarPrevias(quitarFichaDgt(quitarPermisos(quitarLibro(quitarDatos(quitarEmail(quitarSucursal({ ...a, ...conEmpresaTag, deleted: false, updated_at: now }))))))), extraOn.alumnos), procOn.alumnos)),
         'subida completa');
     }
     if (data.practicas.length) {
       await subirTodo('practicas',
-        data.practicas.map(p => quitarMovil(quitarHoraInicio(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now })))),
+        data.practicas.map(p => _quitarProcedencia(quitarMovil(quitarHoraInicio(quitarSucursal({ ...p, ...conEmpresaTag, deleted: false, updated_at: now }))), procOn.practicas)),
         'subida completa');
     }
     // Sucursales: solo si la migración está aplicada (si no, ni la tabla existe).
@@ -3094,7 +3131,7 @@ async function pushAll() {
     // Cargos: solo si la migración está aplicada (si no, ni la tabla existe).
     if (cargosOn && data.cargos.length) {
       await subirTodo('cargos',
-        data.cargos.map(c => quitarSucursal({ ...c, ...conEmpresaTag, updated_at: now })),
+        data.cargos.map(c => _quitarProcedencia(quitarSucursal({ ...c, ...conEmpresaTag, updated_at: now }), procOn.cargos)),
         'subida completa');
     }
     // Pagos: igual tolerancia que en sync() — un empleado sin acceso a la
@@ -3102,7 +3139,7 @@ async function pushAll() {
     try {
       if (data.pagos.length) {
         await subirTodo('pagos',
-          data.pagos.map(pg => quitarPagosCampos(quitarSucursal({ ...pg, ...conEmpresaTag, deleted: false, updated_at: now }))),
+          data.pagos.map(pg => _quitarProcedencia(quitarPagosCampos(quitarSucursal({ ...pg, ...conEmpresaTag, deleted: false, updated_at: now })), procOn.pagos)),
           'pagos', true);
       }
     } catch (e) {

@@ -278,6 +278,10 @@ app.whenReady().then(() => {
   setTimeout(() => comprobarActualizacion(true), 3000);
   iniciarVigilanciaActualizaciones();
 
+  // Lo traído de otro programa con una versión anterior queda marcado con su
+  // procedencia (una vez por importación; db/procedencia.js)
+  try { db.etiquetarImportacionesAnteriores(); } catch (e) { console.error('Procedencia: no se pudieron marcar las importaciones anteriores:', e.message); }
+
   // Cargar credenciales de sincronización (si el usuario ya las configuró)
   const creds = loadSyncCreds();
   if (creds) sync.restaurarCredenciales(creds.email, creds.password);
@@ -774,6 +778,13 @@ ipcMain.handle('migracion-aplicar', (_, entrada) => {
   return res;
 });
 ipcMain.handle('migracion-historial', () => db.getImportaciones());
+// Procedencia de los datos traídos de otro programa (db/procedencia.js)
+ipcMain.handle('get-procedencias', () => db.getProcedencias());
+ipcMain.handle('renombrar-procedencia', (_, viejo, nuevo) => {
+  const res = db.renombrarProcedencia(viejo, nuevo);
+  if (res && res.ok && res.total) sync.sync().catch(() => {});
+  return res;
+});
 ipcMain.handle('migracion-deshacer', (_, id) => {
   const res = db.deshacerImportacion(id);
   if (res && res.ok) sync.sync().catch(() => {});

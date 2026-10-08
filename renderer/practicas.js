@@ -96,7 +96,7 @@ function pintarCabeceraFicha(f) {
     <div class="ficha-cab-fila">
       <span class="avatar-ini avatar-ini-lg" aria-hidden="true" data-ini="${esc(iniciales(nombreCompleto))}">${esc(iniciales(nombreCompleto))}</span>
       <div class="ficha-quien">
-        <h1>${esc(nombreCompleto)}${estado === 'baja' ? ' <span class="pill pill-err" style="vertical-align:middle">Baja</span>' : estado === 'inactivo' ? ' <span class="pill pill-line" style="vertical-align:middle">Inactivo</span>' : ''}</h1>
+        <h1>${esc(nombreCompleto)}${estado === 'baja' ? ' <span class="pill pill-err" style="vertical-align:middle">Baja</span>' : estado === 'inactivo' ? ' <span class="pill pill-line" style="vertical-align:middle">Inactivo</span>' : ''}${a.procedencia ? ' ' + etiquetaProcedencia(a.procedencia, { larga: true }) : ''}</h1>
         <span class="ficha-linea">${linea1}</span>
         <div class="ficha-contacto">${contacto}</div>
         ${(f.otros_expedientes || []).length ? `<div class="ficha-expedientes" title="La misma persona con otro permiso o curso: cada uno es un expediente con su nº">Otros expedientes: ${f.otros_expedientes.map(x =>
@@ -297,15 +297,24 @@ async function loadPracticas() {
     return;
   }
   const guion = '<span style="color:var(--text-faint)">—</span>';
+  // Con lo traído de otros programas separado: una línea marca dónde empiezan
+  // las clases de cada procedencia (las de antes, traídas; las de después, de aquí)
+  const separar = separarProcedencia() && practicas.some(p => p.procedencia);
+  let procPrevia;
   tbody.innerHTML = practicas.slice().reverse().map(p => {
+    let sep = '';
+    if (separar && (p.procedencia || null) !== procPrevia) {
+      procPrevia = p.procedencia || null;
+      sep = `<tr class="fila-sep-proc${p.procedencia ? '' : ' fila-sep-app'}"><td colspan="9">${p.procedencia ? `${ICONO_PROC} Clases traídas de <b>${esc(p.procedencia)}</b>` : `Clases dadas con <b>${NOMBRE_APP_PROC}</b>`}</td></tr>`;
+    }
     const kmCell = p.enCurso
       ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>'
       : (p.sinCerrar ? `<span class="pill pill-warn" title="La práctica se abrió desde el móvil y no se cerró">Sin cerrar · km ${fmt(p.km_inicial)}</span>`
         : (p.sinKm ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : `${fmt(p.km_inicial)} → ${fmt(p.km_final)}`));
     const diffCell = p.enCurso || p.sinKm || p.sinCerrar ? guion : `<b>${fmtDec(p.km)}</b>`;
-    return `<tr${p.sinKm ? ' style="background:var(--warn-bg-soft)"' : ''}>
+    return sep + `<tr${p.sinKm ? ' style="background:var(--warn-bg-soft)"' : ''}>
       <td class="num-mono">${p.n}</td>
-      <td>${esc(p.fecha === hoyISO() ? 'Hoy, ' + diaMes(p.fecha) : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase()))}${p.tipo === 'pista' ? ' <span class="pill pill-line" style="font-size:11px;padding:1px 7px">Pista</span>' : ''}${p.fraccion > 0 && p.fraccion < 1 ? ` <span class="pill pill-line" style="font-size:11px;padding:1px 7px" title="Fracción de clase: se cobra en proporción">${fmtClases(p.fraccion)} clase</span>` : ''}</td>
+      <td>${esc(p.fecha === hoyISO() ? 'Hoy, ' + diaMes(p.fecha) : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase()))}${p.tipo === 'pista' ? ' <span class="pill pill-line" style="font-size:11px;padding:1px 7px">Pista</span>' : ''}${p.fraccion > 0 && p.fraccion < 1 ? ` <span class="pill pill-line" style="font-size:11px;padding:1px 7px" title="Fracción de clase: se cobra en proporción">${fmtClases(p.fraccion)} clase</span>` : ''}${p.procedencia && !separar ? ' ' + etiquetaProcedencia(p.procedencia) : ''}</td>
       <td class="num-mono">${p.hora_inicio ? esc(p.hora_inicio) : guion}</td>
       <td>${p.matricula ? placaHTML(p.matricula) : (p.vehiculo_nombre ? esc(p.vehiculo_nombre) : guion)}</td>
       <td class="col-num num-mono">${kmCell}</td>

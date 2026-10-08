@@ -685,6 +685,21 @@ test('crear-alumno: le da el siguiente nº de registro y, sin coche elegido, el 
   assert.equal((await llamar('alumnos', { method: 'GET' })).status, 200);
 });
 
+test('alumnos: trae la procedencia (programa del que se trajo) y sin la columna sigue funcionando', async () => {
+  const datos = base();
+  datos.alumnos[0].procedencia = 'Ariauto';
+  datos.alumnos[1].procedencia = null;
+  reiniciar(datos);
+  let lista = (await llamar('alumnos', { method: 'GET' })).json;
+  assert.equal(lista.find(x => x.id === 1).procedencia, 'Ariauto');
+  assert.equal(lista.find(x => x.id === 2).procedencia, null);
+  // Nube sin la migración 2026-10-08: la lista sale igual, sin la etiqueta
+  reiniciar(base(), { alumnos: ['procedencia'] });
+  const r = await llamar('alumnos', { method: 'GET' });
+  assert.equal(r.status, 200); assert.equal(r.json.length, 2);
+  assert.equal(r.json[0].procedencia, undefined);
+});
+
 test('siguienteNRegistro (web): correlativa primero, la del año si es la única', async () => {
   const { siguienteNRegistro } = await import('../api/_utils.js');
   assert.equal(siguienteNRegistro([]), null);

@@ -463,10 +463,12 @@ const AJ_ICO = {
   actualizaciones: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
   seguridad: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   legal: '<path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 7a4 4 0 0 0 6 0Z"/><path d="m19 7-3 7a4 4 0 0 0 6 0Z"/><path d="M8 21h8"/>',
+  procedencia: '<path d="M12 3v10M7.5 8.5 12 13l4.5-4.5"/><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
   puesta: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>'
 };
 const AJ_SECCIONES = [
   { id: 'puesta', titulo: 'Puesta en marcha', desc: 'Empieza con tus datos reales: km de los coches y clases ya hechas', pagina: 'puesta-en-marcha' },
+  { id: 'procedencia', titulo: 'Datos de otros programas', desc: 'Lo traído de tu programa anterior: etiqueta, separarlo de lo nuevo, renombrar' },
   { id: 'cuenta', titulo: 'Cuenta y sincronización', desc: 'Cuenta de empresa, nube y equipo' },
   { id: 'clases', titulo: 'Clases y kilómetros', desc: 'Rango de km, duración de clase y cancelaciones' },
   { id: 'zonas', titulo: 'Zonas de prácticas', desc: 'Lo que el profesor marca en el móvil como zonas recorridas' },
@@ -485,6 +487,7 @@ async function estadoCuadroAjustes(id) {
   try {
     if (id === 'cuenta') { const e = await window.api.getEstadoCuenta(); return e && e.conectado ? (e.email ? 'Conectada · ' + e.email : 'Conectada') : 'Sin iniciar sesión'; }
     if (id === 'clases') { const r = getRangoPref(); return `${r.min}–${r.max} km por práctica · ${getDuracionClaseMin()} min por clase`; }
+    if (id === 'procedencia') return await estadoProcedenciaAjustes();
     if (id === 'zonas') { const z = await window.api.getZonasPractica(); return z.length ? `${z.length} ${z.length === 1 ? 'zona' : 'zonas'}: ${z.slice(0, 3).join(', ')}${z.length > 3 ? '…' : ''}` : 'Sin zonas (la web no las pide)'; }
     if (id === 'menu') { const n = getMenuOculto().length; return n ? `${n} ${n === 1 ? 'función oculta' : 'funciones ocultas'}` : 'Se ve todo'; }
     if (id === 'panel') { const p = getDashboardPref(); const n = Object.values(p).filter(Boolean).length; return `${n} elementos visibles`; }
@@ -531,6 +534,7 @@ function ajustesAbrir(id) {
   document.getElementById('aj-miga').classList.remove('hidden');
   document.getElementById('aj-volver').classList.remove('hidden');
   if (id === 'zonas') renderZonasUI();
+  if (id === 'procedencia') renderProcedenciaUI();
   if (id === 'menu') renderPersonalizarMenu();
   if (id === 'cobros') renderCobrosUI();
   if (id === 'seguridad' && typeof renderSeguridadUI === 'function') renderSeguridadUI();

@@ -3,6 +3,7 @@
 
 const { load, save, nextId, _sync, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, clasesDePractica } = require('./core');
 const { extraerCamposExtra, camposExtraVacios, siguienteNRegistro, alumnoConNRegistro } = require('./campos-extra');
+const { normalizarProcedencia } = require('./procedencia');
 
 // sucursalId opcional: sin argumento devuelve todos los alumnos (modo clásico
 // o "Todas las sucursales") — ver filtrarPorSucursal en core.js.
@@ -136,7 +137,9 @@ function getFichaAlumno(alumno_id, hoy) {
       nota: p.nota || '',
       firmada: !!p.firma,
       zonas: Array.isArray(p.zonas) ? p.zonas : [],
-      hora_fin: p.hora_fin || null
+      hora_fin: p.hora_fin || null,
+      fraccion: p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : null,
+      procedencia: p.procedencia || null
     };
   });
   const hechas = practicas.filter(p => !p.enCurso);
@@ -415,6 +418,8 @@ function updateAlumnoCampos(id, campos = {}) {
   }
   Object.assign(cambios, _normalizarLibroAlumno(campos), extraerCamposExtra('alumnos', campos));
   if ('permisos' in campos) cambios.permisos = _normalizarPermisos(campos.permisos);
+  // Procedencia (programa del que se trajo; vacío = creado en AulaMovil), a mano desde la ficha
+  if ('procedencia' in campos) cambios.procedencia = normalizarProcedencia(campos.procedencia);
   Object.assign(a, cambios);
   save();
   const s = _sync(); if (s) s.markDirty('alumnos', a.id);

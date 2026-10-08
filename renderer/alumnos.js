@@ -34,14 +34,16 @@ async function loadAlumnos() {
     window.api.getAlumnosLista(getSucursalActual()),
     // Semáforo de examen: una sola llamada para todos los alumnos (evita N+1),
     // cruzado por alumno_id en un Map para pintar la pastilla de cada fila.
-    window.api.getSemaforoExamen().catch(() => [])
+    window.api.getSemaforoExamen().catch(() => []),
+    // Fechas en que se trajeron los datos de otros programas (cabeceras de grupo)
+    cargarProcedencias()
   ]);
   semaforoCache = new Map((semaforo || []).map(s => [s.alumno_id, s]));
   // Con miles de alumnos, lo que cuesta se calcula una vez aquí y no en cada
   // tecla: el texto en el que busca el buscador y en qué pestañas sale.
   const hoy = hoyISO();
   for (const a of lista) {
-    a._busca = sinTildes([a.nombre, a.primer_apellido, a.segundo_apellido, a.dni, a.n_registro, a.telefono, a.telefono2, a.email, a.poblacion].filter(Boolean).join(' '));
+    a._busca = sinTildes([a.nombre, a.primer_apellido, a.segundo_apellido, a.dni, a.n_registro, a.telefono, a.telefono2, a.email, a.poblacion, a.procedencia].filter(Boolean).join(' '));
     a._telDigitos = [a.telefono, a.telefono2].filter(Boolean).join(' ').replace(/\D/g, '');
     a._tabs = {};
     for (const [t, pred] of Object.entries(PREDICADOS_TAB_ALUMNOS)) a._tabs[t] = pred(a, hoy);
@@ -111,6 +113,8 @@ function poblarFiltrosAlumnos() {
   if ([...selVehiculo.options].some(o => o.value === vehiculoActual)) selVehiculo.value = vehiculoActual;
   if ([...selPermiso.options].some(o => o.value === permisoActual)) selPermiso.value = permisoActual;
   if (selProfesor && [...selProfesor.options].some(o => o.value === profesorActual)) selProfesor.value = profesorActual;
+  // Procedencia: solo aparece si hay alumnos traídos de otro programa (renderer/procedencia.js)
+  pintarFiltroProcedencia('f-alumnos-procedencia', alumnosCache.map(a => a.procedencia));
 }
 
 function limpiarFiltrosAlumnos() {
@@ -119,6 +123,8 @@ function limpiarFiltrosAlumnos() {
   const permiso = document.getElementById('f-alumnos-permiso');
   const profesor = document.getElementById('f-alumnos-profesor');
   const estado = document.getElementById('f-alumnos-estado');
+  const procedencia = document.getElementById('f-alumnos-procedencia');
+  if (procedencia) procedencia.value = '';
   if (nombre) nombre.value = '';
   if (vehiculo) vehiculo.value = '';
   if (permiso) permiso.value = '';
@@ -233,6 +239,7 @@ function alumnosFiltrados() {
   const permisoFiltro = document.getElementById('f-alumnos-permiso')?.value || '';
   const profesorFiltro = document.getElementById('f-alumnos-profesor')?.value || '';
   const estadoFiltro = document.getElementById('f-alumnos-estado')?.value || '';
+  const procFiltro = document.getElementById('f-alumnos-procedencia')?.value || '';
 
   let filtrados = alumnosCache.filter(a => {
     if (!enTabAlumnos(a, alumnosTab)) return false;
@@ -255,6 +262,7 @@ function alumnosFiltrados() {
       return false;
     }
     if (estadoFiltro && (a.estado || 'activo') !== estadoFiltro) return false;
+    if (!coincideProcedenciaUI(a.procedencia, procFiltro)) return false;
     return true;
   });
 
@@ -308,7 +316,7 @@ function filaAlumnoHTML(a) {
           <span class="avatar-ini">${esc(iniciales(nombreCompleto))}</span>
           <div class="al-datos">
             <a class="al-nombre lnk" onclick="verPracticas(${a.id},${a.vehiculo_id || 'null'},'${nombreArg}')" title="Abrir la ficha del alumno">${esc(nombreCompleto)}</a>
-            <div class="al-sub">${tagPermiso(a.permiso)}${otrosPermisos ? ' ' + otrosPermisos : ''}${sub ? ' <span>' + sub + '</span>' : ''}</div>
+            <div class="al-sub">${tagPermiso(a.permiso)}${otrosPermisos ? ' ' + otrosPermisos : ''}${etiquetaProcedencia(a.procedencia)}${sub ? ' <span>' + sub + '</span>' : ''}</div>
           </div>
         </div>
       </td>
@@ -336,6 +344,7 @@ function filaAlumnoHTML(a) {
 
 function renderAlumnosTabla() {
   const tbody = document.querySelector('#tabla-alumnos tbody');
+  quitarGruposAlumnos(tbody);
   pintarTabsAlumnos();
   const filtrados = alumnosFiltrados();
   actualizarIndicadoresOrdenAlumnos();
@@ -355,8 +364,37 @@ function renderAlumnosTabla() {
     tbody.innerHTML = '<tr><td colspan="10" class="empty">Ningún alumno coincide con los filtros</td></tr>';
     return;
   }
+  // Separados por procedencia (Ajustes → Datos de otros programas): un grupo
+  // plegable por programa debajo de los creados en AulaMovil
+  if (separarProcedencia() && alumnosCache.some(a => a.procedencia)) { pintarGruposAlumnos(tbody, filtrados); return; }
   // Las primeras filas al momento; el resto según se baja (miles de alumnos)
   pintarPorTandas(tbody, filtrados, filaAlumnoHTML, { tanda: 60, columnas: 9 });
+}
+
+// Cada grupo = un <tbody> de cabecera (se pulsa para abrir/cerrar) y otro con
+// sus filas pintadas por tandas; el <tbody> de siempre se queda vacío y oculto.
+function pintarGruposAlumnos(tbody, filtrados) {
+  const tabla = tbody.closest('table');
+  pintarPorTandas(tbody, [], () => '');
+  tbody.hidden = true;
+  for (const g of gruposProcedencia(filtrados)) {
+    if (!g.items.length) continue;
+    const cab = document.createElement('tbody');
+    cab.className = 'tb-grupo tb-grupo-cab';
+    cab.innerHTML = cabeceraGrupoProcedencia('alumnos', g, g.items.length, 10, ['alumno', 'alumnos']);
+    tabla.appendChild(cab);
+    if (grupoProcPlegado('alumnos', g.clave)) continue;
+    const cuerpo = document.createElement('tbody');
+    cuerpo.className = 'tb-grupo';
+    tabla.appendChild(cuerpo);
+    pintarPorTandas(cuerpo, g.items, filaAlumnoHTML, { tanda: 60, columnas: 10 });
+  }
+}
+function quitarGruposAlumnos(tbody) {
+  const tabla = tbody && tbody.closest('table');
+  if (!tabla) return;
+  tabla.querySelectorAll('tbody.tb-grupo').forEach(tb => { if (tb._tandas) tb._tandas.disconnect(); tb.remove(); });
+  tbody.hidden = false;
 }
 
 // Exportar la lista (lo que se ve con los filtros) con todos los datos de cada alumno
@@ -584,7 +622,8 @@ const FD_GRUPOS = [
     { c: 'resultado', l: 'Resultado final', t: 'select', op: [['', '—'], ['apto', 'Apto'], ['no_apto', 'No apto'], ['baja', 'Baja']] },
     { c: 'n_solicitud', l: 'Nº de solicitud', t: 'num', ayuda: 'Solicitud del expediente en Tráfico' }, { c: 'convocatoria', l: 'Convocatoria', t: 'num' },
     { c: 'clases_previas', l: 'Clases antes de la app', t: 'clases', ayuda: 'Punto de partida: la numeración de clases y los totales continúan desde aquí. De ¼ en ¼ (12 · 12,5 · 12 ½)' },
-    { c: 'km_previos', l: 'Km antes de la app', t: 'num' }] },
+    { c: 'km_previos', l: 'Km antes de la app', t: 'num' },
+    { c: 'procedencia', l: 'Procedencia', t: 'procedencia', ayuda: 'Programa del que se trajo este alumno (lo pone sola la importación). Vacío = creado en AulaMovil' }] },
   { titulo: 'Salud, tutor y facturación', campos: [
     { c: 'centro_medico', l: 'Centro médico' }, { c: 'restricciones', l: 'Restricciones', ayuda: 'Lentes, condiciones restrictivas, validez limitada…' },
     { c: 'tutor_nombre', l: 'Tutor' }, { c: 'tutor_dni', l: 'DNI del tutor' },
@@ -603,6 +642,7 @@ function fdValorTexto(a, campo) {
   if (campo.c === 'profesor_id') return a.profesor_nombre ? esc(a.profesor_nombre) : null;
   if (campo.c === 'vehiculo_id') return a.vehiculo_nombre ? `${esc(a.vehiculo_nombre)}${a.vehiculo_matricula ? ' · ' + esc(a.vehiculo_matricula) : ''}` : null;
   if (campo.c === 'clases_previas') return v > 0 ? fmtClases(v) : null;
+  if (campo.c === 'procedencia') return v ? etiquetaProcedencia(v, { larga: true }) : `Creado en ${NOMBRE_APP_PROC}`;
   if (FD_PUNTO_PARTIDA.includes(campo.c)) return v > 0 ? fmtMiles(v) : null;
   if (vacio) return null;
   if (campo.c === 'dni_caducidad') {
@@ -635,6 +675,11 @@ function fdEntrada(a, campo) {
     case 'tel': return `<input type="tel" ${attr} value="${esc(val)}">`;
     case 'email': return `<input type="email" ${attr} value="${esc(val)}" placeholder="alumno@email.com">`;
     case 'texto': return `<textarea ${attr} rows="3" placeholder="Notas sobre el alumno…">${esc(val)}</textarea>`;
+    case 'procedencia': {
+      // Los programas que ya hay, para no escribirlos distinto
+      const progs = ((procedenciasInfo && procedenciasInfo.programas) || []).map(p => p.nombre);
+      return `<input type="text" ${attr} value="${esc(val)}" maxlength="40" list="fd-procedencias" placeholder="Creado en ${NOMBRE_APP_PROC}"><datalist id="fd-procedencias">${progs.map(p => `<option value="${esc(p)}">`).join('')}</datalist>`;
+    }
     case 'select': {
       let lista = typeof campo.op === 'function' ? campo.op() : campo.op;
       if (val && !lista.some(([k]) => String(k) === val)) lista = [...lista, [val, val]];

@@ -850,6 +850,7 @@
             <select id="f-alumnos-profesor" onchange="renderAlumnosTabla()" aria-label="Profesor"><option value="">Todos los profesores</option></select>
             <select id="f-alumnos-vehiculo" onchange="renderAlumnosTabla()" aria-label="Vehículo asignado"><option value="">Todos los vehículos</option></select>
             <select id="f-alumnos-permiso" onchange="renderAlumnosTabla()" aria-label="Permiso"><option value="">Todos los permisos</option></select>
+            <select id="f-alumnos-procedencia" onchange="renderAlumnosTabla()" aria-label="Procedencia" title="Traídos de otro programa o creados en AulaMovil" hidden><option value="">Cualquier procedencia</option></select>
             <select id="f-alumnos-estado" onchange="renderAlumnosTabla()" aria-label="Estado">
               <option value="">Cualquier estado</option>
               <option value="matriculado">Matriculado</option>
@@ -1203,6 +1204,7 @@
         <label class="filtro-inline">Permiso <select id="ex-permiso" onchange="buscarExamenesUI()"><option value="">Todos</option></select></label>
         <label class="filtro-inline">Profesor <select id="ex-profesor" onchange="buscarExamenesUI()"><option value="">Todos</option></select></label>
         <label class="filtro-inline">Examinador <select id="ex-examinador" onchange="buscarExamenesUI()"><option value="">Todos</option></select></label>
+        <label class="filtro-inline" hidden>Procedencia <select id="ex-procedencia" onchange="buscarExamenesUI()" title="Traídos de otro programa o creados en AulaMovil"><option value="">Cualquiera</option></select></label>
       </div>
 
       <div class="ex-resumen" id="ex-resumen" aria-live="polite"></div>
@@ -1278,6 +1280,7 @@
           <option value="circulacion">Circulación</option>
           <option value="pista">Pista</option>
         </select></label>
+        <label class="filtro-inline" hidden>Procedencia <select id="pg-procedencia" onchange="pgReiniciarPaginas();renderPracticasGlobalTabla()" title="Clases traídas de otro programa o dadas con AulaMovil"><option value="">Cualquiera</option></select></label>
       </div>
 
       <div class="table-wrap">
@@ -1916,6 +1919,22 @@
           </label>
           <p style="font-size:12px;color:var(--text-faint);margin-top:4px">Desactívala si prefieres escribir a mano la fecha del documento en el impreso. No afecta a las fechas de cada clase.</p>
         </div>
+      </div>
+      </div>
+
+      <div class="aj-seccion" data-aj-seccion="procedencia" hidden>
+      <div class="card" id="aj-procedencia">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:var(--proc-bg);color:var(--proc-fg)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10M7.5 8.5 12 13l4.5-4.5"/><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></div>
+          Datos de otros programas
+        </div>
+        <p class="aj-intro">Todo lo que traes de tu programa anterior (alumnos, clases, exámenes, pagos, profesores, coches…) queda marcado con el nombre de ese programa: lleva su etiqueta junto al nombre y se puede filtrar por <b>«Procedencia»</b> en Alumnos, Prácticas y Exámenes. Lo que se crea en AulaMovil no lleva etiqueta. Así siempre se ve qué es de antes y qué de después.</p>
+        <label class="menu-op" style="border:1px solid var(--border);border-radius:var(--radius-sm);max-width:720px;margin-bottom:16px">
+          <span class="menu-op-txt"><b>Separar lo traído de otros programas</b><small>En Alumnos y Prácticas sale aparte, en grupos que se abren y se cierran («Creados en AulaMovil» / «Traídos de…»), y en la ficha de cada alumno una línea marca dónde empiezan las clases de cada uno. Se recuerda en este ordenador.</small></span>
+          <span class="interruptor"><input type="checkbox" id="proc-separar" checked onchange="cambiarSepararProcedencia(this.checked)" aria-label="Separar lo traído de otros programas"><i></i></span>
+        </label>
+        <div id="proc-ajustes" class="proc-lista"></div>
+        <div id="proc-toast" class="hidden" style="margin-top:12px"></div>
       </div>
       </div>
 
@@ -3628,6 +3647,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/estado.js"></script>
 <script src="renderer/utils-ui.js"></script>
 <script src="renderer/dialogos.js"></script>
+<script src="renderer/procedencia.js"></script>
 <script src="renderer/dashboard.js"></script>
 <script src="renderer/vehiculos.js"></script>
 <script src="renderer/profesores.js"></script>

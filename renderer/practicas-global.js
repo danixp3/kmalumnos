@@ -6,7 +6,7 @@
 // No toca la vista de prácticas por alumno (renderer/practicas.js).
 
 async function loadPracticasGlobal() {
-  await poblarSelectsPracticasGlobal();
+  await Promise.all([poblarSelectsPracticasGlobal(), cargarProcedencias()]);
   await fetchPracticasGlobal();
   cuadreAvisoPracticas();
 }
@@ -57,11 +57,11 @@ async function fetchPracticasGlobal() {
 }
 
 function limpiarFiltrosPracticasGlobal() {
-  ['pg-desde', 'pg-hasta', 'pg-alumno', 'pg-vehiculo', 'pg-profesor', 'pg-tipo', 'pg-buscar'].forEach(id => {
+  ['pg-desde', 'pg-hasta', 'pg-alumno', 'pg-vehiculo', 'pg-profesor', 'pg-tipo', 'pg-buscar', 'pg-procedencia'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  pgPagina = 1;
+  pgReiniciarPaginas();
   fetchPracticasGlobal();
 }
 
@@ -72,7 +72,7 @@ function ordenarPracticasGlobal(col) {
     practicasGlobalSort.col = col;
     practicasGlobalSort.dir = 1;
   }
-  pgPagina = 1;
+  pgReiniciarPaginas();
   renderPracticasGlobalTabla();
 }
 
@@ -93,7 +93,11 @@ function actualizarIndicadoresOrdenPracticasGlobal() {
 // ── Pestañas (Todas / Hoy / Esta semana / Sin km / En curso), paginación y filas desplegables ──
 let pgTab = 'todas';
 let pgPagina = 1;
+// Con lo traído de otros programas separado, cada grupo pagina por su cuenta
+let pgPaginasGrupo = {};
 const PG_TAM_PAGINA = 25;
+function pgReiniciarPaginas() { pgPagina = 1; pgPaginasGrupo = {}; }
+function irPaginaGrupoPG(clave, n) { pgPaginasGrupo[String(clave).toLowerCase()] = n; renderPracticasGlobalTabla(); }
 const pgAbiertas = new Set();
 
 function inicioSemanaISO() {
@@ -111,7 +115,7 @@ const PG_PREDICADOS = {
 
 function cambiarTabPracticasGlobal(tab) {
   pgTab = tab;
-  pgPagina = 1;
+  pgReiniciarPaginas();
   renderPracticasGlobalTabla();
 }
 
@@ -175,7 +179,10 @@ function renderPracticasGlobalTabla() {
   const tbody = document.querySelector('#tabla-practicas-global tbody');
   const buscarFiltro = (document.getElementById('pg-buscar')?.value || '').trim().toLowerCase();
 
-  const base = practicasGlobalCache.filter(p => !buscarFiltro || p.alumno_nombre.toLowerCase().includes(buscarFiltro));
+  // Procedencia: traídas de otro programa o dadas con AulaMovil (renderer/procedencia.js)
+  pintarFiltroProcedencia('pg-procedencia', practicasGlobalCache.map(p => p.procedencia));
+  const procFiltro = document.getElementById('pg-procedencia')?.value || '';
+  const base = practicasGlobalCache.filter(p => (!buscarFiltro || p.alumno_nombre.toLowerCase().includes(buscarFiltro)) && coincideProcedenciaUI(p.procedencia, procFiltro));
   document.querySelectorAll('#pg-tabs button').forEach(btn => {
     const t = btn.dataset.tab;
     const nombres = { todas: 'Todas', hoy: 'Hoy', semana: 'Esta semana', sinkm: 'Sin km', curso: 'En curso' };
@@ -214,44 +221,69 @@ function renderPracticasGlobalTabla() {
     return;
   }
 
+  // Separadas por procedencia (Ajustes → Datos de otros programas): un grupo
+  // plegable por programa, cada uno con sus páginas
+  if (separarProcedencia() && practicasGlobalCache.some(p => p.procedencia)) {
+    let html = '';
+    for (const g of gruposProcedencia(filtradas)) {
+      if (!g.items.length) continue;
+      html += cabeceraGrupoProcedencia('practicas', g, g.items.length, 10, ['clase', 'clases'], { femenino: true });
+      if (grupoProcPlegado('practicas', g.clave)) continue;
+      const k = String(g.clave).toLowerCase();
+      const pags = Math.max(1, Math.ceil(g.items.length / PG_TAM_PAGINA));
+      const pag = Math.min(pgPaginasGrupo[k] || 1, pags);
+      html += g.items.slice((pag - 1) * PG_TAM_PAGINA, pag * PG_TAM_PAGINA).map(filaPracticaGlobalHTML).join('');
+      if (pags > 1) {
+        const arg = esc(String(g.clave).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+        const desde = (pag - 1) * PG_TAM_PAGINA + 1, hasta = Math.min(pag * PG_TAM_PAGINA, g.items.length);
+        html += `<tr class="grupo-proc-pag"><td colspan="10"><span>${desde}–${hasta} de ${fmtMiles(g.items.length)}</span><span class="paginador"><button class="btn btn-outline btn-sm btn-icon" ${pag <= 1 ? 'disabled' : ''} onclick="irPaginaGrupoPG('${arg}', ${pag - 1})" aria-label="Página anterior">‹</button> Página ${pag} de ${pags} <button class="btn btn-outline btn-sm btn-icon" ${pag >= pags ? 'disabled' : ''} onclick="irPaginaGrupoPG('${arg}', ${pag + 1})" aria-label="Página siguiente">›</button></span></td></tr>`;
+      }
+    }
+    tbody.innerHTML = html;
+    if (pie) pie.innerHTML = `<span>${fmtMiles(filtradas.length)} ${filtradas.length === 1 ? 'práctica' : 'prácticas'}, separadas por procedencia</span><span>Ajustes → Datos de otros programas</span>`;
+    return;
+  }
+
   const paginas = Math.max(1, Math.ceil(filtradas.length / PG_TAM_PAGINA));
   if (pgPagina > paginas) pgPagina = paginas;
   const visibles = filtradas.slice((pgPagina - 1) * PG_TAM_PAGINA, pgPagina * PG_TAM_PAGINA);
-  const guion = '<span style="color:var(--text-faint)">—</span>';
-  const chev = abierta => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${abierta ? '<path d="m6 15 6-6 6 6"/>' : '<path d="m6 9 6 6 6-6"/>'}</svg>`;
-
-  tbody.innerHTML = visibles.map(p => {
-    const abierta = pgAbiertas.has(p.id);
-    const fechaTxt = p.fecha === hoyISO() ? 'Hoy' : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase());
-    const kmIni = p.en_curso || p.sin_cerrar || !p.sin_km ? fmtMiles(p.km_inicial) : '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>';
-    const kmFin = p.en_curso ? guion : (p.sin_cerrar ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin cerrar</span>' : (p.sin_km ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : fmtMiles(p.km_final)));
-    const kmRec = p.en_curso ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>' : (p.sin_km || p.sin_cerrar ? guion : `<b>${fmtDec(p.km_recorridos)}</b>`);
-    const c = p.continuidad;
-    let aviso = '';
-    if (p.km_incoherente) aviso = `<div class="pg-hueco" title="${esc(p.km_incoherente)}">km que no encajan</div>`;
-    else if (c && c.diferencia !== 0) {
-      if (c.diferencia > 0 && (c.pequeno || c.revisado || c.companeros)) aviso = `<div class="pg-hueco pg-hueco-suave" title="${c.companeros ? 'Clases de compañeros que no están en la app' : c.revisado ? 'Hueco dado por revisado' : 'El coche hizo estos km entre las dos clases'}">+${fmtMiles(c.diferencia)} km${c.companeros ? ' · compañeros' : c.revisado ? ' · revisado' : ''}</div>`;
-      else aviso = `<div class="pg-hueco" title="Respecto al final de la práctica anterior de este coche">${c.diferencia > 0 ? '+' + fmtMiles(c.diferencia) + ' km sin asignar' : 'solapa ' + fmtMiles(-c.diferencia) + ' km'}</div>`;
-    }
-    return `<tr class="fila-pg${abierta ? ' abierta' : ''}" onclick="togglePracticaGlobal(${p.id})"${p.sin_km && !p.en_curso ? ' style="background:var(--warn-bg-soft)"' : ''}>
-      <td>${esc(fechaTxt)}<div class="al-sub">${fmtFecha(p.fecha)}</div></td>
-      <td class="num-mono">${p.hora_inicio ? esc(p.hora_inicio) : guion}</td>
-      <td><b>${esc(p.alumno_nombre)}</b>${p.clase_n ? `<div class="al-sub">Clase ${p.clase_n}</div>` : ''}</td>
-      <td>${esc(p.profesor_nombre)}</td>
-      <td>${p.vehiculo_matricula ? placaHTML(p.vehiculo_matricula) : esc(p.vehiculo_nombre)}</td>
-      <td class="col-num num-mono">${kmIni}${aviso}</td>
-      <td class="col-num num-mono">${kmFin}</td>
-      <td class="col-num num-mono">${kmRec}</td>
-      <td>${p.tipo === 'pista' ? 'Pista' : 'Circulación'}</td>
-      <td class="pg-chev">${chev(abierta)}</td>
-    </tr>${abierta ? `<tr class="fila-detalle"><td colspan="10">${detallePracticaGlobal(p)}</td></tr>` : ''}`;
-  }).join('');
+  tbody.innerHTML = visibles.map(filaPracticaGlobalHTML).join('');
 
   if (pie) {
     const desde = (pgPagina - 1) * PG_TAM_PAGINA + 1, hasta = desde + visibles.length - 1;
     pie.innerHTML = `<span>Mostrando ${desde}–${hasta} de ${filtradas.length} ${filtradas.length === 1 ? 'práctica' : 'prácticas'}</span>` +
       (paginas > 1 ? `<span class="paginador"><button class="btn btn-outline btn-sm btn-icon" ${pgPagina <= 1 ? 'disabled' : ''} onclick="irPaginaPracticasGlobal(${pgPagina - 1})" aria-label="Página anterior">‹</button> Página ${pgPagina} de ${paginas} <button class="btn btn-outline btn-sm btn-icon" ${pgPagina >= paginas ? 'disabled' : ''} onclick="irPaginaPracticasGlobal(${pgPagina + 1})" aria-label="Página siguiente">›</button></span>` : '');
   }
+}
+
+// Una clase de la lista (y su detalle desplegado si está abierta)
+function filaPracticaGlobalHTML(p) {
+  const guion = '<span style="color:var(--text-faint)">—</span>';
+  const chev = abierta => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${abierta ? '<path d="m6 15 6-6 6 6"/>' : '<path d="m6 9 6 6 6-6"/>'}</svg>`;
+  const abierta = pgAbiertas.has(p.id);
+  const fechaTxt = p.fecha === hoyISO() ? 'Hoy' : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase());
+  const kmIni = p.en_curso || p.sin_cerrar || !p.sin_km ? fmtMiles(p.km_inicial) : '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>';
+  const kmFin = p.en_curso ? guion : (p.sin_cerrar ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin cerrar</span>' : (p.sin_km ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : fmtMiles(p.km_final)));
+  const kmRec = p.en_curso ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>' : (p.sin_km || p.sin_cerrar ? guion : `<b>${fmtDec(p.km_recorridos)}</b>`);
+  const c = p.continuidad;
+  let aviso = '';
+  if (p.km_incoherente) aviso = `<div class="pg-hueco" title="${esc(p.km_incoherente)}">km que no encajan</div>`;
+  else if (c && c.diferencia !== 0) {
+    if (c.diferencia > 0 && (c.pequeno || c.revisado || c.companeros)) aviso = `<div class="pg-hueco pg-hueco-suave" title="${c.companeros ? 'Clases de compañeros que no están en la app' : c.revisado ? 'Hueco dado por revisado' : 'El coche hizo estos km entre las dos clases'}">+${fmtMiles(c.diferencia)} km${c.companeros ? ' · compañeros' : c.revisado ? ' · revisado' : ''}</div>`;
+    else aviso = `<div class="pg-hueco" title="Respecto al final de la práctica anterior de este coche">${c.diferencia > 0 ? '+' + fmtMiles(c.diferencia) + ' km sin asignar' : 'solapa ' + fmtMiles(-c.diferencia) + ' km'}</div>`;
+  }
+  return `<tr class="fila-pg${abierta ? ' abierta' : ''}" onclick="togglePracticaGlobal(${p.id})"${p.sin_km && !p.en_curso ? ' style="background:var(--warn-bg-soft)"' : ''}>
+    <td>${esc(fechaTxt)}<div class="al-sub">${fmtFecha(p.fecha)}</div></td>
+    <td class="num-mono">${p.hora_inicio ? esc(p.hora_inicio) : guion}</td>
+    <td><b>${esc(p.alumno_nombre)}</b>${p.clase_n || p.procedencia ? `<div class="al-sub">${p.clase_n ? 'Clase ' + p.clase_n : ''}${etiquetaProcedencia(p.procedencia)}</div>` : ''}</td>
+    <td>${esc(p.profesor_nombre)}</td>
+    <td>${p.vehiculo_matricula ? placaHTML(p.vehiculo_matricula) : esc(p.vehiculo_nombre)}</td>
+    <td class="col-num num-mono">${kmIni}${aviso}</td>
+    <td class="col-num num-mono">${kmFin}</td>
+    <td class="col-num num-mono">${kmRec}</td>
+    <td>${p.tipo === 'pista' ? 'Pista' : 'Circulación'}</td>
+    <td class="pg-chev">${chev(abierta)}</td>
+  </tr>${abierta ? `<tr class="fila-detalle"><td colspan="10">${detallePracticaGlobal(p)}</td></tr>` : ''}`;
 }
 
 // Dar por revisado (o volver a avisar) un hueco desde el detalle de una clase

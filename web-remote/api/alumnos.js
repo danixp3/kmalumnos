@@ -43,7 +43,9 @@ export default async function handler(req, res) {
   };
   const promesaPracticas = conResumen ? pedirPracticas() : null;
   if (promesaPracticas) promesaPracticas.catch(() => {});   // si los alumnos fallan antes, no queda un rechazo suelto
-  let { data, error } = await consulta(COLS + ', minutos_sobrantes, n_registro');
+  // procedencia: programa del que se trajo el alumno (migración 2026-10-08)
+  let { data, error } = await consulta(COLS + ', minutos_sobrantes, n_registro, procedencia');
+  if (error && esErrorColumnaInexistente(error)) ({ data, error } = await consulta(COLS + ', minutos_sobrantes, n_registro'));
   if (error && esErrorColumnaInexistente(error)) ({ data, error } = await consulta(COLS + ', minutos_sobrantes'));
   if (error && esErrorColumnaInexistente(error)) ({ data, error } = await consulta(COLS));
   if (error && esErrorColumnaInexistente(error)) {

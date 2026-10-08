@@ -14,7 +14,7 @@ async function loadProfesores() {
     return;
   }
   tbody.innerHTML = profesoresCache.map(p => `<tr>
-      <td><strong>${esc(p.nombre)}</strong>${[p.telefono, p.n_certificado && 'certificado ' + p.n_certificado, p.fecha_baja && 'de baja desde ' + fmtFecha(p.fecha_baja)].filter(Boolean).length
+      <td><strong>${esc(p.nombre)}</strong>${p.procedencia ? ' ' + etiquetaProcedencia(p.procedencia) : ''}${[p.telefono, p.n_certificado && 'certificado ' + p.n_certificado, p.fecha_baja && 'de baja desde ' + fmtFecha(p.fecha_baja)].filter(Boolean).length
         ? `<div class="al-sub">${[p.telefono, p.n_certificado && 'certificado ' + p.n_certificado, p.fecha_baja && 'de baja desde ' + fmtFecha(p.fecha_baja)].filter(Boolean).map(esc).join(' · ')}</div>` : ''}</td>
       <td>${p.vehiculo_nombre
         ? `${esc(p.vehiculo_nombre)}${p.vehiculo_matricula ? '<div class="al-sub">' + placaHTML(p.vehiculo_matricula) + '</div>' : ''}${p.vehiculo_retirado ? '<div class="al-sub">retirado</div>' : ''}`
