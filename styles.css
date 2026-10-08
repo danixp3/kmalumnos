@@ -2494,6 +2494,9 @@
   .tabla-alumnos { table-layout: auto; }
   .tabla-alumnos th, .tabla-alumnos td { padding-left: 10px; padding-right: 10px; }
   .tabla-alumnos th { white-space: nowrap; }
+  /* «Última práctica» y «Próxima clase» en dos líneas: en una sola ensanchaban
+     tanto la tabla que a 1366 px se cortaba la columna de acciones */
+  .tabla-alumnos th:nth-child(6), .tabla-alumnos th:nth-child(7) { white-space: normal; line-height: 1.25; }
   .tabla-alumnos td:nth-child(6), .tabla-alumnos td:nth-child(7) { min-width: 84px; }
   .tabla-alumnos td:nth-child(2) { min-width: 190px; }
   /* Nº de registro: estrecho, en cifras de ancho fijo */
