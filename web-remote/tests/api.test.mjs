@@ -1072,3 +1072,36 @@ test('practica-detalle: dice si la sesión se puede corregir (clases del móvil 
   reiniciar(sesionCerrada({ source: 'desktop' }));
   assert.equal((await llamar('practica-detalle', { method: 'GET', query: { id: '10' } })).json.practica.corregible, null);
 });
+
+// ─── Tipo de clase (pista / circulación) y coche según el permiso (2026-10-09) ──
+test('anotar-practica y registrar-clase: el tipo «pista» llega a las clases (por defecto, circulación)', async () => {
+  reiniciar(base());
+  const a = await llamar('anotar-practica', { body: anot({ tipo: 'pista', n_clases: 1, km_inicial: 1000, km_final: 1040 }) });
+  assert.equal(a.status, 200);
+  assert.equal(BD.tablas.practicas.find(p => p.id === a.json.practica_ids[0]).tipo, 'pista');
+  const b = await llamar('anotar-practica', { body: anot({ hora_inicio: '16:00', hora_fin: '16:45', n_clases: 1, km_inicial: 1040, km_final: 1080 }) });
+  assert.equal(BD.tablas.practicas.find(p => p.id === b.json.practica_ids[0]).tipo, 'circulacion');
+  const c = await llamar('registrar-clase', { body: reg({ cid: 'cid-0009-pista', hora_inicio: '09:00', hora_fin: '09:45', km_inicial: 1080, km_final: 1120, tipo: 'pista' }) });
+  assert.equal(c.status, 200);
+  assert.equal(BD.tablas.practicas.find(p => p.id === c.json.practica_ids[0]).tipo, 'pista');
+});
+
+test('practica (registrar sin cronómetro): usa el coche y el tipo de la pantalla; sin coche en el alumno ya no falla', async () => {
+  const t = base(); t.alumnos[1].vehiculo_id = null;
+  reiniciar(t);
+  const sin = await llamar('practica', { body: { alumno_id: 2, fecha: hoy() } });
+  assert.equal(sin.status, 400);
+  const r = await llamar('practica', { body: { alumno_id: 2, fecha: hoy(), vehiculo_id: 1, tipo: 'pista' } });
+  assert.equal(r.status, 200);
+  const p = BD.tablas.practicas.find(x => x.alumno_id === 2 && x.fecha === hoy());
+  assert.deepEqual([p.vehiculo_id, p.tipo], [1, 'pista']);
+  assert.equal((await llamar('practica', { body: { alumno_id: 1, fecha: hoy(), vehiculo_id: 999 } })).status, 400);
+});
+
+test('vehiculos: devuelve los permisos de cada coche (y sigue funcionando si la columna aún no existe)', async () => {
+  const t = base(); t.vehiculos[0].permisos = 'B';
+  reiniciar(t);
+  const r = await llamar('vehiculos', { method: 'GET' });
+  assert.equal(r.status, 200);
+  assert.equal(r.json[0].permisos, 'B');
+});

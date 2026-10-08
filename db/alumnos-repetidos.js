@@ -43,23 +43,41 @@ const NOMBRES_SEGUNDOS = new Set(['jose', 'maria', 'luis', 'carlos', 'antonio', 
  * `ids` (opcional) limita a esos alumnos.
  * Devuelve [{ id, actual, nombre, primer_apellido, segundo_apellido, seguro, n_registro, permiso, estado, movil }]
  */
+// Cómo se separaría un texto escrito en «Nombre» (null si no hay nada que separar).
+// `seguro` = no parece un nombre compuesto («María José», «Juan Carlos»).
+function _separarTexto(textoNombre) {
+  const N = _norm();
+  const actual = txt(textoNombre);
+  if (actual.split(' ').length < 2) return null;
+  const p = N.partirNombreCompleto(actual, actual.includes(',') ? 'apellidos_nombre' : 'nombre_apellidos');
+  if (!p.primer_apellido) return null;
+  const palabras = N.normTexto(actual).split(' ');
+  const seguro = !(palabras.length === 2 && NOMBRES_SEGUNDOS.has(palabras[1]));
+  return { actual, nombre: p.nombre, primer_apellido: p.primer_apellido, segundo_apellido: p.segundo_apellido || '', seguro };
+}
+
+/**
+ * Para el aviso mientras se escribe un alumno: si en «Nombre» se han escrito también
+ * los apellidos y las casillas de apellidos están vacías, cómo separarlos. Con un
+ * nombre compuesto («María José») no propone nada. Solo lectura.
+ */
+function proponerSepararNombreTexto(textoNombre, primerApellido = '', segundoApellido = '') {
+  if (txt(primerApellido) || txt(segundoApellido)) return null;
+  const r = _separarTexto(textoNombre);
+  return r && r.seguro ? r : null;
+}
+
 function proponerSepararNombres(ids = null) {
   const d = load();
   const filtro = Array.isArray(ids) && ids.length ? new Set(ids.map(Number)) : null;
-  const N = _norm();
   const res = [];
   for (const a of d.alumnos) {
     if (a.deleted || (filtro && !filtro.has(a.id))) continue;
     if (txt(a.primer_apellido) || txt(a.segundo_apellido)) continue;
-    const actual = txt(a.nombre);
-    if (actual.split(' ').length < 2) continue;
-    const p = N.partirNombreCompleto(actual, actual.includes(',') ? 'apellidos_nombre' : 'nombre_apellidos');
-    if (!p.primer_apellido) continue;
-    const palabras = N.normTexto(actual).split(' ');
-    // «María José» / «Juan Carlos»: puede ser solo el nombre (no se marca)
-    const seguro = !(palabras.length === 2 && NOMBRES_SEGUNDOS.has(palabras[1]));
+    const r = _separarTexto(a.nombre);
+    if (!r) continue;
     res.push({
-      id: a.id, actual, nombre: p.nombre, primer_apellido: p.primer_apellido, segundo_apellido: p.segundo_apellido || '', seguro,
+      id: a.id, ...r,
       n_registro: a.n_registro || null, permiso: a.permiso || 'B', estado: a.estado || null, movil: a.id >= 1e9
     });
   }
@@ -291,6 +309,6 @@ function getFusionesAlumnos() {
 }
 
 module.exports = {
-  proponerSepararNombres, aplicarSepararNombres,
+  proponerSepararNombres, proponerSepararNombreTexto, aplicarSepararNombres,
   buscarAlumnosRepetidos, previaFusionAlumnos, fusionarAlumnos, deshacerFusionAlumnos, getFusionesAlumnos
 };

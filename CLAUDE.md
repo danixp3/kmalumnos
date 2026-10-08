@@ -13,10 +13,10 @@ Aplicación de escritorio (Windows) para una autoescuela: gestiona vehículos, a
 ```
 main.js       → proceso principal Electron: ventana, IPC handlers, auto-updater
 preload.js    → contextBridge, expone window.api al renderer
-index.html    → SPA (solo HTML), enlaza styles.css y los 47 <script> de renderer/ (CSP: nada externo)
+index.html    → SPA (solo HTML), enlaza styles.css y los 49 <script> de renderer/ (CSP: nada externo)
 styles.css    → CSS de la app de escritorio (sistema ámbar/tinta), temas [data-theme="oscuro"/"negro"], paleta de gráficos
 fonts/        → Barlow, Barlow Condensed, IBM Plex Mono (woff2 locales; también en web-remote/fonts/)
-renderer/     → UI (vanilla JS) dividida en 41 <script> clásicos (globales, no módulos ES),
+renderer/     → UI (vanilla JS) dividida en 43 <script> clásicos (globales, no módulos ES),
                 cargados en orden fijo desde index.html; arranque.js SIEMPRE el último
   estado.js, utils-ui.js → estado, modales, esc/fmt/fmtFecha/tagPermiso, TEMA, toasts
   dashboard.js, vehiculos.js, profesores.js, alumnos.js, practicas.js, pagos.js → CRUD
@@ -33,7 +33,8 @@ renderer/     → UI (vanilla JS) dividida en 41 <script> clásicos (globales, n
   clase-editor.js → editor de clases: añadir/editar/encajar en ¼ con km recalculados y firma borrada si cambia la cantidad
   cuadrar-km.js → avisos de Cuadrar km (franja en Prácticas, tramos sin explicar)
   historial-pantallas.js → botones laterales del ratón / Alt+←→: pantalla anterior y siguiente
-  alumnos-repetidos.js → aviso en Alumnos, separar nombre y apellidos y juntar dos fichas de la misma persona
+  alumnos-repetidos.js → aviso en Alumnos, separar nombre y apellidos (también al escribir en el alta/ficha) y juntar dos fichas de la misma persona
+  alumnos-antiguos.js, cambio-profesor.js → pasar alumnos antiguos a «inactivo» en bloque; cambiar a un alumno de profesor (ficha DGT por profesor)
   datepicker.js, validaciones.js → fechas escribibles con calendario; DNI/CP/teléfono/email/matrícula validados
   exportar-datos.js → exportar todos los datos (Excel/CSV/JSON) y los de un alumno
   cuadre-avanzado.js → Cuadrar km · modo avanzado (planning y compañeros sin registrar)
@@ -93,7 +94,9 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-10-08 (v1.34.1). El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-10-09 (v1.35.0). El detalle histórico completo está en HISTORIAL.md._
+
+- **v1.35.0 (2026-10-09, escritorio PUBLICADO y web DESPLEGADA; migración `2026-10-09_vehiculo_permisos.sql` APLICADA, datos intactos 3398/499/18/9):** diez peticiones del propietario. **Alumnos:** columna «Alta» ordenable; estado editable con un clic en su pastilla y asistente «Alumnos antiguos → inactivos» (`renderer/alumnos-antiguos.js`; baja/inactivo/apto/aprobado ya no salen en avisos, semáforo, riesgo, bonos ni caducidades: `core.alumnoTerminado`); «Separar nombre y apellidos» fuera de Documentos y ofrecido al escribir (no con nombres compuestos). **Caducidades** en una tabla por tipo (ITV, Seguro, DNI…). **Cambio de profesor** (`db/alumnos.js:cambiarProfesorAlumno`, `renderer/cambio-profesor.js`: lo anterior se queda con quien lo dio, con deshacer) y **ficha DGT una por tipo (pista/circulación) y por profesor** (`getFichasDGTAlumno`; varias → carpeta). Pista sin km no se rellena ni cuenta como «sin km». **Permisos de cada coche** (`vehiculos.permisos`, `sugerirCocheAlumno`): ni escritorio ni móvil proponen el coche de B a un alumno de moto; el móvil tiene selector Circulación/Pista. Coches retirados fuera de las listas, filtro por permiso en Prácticas, casillas (`.modal-ancho input` ya no al 100 %) y espaciados. Jest 703/74 + test:api 103 + smoke + barrido.
 
 - **v1.34.0 (2026-10-08, escritorio PUBLICADO y web DESPLEGADA y comprobada con sesión en producción —22 alumnos, campo procedencia, ficha—; migración `2026-10-08_procedencia.sql` APLICADA, datos intactos 42/471/8/9):** **procedencia de los datos traídos de otro programa** (`db/procedencia.js`, `renderer/procedencia.js`): todo lo que entra por «Traer de otro programa» (se pide el nombre del programa) o Ariauto lleva `procedencia` (alumnos, clases, profesores, coches, pagos, cargos, exámenes, tasas, caducidades; sincroniza 6 tablas + `ajustes_empresa.procedencias` con la fecha). Etiqueta junto al nombre, filtro «Procedencia» (Alumnos, Prácticas, Exámenes), exportación, campo editable en la ficha y en el móvil.
 - **v1.34.1 (2026-10-08, PUBLICADA; solo CSS):** con los alumnos de Ariauto la tabla de Alumnos desbordaba 82 px a 1366 (se cortaba «Ficha»): las cabeceras «Última práctica» y «Próxima clase» van en dos líneas → cabe justa (1054/1054). Probado con la importación REAL de Ariauto sobre una copia (179 nuevos «Ariauto», 19 completados siguen de AulaMovil, grupos en 15 ms) y con un historial de clases de un alumno ya existente (línea antes/después en su ficha).

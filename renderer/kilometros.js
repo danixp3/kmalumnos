@@ -46,11 +46,12 @@ function cambiarTabKilometros(tab) {
 }
 
 async function kmCargarVehiculos() {
-  const vehiculos = await window.api.getVehiculos(getSucursalActual());
   const sel = document.getElementById('km-vehiculo');
   if (!sel) return;
   const previo = kmVehiculoPreferido != null ? String(kmVehiculoPreferido) : sel.value;
   kmVehiculoPreferido = null;
+  // Los coches retirados no salen: solo el que ya estaba elegido (si se llegó aquí a propósito desde un aviso)
+  const vehiculos = (await window.api.getVehiculos(getSucursalActual())).filter(v => v.activo !== false || String(v.id) === previo);
   sel.innerHTML = vehiculos.length
     ? vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}${v.activo === false ? ' · retirado' : ''}</option>`).join('')
     : '<option value="">Sin vehículos</option>';

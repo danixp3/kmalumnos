@@ -18,10 +18,15 @@ const BUSCADOR_DESTINOS = [
   // Alumnos
   { titulo: 'Alumnos', sub: 'Lista de alumnos', page: 'alumnos', kw: 'alumnos alumno estudiantes fichas listado' },
   { titulo: 'Añadir alumno', sub: 'Alumnos', page: 'alumnos', anchor: 'a-nombre', kw: 'anadir agregar nuevo alumno crear alta' },
+  { titulo: 'Alumnos antiguos → inactivos', sub: 'Alumnos', page: 'alumnos', kw: 'alumnos antiguos inactivos viejos dejaron de venir limpiar pasar baja avisos sin clase meses' },
+  { titulo: 'Cambiar el estado de un alumno', sub: 'Alumnos', page: 'alumnos', kw: 'estado alumno etiqueta matriculado en practicas inactivo baja apto nuevo cambiar editar' },
+  { titulo: 'Cambiar de profesor a un alumno', sub: 'Ficha del alumno', page: 'alumnos', kw: 'cambiar cambio profesor alumno otro profesor otra profesora pasa clases anteriores ficha dgt' },
+  { titulo: 'Ficha DGT por profesor y tipo (pista / circulación)', sub: 'Ficha del alumno → Documentos', page: 'alumnos', kw: 'ficha dgt oficial pista circulacion destreza profesor moto a2 fichas separadas' },
 
   // Vehículos
   { titulo: 'Vehículos', sub: 'Flota y odómetros', page: 'vehiculos', kw: 'vehiculos vehiculo coches coche flota odometro matricula' },
   { titulo: 'Añadir vehículo', sub: 'Vehículos', page: 'vehiculos', anchor: 'v-nombre', kw: 'anadir agregar nuevo vehiculo coche crear alta matricula' },
+  { titulo: 'Permisos de un vehículo', sub: 'Vehículos', page: 'vehiculos', kw: 'permisos vehiculo coche moto b a2 a1 am con que permiso se da clase predeterminado profesor matricula' },
   { titulo: 'Relleno masivo de km', sub: 'Kilómetros → Asistente', page: 'kilometros', tab: 'asistente', kw: 'relleno masivo kilometros km blanco generar odometro rellenar encadenado' },
 
   // Profesores
@@ -34,7 +39,7 @@ const BUSCADOR_DESTINOS = [
   { titulo: 'Tarifas', sub: 'Pagos', page: 'pagos', tab: 'tarifas', kw: 'tarifas precios permiso circulacion pista coste pagos' },
 
   // Prácticas
-  { titulo: 'Prácticas', sub: 'Todas las prácticas con filtros', page: 'practicas-global', kw: 'practicas todas global filtros buscar clases' },
+  { titulo: 'Prácticas', sub: 'Todas las prácticas con filtros (también por permiso)', page: 'practicas-global', kw: 'practicas todas global filtros buscar clases permiso b a2 am' },
 
   // Agenda
   { titulo: 'Agenda', sub: 'Reservas y solicitudes de práctica', page: 'reservas', kw: 'agenda reservas cita citas solicitud solicitudes confirmar practica reserva calendario' },

@@ -507,6 +507,8 @@ ipcMain.handle('delete-vehiculo', (_, id) => { db.deleteVehiculo(id); return tru
 ipcMain.handle('update-vehiculo-km', (_, id, km) => { db.updateVehiculoKm(id, km); return true; });
 ipcMain.handle('update-vehiculo', (_, id, nombre, matricula, datos) => { db.updateVehiculo(id, nombre, matricula, datos); return true; });
 ipcMain.handle('set-vehiculo-activo', (_, id, activo) => db.setVehiculoActivo(id, activo));
+ipcMain.handle('sugerir-permisos-vehiculo', (_, id) => db.sugerirPermisosVehiculo(id));
+ipcMain.handle('sugerir-coche-alumno', (_, alumno) => db.sugerirCocheAlumno(alumno));
 
 ipcMain.handle('get-profesores', (_, sucursalId) => db.getProfesores(sucursalId));
 ipcMain.handle('add-profesor', (_, nombre, nota, sucursalId, dni, datos) => db.addProfesor(nombre, nota, sucursalId, dni, datos));
@@ -532,6 +534,14 @@ ipcMain.handle('delete-alumno', (_, id) => { db.deleteAlumno(id); return true; }
 ipcMain.handle('update-alumno-campos', (_, id, campos) => db.updateAlumnoCampos(id, campos));
 // Alumnos repetidos y nombres juntos (db/alumnos-repetidos.js)
 ipcMain.handle('proponer-separar-nombres', (_, ids) => db.proponerSepararNombres(ids));
+ipcMain.handle('proponer-separar-nombre-texto', (_, nombre, ap1, ap2) => db.proponerSepararNombreTexto(nombre, ap1, ap2));
+// Estado de los alumnos en bloque y alumnos antiguos que siguen «en curso»
+ipcMain.handle('set-estado-alumnos', (_, ids, estado) => db.setEstadoAlumnos(ids, estado));
+ipcMain.handle('cambiar-profesor-alumno', (_, id, profesorId, opciones) => db.cambiarProfesorAlumno(id, profesorId, opciones || {}));
+ipcMain.handle('deshacer-cambio-profesor-alumno', (_, anterior) => db.deshacerCambioProfesorAlumno(anterior));
+ipcMain.handle('get-fichas-dgt-alumno', (_, id) => db.getFichasDGTAlumno(id));
+ipcMain.handle('restaurar-estados-alumnos', (_, anteriores) => db.restaurarEstadosAlumnos(anteriores));
+ipcMain.handle('proponer-alumnos-inactivos', (_, opciones, sucursalId) => db.proponerAlumnosInactivos(opciones, sucursalId));
 ipcMain.handle('aplicar-separar-nombres', (_, lista) => db.aplicarSepararNombres(lista));
 ipcMain.handle('buscar-alumnos-repetidos', () => db.buscarAlumnosRepetidos());
 ipcMain.handle('previa-fusion-alumnos', (_, queda, seVa) => db.previaFusionAlumnos(queda, seVa));
@@ -1030,57 +1040,103 @@ ipcMain.handle('exportar-csv', async (_, opciones) => {
 // Rellena los campos de formulario del impreso oficial de la DGT con los datos
 // del alumno (cabecera de escuela desde Ajustes, que llega en `centro`) y sus
 // prácticas. Devuelve el PDF por diálogo de guardado y lo abre al terminar.
+// `fichas` = [{ tipo: 'destreza'|'circulacion', profesor_id }]: una ficha por tipo de clase y por profesor
+// (un alumno de A2 saca la de pista y la de circulación; si cambió de profesor, una por cada uno, cada
+// una con los datos y la firma de quien dio esas clases). Una sola → guardar como; varias → una carpeta.
 ipcMain.handle('generar-ficha-dgt', async (_, opciones) => {
   try {
-    const { alumnoId, tipo, centro, rellenarFecha, comprobarFirmas } = opciones || {};
+    const { alumnoId, centro, rellenarFecha, comprobarFirmas } = opciones || {};
     const marcarCalculados = !opciones || opciones.marcarCalculados !== false;
     const firmarPie = !opciones || opciones.firmarPie !== false;
-    const datosAlumno = db.getDatosFichaDGT(alumnoId, tipo === 'destreza' ? 'destreza' : 'circulacion');
-    if (!datosAlumno) return { ok: false, msg: 'Alumno no encontrado.' };
-    if (!datosAlumno.practicas.length) {
-      return { ok: false, msg: 'Este alumno no tiene prácticas de ' + (tipo === 'destreza' ? 'destreza/pista' : 'circulación') + ' registradas.' };
+    const tipoDe = x => (x === 'destreza' ? 'destreza' : 'circulacion');
+    const pedidas = Array.isArray(opciones && opciones.fichas) && opciones.fichas.length
+      ? opciones.fichas.map(x => ({ tipo: tipoDe(x.tipo), profesor_id: x.profesor_id }))
+      : [{ tipo: tipoDe(opciones && opciones.tipo) }];
+    const hechas = pedidas.map(p => ({ ...p, datos: db.getDatosFichaDGT(alumnoId, p.tipo, p.profesor_id) }));
+    if (hechas.some(h => !h.datos)) return { ok: false, msg: 'Alumno no encontrado.' };
+    const vacias = hechas.filter(h => !h.datos.practicas.length);
+    if (vacias.length === hechas.length) {
+      return { ok: false, msg: 'Este alumno no tiene prácticas de ' + (hechas[0].tipo === 'destreza' ? 'destreza/pista' : 'circulación') + ' registradas.' };
     }
-    // Profesores de estas clases (y el del pie) o director sin firma guardada:
-    // la pantalla se la pide antes de generar (y vuelve a llamar con
-    // comprobarFirmas=false).
+    const fichas = hechas.filter(h => h.datos.practicas.length);
+    // Profesores de estas clases (y los del pie) o director sin firma guardada: la pantalla se la pide
+    // antes de generar (y vuelve a llamar con comprobarFirmas=false).
     if (comprobarFirmas) {
-      const faltan = [...datosAlumno.profesores_sin_firma];
-      const pf = datosAlumno.profesor;
-      if (firmarPie && pf.id != null && !pf.firma && !faltan.some(f => f.id === pf.id)) faltan.push({ id: pf.id, nombre: pf.nombre });
-      const dir = datosAlumno.director;
+      const faltan = [];
+      const anotar = (id, nombre) => { if (!faltan.some(x => x.id === id)) faltan.push({ id, nombre }); };
+      for (const h of fichas) {
+        for (const pf of h.datos.profesores_sin_firma) anotar(pf.id, pf.nombre);
+        const pf = h.datos.profesor;
+        if (firmarPie && pf.id != null && !pf.firma) anotar(pf.id, pf.nombre);
+      }
+      const dir = fichas[0].datos.director;
       const faltaDirector = firmarPie && !dir.firma && !(dir.profesor_id != null && faltan.some(f => f.id === dir.profesor_id));
       if (faltan.length || faltaDirector) return { ok: false, faltanFirmas: faltan, faltaDirector, director: dir.nombre || '' };
     }
     const { generarFichaDGT } = require('./fichas-dgt');
-    const bytes = await generarFichaDGT({
-      tipo: tipo === 'destreza' ? 'destreza' : 'circulacion',
-      centro: centro || {},
-      alumno: datosAlumno.alumno,
-      profesor: datosAlumno.profesor,
-      director: datosAlumno.director,
-      firmarPie,
-      marcarCalculados,
-      practicas: datosAlumno.practicas,
-      rellenarFecha: rellenarFecha !== false,
-    });
+    const PDFs = [];
+    for (const h of fichas) {
+      const bytes = await generarFichaDGT({
+        tipo: h.tipo,
+        centro: centro || {},
+        alumno: h.datos.alumno,
+        profesor: h.datos.profesor,
+        director: h.datos.director,
+        firmarPie,
+        marcarCalculados,
+        practicas: h.datos.practicas,
+        rellenarFecha: rellenarFecha !== false,
+      });
+      PDFs.push({ h, bytes });
+    }
 
-    const nombreArchivo = 'Ficha_DGT_' + sanitizarNombre(
-      [datosAlumno.alumno.primer_apellido, datosAlumno.alumno.segundo_apellido, datosAlumno.alumno.nombre]
+    const base = 'Ficha_DGT_' + sanitizarNombre(
+      [fichas[0].datos.alumno.primer_apellido, fichas[0].datos.alumno.segundo_apellido, fichas[0].datos.alumno.nombre]
         .filter(Boolean).join('_') || ('alumno_' + alumnoId)
-    ) + '.pdf';
-    const result = await dialog.showSaveDialog(mainWin, {
-      title: 'Guardar ficha DGT',
-      defaultPath: nombreArchivo,
-      filters: [{ name: 'PDF', extensions: ['pdf'] }],
-    });
-    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
-    fs.writeFileSync(result.filePath, Buffer.from(bytes));
-    shell.openPath(result.filePath);
+    );
+    // Si el alumno tiene varias fichas posibles, el nombre dice cuál es (tipo y profesor)
+    const disponibles = (db.getFichasDGTAlumno(alumnoId) || { fichas: [] }).fichas;
+    const nombreDe = ({ h }) => {
+      if (disponibles.length <= 1 && PDFs.length <= 1) return base + '.pdf';
+      const tipo = h.tipo === 'destreza' ? 'Pista' : 'Circulacion';
+      const profe = h.datos.profesor && h.datos.profesor.nombre ? '_' + sanitizarNombre(h.datos.profesor.nombre) : '';
+      return `${base}_${tipo}${profe}.pdf`;
+    };
+    let carpetaOArchivo, rutas = [];
+    if (PDFs.length === 1) {
+      const result = await dialog.showSaveDialog(mainWin, {
+        title: 'Guardar ficha DGT',
+        defaultPath: nombreDe(PDFs[0]),
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      });
+      if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+      fs.writeFileSync(result.filePath, Buffer.from(PDFs[0].bytes));
+      rutas = [{ ruta: result.filePath, h: PDFs[0].h }];
+      carpetaOArchivo = result.filePath;
+      shell.openPath(result.filePath);
+    } else {
+      const result = await dialog.showOpenDialog(mainWin, {
+        title: `Carpeta donde guardar las ${PDFs.length} fichas DGT`,
+        properties: ['openDirectory', 'createDirectory'],
+        buttonLabel: 'Guardar aquí',
+      });
+      if (result.canceled || !result.filePaths || !result.filePaths[0]) return { ok: false, canceled: true };
+      for (const p of PDFs) {
+        const ruta = path.join(result.filePaths[0], nombreDe(p));
+        fs.writeFileSync(ruta, Buffer.from(p.bytes));
+        rutas.push({ ruta, h: p.h });
+      }
+      carpetaOArchivo = result.filePaths[0];
+      shell.openPath(result.filePaths[0]);
+    }
+    const todas = fichas.flatMap(h => h.datos.practicas);
     return {
-      ok: true, path: result.filePath, nClases: datosAlumno.practicas.reduce((n, p) => n + p.clases, 0),
-      dias: datosAlumno.practicas.length,
-      sinFirmaAlumno: datosAlumno.practicas.filter(p => !p.firma_alumno).length,
-      pieSinFirmar: firmarPie ? [!datosAlumno.director.firma && 'director', !datosAlumno.profesor.firma && 'profesor'].filter(Boolean) : null,
+      ok: true, path: carpetaOArchivo, nFichas: PDFs.length,
+      archivos: rutas.map(({ ruta, h }) => ({ ruta, tipo: h.tipo, profesor: h.datos.profesor.nombre || '', clases: h.datos.practicas.reduce((n, p) => n + p.clases, 0) })),
+      nClases: todas.reduce((n, p) => n + p.clases, 0),
+      dias: todas.length,
+      sinFirmaAlumno: todas.filter(p => !p.firma_alumno).length,
+      pieSinFirmar: firmarPie ? [...new Set(fichas.flatMap(h => [!h.datos.director.firma && 'director', !h.datos.profesor.firma && 'profesor']).filter(Boolean))] : null,
     };
   } catch (e) {
     return { ok: false, msg: e.message };

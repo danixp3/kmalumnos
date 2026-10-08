@@ -68,7 +68,8 @@ function pmFilaProfesor(p, i) {
     <td>${p.id ? '' : '<button class="btn btn-sm btn-ghost" title="Quitar fila" onclick="this.closest(\'tr\').remove()">×</button>'}</td></tr>`;
 }
 function pmOpciones(lista, sel, vacio) {
-  return `<option value="">${vacio}</option>` + lista.map(x => `<option value="${x.id}" ${String(x.id) === String(sel) ? 'selected' : ''}>${esc(x.nombre)}${x.matricula ? ' · ' + esc(x.matricula) : ''}</option>`).join('');
+  // Los coches retirados no se ofrecen (salvo el que ya tiene puesto)
+  return `<option value="">${vacio}</option>` + lista.filter(x => x.activo !== false || String(x.id) === String(sel)).map(x => `<option value="${x.id}" ${String(x.id) === String(sel) ? 'selected' : ''}>${esc(x.nombre)}${x.matricula ? ' · ' + esc(x.matricula) : ''}</option>`).join('');
 }
 function pmFilaAlumno(a, i) {
   const permisos = ['B', 'A', 'A1', 'A2', 'AM', 'C', 'C1', 'D', 'BE', 'CE'];

@@ -1,8 +1,8 @@
 // ─── ALUMNOS ─────────────────────────────────────────────────────────────────
 // CRUD de alumnos y anotaciones de alumno (notas guardadas en sus prácticas).
 
-const { load, save, nextId, _sync, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, clasesDePractica } = require('./core');
-const { extraerCamposExtra, camposExtraVacios, siguienteNRegistro, alumnoConNRegistro } = require('./campos-extra');
+const { load, save, nextId, _sync, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, clasesDePractica, alumnoTerminado, hoyLocalISO, addLog, nombreCorto } = require('./core');
+const { extraerCamposExtra, camposExtraVacios, siguienteNRegistro, alumnoConNRegistro, vehiculoSirveParaAlumno } = require('./campos-extra');
 const { normalizarProcedencia } = require('./procedencia');
 
 // sucursalId opcional: sin argumento devuelve todos los alumnos (modo clásico
@@ -15,7 +15,9 @@ function getAlumnos(sucursalId) {
     .map(a => {
       const v = d.vehiculos.find(x => x.id === a.vehiculo_id);
       const prof = d.profesores.find(x => x.id === a.profesor_id);
-      return { ...a, vehiculo_nombre: v ? v.nombre : null, profesor_nombre: prof ? prof.nombre : null };
+      // Un coche que no sirve para su permiso (p. ej. el de B con un alumno de moto) no se enseña como suyo
+      const incompatible = !!v && vehiculoSirveParaAlumno(v, a) === 'no';
+      return { ...a, vehiculo_nombre: v && !incompatible ? v.nombre : null, vehiculo_incompatible: incompatible, vehiculo_retirado: !!v && v.activo === false, profesor_nombre: prof ? prof.nombre : null };
     });
 }
 
@@ -75,7 +77,7 @@ function getAlumnosLista(sucursalId, hoy) {
     const clasesApp = hechas.reduce((n, p) => n + clasesDePractica(p), 0);
     return {
       ...a,
-      vehiculo_matricula: v ? v.matricula || null : null,
+      vehiculo_matricula: v && !a.vehiculo_incompatible ? v.matricula || null : null,
       num_practicas: clasesApp + previas,
       km_total: Math.round(km) + kmPrevios,
       num_practicas_app: clasesApp,
@@ -171,8 +173,23 @@ function getFichaAlumno(alumno_id, hoy) {
     .sort((x, y) => String(y.fecha_alta || '').localeCompare(String(x.fecha_alta || '')))
     .map(x => ({ id: x.id, nombre: x.nombre, n_registro: x.n_registro || null, permiso: x.permiso, estado: x.estado || null, fecha_alta: x.fecha_alta || null, vehiculo_id: x.vehiculo_id || null }));
 
+  // Profesores que le han dado clase (y desde/hasta cuándo): sale en su ficha cuando ha tenido más de uno
+  const porProfesor = new Map();
+  for (const p of propias) {
+    const pid = p.profesor_id != null ? p.profesor_id : (base.profesor_id || null);
+    if (!porProfesor.has(pid)) porProfesor.set(pid, { id: pid, clases: 0, desde: p.fecha, hasta: p.fecha });
+    const g = porProfesor.get(pid);
+    g.clases += clasesDePractica(p);
+    if (p.fecha < g.desde) g.desde = p.fecha;
+    if (p.fecha > g.hasta) g.hasta = p.fecha;
+  }
+  const profesores = [...porProfesor.values()]
+    .map(g => ({ ...g, nombre: g.id != null && prof.get(g.id) ? prof.get(g.id).nombre : null, actual: g.id != null && g.id === base.profesor_id }))
+    .sort((x, y) => (x.desde || '').localeCompare(y.desde || ''));
+
   return {
     alumno: base,
+    profesores,
     otros_expedientes,
     metricas: {
       clases: hechas.reduce((n, p) => n + clasesDePractica(p), 0) + previas,
@@ -526,7 +543,164 @@ function getLibroRegistro(sucursalId) {
     }));
 }
 
+// ─── ESTADO DE LOS ALUMNOS (en bloque) Y ALUMNOS ANTIGUOS ──────────────────
+// Un alumno que dejó de venir sin terminar el permiso (o que ya terminó) pasa a
+// «inactivo»/«baja»/«apto»…: desde entonces no sale en avisos, semáforos,
+// caducidades ni en la lista de quién viene hoy (core.alumnoTerminado).
+
+// Cambia el estado de varios alumnos de una vez (una sola escritura y un solo
+// aviso a la nube). Devuelve lo que había antes para poder deshacerlo.
+function setEstadoAlumnos(ids, estado) {
+  const nuevo = String(estado || '').trim();
+  if (!ESTADOS_ALUMNO_VALIDOS.includes(nuevo)) return { ok: false, error: 'Estado no válido.' };
+  const d = load();
+  const quiero = new Set((ids || []).map(x => parseInt(x)).filter(Number.isFinite));
+  const anteriores = [];
+  for (const a of d.alumnos) {
+    if (!quiero.has(a.id) || a.deleted || (a.estado || null) === nuevo) continue;
+    anteriores.push({ id: a.id, estado: a.estado || null });
+    a.estado = nuevo;
+  }
+  if (!anteriores.length) return { ok: true, cambiados: 0, anteriores };
+  addLog('alumnos', `Estado «${nuevo}» para ${anteriores.length} ${anteriores.length === 1 ? 'alumno' : 'alumnos'}`,
+    anteriores.slice(0, 30).map(x => { const a = d.alumnos.find(y => y.id === x.id); return `${a ? nombreCorto(a) : x.id}: ${x.estado || 'sin estado'} → ${nuevo}`; }));
+  save();
+  const s = _sync(); if (s) s.markDirtyVarios('alumnos', anteriores.map(x => x.id));
+  return { ok: true, cambiados: anteriores.length, anteriores };
+}
+
+// Deshace setEstadoAlumnos con lo que devolvió (`anteriores`).
+function restaurarEstadosAlumnos(anteriores) {
+  const d = load();
+  const porId = new Map((anteriores || []).map(x => [parseInt(x.id), x.estado || null]));
+  const tocados = [];
+  for (const a of d.alumnos) {
+    if (!porId.has(a.id)) continue;
+    a.estado = porId.get(a.id);
+    tocados.push(a.id);
+  }
+  if (!tocados.length) return { ok: true, cambiados: 0 };
+  addLog('alumnos', `Estado deshecho en ${tocados.length} ${tocados.length === 1 ? 'alumno' : 'alumnos'}`, []);
+  save();
+  const s = _sync(); if (s) s.markDirtyVarios('alumnos', tocados);
+  return { ok: true, cambiados: tocados.length };
+}
+
+function _restarMeses(iso, n) {
+  const [y, m, dd] = String(iso).split('-').map(Number);
+  const f = new Date(Date.UTC(y, m - 1 - n, 1));
+  const ultimo = new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth() + 1, 0)).getUTCDate();
+  f.setUTCDate(Math.min(dd, ultimo));
+  return f.toISOString().slice(0, 10);
+}
+
+/**
+ * Alumnos «antiguos» que siguen figurando en curso: llevan más de `meses` meses
+ * sin dar una clase (o, si nunca dieron, desde que se dieron de alta) y no tienen
+ * una clase reservada ni un examen por delante. Son los que conviene pasar a
+ * «inactivo». Solo lectura. `debe` = lo que deben todavía (no se tocan por
+ * defecto en la pantalla).
+ */
+function proponerAlumnosInactivos({ meses = 6, hoy } = {}, sucursalId) {
+  const d = load();
+  const hoyIso = hoy || hoyLocalISO();
+  const m = Math.max(1, parseInt(meses) || 6);
+  const limite = _restarMeses(hoyIso, m);
+  const ultimaDe = new Map(), clasesDe = new Map();
+  for (const p of d.practicas) {
+    if (p.deleted) continue;
+    clasesDe.set(p.alumno_id, (clasesDe.get(p.alumno_id) || 0) + clasesDePractica(p));
+    if (p.fecha && (!ultimaDe.get(p.alumno_id) || p.fecha > ultimaDe.get(p.alumno_id))) ultimaDe.set(p.alumno_id, p.fecha);
+  }
+  const conFuturo = new Set();
+  for (const r of (d.reservas || [])) if (!r.deleted && ['solicitada', 'confirmada'].includes(r.estado) && r.fecha >= hoyIso) conFuturo.add(r.alumno_id);
+  for (const x of (d.presentaciones || [])) if (!x.deleted && x.resultado === 'pendiente' && x.fecha >= hoyIso) conFuturo.add(x.alumno_id);
+  const saldos = new Map();
+  try { for (const f of require('./pagos').getDeudas(sucursalId)) saldos.set(f.alumno_id, f.saldo); } catch (e) { /* sin deudas: no se avisa de ellas */ }
+
+  const filas = [];
+  for (const a of filtrarPorSucursal(d.alumnos, sucursalId)) {
+    if (a.deleted || alumnoTerminado(a) || conFuturo.has(a.id)) continue;
+    const ultima = ultimaDe.get(a.id) || null;
+    const referencia = ultima || a.fecha_alta || a.fecha_inicio || null;
+    if (!referencia || referencia >= limite) continue; // sin ninguna fecha no se puede saber cuánto hace
+    const clases = (clasesDe.get(a.id) || 0) + (a.clases_previas > 0 ? a.clases_previas : 0);
+    filas.push({
+      id: a.id, nombre: nombreCorto(a), permiso: a.permiso || 'B', n_registro: a.n_registro || null, estado: a.estado || null,
+      ultima_fecha: ultima, fecha_alta: a.fecha_alta || null, clases,
+      motivo: ultima ? 'ultima' : 'sin_clases',
+      debe: Math.max(0, Math.round((saldos.get(a.id) || 0) * 100) / 100)
+    });
+  }
+  // Los que más tiempo llevan sin venir, primero
+  filas.sort((x, y) => (x.ultima_fecha || x.fecha_alta || '').localeCompare(y.ultima_fecha || y.fecha_alta || '') || x.nombre.localeCompare(y.nombre, 'es'));
+  return { meses: m, desde: limite, total: filas.length, alumnos: filas };
+}
+
+// ─── CAMBIO DE PROFESOR ─────────────────────────────────────────────────────
+// Un alumno que empezó con un profesor y sigue con otro (otro coche, otro turno…): lo ya dado
+// se queda con quien lo dio y lo que viene es del nuevo. Cada clase guarda su profesor
+// (`practica.profesor_id`); las que no lo tenían se atan ahora al profesor que había hasta la
+// fecha del cambio (o al nuevo desde esa fecha), así un cambio posterior no las mueve. Con eso, la
+// ficha oficial DGT sale una por profesor, cada una con los datos y la firma de quien dio esas clases.
+
+/**
+ * Pasa al alumno a `nuevo_profesor_id`. `fecha` (YYYY-MM-DD, por defecto hoy) = primer día con el nuevo
+ * profesor; `vehiculo_id` (opcional) = su nuevo coche (null = sin asignar; sin pasarlo no se toca).
+ * Devuelve { ok, anterior (para deshacer), antes, despues, conservadas, nuevas }.
+ */
+function cambiarProfesorAlumno(alumno_id, nuevo_profesor_id, { fecha, vehiculo_id } = {}) {
+  const d = load();
+  const a = d.alumnos.find(x => x.id === parseInt(alumno_id) && !x.deleted);
+  if (!a) return { ok: false, error: 'No se encuentra el alumno.' };
+  const nuevo = parseInt(nuevo_profesor_id) || null;
+  if (!nuevo || !d.profesores.some(p => p.id === nuevo && !p.deleted)) return { ok: false, error: 'Elige el profesor nuevo.' };
+  const antes = a.profesor_id || null;
+  if (antes === nuevo) return { ok: false, error: 'Ese ya es su profesor.' };
+  const desde = /^\d{4}-\d{2}-\d{2}$/.test(fecha || '') ? fecha : hoyLocalISO();
+
+  const tocadas = [];
+  let conservadas = 0, nuevas = 0;
+  for (const p of d.practicas) {
+    if (p.alumno_id !== a.id || p.deleted || p.profesor_id) continue;
+    const quien = (p.fecha || '') < desde ? antes : nuevo;
+    if (!quien) continue; // sin profesor antes: no hay a quién atribuírselas
+    p.profesor_id = quien; tocadas.push(p.id);
+    if (quien === antes) conservadas++; else nuevas++;
+  }
+  const anterior = { alumno_id: a.id, profesor_id: antes, vehiculo_id: a.vehiculo_id || null, practicas: tocadas };
+  a.profesor_id = nuevo;
+  if (vehiculo_id !== undefined) a.vehiculo_id = vehiculo_id ? parseInt(vehiculo_id) : null;
+  const nombreProf = id => { const p = d.profesores.find(x => x.id === id); return p ? p.nombre : 'sin profesor'; };
+  addLog('alumnos', `Cambio de profesor: ${nombreCorto(a)} pasa de ${nombreProf(antes)} a ${nombreProf(nuevo)} desde ${desde}`,
+    [`${conservadas} ${conservadas === 1 ? 'clase queda' : 'clases quedan'} con ${nombreProf(antes)}`, `${nuevas} ${nuevas === 1 ? 'clase pasa' : 'clases pasan'} a ${nombreProf(nuevo)}`]);
+  save();
+  const s = _sync();
+  if (s) { s.markDirty('alumnos', a.id); if (tocadas.length) s.markDirtyVarios('practicas', tocadas); }
+  return { ok: true, anterior, antes, despues: nuevo, desde, conservadas, nuevas };
+}
+
+// Deshace un cambio de profesor con lo que devolvió (`anterior`): vuelve el profesor (y el coche) del
+// alumno y las clases atadas en el cambio quedan sin profesor propio otra vez.
+function deshacerCambioProfesorAlumno(anterior) {
+  const d = load();
+  const a = anterior && d.alumnos.find(x => x.id === parseInt(anterior.alumno_id));
+  if (!a) return { ok: false, error: 'No se encuentra el alumno.' };
+  a.profesor_id = anterior.profesor_id || null;
+  a.vehiculo_id = anterior.vehiculo_id || null;
+  const ids = new Set((anterior.practicas || []).map(Number));
+  const tocadas = [];
+  for (const p of d.practicas) if (ids.has(p.id)) { p.profesor_id = null; tocadas.push(p.id); }
+  addLog('alumnos', `Cambio de profesor deshecho: ${nombreCorto(a)}`, []);
+  save();
+  const s = _sync();
+  if (s) { s.markDirty('alumnos', a.id); if (tocadas.length) s.markDirtyVarios('practicas', tocadas); }
+  return { ok: true };
+}
+
 module.exports = {
+  cambiarProfesorAlumno, deshacerCambioProfesorAlumno,
+  setEstadoAlumnos, restaurarEstadosAlumnos, proponerAlumnosInactivos,
   getAlumnos, getAlumnosLista, getFichaAlumno, addAlumno, deleteAlumno, updateAlumno, updateAlumnoCampos, buscarAlumnosRapido,
   getAnotacionesAlumno,
   ESTADOS_ALUMNO_VALIDOS,

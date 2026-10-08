@@ -937,7 +937,7 @@ async function reintentarOp(id) {
 }
 
 // Cierre de una clase sin red (o con la práctica en marcha solo en esta tablet)
-const cuerpoRegistro = (F, firma) => ({ cid: F.cid, alumno_id: F.alumno_id, vehiculo_id: F.vehiculo_id, fecha: F.fecha, hoy: S.hoy, hora_inicio: F.hora_inicio, hora_fin: F.hora_fin || hhmm(),
+const cuerpoRegistro = (F, firma) => ({ cid: F.cid, alumno_id: F.alumno_id, vehiculo_id: F.vehiculo_id, fecha: F.fecha, hoy: S.hoy, tipo: F.tipo === 'pista' ? 'pista' : 'circulacion', hora_inicio: F.hora_inicio, hora_fin: F.hora_fin || hhmm(),
   km_inicial: F.km_inicial, km_final: F.km_final, km_calculado: F.km_auto ? true : undefined, ...(F.modo === 'minutos' ? { minutos: parseInt(F.minutos) } : { n_clases: F.n_clases || 1 }),
   zonas: F.zonas || [], trabajado: F.trabajado || [], observacion: F.observacion || '', profesor_id: S.perfil ? S.perfil.id : null, ...(firma ? { firma } : {}) });
 async function cerrarSinConexion(F, kf, auto, porMinutos) {
@@ -983,12 +983,12 @@ async function firmarSinConexion(F, firma) {
 // Empezar una clase sin red: vive solo en esta tablet hasta que se firme
 function empezarSinConexion(I, ahora) {
   const al = alumno(I.alumno_id), v = vehiculo(I.vehiculo_id);
-  localStorage.setItem(VEHICULO_KEY, String(I.vehiculo_id)); S.vehId = I.vehiculo_id; apuntarCocheHoy(I.vehiculo_id);
+  localStorage.setItem(VEHICULO_KEY, String(I.vehiculo_id)); S.vehId = I.vehiculo_id; apuntarCocheHoy(I.vehiculo_id); recordarCoche(al, I.vehiculo_id);
   if (I.n_clases <= 3) localStorage.setItem(NCLASES_KEY, String(I.n_clases));
   S.flujo = {
     practica_id: null, local: true, cid: Offline.nuevoId(), alumno_id: I.alumno_id, alumno_nombre: nombreAlumno(al), vehiculo_id: I.vehiculo_id, vehiculo_nombre: v ? v.nombre : '', matricula: v ? v.matricula : null,
     km_inicial: parseInt(I.km), km_final: 0, inicio_ms: ahora.getTime(), hora_inicio: hhmm(ahora), n_clases: I.n_clases, duracion_min: I.n_clases * durClase(),
-    zonas: I.zonas.slice(), trabajado: [], observacion: '', clase_n: siguienteClase(al), clases_antes: clasesAlumno(al), fecha: fechaLocal(ahora), cerrada: false,
+    zonas: I.zonas.slice(), trabajado: [], observacion: '', clase_n: siguienteClase(al), clases_antes: clasesAlumno(al), fecha: fechaLocal(ahora), cerrada: false, tipo: I.tipo === 'pista' ? 'pista' : 'circulacion',
     profesor_id: S.perfil ? S.perfil.id : null
   };
   guardarFlujo();
@@ -1380,6 +1380,78 @@ function apuntarCocheHoy(id) {
 }
 // ¿Se sabe en qué coche está el profesor? (el de hoy o su coche habitual)
 const cocheFijado = () => cocheElegidoHoy() || cocheHabitual();
+
+// ─── COCHE SEGÚN EL PERMISO DEL ALUMNO ───────────────────────────────────────
+// La autoescuela marca en el escritorio con qué permisos se da clase con cada coche («B»;
+// «A2,A»). Un alumno de moto no recibe el coche de B aunque sea el habitual del profesor.
+// Coches sin permisos marcados valen para todos (como siempre).
+const permisosDe = v => String((v && v.permisos) || '').split(',').map(s => s.trim()).filter(Boolean);
+function cocheSirve(v, al) {   // 'si' (su permiso está en el coche) · 'libre' (el coche no tiene permisos puestos) · 'no'
+  const de = permisosDe(v);
+  if (!de.length || !al || !al.permiso) return 'libre';
+  return de.includes(String(al.permiso).toUpperCase()) ? 'si' : 'no';
+}
+// ─── TIPO DE CLASE: CIRCULACIÓN O PISTA ──────────────────────────────────────
+// Los alumnos de moto, camión… hacen clases de pista (maniobras) además de circulación; cada tipo
+// va a su ficha DGT. El selector solo sale con permisos distintos de B y se acuerda de lo último
+// que se eligió para ese alumno (cinco clases de pista seguidas no piden elegirlo cinco veces).
+const TIPO_CLASE_KEY = 'km_tipo_clase';
+const tienePista = al => !!al && !!al.permiso && String(al.permiso).toUpperCase() !== 'B';
+function tipoClaseDe(al) {
+  if (!tienePista(al)) return 'circulacion';
+  try { return (JSON.parse(localStorage.getItem(TIPO_CLASE_KEY) || '{}'))[al.id] === 'pista' ? 'pista' : 'circulacion'; } catch { return 'circulacion'; }
+}
+function recordarTipoClase(al, tipo) {
+  if (!tienePista(al)) return;
+  try { const m = JSON.parse(localStorage.getItem(TIPO_CLASE_KEY) || '{}'); m[al.id] = tipo; localStorage.setItem(TIPO_CLASE_KEY, JSON.stringify(m)); } catch {}
+}
+function htmlTipoClase(X, al) {
+  if (!tienePista(al)) return '';
+  const tipo = X.tipo || 'circulacion';
+  return `<div class="etq">Tipo de clase <small>Pista = maniobras</small></div>
+    <div class="seg3">${[['circulacion', 'Circulación'], ['pista', 'Pista']].map(([k, t]) => `<button class="${tipo === k ? 'on' : ''}" onclick="fijarTipoClase('${k}')">${t}</button>`).join('')}</div>`;
+}
+function fijarTipoClase(k) {
+  const X = S.vista === 'anotar' && S.anotar ? S.anotar : S.iniciar; if (!X) return;
+  X.tipo = k; recordarTipoClase(alumno(X.alumno_id), k);
+  if (S.vista === 'anotar') renderAnotar(); else renderIniciar();
+}
+
+// Alta de alumno: solo se ofrecen los coches que sirven para el permiso elegido
+function filtrarCochesAlta() {
+  const sel = document.getElementById('n-vehiculo'); const p = document.getElementById('n-permiso'); if (!sel || !p) return;
+  const previo = sel.value;
+  sel.innerHTML = '<option value="">— Sin asignar —</option>' + S.vehiculos.filter(v => cocheSirve(v, { permiso: p.value }) !== 'no')
+    .map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('');
+  if ([...sel.options].some(o => o.value === previo)) sel.value = previo;
+}
+
+const COCHE_PERMISO_KEY = 'km_coche_permiso';
+function cocheRecordado(al) {
+  try { return (JSON.parse(localStorage.getItem(COCHE_PERMISO_KEY) || '{}'))[(S.perfil ? S.perfil.id : 0) + ':' + al.permiso] || null; } catch { return null; }
+}
+function recordarCoche(al, vid) {   // el último coche con el que este profesor dio clase a ese permiso
+  if (!al || !al.permiso || !vid) return;
+  try {
+    const m = JSON.parse(localStorage.getItem(COCHE_PERMISO_KEY) || '{}');
+    m[(S.perfil ? S.perfil.id : 0) + ':' + al.permiso] = vid;
+    localStorage.setItem(COCHE_PERMISO_KEY, JSON.stringify(m));
+  } catch {}
+}
+// El coche que toca a este alumno: uno de su permiso (el fijado, el suyo o el último usado con ese
+// permiso, por este orden); si ningún coche tiene su permiso marcado, el de siempre.
+function cocheParaAlumno(al, soloHabitual = false) {
+  const fijado = soloHabitual ? cocheHabitual() : cocheFijado();
+  if (al) {
+    const exactos = S.vehiculos.filter(v => cocheSirve(v, al) === 'si');
+    if (exactos.length) {
+      for (const id of [fijado, al.vehiculo_id, cocheRecordado(al)]) if (id && exactos.some(v => v.id === id)) return id;
+      return exactos[0].id;
+    }
+  }
+  const sirve = id => { const v = id && vehiculo(id); return v && cocheSirve(v, al) !== 'no' ? id : null; };
+  return sirve(fijado) || sirve(al && al.vehiculo_id) || (vehiculo(S.vehId) ? S.vehId : null) || (S.vehiculos[0] ? S.vehiculos[0].id : null);
+}
 function elegirCocheDelDia() {
   const guardado = parseInt(localStorage.getItem(VEHICULO_KEY));
   S.vehId = cocheFijado() || (vehiculo(guardado) ? guardado : (S.vehiculos[0] ? S.vehiculos[0].id : null));
@@ -1810,11 +1882,11 @@ function kmSugerido(vid) { const v = vehiculo(vid); return v ? (v.ultimo ? v.ult
 function abrirIniciar(op = {}) {
   if (flujoActivo()) { toast('Ya tienes una práctica en curso.'); go('curso'); return; }
   const al = op.alumno_id ? alumno(op.alumno_id) : null;
-  let vid = op.vehiculo_id || cocheFijado() || (al && al.vehiculo_id) || S.vehId;
-  if (!vehiculo(vid)) vid = S.vehId;
+  let vid = op.vehiculo_id || cocheParaAlumno(al);
+  if (!vehiculo(vid)) vid = cocheParaAlumno(al) || S.vehId;
   S.iniciar = {
     alumno_id: al ? al.id : null, vehiculo_id: vid, km: String(kmSugerido(vid) || ''),
-    zonas: [], n_clases: Math.min(MAX_CLASES, op.n_clases || nClasesGuardado())
+    zonas: [], n_clases: Math.min(MAX_CLASES, op.n_clases || nClasesGuardado()), tipo: tipoClaseDe(al)
   };
   go('iniciar');
   actualizarKmCoches();
@@ -1860,6 +1932,7 @@ function renderIniciar() {
       <div class="msg ${c.cls}" id="msg-cont">${c.ok ? ic('ok', 20) : ''}<span>${c.txt}</span></div>
       <div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-sec btn-peq" style="flex:1" onclick="document.getElementById('km-ini').focus()">${ic('lapiz', 16)} Corregir km</button>
       ${v && v.ultimo ? `<button class="btn btn-sec btn-peq" style="flex:1" onclick="usarKmAnterior()">Usar ${miles(v.ultimo.km_final)}</button>` : ''}</div></div>
+    ${htmlTipoClase(I, al)}
     ${S.zonas.length ? `<div class="etq">Zonas recorridas <small>Opcional · se puede cambiar durante la clase</small></div>
     <div class="chips">${S.zonas.map((z, i) => `<button class="chip ${I.zonas.includes(z) ? 'on' : ''}" onclick="toggleZonaIniciar(${i})">${I.zonas.includes(z) ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${esc(z)}</button>`).join('')}</div>` : ''}
     <div class="etq">Clases <small>${durTxt(I.n_clases * durClase())} · termina a las ${esc(sumaMin(ahora, I.n_clases * durClase()))}</small></div>
@@ -1998,12 +2071,15 @@ function fijarAlumnoIniciar(id) {
   const al = alumno(id); cerrarHoja();
   // El coche del alumno solo manda si el profesor no tiene el suyo
   if (S.vista === 'anotar' && S.anotar) {
-    S.anotar.alumno_id = id;
-    if (!cocheHabitual() && al && al.vehiculo_id && vehiculo(al.vehiculo_id)) S.anotar.vehiculo_id = al.vehiculo_id;
+    S.anotar.alumno_id = id; S.anotar.tipo = tipoClaseDe(al);
+    // Se cambia de coche si el que había no sirve para su permiso, o si el profesor no tiene uno fijo
+    const mejorA = cocheParaAlumno(al, true), actualA = vehiculo(S.anotar.vehiculo_id);
+    if (mejorA && mejorA !== S.anotar.vehiculo_id && (!actualA || cocheSirve(actualA, al) === 'no' || !cocheHabitual())) S.anotar.vehiculo_id = mejorA;
     renderAnotar(); return;
   }
-  S.iniciar.alumno_id = id;
-  if (!cocheFijado() && al && al.vehiculo_id && vehiculo(al.vehiculo_id) && S.iniciar.vehiculo_id !== al.vehiculo_id) { S.iniciar.vehiculo_id = al.vehiculo_id; S.iniciar.km = String(kmSugerido(al.vehiculo_id) || ''); }
+  S.iniciar.alumno_id = id; S.iniciar.tipo = tipoClaseDe(al);
+  const mejor = cocheParaAlumno(al), actual = vehiculo(S.iniciar.vehiculo_id);
+  if (mejor && mejor !== S.iniciar.vehiculo_id && (!actual || cocheSirve(actual, al) === 'no' || !cocheFijado())) { S.iniciar.vehiculo_id = mejor; S.iniciar.km = String(kmSugerido(mejor) || ''); }
   renderIniciar();
 }
 
@@ -2022,7 +2098,7 @@ async function empezarPractica(forzar = false) {
   if (!hayRed()) { empezarSinConexion(I, ahora); return; }
   try {
     const res = await postJSON('/api/iniciar-practica', {
-      alumno_id: I.alumno_id, vehiculo_id: I.vehiculo_id, km_inicial: km, tipo: 'circulacion', zonas: I.zonas,
+      alumno_id: I.alumno_id, vehiculo_id: I.vehiculo_id, km_inicial: km, tipo: I.tipo === 'pista' ? 'pista' : 'circulacion', zonas: I.zonas,
       fecha: fechaLocal(ahora), hora_inicio: hhmm(ahora), profesor_id: S.perfil ? S.perfil.id : null, ...(forzar ? { forzar: true } : {})
     });
     const data = await res.json();
@@ -2032,7 +2108,7 @@ async function empezarPractica(forzar = false) {
       throw new Error(data.error || 'No se pudo empezar la práctica');
     }
     const al = alumno(I.alumno_id), v = vehiculo(I.vehiculo_id);
-    localStorage.setItem(VEHICULO_KEY, String(I.vehiculo_id)); S.vehId = I.vehiculo_id; apuntarCocheHoy(I.vehiculo_id);
+    localStorage.setItem(VEHICULO_KEY, String(I.vehiculo_id)); S.vehId = I.vehiculo_id; apuntarCocheHoy(I.vehiculo_id); recordarCoche(al, I.vehiculo_id);
     if (I.n_clases <= 3) localStorage.setItem(NCLASES_KEY, String(I.n_clases));
     S.flujo = {
       practica_id: data.practica_id, alumno_id: I.alumno_id, alumno_nombre: nombreAlumno(al), vehiculo_id: I.vehiculo_id, vehiculo_nombre: v ? v.nombre : '', matricula: v ? v.matricula : null,
@@ -2052,7 +2128,7 @@ async function registrarSinCronometro() {
   const I = S.iniciar;
   if (!I.alumno_id) { toast('Elige primero un alumno.'); return; }
   try {
-    const res = await postJSON('/api/practica', { alumno_id: I.alumno_id, fecha: fechaLocal(), profesor_id: S.perfil ? S.perfil.id : null });
+    const res = await postJSON('/api/practica', { alumno_id: I.alumno_id, fecha: fechaLocal(), profesor_id: S.perfil ? S.perfil.id : null, vehiculo_id: I.vehiculo_id || undefined, tipo: I.tipo === 'pista' ? 'pista' : 'circulacion' });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo registrar');
     toast('Práctica registrada. Los km se rellenan desde la app.');
@@ -2071,12 +2147,12 @@ function abrirAnotar(op = {}) {
   actualizarHoy();
   const al = op.alumno_id ? alumno(op.alumno_id) : null;
   // Una clase de otro día: su coche habitual (el de hoy puede ser otro)
-  let vid = cocheHabitual() || (al && al.vehiculo_id) || S.vehId;
+  let vid = cocheParaAlumno(al, true);
   if (!vehiculo(vid)) vid = S.vehiculos[0] ? S.vehiculos[0].id : null;
   const minimo = sumaDias(S.hoy, -DIAS_ANOTAR);
   const fecha = op.fecha && op.fecha <= S.hoy && op.fecha >= minimo ? op.fecha : sumaDias(S.hoy, -1);
   S.anotar = {
-    alumno_id: al ? al.id : null, vehiculo_id: vid, fecha, hora: '', n_clases: nClasesGuardado(), modo: modoGuardado(), minutos: '',
+    alumno_id: al ? al.id : null, vehiculo_id: vid, fecha, hora: '', n_clases: nClasesGuardado(), modo: modoGuardado(), minutos: '', tipo: tipoClaseDe(al),
     km_ini: '', km_fin: '', kmModo: modoKmAnotarGuardado(), kmIniAuto: true, ctx: null,
     zonas: [], trabajado: [], obs: '', volverA: op.volverA || 'hoy'
   };
@@ -2170,6 +2246,7 @@ function renderAnotar() {
         <div style="flex:1;min-width:0">${v ? `<div class="fila-tit" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.nombre)}</div><div style="margin-top:3px">${placa(v.matricula)}</div>` : '<span class="fila-tit">Elige el vehículo</span>'}</div>
         <button class="lnk" onclick="elegirVehiculo()">Cambiar</button></div>
     </div>
+    ${htmlTipoClase(A, al)}
     <div class="etq">Día <small>${esc(fechaLarga(A.fecha))}</small></div>
     <div class="dias-fila">${dias.map(d => `<button class="chip ${d === A.fecha ? 'on' : ''}" onclick="S.anotar.fecha='${d}';renderAnotar()">${nombreDia(d)}<small>${partes(d).d} ${MESES_C[partes(d).m - 1]}</small></button>`).join('')}
       <label class="chip ${otroDia ? 'on' : ''}">${otroDia ? esc(cap(DIAS[partes(A.fecha).dow].slice(0, 3))) : 'Otro día'}<small>${otroDia ? partes(A.fecha).d + ' ' + MESES_C[partes(A.fecha).m - 1] : 'Calendario'}</small>
@@ -2222,9 +2299,10 @@ async function enviarAnotar(forzar = false) {
   const A = S.anotar; if (!A || A.enviando) return;
   const btn = document.getElementById('btn-anotar');
   A.enviando = true; btn.disabled = true; btn.textContent = 'Guardando…';
+  recordarCoche(alumno(A.alumno_id), A.vehiculo_id);
   try {
     const res = await postJSON('/api/anotar-practica', {
-      alumno_id: A.alumno_id, vehiculo_id: A.vehiculo_id, fecha: A.fecha, hoy: S.hoy,
+      alumno_id: A.alumno_id, vehiculo_id: A.vehiculo_id, fecha: A.fecha, hoy: S.hoy, tipo: A.tipo === 'pista' ? 'pista' : 'circulacion',
       hora_inicio: A.hora || null, hora_fin: A.hora && minutosDe(A) ? sumaMin(A.hora, minutosDe(A)) : null,
       ...(A.modo === 'minutos' ? { minutos: parseInt(A.minutos) } : { n_clases: A.n_clases || 1 }),
       ...(A.kmModo === 'auto' ? { km_auto: true } : A.kmModo === 'escribo' ? { km_inicial: A.km_ini || null, km_final: A.km_fin || null } : { km_inicial: null, km_final: null }),
@@ -2277,7 +2355,7 @@ async function anotarSinConexion(A) {
   }
   const conKm = !!(kmI && kmF);
   await encolar({ tipo: 'registrar', url: '/api/registrar-clase', cuerpo: {
-    cid: Offline.nuevoId(), alumno_id: A.alumno_id, vehiculo_id: A.vehiculo_id, fecha: A.fecha, hoy: S.hoy, hora_inicio: A.hora || null, hora_fin,
+    cid: Offline.nuevoId(), alumno_id: A.alumno_id, vehiculo_id: A.vehiculo_id, fecha: A.fecha, hoy: S.hoy, hora_inicio: A.hora || null, hora_fin, tipo: A.tipo === 'pista' ? 'pista' : 'circulacion',
     ...(A.modo === 'minutos' ? { minutos: parseInt(A.minutos) } : { n_clases: A.n_clases || 1 }), km_inicial: conKm ? kmI : null, km_final: conKm ? kmF : null,
     ...(calculados ? { km_calculado: true } : {}),
     zonas: A.zonas, trabajado: A.trabajado, observacion: A.obs, profesor_id: S.perfil ? S.perfil.id : null, anotada: true },
@@ -3016,7 +3094,7 @@ function renderFicha() {
     <div class="grupo-tit"><span>Últimas prácticas</span><span style="font-size:14px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink)">${(d.n_practicas || d.total) > 6 ? 'Las 6 últimas de ' + (d.n_practicas || d.total) : ''}</span></div>
     <div class="card">${filas || '<div class="vacio">Todavía no tiene prácticas.</div>'}</div>
     <button class="lnk lnk-suave lnk-olvido" onclick="abrirAnotar({alumno_id:${a.id},volverA:'ficha'})">${ic('hist', 18)} Anotar una clase pasada de ${esc((a.nombre || '').split(' ')[0])}</button>
-    <div class="barra-fija"><button class="btn btn-pri btn-lg" onclick="abrirIniciar({alumno_id:${a.id},vehiculo_id:${a.vehiculo_id || 'null'}})">${ic('play', 18)} Iniciar práctica con ${esc((a.nombre || '').split(' ')[0])}</button></div>`;
+    <div class="barra-fija"><button class="btn btn-pri btn-lg" onclick="abrirIniciar({alumno_id:${a.id}})">${ic('play', 18)} Iniciar práctica con ${esc((a.nombre || '').split(' ')[0])}</button></div>`;
 }
 function mesFicha(n) { const [y, m] = S.fichaMes.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); S.fichaMes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; renderFicha(); }
 
@@ -3035,8 +3113,8 @@ function renderNuevo() {
         <div><div class="etq" style="margin:0 0 6px">Teléfono</div><input class="campo" id="n-tel" type="tel" inputmode="tel" autocomplete="off" maxlength="20" placeholder="Opcional"></div>
       </div>
       <p class="fila-sub" style="margin:-4px 2px 0;font-size:14px">Igual que en el ordenador. Con el DNI, al traer los datos del programa anterior se junta solo con su ficha.</p>
-      <div><div class="etq" style="margin:0 0 6px">Permiso</div><select class="campo" id="n-permiso"><option value="B">B (Coche)</option><option value="A">A (Moto)</option><option value="A2">A2</option><option value="AM">AM</option><option value="C">C (Camión)</option></select></div>
-      <div><div class="etq" style="margin:0 0 6px">Vehículo asignado</div><select class="campo" id="n-vehiculo"><option value="">— Sin asignar —</option>${S.vehiculos.map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('')}</select></div>
+      <div><div class="etq" style="margin:0 0 6px">Permiso</div><select class="campo" id="n-permiso" onchange="filtrarCochesAlta()"><option value="B">B (Coche)</option><option value="A">A (Moto)</option><option value="A2">A2</option><option value="A1">A1</option><option value="AM">AM</option><option value="BE">BE</option><option value="C1">C1</option><option value="C">C (Camión)</option><option value="D">D (Autobús)</option></select></div>
+      <div><div class="etq" style="margin:0 0 6px">Vehículo asignado</div><select class="campo" id="n-vehiculo"><option value="">— Sin asignar —</option>${S.vehiculos.filter(v => cocheSirve(v, { permiso: 'B' }) !== 'no').map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('')}</select></div>
       <label style="display:flex;align-items:center;gap:10px;font-size:16px;font-weight:600"><input type="checkbox" id="n-mio" ${S.perfil && S.perfil.id ? 'checked' : 'disabled'} style="width:22px;height:22px"> Asignármelo a mí${S.perfil && S.perfil.id ? '' : ' (elige un perfil de profesor)'}</label>
       <div class="err-txt" id="n-error" role="alert"></div>
     </div>

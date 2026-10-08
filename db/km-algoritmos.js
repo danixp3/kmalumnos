@@ -4,6 +4,10 @@
 
 const { load, save, addLog, fmtFechaLog, _sync, nombreCorto } = require('./core');
 
+// Una clase de pista (circuito cerrado) sin km no es una clase «en blanco» por rellenar:
+// no recorre la carretera, así que ningún algoritmo de km le inventa kilómetros.
+const pistaSinKm = p => p.tipo === 'pista' && p.km_inicial === 0 && p.km_final === 0;
+
 /**
  * Comprueba si el rango [kmI, kmF] para un vehículo en una fecha concreta
  * se solapa con alguna práctica ya existente del mismo vehículo.
@@ -52,8 +56,8 @@ function rellenarKmMasivo(vehiculo_id, kmMin = 40, kmMax = 45, kmInicio = null, 
   const v = d.vehiculos.find(x => x.id === vid);
   if (!v) return { rellenadas: 0, errores: ['Vehículo no encontrado'] };
 
-  // Prácticas del vehículo
-  const practicas = d.practicas.filter(p => p.vehiculo_id === vid);
+  // Prácticas del vehículo (las de pista sin km no se rellenan: no recorren la carretera)
+  const practicas = d.practicas.filter(p => p.vehiculo_id === vid && !pistaSinKm(p));
   if (!practicas.length) return { rellenadas: 0, errores: [] };
 
   // Separar las que tienen km reales y las que están en blanco (0,0)
@@ -149,7 +153,7 @@ function _randomKmEntero(min, max) {
 // (desempate por id para que el orden sea estable dentro del mismo día).
 function _blancasOrdenadas(d, vid) {
   return d.practicas
-    .filter(p => p.vehiculo_id === vid && p.km_inicial === 0 && p.km_final === 0)
+    .filter(p => p.vehiculo_id === vid && p.km_inicial === 0 && p.km_final === 0 && !pistaSinKm(p))
     .sort((a, b) => {
       const dc = a.fecha.localeCompare(b.fecha);
       return dc !== 0 ? dc : a.id - b.id;
@@ -379,7 +383,7 @@ function aplicarPlanKm(vehiculo_id, asignaciones) {
 function getPracticasSinKm(vehiculo_id) {
   const d = load();
   return d.practicas
-    .filter(p => p.vehiculo_id === parseInt(vehiculo_id) && p.km_inicial === 0 && p.km_final === 0)
+    .filter(p => p.vehiculo_id === parseInt(vehiculo_id) && p.km_inicial === 0 && p.km_final === 0 && !pistaSinKm(p))
     .length;
 }
 

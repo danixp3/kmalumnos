@@ -177,7 +177,7 @@ export const validators = {
     return { valid: true, value: trimmed };
   },
   permiso(value) {
-    const valid = ['A', 'A2', 'AM', 'B', 'C'];
+    const valid = ['AM', 'A1', 'A2', 'A', 'B', 'BE', 'C1', 'C', 'CE', 'D1', 'D', 'CAP', 'ADR'];
     if (!valid.includes(value)) {
       return { valid: false, error: `Permiso debe ser uno de: ${valid.join(', ')}` };
     }

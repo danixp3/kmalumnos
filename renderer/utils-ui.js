@@ -273,6 +273,15 @@ function fmtFecha(str) {
   return `${d}/${m}/${y}`;
 }
 
+// «JAVIER PÉREZ ALONSO» → «Javier Pérez Alonso» (más estrecho y más legible). Solo
+// si viene TODO en mayúsculas: lo escrito a mano con su propia capitalización se respeta.
+function nombrePropio(str) {
+  const s = String(str || '');
+  if (!s || s !== s.toLocaleUpperCase('es') || s === s.toLocaleLowerCase('es')) return s;
+  const pequenas = new Set(['de', 'del', 'la', 'las', 'los', 'el', 'y', 'e']);
+  return s.toLocaleLowerCase('es').replace(/\S+/g, (w, i) => (i > 0 && pequenas.has(w)) ? w : w.charAt(0).toLocaleUpperCase('es') + w.slice(1));
+}
+
 function esc(str) {
   if (!str) return '';
   return String(str).replace(/'/g, "\\'").replace(/</g, '&lt;').replace(/>/g, '&gt;');

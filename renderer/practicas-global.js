@@ -28,9 +28,21 @@ async function poblarSelectsPracticasGlobal() {
   }
   if (selVehiculo) {
     const actual = selVehiculo.value;
-    selVehiculo.innerHTML = '<option value="">Todos los vehículos</option>' +
-      [...vehiculos].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(v => `<option value="${v.id}">${esc(v.nombre)}</option>`).join('');
+    // Los coches retirados quedan aparte, al final: sus clases antiguas se pueden seguir filtrando
+    const opcionCoche = v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`;
+    const enUso = [...vehiculos].filter(v => v.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    const retirados = [...vehiculos].filter(v => v.activo === false).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    selVehiculo.innerHTML = '<option value="">Todos los vehículos</option>' + enUso.map(opcionCoche).join('') +
+      (retirados.length ? `<optgroup label="Retirados">${retirados.map(opcionCoche).join('')}</optgroup>` : '');
     if ([...selVehiculo.options].some(o => o.value === actual)) selVehiculo.value = actual;
+  }
+  // Los permisos de los alumnos que hay (B, A2, CAP…), sin mezclar con los que nadie tiene
+  const selPermiso = document.getElementById('pg-permiso');
+  if (selPermiso) {
+    const actual = selPermiso.value;
+    const permisos = [...new Set(alumnos.map(a => a.permiso).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+    selPermiso.innerHTML = '<option value="">Todos los permisos</option>' + permisos.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    if ([...selPermiso.options].some(o => o.value === actual)) selPermiso.value = actual;
   }
   if (selProfesor) {
     const actual = selProfesor.value;
@@ -50,6 +62,7 @@ async function fetchPracticasGlobal() {
     vehiculo_id: document.getElementById('pg-vehiculo')?.value || undefined,
     profesor_id: document.getElementById('pg-profesor')?.value || undefined,
     tipo: document.getElementById('pg-tipo')?.value || undefined,
+    permiso: document.getElementById('pg-permiso')?.value || undefined,
     sucursal_id: getSucursalActual() || undefined,
   };
   practicasGlobalCache = await window.api.getTodasPracticas(filtros);
@@ -57,7 +70,7 @@ async function fetchPracticasGlobal() {
 }
 
 function limpiarFiltrosPracticasGlobal() {
-  ['pg-desde', 'pg-hasta', 'pg-alumno', 'pg-vehiculo', 'pg-profesor', 'pg-tipo', 'pg-buscar', 'pg-procedencia'].forEach(id => {
+  ['pg-desde', 'pg-hasta', 'pg-alumno', 'pg-vehiculo', 'pg-profesor', 'pg-permiso', 'pg-tipo', 'pg-buscar', 'pg-procedencia'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -262,9 +275,10 @@ function filaPracticaGlobalHTML(p) {
   const chev = abierta => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${abierta ? '<path d="m6 15 6-6 6 6"/>' : '<path d="m6 9 6 6 6-6"/>'}</svg>`;
   const abierta = pgAbiertas.has(p.id);
   const fechaTxt = p.fecha === hoyISO() ? 'Hoy' : fechaCorta(p.fecha).replace(/^./, c => c.toUpperCase());
-  const kmIni = p.en_curso || p.sin_cerrar || !p.sin_km ? fmtMiles(p.km_inicial) : '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>';
-  const kmFin = p.en_curso ? guion : (p.sin_cerrar ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin cerrar</span>' : (p.sin_km ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : fmtMiles(p.km_final)));
-  const kmRec = p.en_curso ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>' : (p.sin_km || p.sin_cerrar ? guion : `<b>${fmtDec(p.km_recorridos)}</b>`);
+  // Una clase de pista sin km no tiene que tenerlos: guion, no «Sin km»
+  const kmIni = p.sin_km_pista ? guion : (p.en_curso || p.sin_cerrar || !p.sin_km ? fmtMiles(p.km_inicial) : '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>');
+  const kmFin = p.en_curso || p.sin_km_pista ? guion : (p.sin_cerrar ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin cerrar</span>' : (p.sin_km ? '<span style="color:var(--warn-fg-soft);font-style:italic">Sin km</span>' : fmtMiles(p.km_final)));
+  const kmRec = p.en_curso ? '<span class="pill pill-dark"><span class="pill-dot"></span>En curso</span>' : (p.sin_km || p.sin_km_pista || p.sin_cerrar ? guion : `<b>${fmtDec(p.km_recorridos)}</b>`);
   const c = p.continuidad;
   let aviso = '';
   if (p.km_incoherente) aviso = `<div class="pg-hueco" title="${esc(p.km_incoherente)}">km que no encajan</div>`;

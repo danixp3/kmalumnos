@@ -318,6 +318,7 @@
       </div>
 
       <div class="panel-grid-2">
+      <div class="panel-col">
       <!-- Agenda: solicitudes pendientes y próximas reservas confirmadas (renderer/dashboard.js) -->
       <div class="card hidden" id="dash-agenda-card" style="margin-bottom:20px">
         <div class="card-title">
@@ -341,6 +342,17 @@
         </div>
       </div>
 
+      <!-- Vencimientos próximos: ITV, seguros, psicotécnicos... (renderer/dashboard.js, db/vencimientos.js) -->
+      <div class="card hidden" id="dash-venc-card" style="margin-bottom:20px">
+        <div class="card-title">
+          <div class="card-title-icon" style="background:var(--danger-light);color:var(--danger-fg-soft)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          Caducidades próximas
+        </div>
+        <div id="dash-venc-resumen" style="margin-bottom:10px"></div>
+        <div id="dash-venc-lista"></div>
+      </div>
+      </div>
+      <div class="panel-col">
       <!-- Alumnos en riesgo de abandono: heurística v1, ver db/estadisticas.js:getAlumnosEnRiesgo (renderer/dashboard.js) -->
       <div class="card hidden" id="dash-riesgo-card" style="margin-bottom:20px">
         <div class="card-title">
@@ -351,14 +363,6 @@
         <div id="dash-riesgo-lista"></div>
       </div>
 
-      <!-- Vencimientos próximos: ITV, seguros, psicotécnicos... (renderer/dashboard.js, db/vencimientos.js) -->
-      <div class="card hidden" id="dash-venc-card" style="margin-bottom:20px">
-        <div class="card-title">
-          <div class="card-title-icon" style="background:var(--danger-light);color:var(--danger-fg-soft)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-          Caducidades próximas
-        </div>
-        <div id="dash-venc-resumen" style="margin-bottom:10px"></div>
-        <div id="dash-venc-lista"></div>
       </div>
       </div>
 
@@ -877,6 +881,7 @@
             <thead><tr>
               <th class="col-num sortable col-reg" data-sort="registro" onclick="ordenarAlumnos('registro')" title="Nº de registro del alumno">Nº<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="nombre" onclick="ordenarAlumnos('nombre')">Alumno<span class="sort-ind"></span></th>
+              <th class="sortable col-alta" data-sort="alta" onclick="ordenarAlumnos('alta')" title="Fecha de alta del alumno (pulsa para ordenar: la primera vez, los más recientes arriba)">Alta<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="profesor" onclick="ordenarAlumnos('profesor')">Profesor<span class="sort-ind"></span></th>
               <th class="sortable" data-sort="practicas" onclick="ordenarAlumnos('practicas')">Clases<span class="sort-ind"></span></th>
               <th class="col-num sortable" data-sort="km" onclick="ordenarAlumnos('km')">Km<span class="sort-ind"></span></th>
@@ -911,7 +916,6 @@
               <summary class="btn btn-outline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Documentos</summary>
               <div class="menu-fila-lista">
                 <button type="button" onclick="abrirFichaDGT(currentAlumnoId)">Ficha oficial DGT</button>
-                <button type="button" onclick="this.closest('details').open=false;abrirSepararNombres([currentAlumnoId])">Separar nombre y apellidos</button>
                 <button type="button" onclick="this.closest('details').open=false;abrirJuntarConOtro(currentAlumnoId)">Juntar con otra ficha (repetido)…</button>
                 <button type="button" onclick="this.closest('details').open=false;documentoAlumnoUI('contrato')">Contrato de enseñanza</button>
                 <button type="button" onclick="this.closest('details').open=false;documentoAlumnoUI('proteccion')">Hoja de protección de datos</button>
@@ -1275,6 +1279,7 @@
         <label class="filtro-inline">Alumno <select id="pg-alumno" onchange="fetchPracticasGlobal()"><option value="">Todos</option></select></label>
         <label class="filtro-inline">Vehículo <select id="pg-vehiculo" onchange="fetchPracticasGlobal()"><option value="">Todos</option></select></label>
         <label class="filtro-inline">Profesor <select id="pg-profesor" onchange="fetchPracticasGlobal()"><option value="">Todos</option></select></label>
+        <label class="filtro-inline">Permiso <select id="pg-permiso" onchange="fetchPracticasGlobal()" title="Permiso del alumno al que se le dio la clase"><option value="">Todos</option></select></label>
         <label class="filtro-inline">Tipo <select id="pg-tipo" onchange="fetchPracticasGlobal()">
           <option value="">Todos</option>
           <option value="circulacion">Circulación</option>
@@ -2720,6 +2725,10 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
             <input type="number" id="v-km" placeholder="45000" min="0">
           </div>
         </div>
+        <div class="form-group veh-permisos" style="margin-top:12px">
+          <label id="v-permisos-et" title="Los permisos con los que das clase con este vehículo. Así a un alumno de moto no se le propone el coche de B.">Permisos con los que se da clase</label>
+          <div id="v-permisos" class="permisos-checks" role="group" aria-labelledby="v-permisos-et"></div>
+        </div>
         <div class="modal-actions">
           <button class="btn btn-gray" onclick="closeModal('modal-vehiculo-nuevo')">Cancelar</button>
           <button class="btn btn-primary" onclick="addVehiculo()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Añadir vehículo</button>
@@ -2746,6 +2755,11 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
       <div class="form-group"><label for="edit-v-aseguradora">Aseguradora</label><input type="text" id="edit-v-aseguradora"></div>
       <div class="form-group"><label for="edit-v-poliza">Nº de póliza</label><input type="text" id="edit-v-poliza"></div>
       <div class="form-group fd-campo-ancho"><label for="edit-v-observaciones">Observaciones</label><textarea id="edit-v-observaciones" rows="2"></textarea></div>
+      <div class="form-group fd-campo-ancho veh-permisos">
+        <label id="edit-v-permisos-et" title="Los permisos con los que das clase con este vehículo. Así a un alumno de moto no se le propone el coche de B.">Permisos con los que se da clase con este vehículo</label>
+        <div id="edit-v-permisos" class="permisos-checks" role="group" aria-labelledby="edit-v-permisos-et"></div>
+        <div id="edit-v-permisos-ayuda" class="veh-permisos-ayuda"></div>
+      </div>
       <label class="fd-campo-ancho veh-activo-check"><input type="checkbox" id="edit-v-activo"> En uso para dar clase <small>(desmárcalo si es un coche viejo o que ya no se usa: no saldrá en el registro rápido, el móvil ni las estadísticas)</small></label>
     </div>
     <p class="aj-intro" style="margin-top:8px">La próxima ITV y el vencimiento del seguro se avisan desde Caducidades.</p>
@@ -2783,12 +2797,20 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
             </div>
             <div class="form-group">
               <label>Permiso</label>
-              <select id="a-permiso" style="width:100px">
+              <select id="a-permiso" style="width:100px" onchange="altaPermisoCambiado()">
                 <option value="B">B (Coche)</option>
                 <option value="A">A (Moto)</option>
                 <option value="A2">A2</option>
+                <option value="A1">A1</option>
                 <option value="AM">AM</option>
+                <option value="BE">BE</option>
+                <option value="C1">C1</option>
                 <option value="C">C (Camión)</option>
+                <option value="CE">CE</option>
+                <option value="D1">D1</option>
+                <option value="D">D (Autobús)</option>
+                <option value="CAP">CAP</option>
+                <option value="ADR">ADR</option>
               </select>
             </div>
             <div class="form-group">
@@ -2926,17 +2948,9 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
     </div>
     <input type="hidden" id="ficha-dgt-alumno-id">
     <div class="form-group">
-      <label>Tipo de ficha</label>
-      <div class="tipo-cards">
-        <label class="tipo-card">
-          <input type="radio" name="ficha-dgt-tipo" value="destreza" checked>
-          <span>Destreza (pista)</span>
-        </label>
-        <label class="tipo-card">
-          <input type="radio" name="ficha-dgt-tipo" value="circulacion">
-          <span>Circulación</span>
-        </label>
-      </div>
+      <label id="ficha-dgt-fichas-et">Fichas que se sacan</label>
+      <div id="ficha-dgt-fichas" class="ficha-ops" role="group" aria-labelledby="ficha-dgt-fichas-et"></div>
+      <p id="ficha-dgt-fichas-nota" class="ficha-nota"></p>
     </div>
     <div class="form-group" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -2955,7 +2969,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
     <div id="ficha-dgt-aviso" class="hidden alert alert-warn" style="margin-top:12px"></div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal('modal-ficha-dgt')">Cancelar</button>
-      <button class="btn btn-primary" onclick="generarFichaDGTUI()">Generar</button>
+      <button class="btn btn-primary" id="ficha-dgt-generar" onclick="generarFichaDGTUI()">Generar</button>
     </div>
   </div>
 </div>
@@ -3062,7 +3076,8 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
     <div class="form-row">
       <div class="form-group">
         <label>Tipo</label>
-        <input type="text" id="venc-tipo" style="width:100%" placeholder="ITV, Seguro, Psicotécnico...">
+        <input type="text" id="venc-tipo" style="width:100%" placeholder="ITV, Seguro, Psicotécnico..." list="venc-tipos" autocomplete="off">
+        <datalist id="venc-tipos"><option value="ITV"><option value="Seguro"><option value="DNI"><option value="Psicotécnico"><option value="Permiso de conducir"><option value="Certificado"></datalist>
       </div>
       <div class="form-group">
         <label>Fecha de vencimiento</label>
@@ -3688,6 +3703,8 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/migracion.js"></script>
 <script src="renderer/historial-pantallas.js"></script>
 <script src="renderer/alumnos-repetidos.js"></script>
+<script src="renderer/alumnos-antiguos.js"></script>
+<script src="renderer/cambio-profesor.js"></script>
 <script src="renderer/exportar-datos.js"></script>
 <script src="renderer/bloqueo.js"></script>
 <script src="renderer/legal.js"></script>

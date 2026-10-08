@@ -137,6 +137,7 @@ export default async function handler(req, res) {
     : partirEnClases(0, 1000, horaIni, horaFin, nClases).map(p => ({ ...p, km_inicial: 0, km_final: 0 }));
   if (!partes) return res.status(400).json({ error: `Con ${kmFin - kmIni} km no se pueden guardar ${fmtClases(nClases)} clases.` });
 
+  const tipoClase = req.body && req.body.tipo === 'pista' ? 'pista' : 'circulacion';   // pista = maniobras en circuito
   const obs = typeof observacion === 'string' ? observacion.trim().slice(0, 500) : '';
   const lista = Array.isArray(trabajado) ? trabajado.filter(t => typeof t === 'string').map(t => t.trim().slice(0, 40)).filter(Boolean).slice(0, 12) : [];
   const zonasLimpias = limpiarZonas(zonas);
@@ -147,7 +148,7 @@ export default async function handler(req, res) {
   for (const parte of partes) {
     const fila = {
       alumno_id: alumno.id, vehiculo_id: vehiculo.id, fecha: fechaVal.value,
-      km_inicial: parte.km_inicial, km_final: parte.km_final, tipo: 'circulacion',
+      km_inicial: parte.km_inicial, km_final: parte.km_final, tipo: tipoClase,
       hora_inicio: parte.hora_inicio, profesor_id: profesorIdFinal, nota: obs,
       deleted: false, source: 'web-remote', empresa_id: auth.empresaId, updated_at: ahora
     };

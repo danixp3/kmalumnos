@@ -16,13 +16,17 @@ let arUltimaFusion = null;    // id de la última fusión (para «Deshacer»)
 // Aviso en la lista de Alumnos (se oculta hasta que cambie lo que hay por revisar)
 async function avisoAlumnosRepetidos() {
   const cont = document.getElementById('alumnos-revisar-aviso'); if (!cont) return;
-  let sep = [], rep = [];
-  try { [sep, rep] = await Promise.all([window.api.proponerSepararNombres(), window.api.buscarAlumnosRepetidos()]); }
+  let sep = [], rep = [], antiguos = { total: 0, meses: 6 };
+  try { [sep, rep, antiguos] = await Promise.all([window.api.proponerSepararNombres(), window.api.buscarAlumnosRepetidos(), window.api.proponerAlumnosInactivos({ meses: 6 }, getSucursalActual())]); }
   catch (e) { cont.classList.add('hidden'); return; }
-  const firma = `${sep.length}|${rep.length}`;
+  // Solo los que seguro llevan los apellidos dentro del nombre (con «María José» o «Juan Carlos» no se
+  // avisa: puede ser un nombre compuesto) y que siguen viniendo (a los inactivos o de baja no se les molesta)
+  sep = sep.filter(x => x.seguro && !ESTADOS_ALUMNO_TERMINADO.includes(x.estado));
+  const firma = `${sep.length}|${rep.length}|${antiguos.total}`;
   let oculto = null; try { oculto = localStorage.getItem(AR_AVISO_KEY); } catch (e) { /* sin almacenamiento */ }
-  if ((!sep.length && !rep.length) || oculto === firma) { cont.classList.add('hidden'); cont.innerHTML = ''; return; }
+  if ((!sep.length && !rep.length && !antiguos.total) || oculto === firma) { cont.classList.add('hidden'); cont.innerHTML = ''; return; }
   const partes = [];
+  if (antiguos.total) partes.push(`<span><b>${fmtMiles(antiguos.total)}</b> ${antiguos.total === 1 ? 'alumno lleva' : 'alumnos llevan'} más de ${antiguos.meses} meses sin dar clase y ${antiguos.total === 1 ? 'sigue' : 'siguen'} «en curso» <button type="button" class="btn btn-sm btn-outline" onclick="abrirAlumnosAntiguos()">Revisar</button></span>`);
   if (sep.length) partes.push(`<span><b>${sep.length}</b> ${sep.length === 1 ? 'alumno tiene' : 'alumnos tienen'} los apellidos dentro del nombre <button type="button" class="btn btn-sm btn-outline" onclick="abrirSepararNombres()">Separar apellidos</button></span>`);
   if (rep.length) partes.push(`<span><b>${rep.length}</b> ${rep.length === 1 ? 'posible ficha repetida' : 'posibles fichas repetidas'} (la misma persona dos veces) <button type="button" class="btn btn-sm btn-outline" onclick="abrirAlumnosRepetidos()">Revisar</button></span>`);
   cont.className = 'alert alert-warn ar-aviso';
@@ -197,3 +201,58 @@ function avisoConDeshacer(texto, accion) {
   el.classList.remove('hidden');
   toastTimers[idEl] = setTimeout(() => hideToast(idEl), 10000);
 }
+
+// ─── Al escribir: ofrecer separar nombre y apellidos ───────────────────────
+// Si en «Nombre» se escriben también los apellidos y las casillas de apellidos
+// están vacías, aparece ahí mismo «Separar». Con un nombre compuesto («María José»,
+// «Juan Carlos») no se ofrece nada (db: proponerSepararNombreTexto).
+const SUG_CAMPOS = [
+  { nombre: 'a-nombre', ap1: 'a-primer-apellido', ap2: 'a-segundo-apellido' },
+  { nombre: 'fd-nombre', ap1: 'fd-primer_apellido', ap2: 'fd-segundo_apellido' }
+];
+const sugDescartados = {}; // campo → texto del que ya se dijo «no, es el nombre»
+let sugTurno = 0;
+function sugCaja(c) {
+  const input = document.getElementById(c.nombre); if (!input) return null;
+  let caja = document.getElementById(`sug-${c.nombre}`);
+  if (!caja) {
+    caja = document.createElement('div');
+    caja.id = `sug-${c.nombre}`; caja.className = 'sug-nombre hidden';
+    (input.closest('.form-group') || input).insertAdjacentElement('afterend', caja);
+  }
+  return caja;
+}
+const sugRevisar = retrasar(async c => {
+  const input = document.getElementById(c.nombre); if (!input) return;
+  const caja = sugCaja(c); if (!caja) return;
+  const texto = input.value.trim();
+  const ap1 = document.getElementById(c.ap1), ap2 = document.getElementById(c.ap2);
+  const turno = ++sugTurno;
+  let r = null;
+  if (texto && ap1 && ap2 && sugDescartados[c.nombre] !== texto) {
+    try { r = await window.api.proponerSepararNombreTexto(texto, ap1.value, ap2.value); } catch (e) { r = null; }
+  }
+  if (turno !== sugTurno) return; // llegó una respuesta más nueva
+  if (!r) { caja.classList.add('hidden'); caja.innerHTML = ''; return; }
+  caja.dataset.n = r.nombre; caja.dataset.a1 = r.primer_apellido; caja.dataset.a2 = r.segundo_apellido || '';
+  caja.innerHTML = `<span>¿Has escrito también los apellidos? Quedaría <b>${esc(r.nombre)}</b> · <b>${esc([r.primer_apellido, r.segundo_apellido].filter(Boolean).join(' '))}</b></span>
+    <button type="button" class="btn btn-sm btn-outline" onclick="sugSeparar('${c.nombre}')">Separar</button>
+    <button type="button" class="btn btn-sm btn-ghost" onclick="sugDescartar('${c.nombre}')">No, es solo el nombre</button>`;
+  caja.classList.remove('hidden');
+}, 450);
+function sugSeparar(idNombre) {
+  const c = SUG_CAMPOS.find(x => x.nombre === idNombre); const caja = c && sugCaja(c); if (!caja) return;
+  for (const [id, v] of [[c.nombre, caja.dataset.n], [c.ap1, caja.dataset.a1], [c.ap2, caja.dataset.a2]]) {
+    const el = document.getElementById(id); if (!el) continue;
+    el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  caja.classList.add('hidden'); caja.innerHTML = '';
+}
+function sugDescartar(idNombre) {
+  const el = document.getElementById(idNombre); if (el) sugDescartados[idNombre] = el.value.trim();
+  const caja = document.getElementById(`sug-${idNombre}`); if (caja) { caja.classList.add('hidden'); caja.innerHTML = ''; }
+}
+document.addEventListener('input', e => {
+  const c = SUG_CAMPOS.find(x => x.nombre === e.target.id || x.ap1 === e.target.id || x.ap2 === e.target.id);
+  if (c) sugRevisar(c);
+});

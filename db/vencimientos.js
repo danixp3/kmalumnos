@@ -5,7 +5,8 @@
 // esta v1 (no toca sync.js ni markDirty/markDeleted); cada PC lleva el suyo
 // propio en su data.json.
 
-const { load, save, nextId, addLog, filtrarPorSucursal } = require('./core');
+const { load, save, nextId, addLog, filtrarPorSucursal, alumnoTerminado } = require('./core');
+const { vehiculoEnUso } = require('./campos-extra');
 
 const ENTIDADES_VALIDAS = ['vehiculo', 'profesor', 'alumno', 'general'];
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -31,12 +32,24 @@ function _diasRestantes(fecha, hoyStr) {
   return Math.round((msFecha - msHoy) / 86400000);
 }
 
+// Caducidad de algo que ya no se usa (un alumno que no viene —baja, inactivo, aprobado…— o un
+// coche retirado): no debe avisar
+function _deAlumnoTerminado(d, v) {
+  if (v.entidad_id == null) return false;
+  if (v.entidad_tipo === 'alumno') return alumnoTerminado((d.alumnos || []).find(x => x.id === v.entidad_id));
+  if (v.entidad_tipo === 'vehiculo') { const veh = (d.vehiculos || []).find(x => x.id === v.entidad_id); return !!veh && !vehiculoEnUso(veh); }
+  return false;
+}
+
+// Todas las caducidades; las de alumnos que ya no vienen llevan `entidad_terminada`
+// para que la pantalla las pueda esconder.
 function getVencimientos(sucursalId) {
   const d = load();
   if (!d.vencimientos) d.vencimientos = [];
   return filtrarPorSucursal(d.vencimientos.filter(v => !v.deleted), sucursalId)
     .slice()
-    .sort((a, b) => (a.fecha_vencimiento || '').localeCompare(b.fecha_vencimiento || ''));
+    .sort((a, b) => (a.fecha_vencimiento || '').localeCompare(b.fecha_vencimiento || ''))
+    .map(v => _deAlumnoTerminado(d, v) ? { ...v, entidad_terminada: true } : v);
 }
 
 function addVencimiento({ entidad_tipo, entidad_id, tipo, descripcion, fecha_vencimiento, nota, sucursal_id } = {}) {
@@ -126,7 +139,7 @@ function getProximosVencimientos(diasAviso, hoyStr, sucursalId) {
     return '—';
   };
 
-  return filtrarPorSucursal(d.vencimientos.filter(v => !v.deleted && !v.completado), sucursalId)
+  return filtrarPorSucursal(d.vencimientos.filter(v => !v.deleted && !v.completado && !_deAlumnoTerminado(d, v)), sucursalId)
     .map(v => {
       const diasRestantes = _diasRestantes(v.fecha_vencimiento, hoy);
       return { ...v, diasRestantes, vencido: diasRestantes < 0, nombreEntidad: nombreEntidad(v) };
