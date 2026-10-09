@@ -295,7 +295,7 @@ function pintarFirmar() {
     <h1>${nombre ? `Hola, ${esc(nombre)}` : 'Hola'}</h1>
     <p class="intro">${nc ? `<b>${esc(nc)}</b>` : 'Tu autoescuela'} te pide que firmes ${nClases === 1 && pend.length === 1 ? 'una clase práctica que se quedó' : `<b>${esc(clasesTxt(nClases))}</b> prácticas que se quedaron`} sin firmar. Revisa que los datos son correctos y firma abajo.</p>
     <p class="quien">${d.creado_por ? `Te lo envía ${esc(d.creado_por)} · ` : ''}${d.caduca ? `El enlace vale hasta el ${esc(fechaHoraCorta(d.caduca))}` : ''}</p>
-    <div class="etq"><span>${pend.length === 1 ? 'Clase por firmar' : `Clases por firmar · ${pend.length} días`}</span>${pend.length > 1 ? '<span style="text-transform:none;letter-spacing:0;font-weight:500">Toca un día para quitarlo</span>' : ''}</div>
+    <div class="etq"><span>${pend.length === 1 ? (nClases > 1 ? 'Clases por firmar' : 'Clase por firmar') : `Clases por firmar · ${pend.length} días`}</span>${pend.length > 1 ? '<span style="text-transform:none;letter-spacing:0;font-weight:500">Toca un día para quitarlo</span>' : ''}</div>
     <div id="lista">${pend.map(g => htmlGrupo(g, true)).join('')}</div>
     <div id="caja-com" class="caja-com" hidden>
       <label for="comentario">¿Qué no cuadra? <small style="color:var(--muted);font-weight:500">(opcional, lo verá tu autoescuela)</small></label>

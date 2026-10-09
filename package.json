@@ -1,6 +1,6 @@
 {
   "name": "kmalumnos",
-  "version": "1.35.0",
+  "version": "1.36.0",
   "description": "Gestión de kilómetros de prácticas para autoescuela",
   "main": "main.js",
   "scripts": {

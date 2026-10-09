@@ -38,6 +38,7 @@ renderer/     → UI (vanilla JS) dividida en 43 <script> clásicos (globales, n
   datepicker.js, validaciones.js → fechas escribibles con calendario; DNI/CP/teléfono/email/matrícula validados
   exportar-datos.js → exportar todos los datos (Excel/CSV/JSON) y los de un alumno
   cuadre-avanzado.js → Cuadrar km · modo avanzado (planning y compañeros sin registrar)
+  enlace-firma.js → enlace para que el alumno firme desde su móvil las clases que se quedaron sin firmar (y estado de cada enlace)
   bloqueo.js, legal.js → bloqueo con PIN; condiciones, documentos legales, anonimización
   arranque.js → bienvenida + código de arranque (siempre el último)
 db.js         → índice de 40 líneas que re-exporta db/ (misma superficie pública, 51 exports)
@@ -64,7 +65,7 @@ db/           → CRUD + algoritmos de km, por módulo
 sync.js       → sincronización bidireccional con Supabase (sondeo de novedades cada 12 s + sync completo cada 2 min), resolución de colisiones
 actualizaciones.js → reglas de las actualizaciones automáticas (cuándo mirar, cuándo instalar sola); las usa main.js
 migraciones/  → migraciones SQL de Supabase escritas pero NO APLICADAS (roles + sucursales)
-web-remote/   → web móvil + API serverless (deploy: cd web-remote && vercel --prod --yes); instalable como app (PWA: manifest.webmanifest, sw.js, icons/) y que funciona SIN COBERTURA (offline.js: cola de envíos y caché en la tablet)
+web-remote/   → web móvil + API serverless (deploy: cd web-remote && vercel --prod --yes); instalable como app (PWA: manifest.webmanifest, sw.js, icons/) y que funciona SIN COBERTURA (offline.js: cola de envíos y caché en la tablet); firmar.html = página del alumno para firmar por enlace (/f/<código>, sin cuenta)
 CONTEXT.md    → documentación técnica detallada (arquitectura, funciones, endpoints)
 RELEASE.md    → proceso paso a paso para publicar una nueva versión (automatizado en /publicar-release)
 CHANGELOG-SECURITY.md → auditorías de seguridad (octubre y julio 2026) y pendientes
@@ -94,7 +95,10 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-10-09 (v1.35.0). El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-10-09 (v1.36.0). El detalle histórico completo está en HISTORIAL.md._
+
+- **v1.36.0 (2026-10-09, escritorio PUBLICADO y web DESPLEGADA; migración `2026-10-09_enlaces_firma.sql` APLICADA, datos intactos 3398/511/18/9):** **enlace para que el alumno firme** las clases que se quedaron sin firmar: se crea en la ficha del alumno (escritorio, `renderer/enlace-firma.js`) o en el detalle de la clase (móvil), se manda por WhatsApp y el alumno firma sin cuenta en `/f/<código>` (`web-remote/firmar.html`, `/api/firma-alumno` con funciones de la nube protegidas por secreto; tabla `enlaces_firma` solo con la huella del código). Probado de punta a punta en producción con datos de prueba ya borrados. Sync: la firma ya no se pierde si la clase se cambió aquí a la vez; aviso «N clases firmadas por el alumno».
+- **Revisión del importador (v1.36.0):** 11 fallos corregidos (clases sin coche que no bajaban a otros PCs —8 reales, se recuperan solas una vez—, profesores/coches creados para alumnos que no entraban, años de 2 cifras al futuro, «Inactivo» como baja, «A2 + B», columnas «Fecha permiso»/«Estado civil»/«Clases teóricas», alta y estado de alumnos de un historial, deshacer no devolvía el km del coche y marcaba uno a uno, coche de B a alumnos de moto desde Ariauto, CSV marcando una a una). Pendientes menores en HISTORIAL. Jest 723/77 + test:api 107 + smoke + barrido.
 
 - **v1.35.0 (2026-10-09, escritorio PUBLICADO y web DESPLEGADA; migración `2026-10-09_vehiculo_permisos.sql` APLICADA, datos intactos 3398/499/18/9):** diez peticiones del propietario. **Alumnos:** columna «Alta» ordenable; estado editable con un clic en su pastilla y asistente «Alumnos antiguos → inactivos» (`renderer/alumnos-antiguos.js`; baja/inactivo/apto/aprobado ya no salen en avisos, semáforo, riesgo, bonos ni caducidades: `core.alumnoTerminado`); «Separar nombre y apellidos» fuera de Documentos y ofrecido al escribir (no con nombres compuestos). **Caducidades** en una tabla por tipo (ITV, Seguro, DNI…). **Cambio de profesor** (`db/alumnos.js:cambiarProfesorAlumno`, `renderer/cambio-profesor.js`: lo anterior se queda con quien lo dio, con deshacer) y **ficha DGT una por tipo (pista/circulación) y por profesor** (`getFichasDGTAlumno`; varias → carpeta). Pista sin km no se rellena ni cuenta como «sin km». **Permisos de cada coche** (`vehiculos.permisos`, `sugerirCocheAlumno`): ni escritorio ni móvil proponen el coche de B a un alumno de moto; el móvil tiene selector Circulación/Pista. Coches retirados fuera de las listas, filtro por permiso en Prácticas, casillas (`.modal-ancho input` ya no al 100 %) y espaciados. Jest 703/74 + test:api 103 + smoke + barrido.
 

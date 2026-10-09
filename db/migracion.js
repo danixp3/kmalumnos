@@ -207,7 +207,8 @@ const PALABRAS_PERMISO = [[/TURISMO|COCHE|AUTOMOVIL/, 'B'], [/CICLOMOTOR/, 'AM']
 function leerPermiso(v) {
   let t = txt(v).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   if (!t) return { principal: null, otros: [], reconocido: true };
-  t = t.replace(/\s*\+\s*/g, '').replace(/\b(PERMISOS?|CLASES?|CARNET|CARNE|DE|DEL|TIPO|CONDUCIR|CONDUCCION|PRACTICAS?|CURSO)\b/g, ' ');
+  // «B+E», «C + E» son un permiso (BE, CE); «A2 + B» son dos (el + separa)
+  t = t.replace(/\b(B|C1|C|D1|D)\s*\+\s*E\b/g, '$1E').replace(/\b(PERMISOS?|CLASES?|CARNET|CARNE|DE|DEL|TIPO|CONDUCIR|CONDUCCION|PRACTICAS?|CURSO)\b/g, ' ');
   const vistos = [];
   for (const tok of t.split(/[^A-Z0-9]+/).filter(Boolean)) if (CODIGOS_PERMISO.includes(tok) && !vistos.includes(tok)) vistos.push(tok);
   if (!vistos.length) for (const [re, cod] of PALABRAS_PERMISO) if (re.test(t)) { vistos.push(cod); break; }
@@ -218,7 +219,9 @@ function leerPermiso(v) {
 function leerEstado(v) {
   const t = normTexto(v);
   if (!t) return null;
-  if (/baja|inactiv|abandon|cancelad|anulad|desisti|^no$|^n$|^false$|^0$/.test(t)) return 'baja';
+  // «Inactivo» es su propio estado desde la 1.35 (antes entraba como baja)
+  if (/inactiv|no activ/.test(t)) return 'inactivo';
+  if (/baja|abandon|cancelad|anulad|desisti|^no$|^n$|^false$|^0$/.test(t)) return 'baja';
   if (/no apto|suspend/.test(t)) return 'no_apto';
   if (/apto teor|teorico aprob|aprobado teor|teorica aprob|teorico superado/.test(t)) return 'apto_teorico';
   if (/aprob|^apto|titulad|finaliz|terminad|obtenido|superado/.test(t)) return 'apto';
@@ -229,7 +232,7 @@ function leerEstado(v) {
   if (/activ|alta|^si$|^s$|^true$|^1$|vigente|en curso|cursando/.test(t)) return 'activo';
   return undefined;
 }
-const ESTADOS_TERMINADOS = ['baja', 'apto'];
+const ESTADOS_TERMINADOS = ['baja', 'apto', 'inactivo'];
 
 // «12», «12,0», «1.234» → entero ≥ 0 (o null si no hay número)
 function leerEntero(v, max = 1e7) {
@@ -352,10 +355,12 @@ function campoPorTitulo(titulo, tipo) {
     if (/^(cp|c p|cod postal|codigo postal|cod post|c postal|postal|zip|distrito postal)$/.test(h) || /codigo postal/.test(h)) return 'codigo_postal';
     if (/poblacion|localidad|municipio|ciudad|pueblo/.test(h)) return 'poblacion';
     if (/direcc|domicilio|\bcalle\b|^via$|^dir$|^domic/.test(h)) return 'direccion';
-    if (/permiso|carnet|carne|^clase$|^curso$|^categoria$/.test(h)) return 'permiso';
-    if (/estado|situacion|^activo|^status|^estatus/.test(h)) return 'estado';
+    // «Fecha del permiso», «Caducidad carnet»: una fecha, no el permiso (si no, se quedaba
+    // con el campo y la columna «Permiso» de verdad no se importaba)
+    if (/permiso|carnet|carne|^clase$|^curso$|^categoria$/.test(h)) return /fecha|caduc|expedic|vigencia|obtenc|validez/.test(h) ? '' : 'permiso';
+    if (/estado|situacion|^activo|^status|^estatus/.test(h)) return /civil/.test(h) ? '' : 'estado';
     if (/^(km|kms|kilometros|km totales|km realizados|total km|kilometros realizados)$/.test(h)) return 'km_previos';
-    if (/\b(clases|practicas|sesiones)\b/.test(h)) return /fecha|precio|importe|pendiente|restante|quedan|bono|comprad|contratad|pagad/.test(h) ? '' : 'clases_previas';
+    if (/\b(clases|practicas|sesiones)\b/.test(h)) return /fecha|precio|importe|pendiente|restante|quedan|bono|comprad|contratad|pagad|teoric/.test(h) ? '' : 'clases_previas';
     if (/saldo|deuda|\bdebe\b|por pagar|a pagar|importe pendiente|pendiente (de )?pago|^pendiente$/.test(h)) return 'saldo';
     if (/^matricula$/.test(h)) return undefined; // fecha de matrícula o matrícula del coche: lo dicen los datos
     return undefined;
@@ -723,8 +728,17 @@ function resolverRelacionados(d, opciones) {
   const profes = d.profesores.filter(p => !p.deleted);
   const coches = d.vehiculos.filter(v => !v.deleted);
   const nuevosProf = new Map(), nuevosVeh = new Map();
+  // Solo se crean los que usa alguna fila que entra de verdad: antes, el
+  // profesor o el coche de un alumno que se quedaba fuera (de baja, repetido,
+  // dudoso, o que ya tenía profesor) se creaba igualmente, sin nadie que lo usara.
+  const usados = { profesor_id: new Set(), vehiculo_id: new Set() };
   return {
     nuevosProf, nuevosVeh,
+    usar(campo, valor) { if (usados[campo] && typeof valor === 'string' && valor.startsWith('nuevo:')) usados[campo].add(valor.slice(6)); },
+    podar() {
+      for (const k of [...nuevosProf.keys()]) if (!usados.profesor_id.has(k)) nuevosProf.delete(k);
+      for (const k of [...nuevosVeh.keys()]) if (!usados.vehiculo_id.has(k)) nuevosVeh.delete(k);
+    },
     profesor(valor) {
       const k = claveNombre(valor);
       if (!k) return { id: null };
@@ -808,9 +822,10 @@ function analizarAlumnos(d, entrada) {
       const pr = leerPermiso(v.permiso);
       if (pr.principal) { datos.permiso = pr.principal; otrosPermisos = pr.otros.filter(x => PERMISOS_VALIDOS.includes(x)); } else avisos.push(`Permiso «${v.permiso}» no reconocido: se deja B.`);
     }
-    if (v.fecha_alta) { datos.fecha_alta = leerFechaFlexible(v.fecha_alta); if (!datos.fecha_alta) avisos.push(`Fecha de alta «${v.fecha_alta}» no se entiende.`); }
+    // Alta y baja ya pasaron: «15/03/98» es 1998, no 2098
+    if (v.fecha_alta) { datos.fecha_alta = leerFechaFlexible(v.fecha_alta, { pasado: true }); if (!datos.fecha_alta) avisos.push(`Fecha de alta «${v.fecha_alta}» no se entiende.`); }
     if (v.estado) { const e = leerEstado(v.estado); if (e === undefined) avisos.push(`Estado «${v.estado}» no reconocido.`); else datos.estado = e; }
-    const fechaBaja = v.fecha_baja ? leerFechaFlexible(v.fecha_baja) : null;
+    const fechaBaja = v.fecha_baja ? leerFechaFlexible(v.fecha_baja, { pasado: true }) : null;
     if (fechaBaja && fechaBaja <= hoy && !datos.estado) datos.estado = 'baja';
     if (v.observaciones) datos.observaciones = txt(v.observaciones).slice(0, 1000);
     // Datos que también guardan otros programas (Ariauto…): cada uno a su campo
@@ -834,7 +849,7 @@ function analizarAlumnos(d, entrada) {
 
     // Alumnos que ya terminaron
     if (opciones.soloEnCurso && ESTADOS_TERMINADOS.includes(datos.estado)) {
-      filas.push({ ...fila, accion: 'omitir', motivo: datos.estado === 'baja' ? 'De baja' : 'Ya aprobado' }); continue;
+      filas.push({ ...fila, accion: 'omitir', motivo: datos.estado === 'baja' ? 'De baja' : datos.estado === 'inactivo' ? 'Inactivo' : 'Ya aprobado' }); continue;
     }
     // Repetido dentro del archivo
     const k = clavePersona(p);
@@ -869,6 +884,7 @@ function analizarAlumnos(d, entrada) {
     if (m.parecidos) { filas.push({ ...fila, accion: 'omitir', motivo: `Se parece a ${m.parecidos.map(a => '«' + nombreDe(a) + '»').join(' y ')} de la app: corrige el nombre o añade el DNI para saber cuál es` }); continue; }
     const ex = m.alumno;
     if (!ex) {
+      rel.usar('profesor_id', datos.profesor_id); rel.usar('vehiculo_id', datos.vehiculo_id);
       filas.push({
         ...fila, accion: 'nuevo',
         alumno: { nombre: p.nombre || p.primer_apellido, primer_apellido: p.nombre ? p.primer_apellido : p.segundo_apellido, segundo_apellido: p.nombre ? p.segundo_apellido : '', dni: p.dni.valor, ...datos, permisos: otrosPermisos, clases_previas: previas || 0, km_previos: kmPrev || 0 },
@@ -896,8 +912,10 @@ function analizarAlumnos(d, entrada) {
     let saldoFila = 0;
     if (saldo) { if (saldoImportado.has(ex.id)) avisos.push('Ya tenía un saldo importado: no se vuelve a cargar.'); else saldoFila = saldo; }
     const hay = Object.keys(cambios).length || saldoFila;
+    for (const campo of ['profesor_id', 'vehiculo_id']) if (cambios[campo]) rel.usar(campo, cambios[campo][1]);
     filas.push({ ...fila, accion: hay ? 'actualizar' : 'igual', motivo: hay ? '' : 'Ya está en la app y no hay nada que completar', cambios, saldo: saldoFila });
   }
+  rel.podar();
   return { filas, rel };
 }
 
@@ -925,7 +943,7 @@ function analizarClases(d, entrada) {
 
   const regs = registrosDe(entrada).map(r => {
     const fechaTxt = r.v.fecha || '';
-    const fecha = leerFechaFlexible(fechaTxt);
+    const fecha = leerFechaFlexible(fechaTxt, { pasado: true }); // clases ya dadas: «12/03/98» es 1998
     let hora = leerHoraFlexible(r.v.hora);
     if (!r.v.hora && /\d[:.]\d{2}/.test(fechaTxt)) hora = leerHoraFlexible(fechaTxt.match(/\d{1,2}[:.]\d{2}/)[0]);
     return { ...r, fecha, hora, p: personaDe(r.v, opciones) };
@@ -993,11 +1011,19 @@ function analizarClases(d, entrada) {
       if (motivo) { avisos.push(`Km ${ki}–${kf}: ${motivo}; la clase queda sin km.`); ki = 0; kf = 0; } else conKm.push({ v: vehiculo_id, i: ki, f: kf });
       if (kf - ki < trozosDeClases(k).length && kf) { avisos.push(`Con ${kf - ki} km no caben ${fmtClases(k)} clases: quedan sin km.`); ki = 0; kf = 0; }
     }
+    rel.usar('profesor_id', profesor_id); rel.usar('vehiculo_id', vehiculo_id);
+    // Alumno nuevo: su alta es el día de su primera clase y su última dice si sigue en curso
+    if (claveNuevo) {
+      const al = alumnosNuevos.get(claveNuevo);
+      if (!al.primera || fecha < al.primera) al.primera = fecha;
+      if (!al.ultima || fecha > al.ultima) al.ultima = fecha;
+    }
     filas.push({
       ...fila, accion: 'nuevo', clases: k, alumno_id: alumno ? alumno.id : null, alumno_nuevo: claveNuevo,
       practica: { fecha, hora_inicio: hora || null, km_inicial: ki, km_final: kf, profesor_id, vehiculo_id, nota: txt(v.observaciones).slice(0, 500) }
     });
   }
+  rel.podar();
   return { filas, rel, alumnosNuevos };
 }
 
@@ -1135,10 +1161,14 @@ function aplicarImportacion(entrada = {}) {
   } else {
     const dur = Math.min(240, Math.max(10, Math.round(Number(opciones.duracion) || 45)));
     const idNuevo = new Map();
-    for (const [k, datos] of plan.alumnosNuevos) {
-      const a = nuevoAlumno(d, { ...datos, estado: 'en_practicas' }, opciones, hoy);
+    // Sin clases en el último año ya no está en curso: «inactivo» (como en
+    // Ariauto), para que no salga en avisos de abandono, semáforo ni bonos
+    const haceUnAnio = `${Number(hoy.slice(0, 4)) - 1}${hoy.slice(4)}`;
+    for (const [k, { primera, ultima, ...datos }] of plan.alumnosNuevos) {
+      const a = nuevoAlumno(d, { ...datos, fecha_alta: primera || null, estado: ultima && ultima < haceUnAnio ? 'inactivo' : 'en_practicas' }, opciones, hoy);
       idNuevo.set(k, a.id); registro.creados.alumnos.push(a.id); tocados.add(a.id);
     }
+    const kmAntes = new Map(); // coche → km que tenía (para deshacer)
     const porAlumno = new Map();
     for (const f of plan.filas.filter(x => x.accion === 'nuevo')) {
       const aid = f.alumno_id || idNuevo.get(f.alumno_nuevo);
@@ -1163,9 +1193,19 @@ function aplicarImportacion(entrada = {}) {
         registro.creados.practicas.push(id);
       });
       const v = vid && d.vehiculos.find(x => x.id === vid);
-      if (v && pr.km_final > (v.km_actual || 0)) { v.km_actual = pr.km_final; if (s) s.markDirty('vehiculos', v.id); }
+      if (v && pr.km_final > (v.km_actual || 0)) {
+        if (!kmAntes.has(v.id)) kmAntes.set(v.id, v.km_actual ?? 0);
+        v.km_actual = pr.km_final;
+      }
       porAlumno.set(a.id, aCuartos((porAlumno.get(a.id) || 0) + f.clases));
     }
+    // El km de los coches que ya estaban se apunta para que «Deshacer» lo devuelva
+    const creadosVeh = new Set(registro.creados.vehiculos);
+    for (const [vid, antes] of kmAntes) {
+      const v = d.vehiculos.find(x => x.id === vid);
+      if (!creadosVeh.has(vid)) registro.actualizados.push({ tabla: 'vehiculos', id: vid, antes: { km_actual: antes }, despues: { km_actual: v.km_actual } });
+    }
+    if (s) s.markDirtyVarios('vehiculos', [...kmAntes.keys()]);
     // Las clases importadas salen de las «clases ya hechas» (como las anotadas a mano)
     for (const [aid, nClases] of porAlumno) {
       const a = d.alumnos.find(x => x.id === aid);
@@ -1174,13 +1214,14 @@ function aplicarImportacion(entrada = {}) {
     }
   }
 
-  registro.resumen = { ...plan.resumen, creadosAlumnos: registro.creados.alumnos.length, actualizadosAlumnos: registro.actualizados.length, clasesCreadas: registro.creados.practicas.length };
+  const actualizadosAlumnos = registro.actualizados.filter(x => !x.tabla).length;
+  registro.resumen = { ...plan.resumen, creadosAlumnos: registro.creados.alumnos.length, actualizadosAlumnos, clasesCreadas: registro.creados.practicas.length };
   // Todo lo que entra lleva el nombre del programa del que viene (db/procedencia.js)
   registro.procedencia = etiquetarCreados(d, registro.creados, entrada.procedencia, registro.fecha).nombre;
   registro.resumen.procedencia = registro.procedencia;
   registrarImportacion(d, registro);
   const qué = plan.tipo === 'alumnos'
-    ? `${registro.creados.alumnos.length} alumnos nuevos y ${registro.actualizados.length} completados`
+    ? `${registro.creados.alumnos.length} alumnos nuevos y ${actualizadosAlumnos} completados`
     : `${registro.creados.practicas.length} clases anteriores y ${registro.creados.alumnos.length} alumnos nuevos`;
   addLog('importacion', `Datos traídos de ${registro.procedencia} (${registro.archivo}): ${qué}`, []);
   save();
@@ -1231,12 +1272,17 @@ function deshacerImportacion(id) {
   const quitadas = d.practicas.filter(p => pids.has(p.id)).map(p => p.id);
   d.practicas = d.practicas.filter(p => !pids.has(p.id));
   marcarBorrado('practicas', quitadas); res.practicas = quitadas.length;
+  const previasDevueltas = [];
   for (const { alumno_id, n } of imp.previasRestadas || []) {
     const a = d.alumnos.find(x => x.id === alumno_id);
-    if (a) { a.clases_previas = aCuartos((a.clases_previas || 0) + n); if (s) s.markDirty('alumnos', a.id); }
+    if (a) { a.clases_previas = aCuartos((a.clases_previas || 0) + n); previasDevueltas.push(a.id); }
   }
+  if (s) s.markDirtyVarios('alumnos', previasDevueltas);
   const cids = new Set(imp.creados.cargos);
-  for (const c of d.cargos || []) if (cids.has(c.id) && !c.deleted) { c.deleted = true; c.updated_at = new Date().toISOString(); res.cargos++; marcarBorrado('cargos', [c.id]); }
+  // De una vez (antes, una escritura de la cola por cargo: con miles, la app se paraba)
+  const cargosFuera = [];
+  for (const c of d.cargos || []) if (cids.has(c.id) && !c.deleted) { c.deleted = true; c.updated_at = new Date().toISOString(); cargosFuera.push(c.id); }
+  marcarBorrado('cargos', cargosFuera); res.cargos = cargosFuera.length;
   // Lo que trae la importación de Ariauto: pagos, exámenes, tasas y caducidades
   const quitar = (tabla, ids, sincronizada) => {
     const set = new Set(ids || []);
@@ -1271,9 +1317,13 @@ function deshacerImportacion(id) {
   // Lo que se completó en registros que ya estaban (alumnos y, desde Ariauto,
   // también profesores, coches, exámenes y tasas): vuelve a como estaba si
   // nadie lo ha cambiado después.
+  // Búsqueda por id y marcas de sync de una vez por tabla (con los miles de
+  // alumnos completados de Ariauto, de uno en uno la app se quedaba parada)
   const SINCRONIZADAS = new Set(['alumnos', 'profesores', 'vehiculos']);
+  const porTabla = new Map(), restauradosPorTabla = new Map();
   for (const { tabla = 'alumnos', id: rid, antes, despues } of imp.actualizados) {
-    const r = (d[tabla] || []).find(x => x.id === rid);
+    if (!porTabla.has(tabla)) porTabla.set(tabla, new Map((d[tabla] || []).map(x => [x.id, x])));
+    const r = porTabla.get(tabla).get(rid);
     if (!r) continue;
     let algo = false;
     for (const campo of Object.keys(antes)) {
@@ -1281,8 +1331,9 @@ function deshacerImportacion(id) {
     }
     if (!algo) continue;
     if (tabla === 'alumnos') res.restaurados++;
-    if (s && SINCRONIZADAS.has(tabla)) s.markDirty(tabla, r.id);
+    if (SINCRONIZADAS.has(tabla)) { if (!restauradosPorTabla.has(tabla)) restauradosPorTabla.set(tabla, []); restauradosPorTabla.get(tabla).push(r.id); }
   }
+  if (s) for (const [tabla, ids] of restauradosPorTabla) s.markDirtyVarios(tabla, ids);
   const profUsado = pid => d.alumnos.some(a => a.profesor_id === pid) || d.practicas.some(p => p.profesor_id === pid);
   const vehUsado = vid => d.alumnos.some(a => a.vehiculo_id === vid) || d.practicas.some(p => p.vehiculo_id === vid) ||
     (d.vencimientos || []).some(v => v.entidad_tipo === 'vehiculo' && v.entidad_id === vid && !v.deleted);

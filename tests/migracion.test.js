@@ -68,7 +68,7 @@ describe('limpieza de datos', () => {
     expect(N.leerPermiso('C+E, A2')).toMatchObject({ principal: 'CE', otros: ['A2'] });
     expect(N.leerPermiso('Turismo').principal).toBe('B');
     expect(N.leerPermiso('xyz').reconocido).toBe(false);
-    expect(N.leerEstado('Inactivo')).toBe('baja');
+    expect(N.leerEstado('Inactivo')).toBe('inactivo');   // estado propio desde la 1.35 (antes, baja)
     expect(N.leerEstado('APROBADO')).toBe('apto');
     expect(N.leerEstado('En prácticas')).toBe('en_practicas');
     expect(N.leerEstado('Sí')).toBe('activo');

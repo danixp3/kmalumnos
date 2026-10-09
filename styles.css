@@ -3405,7 +3405,7 @@ tr.fila-sep-proc td svg { vertical-align: -1px; margin-right: 4px; }
 .ef-sin { font-size: 12px; color: var(--warn-fg); }
 .ef-pie-form { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13.5px; }
 .ef-pie-form label { white-space: nowrap; margin: 0; }
-.modal .ef-pie-form select { width: auto; min-width: 120px; }
+.modal-ancho .ef-pie-form select { width: auto !important; min-width: 130px; } /* la regla de .modal-ancho lo pone al 100 % */
 .ef-url { display: flex; gap: 8px; margin-top: 12px; }
 .ef-url input { flex: 1; min-width: 0; font-family: var(--font-mono, monospace); font-size: 13px; }
 .ef-botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

@@ -43,7 +43,7 @@ const { load, save, nextId, _sync, addLog, crearBackup, hoyLocalISO, clasesDePra
 const mig = require('./migracion');
 const { normTexto, claveNombre, capitalizarNombre, limpiarDni, limpiarTelefono, limpiarEmail, limpiarCP } = mig._norm;
 const { nombreDe, limpiarMatricula, registrarImportacion, buscadorParecidos } = mig._interno;
-const { CAMPOS_EXTRA, extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
+const { CAMPOS_EXTRA, extraerCamposExtra, camposExtraVacios, vehiculoSirveParaAlumno } = require('./campos-extra');
 const { sugerirCocheProfesor } = require('./profesores');
 const { etiquetarCreados } = require('./procedencia');
 
@@ -1091,10 +1091,13 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
     if (cp.profesor.nuevo) p.vehiculo_id = vid; // creado ahora: deshacer lo quita entero
     else if (completar('profesores', p, { vehiculo_id: vid })) profTocados.add(p.id);
   }
-  const cocheDe = pid => {
+  // El coche habitual del profesor, si sirve para el permiso del alumno: a un
+  // alumno de moto no se le pone el coche de B (1.35: permisos de cada vehículo)
+  const cocheDe = (pid, alumno) => {
     const p = pid ? d.profesores.find(x => x.id === pid) : null;
     const v = p && p.vehiculo_id ? d.vehiculos.find(x => x.id === p.vehiculo_id && !x.deleted && x.activo !== false) : null;
-    return v ? v.id : null;
+    if (!v) return null;
+    return alumno && vehiculoSirveParaAlumno(v, alumno) === 'no' ? null : v.id;
   };
 
   // Alumnos
@@ -1106,7 +1109,7 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
     if (f.accion === 'nuevo') {
       a = {
         id: nextId('a'), nombre: dt.nombre, primer_apellido: dt.primer_apellido, segundo_apellido: dt.segundo_apellido,
-        permiso: dt.permiso, vehiculo_id: cocheDe(profId(dt.profesor)), profesor_id: profId(dt.profesor), sucursal_id: sucursal, email: dt.email, n_inscripcion: null,
+        permiso: dt.permiso, vehiculo_id: cocheDe(profId(dt.profesor), dt), profesor_id: profId(dt.profesor), sucursal_id: sucursal, email: dt.email, n_inscripcion: null,
         telefono: dt.telefono, dni: dt.dni, fecha_nacimiento: dt.fecha_nacimiento, direccion: dt.direccion, fecha_alta: dt.fecha_alta || hoy,
         observaciones: dt.observaciones, estado: dt.estado, codigo_postal: dt.codigo_postal, poblacion: dt.poblacion,
         permisos_posee: dt.permisos_posee, fecha_inicio: dt.fecha_alta, fecha_fin: dt.fecha_fin, resultado: dt.resultado, permisos: dt.permisos,
@@ -1121,7 +1124,8 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
       if (!a) continue;
       const cambios = Object.fromEntries(Object.entries(f.cambios || {}).map(([c, v]) => [c, v.despues]));
       if (vacio(a.profesor_id) && profId(dt.profesor)) cambios.profesor_id = profId(dt.profesor);
-      if (vacio(a.vehiculo_id) && cocheDe(cambios.profesor_id || a.profesor_id)) cambios.vehiculo_id = cocheDe(cambios.profesor_id || a.profesor_id);
+      const coche = cocheDe(cambios.profesor_id || a.profesor_id, a);
+      if (vacio(a.vehiculo_id) && coche) cambios.vehiculo_id = coche;
       if (completar('alumnos', a, cambios)) tocados.add(a.id);
     }
     // Sus clases de Ariauto con su día (las que el alumno no tenga ya en la
@@ -1130,7 +1134,7 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
       for (const valor of trocearClases(n)) {
         const id = nextId('p');
         d.practicas.push({
-          id, alumno_id: a.id, vehiculo_id: a.vehiculo_id || cocheDe(a.profesor_id) || null, fecha, km_inicial: 0, km_final: 0,
+          id, alumno_id: a.id, vehiculo_id: a.vehiculo_id || cocheDe(a.profesor_id, a) || null, fecha, km_inicial: 0, km_final: 0,
           profesor_id: a.profesor_id || null, tipo: 'circulacion', sucursal_id: a.sucursal_id || null, nota: NOTA_CLASE,
           hora_inicio: null, tipo_detalle: MARCA_ANTERIOR, ...(valor < 1 ? { fraccion: valor } : {}), updated_at: ahora
         });

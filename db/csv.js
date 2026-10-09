@@ -37,7 +37,7 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
       if (!fechaTxt) { erroresDetalle.push({ fila: idx + 2, motivo: 'Fecha vacía', datos: JSON.stringify(row) }); return; }
 
       // Fecha: AAAA-MM-DD, dd/mm/aaaa, d-m-aa...
-      const fecha = _mig()._norm.leerFechaFlexible(fechaTxt);
+      const fecha = _mig()._norm.leerFechaFlexible(fechaTxt, { pasado: true }); // clases ya dadas: «12/03/98» es 1998
       if (!fecha) {
         erroresDetalle.push({ fila: idx + 2, motivo: `Fecha no válida: "${fechaTxt}" (usa AAAA-MM-DD o dd/mm/aaaa)`, datos: `${alumno} / ${fechaTxt}` });
         return;
@@ -114,11 +114,13 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
 
   // Cache del km_final más alto ya insertado por alumno_id (encadena las prácticas sin km).
   const ultimoKmPorAlumno = {};
+  // Lo creado se marca para subir de una vez al final (de una en una, con miles
+  // de filas, cada marca reescribía la cola entera y la app se quedaba parada)
+  const nuevasPracticas = [], cochesCambiados = new Set();
   const insertar = (r, kmI, kmF) => {
     // Una fila de varias clases (o con fracción) = una práctica por trozo, km en proporción
     const pesos = r.pesos || [1];
     const tramos = kmF > kmI ? kmPorPesos(kmF - kmI, pesos) : pesos.map(() => 0);
-    const s = _sync();
     let km = kmI;
     pesos.forEach((w, j) => {
       const pid = nextId('p');
@@ -127,11 +129,11 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
         profesor_id: r.profesorId, hora_inicio: j === 0 ? r.horaInicio : null, ...(w < 1 ? { fraccion: w } : {})
       });
       km += tramos[j];
-      if (s) s.markDirty('practicas', pid);
+      nuevasPracticas.push(pid);
     });
     if (kmF > r.v.km_actual) {
       r.v.km_actual = kmF;
-      if (s) s.markDirty('vehiculos', r.v.id);
+      cochesCambiados.add(r.v.id);
     }
     if (ultimoKmPorAlumno[r.a.id] === undefined || kmF > ultimoKmPorAlumno[r.a.id]) ultimoKmPorAlumno[r.a.id] = kmF;
     insertados++;
@@ -163,6 +165,8 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
     erroresDetalle.map(e => `⚠ Fila ${e.fila}: ${e.motivo} [${e.datos}]`)
   );
   save();
+  const s = _sync();
+  if (s) { s.markDirtyVarios('practicas', nuevasPracticas); s.markDirtyVarios('vehiculos', cochesCambiados); }
   return { insertados, errores: erroresDetalle.length, erroresDetalle };
 }
 

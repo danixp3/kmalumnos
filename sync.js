@@ -2608,6 +2608,18 @@ async function _syncInterno() {
       id => data.practicas[posPracticas.get(id)],
       q => q.order('updated_at', { ascending: true }).order('id', { ascending: true }));
 
+    // Una sola vez por PC: las clases SIN coche que este PC no llegó a bajar
+    // cuando se descartaban (traídas de otro programa sin decir el coche). Son
+    // pocas; después ya bajan solas con el resto.
+    if (!errP && remotePracticas && !pending.repasoClasesSinCoche) {
+      const { data: sinCoche, error: errSC } = await _traerTodo(() => _conEmpresa(sb.from('practicas').select('*').is('vehiculo_id', null).eq('deleted', false)).order('id', { ascending: true }));
+      if (!errSC && Array.isArray(sinCoche)) {
+        const yaVienen = new Set(remotePracticas.map(r => r.id));
+        for (const rp of sinCoche) if (!yaVienen.has(rp.id) && !posPracticas.has(rp.id)) remotePracticas.push(rp);
+        pending.repasoClasesSinCoche = new Date().toISOString();
+      }
+    }
+
     if (!errP && remotePracticas) {
           const alumnosAqui = new Set(data.alumnos.map(a => a.id));
           const vehiculosAqui = new Set(data.vehiculos.map(v => v.id));
@@ -2619,8 +2631,10 @@ async function _syncInterno() {
               if (idx !== -1) { practicasFuera.add(rp.id); dataChanged = true; }
               continue;
             }
-            // Verificar que alumno y vehículo existan localmente
-            if (!alumnosAqui.has(rp.alumno_id) || !vehiculosAqui.has(rp.vehiculo_id)) continue;
+            // Verificar que alumno y vehículo existan localmente. Una clase SIN
+            // coche (las traídas de otro programa o de Ariauto que no decían cuál)
+            // también baja: antes se descartaba y no llegaba nunca a los demás PCs.
+            if (!alumnosAqui.has(rp.alumno_id) || (rp.vehiculo_id != null && !vehiculosAqui.has(rp.vehiculo_id))) continue;
             const practica = {
               id: rp.id, alumno_id: rp.alumno_id, vehiculo_id: rp.vehiculo_id,
               fecha: rp.fecha, km_inicial: parseFloat(rp.km_inicial), km_final: parseFloat(rp.km_final),

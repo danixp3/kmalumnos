@@ -168,7 +168,7 @@ function mgPintarOpciones() {
     <small>Todo lo que entre llevará esta etiqueta para distinguirlo de lo creado en AulaMovil (Ajustes → Datos de otros programas).</small></label>`;
   if (mg.tipo === 'alumnos') {
     h += sel('actualizar', 'Si el alumno ya está en la app:', [['vacios', 'completar solo lo que le falte (recomendado)'], ['todo', 'poner los datos del archivo'], ['nada', 'no tocarlo']]);
-    if (tiene('estado') || tiene('fecha_baja')) h += chk('soloEnCurso', 'Dejar fuera a los dados de baja y a los ya aprobados');
+    if (tiene('estado') || tiene('fecha_baja')) h += chk('soloEnCurso', 'Dejar fuera a los dados de baja, los inactivos y los ya aprobados');
     h += chk('crearRelacionados', 'Crear los profesores y coches que no existan');
   } else {
     h += chk('crearAlumnos', 'Crear los alumnos que no estén en la app');
