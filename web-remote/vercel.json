@@ -71,6 +71,18 @@
     {
       "source": "/api/corregir-clases",
       "destination": "/api/movil?op=corregir-clases"
+    },
+    {
+      "source": "/api/enlace-firma",
+      "destination": "/api/movil?op=enlace-firma"
+    },
+    {
+      "source": "/api/firma-alumno",
+      "destination": "/api/movil?op=firma-alumno"
+    },
+    {
+      "source": "/f/:codigo",
+      "destination": "/firmar.html"
     }
   ],
   "headers": [
@@ -147,6 +159,23 @@
         {
           "key": "Cache-Control",
           "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/f/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
         }
       ]
     }

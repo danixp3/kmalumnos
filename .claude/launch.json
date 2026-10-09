@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-local",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "./web-remote/tests/register.mjs", "web-remote/tests/servidor-local.mjs"],
+      "port": 8123
+    }
+  ]
+}

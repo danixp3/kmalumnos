@@ -1,5 +1,6 @@
 // Utilidades compartidas para las APIs de web-remote
 import { createClient } from '@supabase/supabase-js';
+import { createHash, randomBytes } from 'node:crypto';
 
 // Cliente de Supabase autenticado con el token de la SPA (passthrough).
 // La SPA hace login con supabase-js en el navegador (signInWithPassword) y
@@ -578,3 +579,16 @@ export async function cargarCobrosAlta(supabase, empresaId, alumnoId, fecha) {
   }
   return { cargados };
 }
+
+// ─── Enlace para que el alumno firme sus clases (2026-10-09) ────────────────
+// El enlace lleva un código al azar (144 bits); en la base de datos solo se
+// guarda su huella sha256 (migración 2026-10-09_enlaces_firma.sql), así que
+// quien lea la tabla no puede usar los enlaces. La página del alumno es
+// /f/<código> (vercel.json la sirve con firmar.html).
+export const URL_WEB = 'https://aulamovil.vercel.app';
+export const nuevoTokenFirma = () => randomBytes(18).toString('base64url');
+export const huellaToken = t => createHash('sha256').update(String(t)).digest('hex');
+export const tokenFirmaValido = t => typeof t === 'string' && /^[A-Za-z0-9_-]{20,64}$/.test(t);
+export const urlFirma = t => `${URL_WEB}/f/${t}`;
+// La función o la tabla todavía no existen en la nube (migración sin aplicar)
+export const faltaFuncion = error => !!error && (error.code === 'PGRST202' || error.code === '42883' || error.code === '42P01' || /could not find the function|does not exist/i.test(error.message || ''));

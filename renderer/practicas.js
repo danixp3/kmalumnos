@@ -158,8 +158,10 @@ function pintarKmClase(f) {
 }
 
 // ─── FIRMA DEL ALUMNO (prueba de la clase, llega desde el móvil) ────────────
+// Se puede firmar (en el móvil o con un enlace): con km final, o de pista sin km (la nube aplica la misma regla)
+const firmablePorEnlace = p => p.km_final > 0 || (p.tipo === 'pista' && !(p.km_inicial > 0));
 function celdaFirma(p) {
-  if (p.enCurso || p.sinKm || p.sinCerrar) return '<span style="color:var(--text-faint)">—</span>';
+  if (p.enCurso || p.sinCerrar || (p.sinKm && !p.firmada && !firmablePorEnlace(p))) return '<span style="color:var(--text-faint)">—</span>';
   return p.firmada
     ? `<button type="button" class="pill pill-ok firma-pill" onclick="verClasePractica(${p.id})" title="Ver la firma y el detalle de la clase">${fichaSvg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 12)} Firmada</button>`
     : `<button type="button" class="pill pill-line firma-pill" onclick="verClasePractica(${p.id})" title="Ver el detalle de la clase">Sin firmar</button>`;
@@ -198,7 +200,8 @@ async function verClasePractica(id) {
     ${p.firma
       ? `<div class="clase-firma"><img src="${p.firma}" alt="Firma de ${esc(p.alumno_nombre)}"></div>
          <p class="aj-intro" style="margin-top:8px">Firmada en el móvil al terminar la clase. Se guarda en la ficha del alumno y se imprime en la «Ficha de clases prácticas».</p>`
-      : `<div class="alert alert-warn">Esta clase no tiene firma. ${p.origen === 'web-remote' ? 'El alumno puede firmarla más tarde desde el móvil (Historial → la clase → «Firmar ahora»).' : 'Se registró desde el ordenador; las firmas se recogen en el móvil al terminar cada clase.'}</div>`}`;
+      : `<div class="alert alert-warn">Esta clase no tiene firma. ${p.origen === 'web-remote' ? 'El alumno puede firmarla más tarde desde el móvil del profesor (Historial → la clase → «Firmar ahora»)' : 'Se registró desde el ordenador'}${firmablePorEnlace(p) ? ', o desde su propio móvil con un enlace.' : '. Cuando tenga km se le puede mandar un enlace para que la firme desde su móvil.'}</div>
+         ${firmablePorEnlace(p) ? `<div style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="closeModal('modal-clase');abrirEnlaceFirma(${p.alumno_id}, [${p.id}])">Mandarle un enlace para que la firme</button></div>` : ''}`}`;
   openModal('modal-clase');
 }
 
@@ -302,6 +305,13 @@ async function loadPracticas() {
   const practicas = f.practicas;
   document.getElementById('ficha-historial-nota').textContent = practicas.length
     ? `${practicas.length} ${practicas.length === 1 ? 'práctica' : 'prácticas'}` : '';
+  // Clases que se quedaron sin firmar (sin contar las anteriores a la app ni las traídas): enlace para que firme
+  const sinFirmar = practicas.filter(p => !p.firmada && !p.enCurso && !p.sinCerrar && firmablePorEnlace(p) && p.tipo_detalle !== 'anterior' && !p.procedencia).length;
+  const btnFirma = document.getElementById('ficha-btn-firma');
+  if (btnFirma) {
+    btnFirma.classList.toggle('hidden', !sinFirmar);
+    btnFirma.textContent = `Enlace para firmar · ${sinFirmar} sin firmar`;
+  }
   const tbody = document.querySelector('#tabla-practicas tbody');
   if (!practicas.length) {
     tbody.innerHTML = '<tr><td colspan="9" class="empty">No hay prácticas registradas para este alumno</td></tr>';
