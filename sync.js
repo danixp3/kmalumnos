@@ -978,6 +978,81 @@ async function cerrarOtrasSesiones() {
   }
 }
 
+// ─── ENLACES DE FIRMA (el alumno firma desde su propio móvil) ────────────────
+// Para las clases que se quedaron sin firmar: la oficina crea un enlace
+// (https://aulamovil.vercel.app/f/<código>) y se lo manda al alumno; él ve los
+// datos de esas clases y firma sin cuenta. La firma se guarda en la nube en
+// practicas.firma y llega a este PC por el sync normal. Del código solo se
+// guarda en la nube su huella (sha256): la base de datos no puede devolverlo.
+// Migración: migraciones/2026-10-09_enlaces_firma.sql.
+const URL_FIRMA_ALUMNO = 'https://aulamovil.vercel.app/f/';
+const _faltaEnNube = e => !!e && (['PGRST202', 'PGRST205', '42883', '42P01'].includes(e.code) || /could not find the (function|table)|does not exist/i.test(e.message || ''));
+const MSG_SIN_ENLACES = 'La nube todavía no admite enlaces de firma (falta actualizar la base de datos).';
+
+async function crearEnlaceFirma({ alumno_id, practica_ids, dias } = {}) {
+  const sb = await ensureClient();
+  if (!sb || !_empresaId) return { ok: false, msg: _authError || 'Para mandar enlaces de firma hace falta entrar con la cuenta de la autoescuela (Ajustes → Cuenta de empresa).' };
+  const aid = parseInt(alumno_id);
+  const ids = [...new Set((Array.isArray(practica_ids) ? practica_ids : []).map(Number).filter(n => Number.isInteger(n) && n > 0))];
+  if (!aid || !ids.length) return { ok: false, msg: 'Elige al menos una clase.' };
+  if (ids.length > 100) return { ok: false, msg: 'Como mucho 100 clases por enlace.' };
+  // Las clases tienen que estar en la nube: primero se sube lo pendiente (dos
+  // vueltas por si ya había un sync en marcha que empezó antes de marcarlas).
+  for (let vuelta = 0; vuelta < 2; vuelta++) {
+    const cola = new Set(loadPending().practicas || []);
+    if (!ids.some(id => cola.has(id))) break;
+    await sync();
+  }
+  const token = require('crypto').randomBytes(18).toString('base64url');
+  const hash = require('crypto').createHash('sha256').update(token).digest('hex');
+  try {
+    const { data, error } = await sb.rpc('crear_enlace_firma', {
+      p_token_hash: hash, p_alumno_id: aid, p_practica_ids: ids,
+      p_dias: Math.min(30, Math.max(1, parseInt(dias) || 7)), p_creado_por: 'la oficina', p_profesor_id: null
+    });
+    if (error) return { ok: false, msg: _faltaEnNube(error) ? MSG_SIN_ENLACES : 'No se pudo crear el enlace: ' + (error.message || error.code) };
+    const r = data || {};
+    if (!r.ok) {
+      const msg = r.codigo === 'nada_que_firmar'
+        ? 'Ninguna de esas clases se puede firmar en la nube (ya firmadas, sin km o todavía sin subir). Prueba a sincronizar y vuelve a intentarlo.'
+        : r.codigo === 'alumno_no_existe' ? 'Este alumno todavía no está en la nube. Sincroniza y vuelve a intentarlo.' : 'No se pudo crear el enlace.';
+      return { ok: false, codigo: r.codigo || null, msg, faltan: r.faltan || [] };
+    }
+    return { ok: true, url: URL_FIRMA_ALUMNO + token, caduca: r.caduca, n: r.n, practica_ids: r.practica_ids || [], faltan: r.faltan || [] };
+  } catch (e) {
+    return { ok: false, msg: 'Sin conexión con la nube: ' + e.message };
+  }
+}
+
+// Enlaces de un alumno (los más recientes primero) con lo que ha pasado con
+// cada uno: si el alumno lo abrió, qué firmó, qué no reconoció y su comentario.
+async function listarEnlacesFirma(alumno_id) {
+  const sb = await ensureClient();
+  if (!sb || !_empresaId) return { ok: false, sinCuenta: true, enlaces: [] };
+  try {
+    const { data, error } = await _conEmpresa(sb.from('enlaces_firma')
+      .select('id, creado, caduca, anulado, abierto, veces, firmado, firmadas, no_confirmadas, comentario, creado_por, practica_ids')
+      .eq('alumno_id', parseInt(alumno_id)))
+      .order('creado', { ascending: false }).limit(20);
+    if (error) return { ok: false, msg: _faltaEnNube(error) ? MSG_SIN_ENLACES : error.message, enlaces: [] };
+    return { ok: true, enlaces: data || [] };
+  } catch (e) {
+    return { ok: false, msg: 'Sin conexión con la nube', enlaces: [] };
+  }
+}
+
+async function anularEnlaceFirma(id) {
+  const sb = await ensureClient();
+  if (!sb || !_empresaId) return { ok: false, msg: 'Sin cuenta de empresa.' };
+  try {
+    const { error } = await _conEmpresa(sb.from('enlaces_firma').update({ anulado: new Date().toISOString() }).eq('id', parseInt(id)));
+    if (error) return { ok: false, msg: error.message };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, msg: 'Sin conexión con la nube' };
+  }
+}
+
 async function invitarEmpleado(email, rol, sucursal_id) {
   // Seguridad (2026-10-07): meter la cuenta de otra persona en tu empresa solo
   // con su email, sin que lo acepte, permitía dejar fuera de sus datos a otra
@@ -2294,6 +2369,7 @@ async function _syncInterno() {
     const lastSync = pending.lastSync || '1970-01-01T00:00:00.000Z';
     let pulled = 0;
     let practicasTraidas = 0; // las que llegaron nuevas o cambiadas (clases del móvil, del otro PC)
+    let firmasTraidas = 0;    // clases que ya había aquí y llegan firmadas por el alumno (móvil o enlace de firma)
     let dataChanged = false;
 
     // Con sesión autenticada, cada bajada se filtra por empresa_id (uid de la
@@ -2572,9 +2648,11 @@ async function _syncInterno() {
                 _detectarYRegistrarConflicto(data, 'practicas', pending.practicas, rp.id,
                   ['alumno_id', 'vehiculo_id', 'fecha', 'km_inicial', 'km_final', 'nota', 'profesor_id', 'tipo', 'hora_inicio'],
                   local, practica, conflictos);
+                const firmaNueva = !local.firma && !!practica.firma;
                 data.practicas[idx] = practica;
                 dataChanged = true;
-                pulled++; practicasTraidas++;
+                pulled++;
+                if (firmaNueva) firmasTraidas++; else practicasTraidas++;
               }
               // Si local es más reciente, no sobrescribir (el usuario editó localmente)
             } else {
@@ -2587,6 +2665,28 @@ async function _syncInterno() {
           }
           if (practicasFuera.size) data.practicas = data.practicas.filter(p => !practicasFuera.has(p.id));
         }
+
+    // Firmas que llegaron a la nube mientras esta clase estaba cambiada aquí sin
+    // subir (p. ej. el alumno firma por el enlace justo cuando la oficina cuadra
+    // los km): la subida de arriba no toca la firma, pero deja en la nube el
+    // updated_at de este PC y la bajada la toma por propia → la firma no
+    // llegaba nunca. Se pregunta por la firma de lo recién subido que aquí no tiene.
+    if (movilOn && !errP && hechos.practicas && hechos.practicas.size) {
+      const porId = new Map(data.practicas.map(p => [p.id, p]));
+      const sinFirma = [...hechos.practicas].filter(id => { const p = porId.get(id); return p && !p.firma && !p.firma_borrar; });
+      for (let i = 0; i < sinFirma.length; i += TAM_LOTE_IDS) {
+        const { data: filas, error: errF } = await _conEmpresa(sb.from('practicas').select('id, firma, deleted, updated_at').in('id', sinFirma.slice(i, i + TAM_LOTE_IDS)));
+        if (errF || !filas) break;
+        for (const f of filas) {
+          const p = porId.get(f.id);
+          if (!p || p.firma || f.deleted || typeof f.firma !== 'string' || !f.firma) continue;
+          p.firma = f.firma;
+          // Firmada después de la subida: así el próximo sync no la vuelve a bajar entera
+          if (f.updated_at && String(f.updated_at) > String(p.updated_at || '')) p.updated_at = f.updated_at;
+          dataChanged = true; pulled++; firmasTraidas++;
+        }
+      }
+    }
 
     // Pagos nuevos o modificados. Igual que en la subida: un empleado sin
     // acceso a `pagos` por RLS no debe tumbar el resto de la bajada
@@ -2857,7 +2957,7 @@ async function _syncInterno() {
     }
     pending.lastSync = new Date(inicioSync - MARGEN_LASTSYNC_MS).toISOString();
     savePending(pending);
-    if (pulled > 0 && _onDatosNuevos) { try { _onDatosNuevos({ pulled, practicas: practicasTraidas }); } catch (e) { /* la UI no debe tumbar el sync */ } }
+    if (pulled > 0 && _onDatosNuevos) { try { _onDatosNuevos({ pulled, practicas: practicasTraidas, firmas: firmasTraidas }); } catch (e) { /* la UI no debe tumbar el sync */ } }
 
     if (erroresSubida.length) {
       // Siguen en la cola y se reintentan en el próximo sync; la UI lo avisa.
@@ -3312,6 +3412,9 @@ module.exports = {
   sync,
   pushAll,
   cerrarOtrasSesiones,
+  crearEnlaceFirma,
+  listarEnlacesFirma,
+  anularEnlaceFirma,
   markDirty,
   markDeleted,
   markDirtyVarios,

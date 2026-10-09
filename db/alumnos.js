@@ -141,7 +141,8 @@ function getFichaAlumno(alumno_id, hoy) {
       zonas: Array.isArray(p.zonas) ? p.zonas : [],
       hora_fin: p.hora_fin || null,
       fraccion: p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : null,
-      procedencia: p.procedencia || null
+      procedencia: p.procedencia || null,
+      tipo_detalle: p.tipo_detalle || null
     };
   });
   const hechas = practicas.filter(p => !p.enCurso);
@@ -698,7 +699,38 @@ function deshacerCambioProfesorAlumno(anterior) {
   return { ok: true };
 }
 
+// ─── CLASES SIN FIRMA (enlace para que el alumno firme desde su móvil) ──────
+// Las clases cerradas del alumno a las que falta su firma, para elegir cuáles
+// van en el enlace de firma (sync.crearEnlaceFirma). `firmable`: con km final,
+// o de pista sin km (la nube aplica la misma regla). `sugerida`: marcada por
+// defecto; no lo están las «anteriores a la app» ni las traídas de otro
+// programa (normalmente se firmaron en papel). Solo lectura.
+function getClasesSinFirma(alumno_id, hoy) {
+  const f = getFichaAlumno(alumno_id, hoy);
+  if (!f) return null;
+  const a = f.alumno;
+  const clases = f.practicas
+    .filter(p => !p.firmada && !p.enCurso && !p.sinCerrar)
+    .map(p => {
+      const firmable = p.km_final > 0 || (p.tipo === 'pista' && !(p.km_inicial > 0));
+      const traida = p.tipo_detalle === 'anterior' || !!p.procedencia;
+      return {
+        id: p.id, n: p.n, fecha: p.fecha, hora_inicio: p.hora_inicio, hora_fin: p.hora_fin,
+        km_inicial: p.km_inicial, km_final: p.km_final, km: p.km, tipo: p.tipo, fraccion: p.fraccion,
+        matricula: p.matricula, vehiculo_nombre: p.vehiculo_nombre, profesor_nombre: p.profesor_nombre,
+        procedencia: p.procedencia, anterior: p.tipo_detalle === 'anterior',
+        firmable, sugerida: firmable && !traida
+      };
+    })
+    .sort((x, y) => (y.fecha || '').localeCompare(x.fecha || '') || (y.hora_inicio || '').localeCompare(x.hora_inicio || '') || y.id - x.id);
+  return {
+    alumno: { id: a.id, nombre: a.nombre, primer_apellido: a.primer_apellido || '', telefono: a.telefono || '' },
+    clases
+  };
+}
+
 module.exports = {
+  getClasesSinFirma,
   cambiarProfesorAlumno, deshacerCambioProfesorAlumno,
   setEstadoAlumnos, restaurarEstadosAlumnos, proponerAlumnosInactivos,
   getAlumnos, getAlumnosLista, getFichaAlumno, addAlumno, deleteAlumno, updateAlumno, updateAlumnoCampos, buscarAlumnosRapido,

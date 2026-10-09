@@ -130,7 +130,7 @@ function textoClasesNuevas(n) {
 // opciones.ya: repintar sin esperar al pequeño margen que agrupa avisos seguidos
 function refrescarPantallaActual(info, opciones = {}) {
   const acumulado = refrescoPendiente || { pulled: 0, practicas: 0 };
-  refrescoPendiente = { pulled: acumulado.pulled + ((info && info.pulled) || 0), practicas: acumulado.practicas + ((info && info.practicas) || 0), avisar: opciones.avisar !== false };
+  refrescoPendiente = { pulled: acumulado.pulled + ((info && info.pulled) || 0), practicas: acumulado.practicas + ((info && info.practicas) || 0), firmas: (acumulado.firmas || 0) + ((info && info.firmas) || 0), avisar: opciones.avisar !== false };
   refrescoDesde = refrescoDesde || Date.now();
   clearTimeout(refrescoTimer);
   refrescoTimer = setTimeout(intentarRefresco, opciones.ya ? 0 : 400);
@@ -149,7 +149,12 @@ function intentarRefresco() {
   refrescoPendiente = null; refrescoDesde = 0;
   const repintar = REFRESCO_PANTALLAS[paginaActivaId()];
   try { if (repintar) Promise.resolve(repintar()).catch(() => {}); } catch (e) { /* una pantalla que falla no debe romper las demás */ }
-  if (info.avisar && info.practicas > 0 && typeof toastApp === 'function') toastApp(textoClasesNuevas(info.practicas));
+  if (info.avisar && typeof toastApp === 'function') {
+    const partes = [];
+    if (info.practicas > 0) partes.push(textoClasesNuevas(info.practicas));
+    if (info.firmas > 0) partes.push(info.firmas === 1 ? '1 clase firmada por el alumno' : `${info.firmas} clases firmadas por el alumno`);
+    if (partes.length) toastApp(partes.join(' · '));
+  }
 }
 
 window.api.onDatosActualizados((info) => refrescarPantallaActual(info));

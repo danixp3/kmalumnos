@@ -2,13 +2,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { reiniciar, BD } from './fake-supabase.mjs';
+import { createHash } from 'node:crypto';
 
 process.env.SUPABASE_URL = 'http://fake'; process.env.SUPABASE_ANON_KEY = 'fake';
 const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const TOKEN = `x.${b64({ sub: 'emp1' })}.y`;
 
 async function llamar(nombre, { method = 'POST', body, query } = {}) {
-  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor','km-coche','estado-practica','corregir-clases'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
+  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor','km-coche','estado-practica','corregir-clases','enlace-firma','firma-alumno'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
   let status = 200, json;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
   await mod.default({ method, headers: { authorization: 'Bearer ' + TOKEN }, body, query }, res);
@@ -1104,4 +1105,115 @@ test('vehiculos: devuelve los permisos de cada coche (y sigue funcionando si la 
   const r = await llamar('vehiculos', { method: 'GET' });
   assert.equal(r.status, 200);
   assert.equal(r.json[0].permisos, 'B');
+});
+
+// ─── Enlace para que el alumno firme desde su móvil (2026-10-09) ─────────────
+// Simulación de las funciones de la base de datos (migración 2026-10-09_enlaces_firma.sql)
+const sha = t => createHash('sha256').update(t).digest('hex');
+const firmableBD = p => !p.deleted && p.firma == null && (p.km_final > 0 || (p.tipo === 'pista' && !p.km_inicial));
+function funcionesEnlace() {
+  BD.tablas.enlaces_firma = BD.tablas.enlaces_firma || [];
+  BD.funciones.crear_enlace_firma = p => {
+    if (!/^[0-9a-f]{64}$/.test(p.p_token_hash)) return { data: { ok: false, codigo: 'token_no_valido' }, error: null };
+    if (BD.tablas.enlaces_firma.some(e => e.token_hash === p.p_token_hash)) return { data: null, error: { code: '23505', message: 'duplicate key value' } };
+    if (!BD.tablas.alumnos.some(a => a.id === p.p_alumno_id && !a.deleted)) return { data: { ok: false, codigo: 'alumno_no_existe' }, error: null };
+    const ids = BD.tablas.practicas.filter(x => x.alumno_id === p.p_alumno_id && firmableBD(x) && (p.p_practica_ids ? p.p_practica_ids.includes(x.id) : x.source === 'web-remote')).map(x => x.id);
+    const faltan = (p.p_practica_ids || []).filter(x => !ids.includes(x));
+    if (!ids.length) return { data: { ok: false, codigo: 'nada_que_firmar', faltan }, error: null };
+    const caduca = new Date(Date.now() + p.p_dias * 864e5).toISOString();
+    BD.tablas.enlaces_firma.push({ id: BD.tablas.enlaces_firma.length + 1, empresa_id: 'emp1', token_hash: p.p_token_hash, alumno_id: p.p_alumno_id, practica_ids: ids, creado_por: p.p_creado_por, caduca, firmadas: [] });
+    return { data: { ok: true, id: BD.tablas.enlaces_firma.length, practica_ids: ids, n: ids.length, caduca, faltan }, error: null };
+  };
+  BD.funciones.firma_enlace_ver = p => {
+    if (p.p_secreto !== 's3cr3t') return { data: null, error: { code: '42501', message: 'no autorizado' } };
+    const e = BD.tablas.enlaces_firma.find(x => x.token_hash === p.p_token_hash);
+    if (!e) return { data: { estado: 'no_existe' }, error: null };
+    if (e.caduca < new Date().toISOString()) return { data: { estado: 'caducado' }, error: null };
+    const practicas = BD.tablas.practicas.filter(x => e.practica_ids.includes(x.id)).map(x => ({ id: x.id, fecha: x.fecha, km_inicial: x.km_inicial, km_final: x.km_final, firmada: x.firma != null, firmable: firmableBD(x) }));
+    return { data: { estado: 'ok', alumno: { nombre: 'Lucía' }, centro: null, creado_por: e.creado_por, caduca: e.caduca, practicas }, error: null };
+  };
+  BD.funciones.firma_enlace_firmar = p => {
+    if (p.p_secreto !== 's3cr3t') return { data: null, error: { code: '42501', message: 'no autorizado' } };
+    const e = BD.tablas.enlaces_firma.find(x => x.token_hash === p.p_token_hash);
+    if (!e) return { data: { ok: false, codigo: 'no_existe' }, error: null };
+    const firmadas = [], ya = [];
+    for (const id of p.p_ids) {
+      const x = BD.tablas.practicas.find(q => q.id === id && e.practica_ids.includes(q.id));
+      if (!x) continue;
+      if (firmableBD(x)) { x.firma = p.p_firma; x.updated_at = new Date().toISOString(); firmadas.push(id); } else if (x.firma) ya.push(id);
+    }
+    e.firmadas.push(...firmadas); if (p.p_comentario) e.comentario = p.p_comentario; e.agente = p.p_agente;
+    return { data: { ok: true, firmadas, ya_firmadas: ya, no_confirmadas: p.p_no_confirmadas || [] }, error: null };
+  };
+}
+const conPendientes = () => {
+  const t = base();
+  t.practicas.push({ id: 2, alumno_id: 1, vehiculo_id: 1, fecha: '2026-09-29', hora_inicio: '10:00', km_inicial: 1000, km_final: 1030, profesor_id: 1, deleted: false, empresa_id: 'emp1', source: 'web-remote' },
+    { id: 3, alumno_id: 1, vehiculo_id: 1, fecha: '2026-09-30', hora_inicio: '10:00', km_inicial: 1030, km_final: 0, profesor_id: 1, deleted: false, empresa_id: 'emp1', source: 'web-remote' },
+    { id: 4, alumno_id: 1, vehiculo_id: 1, fecha: '2026-09-30', hora_inicio: '11:00', km_inicial: 1030, km_final: 1060, profesor_id: 1, deleted: false, empresa_id: 'emp1', source: 'web-remote', firma: 'data:image/png;base64,AAAA' });
+  return t;
+};
+const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+const tokenDe = url => url.split('/f/')[1];
+
+test('enlace-firma: crea el enlace con las clases cerradas sin firmar; en la base solo queda la huella del código', async () => {
+  reiniciar(conPendientes()); funcionesEnlace();
+  const r = await llamar('enlace-firma', { body: { alumno_id: 1, profesor_id: 1 } });
+  assert.equal(r.status, 200);
+  assert.match(r.json.url, /^https:\/\/aulamovil\.vercel\.app\/f\/[A-Za-z0-9_-]{24}$/);
+  assert.deepEqual(r.json.practica_ids, [1, 2]);   // ni la abierta (3) ni la ya firmada (4)
+  const e = BD.tablas.enlaces_firma[0];
+  assert.equal(e.token_hash, sha(tokenDe(r.json.url)));
+  assert.ok(!JSON.stringify(BD.tablas.enlaces_firma).includes(tokenDe(r.json.url)));
+  assert.equal(e.creado_por, 'Javier');
+});
+
+test('enlace-firma: la misma petición repetida (mismo código) devuelve el mismo enlace; sin nada que firmar → 409', async () => {
+  reiniciar(conPendientes()); funcionesEnlace();
+  const token = 'abcdefghijklmnopqrstuvwx';
+  const a = await llamar('enlace-firma', { body: { alumno_id: 1, token } });
+  const b = await llamar('enlace-firma', { body: { alumno_id: 1, token } });
+  assert.equal(a.status, 200); assert.equal(b.status, 200);
+  assert.equal(b.json.url, a.json.url); assert.equal(b.json.repetida, true);
+  assert.equal(BD.tablas.enlaces_firma.length, 1);
+  assert.equal((await llamar('enlace-firma', { body: { alumno_id: 2 } })).status, 409);
+  assert.equal((await llamar('enlace-firma', { body: { alumno_id: 1, token: 'corto' } })).status, 400);
+  assert.equal((await llamar('enlace-firma', { body: { alumno_id: 1, practica_ids: [] } })).status, 400);
+  // Base de datos sin la migración
+  BD.funciones.crear_enlace_firma = () => ({ data: null, error: { code: 'PGRST202', message: 'Could not find the function public.crear_enlace_firma' } });
+  assert.equal((await llamar('enlace-firma', { body: { alumno_id: 1 } })).status, 501);
+});
+
+test('firma-alumno: el alumno ve sus clases, firma, y repetir el envío no vuelve a firmar', async () => {
+  process.env.AVISOS_SECRETO = 's3cr3t';
+  reiniciar(conPendientes()); funcionesEnlace();
+  const t = tokenDe((await llamar('enlace-firma', { body: { alumno_id: 1 } })).json.url);
+  const v = await llamar('firma-alumno', { method: 'GET', query: { t } });
+  assert.equal(v.status, 200); assert.equal(v.json.ok, true);
+  assert.deepEqual(v.json.practicas.map(p => p.id), [1, 2]);
+  assert.equal((await llamar('firma-alumno', { body: { t, practica_ids: [1, 2], firma: 'no-es-png' } })).status, 400);
+  assert.equal((await llamar('firma-alumno', { body: { t, practica_ids: [] } })).status, 400);
+  const f = await llamar('firma-alumno', { body: { t, practica_ids: [1], firma: PNG, no_confirmadas: [2], comentario: '  ese día   no fui ' } });
+  assert.equal(f.status, 200); assert.deepEqual(f.json.firmadas, [1]);
+  assert.equal(BD.tablas.practicas.find(p => p.id === 1).firma, PNG);
+  assert.equal(BD.tablas.practicas.find(p => p.id === 2).firma, undefined);
+  assert.equal(BD.tablas.enlaces_firma[0].comentario, 'ese día no fui');
+  const otra = await llamar('firma-alumno', { body: { t, practica_ids: [1], firma: PNG } });
+  assert.deepEqual([otra.json.firmadas, otra.json.ya_firmadas], [[], [1]]);
+  // Solo un aviso, sin firmar nada
+  assert.equal((await llamar('firma-alumno', { body: { t, practica_ids: [], comentario: 'la del 29 no fue' } })).status, 200);
+});
+
+test('firma-alumno: código raro o inexistente → 404, caducado → 410, sin secreto en el servidor → 503', async () => {
+  process.env.AVISOS_SECRETO = 's3cr3t';
+  reiniciar(conPendientes()); funcionesEnlace();
+  assert.equal((await llamar('firma-alumno', { method: 'GET', query: { t: '<script>' } })).status, 404);
+  assert.equal((await llamar('firma-alumno', { method: 'GET', query: { t: 'abcdefghijklmnopqrstuvwxyz' } })).status, 404);
+  const t = tokenDe((await llamar('enlace-firma', { body: { alumno_id: 1 } })).json.url);
+  BD.tablas.enlaces_firma[0].caduca = '2020-01-01T00:00:00Z';
+  const c = await llamar('firma-alumno', { method: 'GET', query: { t } });
+  assert.equal(c.status, 410); assert.equal(c.json.codigo, 'caducado');
+  delete process.env.AVISOS_SECRETO;
+  assert.equal((await llamar('firma-alumno', { method: 'GET', query: { t } })).status, 503);
+  process.env.AVISOS_SECRETO = 's3cr3t';
 });

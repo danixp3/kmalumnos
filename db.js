@@ -53,6 +53,7 @@ module.exports = {
   ...require('./db/procedencia'),
 
   getLogs: core.getLogs,
+  addLog: core.addLog,
   clearLogs: core.clearLogs,
   registrarLogEnData: core.registrarLogEnData,
   crearBackup: core.crearBackup,

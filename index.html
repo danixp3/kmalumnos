@@ -916,6 +916,7 @@
               <summary class="btn btn-outline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Documentos</summary>
               <div class="menu-fila-lista">
                 <button type="button" onclick="abrirFichaDGT(currentAlumnoId)">Ficha oficial DGT</button>
+                <button type="button" onclick="this.closest('details').open=false;abrirEnlaceFirma(currentAlumnoId)">Enlace para que firme sus clases…</button>
                 <button type="button" onclick="this.closest('details').open=false;abrirJuntarConOtro(currentAlumnoId)">Juntar con otra ficha (repetido)…</button>
                 <button type="button" onclick="this.closest('details').open=false;documentoAlumnoUI('contrato')">Contrato de enseñanza</button>
                 <button type="button" onclick="this.closest('details').open=false;documentoAlumnoUI('proteccion')">Hoja de protección de datos</button>
@@ -936,7 +937,7 @@
           <div class="ficha-col">
             <section class="card" id="ficha-kmclase"></section>
             <section class="card ficha-historial" aria-labelledby="h-historial">
-              <div class="card-head"><h2 id="h-historial">Historial de prácticas</h2><span class="card-note" id="ficha-historial-nota"></span></div>
+              <div class="card-head"><h2 id="h-historial">Historial de prácticas</h2><span class="card-note" id="ficha-historial-nota"></span><button type="button" class="btn btn-outline btn-sm ef-btn-ficha hidden" id="ficha-btn-firma" onclick="abrirEnlaceFirma(currentAlumnoId)" title="Mándale un enlace para que firme en su móvil las clases que se quedaron sin firmar"></button></div>
         <div id="dup-aviso" class="alert alert-warn hidden" style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px">
           <span id="dup-aviso-texto"></span>
           <button class="btn btn-warn btn-sm" onclick="revisarDuplicados()" style="flex-shrink:0">Revisar duplicados</button>
@@ -3708,6 +3709,7 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
 <script src="renderer/exportar-datos.js"></script>
 <script src="renderer/bloqueo.js"></script>
 <script src="renderer/legal.js"></script>
+<script src="renderer/enlace-firma.js"></script>
 <script src="renderer/arranque.js"></script>
 </body>
 </html>

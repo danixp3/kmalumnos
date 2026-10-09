@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#F3F2EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14161B" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="Firma tus clases prácticas">
+<meta property="og:description" content="Tu autoescuela te pide que firmes las clases que quedaron sin firmar">
+<link rel="icon" href="/logo.png">
+<title>Firma tus clases · AulaMovil</title>
+<style>
+  /*
+   * Página del ALUMNO para firmar las clases que se quedaron sin firmar (el
+   * profesor se olvidó de pasarle el móvil al terminar). Llega por un enlace
+   * /f/<código> que le manda la autoescuela (escritorio: ficha del alumno;
+   * móvil del profesor: detalle de la clase). Sin cuenta ni contraseña: el
+   * código del enlace es la llave y solo abre esas clases. API:
+   * /api/firma-alumno (lib/movil/firma-alumno.js). Mismo sistema visual que
+   * index.html (copiado a propósito: esta página no depende de la app).
+   * Rutas ABSOLUTAS (/fonts, /logo.png, /api): la página se sirve en /f/...
+   */
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/barlow-400-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/barlow-400-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/barlow-500-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/barlow-500-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/barlow-600-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/barlow-600-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/barlow-700-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'Barlow';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/barlow-700-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/barlow-condensed-700-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/barlow-condensed-700-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/ibm-plex-mono-500-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;}
+  @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url('/fonts/ibm-plex-mono-500-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+  :root {
+    --ink: #14161B; --on-ink: #FFFFFF; --sobre-ambar: #14161B;
+    --bg: #F3F2EE; --card: #FFFFFF; --campo: #FFFFFF;
+    --line: #E3E1DB; --line-2: #D6D3CC; --soft: #EEECE7;
+    --muted: #5E6068; --muted-2: #3A3D45; --faint: #6B6E76;
+    --amber: #FFB81C; --amber-strong: #E09A00; --amber-ink: #8A5800; --amber-soft: #FFF3D1;
+    --ok: #1D6B4F; --ok-soft: #E2F1E9; --err: #B42318; --err-soft: #FDECEA;
+    --font: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    --ios: cubic-bezier(.32,.72,0,1);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #F3F2EE; --on-ink: #14161B;
+      --bg: #14161B; --card: #1E2027; --campo: #171A20;
+      --line: #2F323B; --line-2: #3F434D; --soft: #2A2D35;
+      --muted: #A3A6AE; --muted-2: #C9CBD1; --faint: #8C8F97;
+      --amber-ink: #FFCF5C; --amber-soft: #33290F;
+      --ok: #6EE7B7; --ok-soft: #10301F; --err: #FCA5A5; --err-soft: #3A1518;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { background: var(--bg); }
+  body { font-family: var(--font); background: var(--bg); color: var(--ink); min-height: 100dvh; -webkit-font-smoothing: antialiased; font-size: 16px; line-height: 1.4; }
+  button { font-family: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+  textarea { font-family: inherit; font-size: 16px; color: var(--ink); }
+  [hidden] { display: none !important; }
+  .mono { font-family: var(--font-mono); font-weight: 500; }
+  svg.ic { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+  .pagina { max-width: 560px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) 16px 150px; }
+  .marca { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+  .marca .logo { width: 44px; height: 44px; border-radius: 12px; background: #fff; padding: 4px; box-shadow: 0 0 0 3px var(--amber); flex-shrink: 0; }
+  .marca .logo img { width: 100%; height: 100%; object-fit: contain; }
+  .marca b { display: block; font-family: var(--font-display); font-size: 22px; line-height: 1.05; }
+  .marca small { display: block; color: var(--muted); font-size: 14px; }
+
+  h1 { font-family: var(--font-display); font-size: 40px; font-weight: 700; line-height: 1; margin-bottom: 10px; }
+  .intro { color: var(--muted-2); font-size: 17px; }
+  .intro b { color: var(--ink); }
+  .quien { margin-top: 8px; color: var(--muted); font-size: 14px; }
+
+  .etq { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 24px 2px 8px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .lnk { background: none; border: 0; font-size: 15px; font-weight: 600; color: var(--ink); text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; gap: 4px; padding: 6px 2px; }
+
+  .dia { background: var(--card); border: 1px solid var(--line); border-radius: 18px; margin-bottom: 10px; overflow: hidden; transition: opacity .2s, border-color .2s; }
+  .dia.fuera { opacity: .62; }
+  .dia-cab { width: 100%; display: flex; align-items: flex-start; gap: 12px; padding: 14px 14px 10px; background: none; border: 0; text-align: left; }
+  .dia-cab:disabled { cursor: default; }
+  .marca-dia { width: 28px; height: 28px; border-radius: 9px; border: 2px solid var(--line-2); display: grid; place-items: center; flex-shrink: 0; margin-top: 2px; transition: background .15s, border-color .15s; }
+  .dia.dentro .marca-dia { background: var(--amber); border-color: var(--amber); color: var(--sobre-ambar); }
+  .dia.hecha .marca-dia { background: var(--ok-soft); border-color: var(--ok-soft); color: var(--ok); }
+  .dia-tit { display: block; font-size: 18px; font-weight: 700; line-height: 1.2; }
+  .dia-tit::first-letter { text-transform: uppercase; }
+  .dia-sub { color: var(--muted); font-size: 15px; margin-top: 2px; }
+  .dia-sub b { color: var(--ink); font-weight: 600; }
+  .datos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; padding: 4px 14px 14px 54px; }
+  .dato .k { font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+  .dato .v { font-size: 16px; font-weight: 600; margin-top: 1px; overflow-wrap: anywhere; }
+  .dato.ancho { grid-column: 1 / -1; }
+  .placa { display: inline-flex; align-items: center; height: 24px; padding: 0 7px; border: 1.5px solid #14161B; border-radius: 5px; background: #fff; color: #14161B; font-family: var(--font-mono); font-size: 13.5px; font-weight: 600; letter-spacing: .04em; }
+  .placa::before { content: ''; width: 6px; height: 100%; background: #1E4FB8; margin: 0 6px 0 -7px; border-radius: 3px 0 0 3px; }
+  .pill { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--soft); color: var(--muted-2); white-space: nowrap; }
+  .pill-ok { background: var(--ok-soft); color: var(--ok); }
+  .nota-fuera { padding: 0 14px 14px 54px; color: var(--muted); font-size: 14px; }
+
+  .caja-com { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; margin-top: 4px; }
+  .caja-com label { display: block; font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .caja-com textarea { width: 100%; min-height: 76px; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--campo); resize: vertical; outline: none; }
+  .caja-com textarea:focus { border-color: var(--ink); }
+
+  .firma-caja { position: relative; height: 220px; border: 2px dashed var(--line-2); border-radius: 18px; background: #fff; touch-action: none; overflow: hidden; }
+  .firma-caja canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  .firma-guia { position: absolute; left: 16px; right: 16px; bottom: 44px; border-bottom: 1.5px solid #D6D3CC; pointer-events: none; }
+  .firma-guia span { position: absolute; left: 0; bottom: 4px; color: #6B6E76; font-size: 22px; }
+  .firma-ayuda { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #6B6E76; font-size: 18px; pointer-events: none; }
+  .legal { margin: 10px 2px 0; font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+  .legal a { color: inherit; }
+
+  .barra { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 72%, transparent); z-index: 5; }
+  .barra > * { max-width: 528px; margin: 0 auto; }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 60px; padding: 0 20px; border-radius: 16px; border: 1px solid transparent; font-size: 19px; font-weight: 700; background: var(--amber); color: var(--sobre-ambar); transition: transform .2s var(--ios), background .15s; }
+  .btn:active { transform: scale(.98); background: var(--amber-strong); }
+  .btn[disabled] { background: var(--soft); color: #8C8F97; cursor: default; transform: none; }
+  .btn-sec { background: var(--card); border-color: var(--line-2); color: var(--ink); height: 52px; font-size: 17px; }
+  .ayuda-btn { text-align: center; color: var(--muted); font-size: 13.5px; margin-top: 6px; min-height: 18px; }
+  .err { display: flex; gap: 10px; align-items: flex-start; background: var(--err-soft); color: var(--err); border-radius: 14px; padding: 12px 14px; font-weight: 600; margin-top: 12px; }
+
+  .centro-msg { text-align: center; padding: 40px 8px 0; }
+  .centro-msg .circ { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 18px; background: var(--soft); color: var(--muted-2); }
+  .centro-msg .circ.ok { background: var(--ok-soft); color: var(--ok); animation: pop .5s var(--ios) both; }
+  .centro-msg h1 { font-size: 36px; }
+  .centro-msg p { color: var(--muted-2); font-size: 17px; margin-top: 8px; }
+  .resumen { text-align: left; margin-top: 26px; }
+  .cargando { padding: 50px 0; text-align: center; color: var(--muted); }
+  .esq { height: 120px; border-radius: 18px; background: var(--soft); margin-bottom: 10px; animation: brillo 1.2s ease-in-out infinite alternate; }
+  @keyframes brillo { from { opacity: .55; } to { opacity: 1; } }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media (max-width: 380px) { .datos { padding-left: 14px; } .nota-fuera { padding-left: 14px; } h1 { font-size: 34px; } }
+</style>
+</head>
+<body>
+<div class="pagina">
+  <header class="marca">
+    <span class="logo"><img src="/logo.png" alt=""></span>
+    <div><b id="marca-centro">AulaMovil</b><small id="marca-sub">Firma de clases prácticas</small></div>
+  </header>
+  <main id="app" aria-live="polite">
+    <div class="esq"></div><div class="esq"></div>
+    <p class="cargando">Cargando tus clases…</p>
+  </main>
+</div>
+<div class="barra" id="barra" hidden>
+  <div>
+    <button class="btn" id="btn-firmar" disabled onclick="enviar()"></button>
+    <div class="ayuda-btn" id="ayuda-btn"></div>
+  </div>
+</div>
+<script>
+'use strict';
+// ─── Estado ────────────────────────────────────────────────────────────────
+const T = (location.pathname.match(/^\/f\/([A-Za-z0-9_-]{20,64})\/?$/) || [])[1] || new URLSearchParams(location.search).get('t') || '';
+const E = { datos: null, grupos: [], fuera: new Set(), trazos: 0, caja: null, enviando: false, hecho: null };
+let lienzo = null, ctx = null, dibujando = false, ultimoPunto = null, ultimoMedio = null;
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const IC = {
+  ok: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  borrar: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+  aviso: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+  reloj: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  lapiz: '<path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>'
+};
+const ic = (n, t = 20, extra = '') => `<svg class="ic" width="${t}" height="${t}" viewBox="0 0 24 24" aria-hidden="true" ${extra}>${IC[n]}</svg>`;
+const miles = n => Math.round(Number(n) || 0).toLocaleString('es-ES', { useGrouping: true });
+const FR = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
+function fmtC(n) {
+  n = Math.round(n * 4) / 4;
+  const e = Math.floor(n), f = Math.round((n - e) * 100) / 100;
+  if (!f) return String(e);
+  return e ? `${e} ${FR[f]}` : FR[f];
+}
+const clasesTxt = n => `${fmtC(n)} ${n > 1 ? 'clases' : 'clase'}`;
+const valeClase = p => (p.fraccion > 0 && p.fraccion < 1 ? Number(p.fraccion) : 1);
+function fechaLarga(iso) {
+  const [y, m, d] = String(iso).split('-').map(Number);
+  if (!y || !m || !d) return String(iso || '');
+  return new Date(y, m - 1, d).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+function fechaHoraCorta(ts) {
+  const d = new Date(ts); if (isNaN(d)) return '';
+  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
+}
+// «MARICELY» → «Maricely» (los nombres suelen estar en mayúsculas); «María José» se queda igual
+const bonito = s => (s && s === s.toUpperCase() ? s.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()) : s);
+const nombreCentro = () => { const c = E.datos && E.datos.centro; return c && (c.comercial || c.nombre) || ''; };
+
+// ─── Carga ─────────────────────────────────────────────────────────────────
+async function cargar() {
+  if (!T) { pintarError('Enlace incompleto', 'Falta el código del enlace. Ábrelo tal y como te lo envió tu autoescuela, o pídeles otro.'); return; }
+  let res, data;
+  try {
+    res = await fetch('/api/firma-alumno?t=' + encodeURIComponent(T), { cache: 'no-store' });
+    data = await res.json().catch(() => ({}));
+  } catch (e) {
+    pintarError('Sin conexión', 'No se pudo cargar. Comprueba que tienes internet y vuelve a intentarlo.', true);
+    return;
+  }
+  if (!res.ok || !data.ok) {
+    const tit = data.codigo === 'caducado' ? 'Enlace caducado' : data.codigo === 'anulado' ? 'Enlace anulado' : data.codigo === 'no_existe' ? 'Enlace no válido' : 'No se pudo cargar';
+    pintarError(tit, data.error || 'Inténtalo de nuevo en un rato.', res.status >= 500);
+    return;
+  }
+  E.datos = data;
+  E.grupos = agrupar(data.practicas || []);
+  const nc = nombreCentro();
+  if (nc) { document.getElementById('marca-centro').textContent = nc; document.getElementById('marca-sub').textContent = 'Firma de clases prácticas · AulaMovil'; }
+  if (!E.grupos.some(g => g.firmable)) { pintarTodoFirmado(); return; }
+  pintarFirmar();
+}
+
+// Las clases del mismo día y coche van juntas (como en la ficha de la DGT):
+// se confirman y se firman a la vez.
+function agrupar(lista) {
+  const mapa = new Map();
+  for (const p of lista) {
+    const k = `${p.fecha}|${p.vehiculo_id}`;
+    if (!mapa.has(k)) mapa.set(k, []);
+    mapa.get(k).push(p);
+  }
+  return [...mapa.entries()].map(([k, ps]) => {
+    ps.sort((a, b) => (a.hora_inicio || '').localeCompare(b.hora_inicio || '') || a.id - b.id);
+    const pendientes = ps.filter(p => p.firmable);
+    const conKm = ps.filter(p => p.km_final > 0);
+    const nums = ps.map(p => p.clase_n).filter(Boolean);
+    const horaIni = (ps.find(p => p.hora_inicio) || {}).hora_inicio || '';
+    const horaFin = (ps.slice().reverse().find(p => p.hora_fin) || {}).hora_fin || '';
+    const unir = arr => [...new Set(arr.flatMap(p => Array.isArray(p) ? p : []))];
+    return {
+      k, fecha: ps[0].fecha, ps, ids: pendientes.map(p => p.id),
+      firmable: pendientes.length > 0, firmada: ps.every(p => p.firmada),
+      clases: ps.reduce((s, p) => s + valeClase(p), 0),
+      desde: nums.length ? Math.min(...nums) : null, hasta: nums.length ? Math.max(...nums) : null,
+      horaIni, horaFin,
+      kmIni: conKm.length ? conKm[0].km_inicial : null, kmFin: conKm.length ? conKm[conKm.length - 1].km_final : null,
+      km: conKm.reduce((s, p) => s + Math.max(0, p.km_final - p.km_inicial), 0),
+      kmAuto: conKm.some(p => p.km_auto), pista: ps.every(p => p.tipo === 'pista'),
+      profesor: [...new Set(ps.map(p => p.profesor).filter(Boolean))].join(', '),
+      vehiculo: ps[0].vehiculo, matricula: ps[0].matricula,
+      zonas: unir(ps.map(p => p.zonas)), trabajado: unir(ps.map(p => p.trabajado))
+    };
+  }).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.horaIni.localeCompare(b.horaIni));
+}
+
+// ─── Pintado ───────────────────────────────────────────────────────────────
+function numerosTxt(g) {
+  if (!g.desde) return '';
+  return g.desde === g.hasta ? `nº ${g.desde}` : `nº ${g.desde} a ${g.hasta}`;
+}
+function htmlGrupo(g, conMarca) {
+  const dentro = conMarca && g.firmable && !E.fuera.has(g.k);
+  const estado = g.firmada ? 'hecha' : dentro ? 'dentro' : (conMarca && g.firmable ? 'fuera' : '');
+  const horario = g.horaIni ? `${esc(g.horaIni)}${g.horaFin ? ' – ' + esc(g.horaFin) : ''}` : '';
+  const sub = [horario && `<span class="mono">${horario}</span>`, `<b>${esc(clasesTxt(g.clases))}</b>`, esc(numerosTxt(g))].filter(Boolean).join(' · ');
+  const coche = g.matricula ? `<span class="placa">${esc(g.matricula)}</span>${g.vehiculo ? ` <small style="color:var(--muted)">${esc(g.vehiculo)}</small>` : ''}` : esc(g.vehiculo || '—');
+  const km = g.kmIni != null
+    ? `<span class="mono">${miles(g.kmIni)} → ${miles(g.kmFin)}</span> · ${miles(g.km)} km${g.kmAuto ? ' <small style="color:var(--muted)">(calculados)</small>' : ''}`
+    : (g.pista ? 'Pista (sin km)' : '—');
+  const marca = g.firmada ? ic('ok', 18, 'style="stroke-width:2.8"') : (dentro ? ic('ok', 18, 'style="stroke-width:2.8"') : '');
+  const pill = g.firmada ? ' <span class="pill pill-ok">Ya firmada</span>' : '';
+  return `<section class="dia ${estado}">
+    <button class="dia-cab" ${conMarca && g.firmable ? `onclick="alternar(${E.grupos.indexOf(g)})" aria-pressed="${dentro}"` : 'disabled'}>
+      <span class="marca-dia" aria-hidden="true">${marca}</span>
+      <span style="flex:1;min-width:0"><span class="dia-tit">${esc(fechaLarga(g.fecha))}</span>${pill}<span class="dia-sub" style="display:block">${sub}</span></span>
+    </button>
+    <div class="datos">
+      <div class="dato"><div class="k">Profesor</div><div class="v">${esc(g.profesor || '—')}</div></div>
+      <div class="dato"><div class="k">Vehículo</div><div class="v">${coche}</div></div>
+      <div class="dato ancho"><div class="k">Kilómetros</div><div class="v">${km}</div></div>
+      ${g.zonas.length ? `<div class="dato ancho"><div class="k">Zonas recorridas</div><div class="v">${esc(g.zonas.join(' · '))}</div></div>` : ''}
+      ${g.trabajado.length ? `<div class="dato ancho"><div class="k">Qué se trabajó</div><div class="v">${esc(g.trabajado.join(' · '))}</div></div>` : ''}
+    </div>
+    ${conMarca && g.firmable && !dentro ? '<div class="nota-fuera">No se firmará. Si algo no cuadra, cuéntalo abajo.</div>' : ''}
+  </section>`;
+}
+
+function pintarFirmar() {
+  const d = E.datos;
+  const pend = E.grupos.filter(g => g.firmable);
+  const ya = E.grupos.filter(g => !g.firmable);
+  const nClases = pend.reduce((s, g) => s + g.ps.filter(p => p.firmable).reduce((t, p) => t + valeClase(p), 0), 0);
+  const nombre = bonito(String((d.alumno && d.alumno.nombre) || '').trim().split(/\s+/)[0] || '');
+  const nc = nombreCentro();
+  document.getElementById('app').innerHTML = `
+    <h1>${nombre ? `Hola, ${esc(nombre)}` : 'Hola'}</h1>
+    <p class="intro">${nc ? `<b>${esc(nc)}</b>` : 'Tu autoescuela'} te pide que firmes ${nClases === 1 && pend.length === 1 ? 'una clase práctica que se quedó' : `<b>${esc(clasesTxt(nClases))}</b> prácticas que se quedaron`} sin firmar. Revisa que los datos son correctos y firma abajo.</p>
+    <p class="quien">${d.creado_por ? `Te lo envía ${esc(d.creado_por)} · ` : ''}${d.caduca ? `El enlace vale hasta el ${esc(fechaHoraCorta(d.caduca))}` : ''}</p>
+    <div class="etq"><span>${pend.length === 1 ? 'Clase por firmar' : `Clases por firmar · ${pend.length} días`}</span>${pend.length > 1 ? '<span style="text-transform:none;letter-spacing:0;font-weight:500">Toca un día para quitarlo</span>' : ''}</div>
+    <div id="lista">${pend.map(g => htmlGrupo(g, true)).join('')}</div>
+    <div id="caja-com" class="caja-com" hidden>
+      <label for="comentario">¿Qué no cuadra? <small style="color:var(--muted);font-weight:500">(opcional, lo verá tu autoescuela)</small></label>
+      <textarea id="comentario" maxlength="500" placeholder="Por ejemplo: ese día no tuve clase, o fue solo una"></textarea>
+    </div>
+    ${ya.length ? `<div class="etq"><span>Ya firmadas</span></div>${ya.map(g => htmlGrupo(g, false)).join('')}` : ''}
+    <div class="etq"><span>Tu firma</span><button class="lnk" onclick="borrarFirma()">${ic('borrar', 16)} Borrar</button></div>
+    <div class="firma-caja" id="firma-caja"><canvas id="firma-cv" aria-label="Recuadro para firmar con el dedo"></canvas><div class="firma-ayuda" id="firma-ayuda">Firma aquí con el dedo</div><div class="firma-guia"><span>×</span></div></div>
+    <p class="legal" id="legal"></p>
+    <div id="err-envio"></div>`;
+  document.getElementById('barra').hidden = false;
+  iniciarLienzo();
+  actualizar();
+}
+
+function seleccion() {
+  const dentro = E.grupos.filter(g => g.firmable && !E.fuera.has(g.k));
+  const ids = dentro.flatMap(g => g.ids);
+  const clases = dentro.reduce((s, g) => s + g.ps.filter(p => p.firmable).reduce((t, p) => t + valeClase(p), 0), 0);
+  const fuera = E.grupos.filter(g => g.firmable && E.fuera.has(g.k)).flatMap(g => g.ids);
+  return { ids, clases, fuera };
+}
+
+function actualizar() {
+  const s = seleccion();
+  const btn = document.getElementById('btn-firmar'), ayuda = document.getElementById('ayuda-btn');
+  const com = document.getElementById('comentario');
+  document.getElementById('caja-com').hidden = !s.fuera.length;
+  const nc = nombreCentro();
+  document.getElementById('legal').innerHTML = s.ids.length
+    ? `Al firmar confirmas que recibiste ${s.clases === 1 ? 'esta clase práctica' : `estas ${esc(fmtC(s.clases))} clases prácticas`} con los datos de arriba. Se guarda solo la imagen de tu firma, para tu ficha de formación. Responsable de tus datos: ${nc ? `<b>${esc(nc)}</b>` : 'tu autoescuela'}. <a href="/legal/alumnos.html" target="_blank" rel="noopener noreferrer">Más información</a>`
+    : 'No has marcado ninguna clase: no se firmará nada.';
+  if (E.enviando) return;
+  if (!s.ids.length) {
+    const hayCom = !!(com && com.value.trim());
+    btn.disabled = !hayCom;
+    btn.innerHTML = `${ic('aviso', 20)} Enviar el aviso`;
+    ayuda.textContent = hayCom ? 'Solo se envía tu comentario; no se firma nada.' : 'Marca alguna clase para firmarla, o escribe qué no cuadra.';
+    return;
+  }
+  btn.disabled = E.trazos <= 8;
+  btn.innerHTML = `${ic('ok', 20, 'style="stroke-width:2.6"')} Firmar ${s.ids.length === 1 && s.clases <= 1 ? 'la clase' : esc(clasesTxt(s.clases))}`;
+  ayuda.textContent = E.trazos <= 8 ? 'Firma en el recuadro para poder enviar.' : '';
+}
+
+function alternar(i) {
+  const g = E.grupos[i]; if (E.enviando || !g) return;
+  const k = g.k;
+  if (E.fuera.has(k)) E.fuera.delete(k); else E.fuera.add(k);
+  const com = document.getElementById('comentario');
+  const texto = com ? com.value : '';
+  document.getElementById('lista').innerHTML = E.grupos.filter(g => g.firmable).map(g => htmlGrupo(g, true)).join('');
+  if (com) com.value = texto;
+  actualizar();
+}
+
+// ─── Lienzo de firma (igual que en el móvil del profesor) ──────────────────
+function iniciarLienzo() {
+  lienzo = document.getElementById('firma-cv'); if (!lienzo) return;
+  const caja = document.getElementById('firma-caja');
+  const dpr = window.devicePixelRatio || 1;
+  lienzo.width = caja.clientWidth * dpr; lienzo.height = caja.clientHeight * dpr;
+  ctx = lienzo.getContext('2d'); ctx.scale(dpr, dpr);
+  ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#14161B';
+  E.trazos = 0; E.caja = null;
+  const punto = e => {
+    const r = lienzo.getBoundingClientRect(); const p = { x: e.clientX - r.left, y: e.clientY - r.top };
+    const c = E.caja || (E.caja = { x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+    c.x0 = Math.min(c.x0, p.x); c.y0 = Math.min(c.y0, p.y); c.x1 = Math.max(c.x1, p.x); c.y1 = Math.max(c.y1, p.y);
+    return p;
+  };
+  lienzo.onpointerdown = e => {
+    if (E.enviando) return;
+    e.preventDefault(); lienzo.setPointerCapture(e.pointerId); dibujando = true;
+    ultimoPunto = punto(e); ultimoMedio = ultimoPunto;
+    ctx.beginPath(); ctx.arc(ultimoPunto.x, ultimoPunto.y, 1.2, 0, 6.3); ctx.fillStyle = '#14161B'; ctx.fill();
+    document.getElementById('firma-ayuda').hidden = true;
+  };
+  lienzo.onpointermove = e => {
+    if (!dibujando) return; e.preventDefault();
+    const p = punto(e); const m = { x: (ultimoPunto.x + p.x) / 2, y: (ultimoPunto.y + p.y) / 2 };
+    ctx.beginPath(); ctx.moveTo(ultimoMedio.x, ultimoMedio.y); ctx.quadraticCurveTo(ultimoPunto.x, ultimoPunto.y, m.x, m.y); ctx.stroke();
+    ultimoMedio = m; ultimoPunto = p; E.trazos++;
+    if (E.trazos === 9) actualizar();
+  };
+  const fin = () => { dibujando = false; };
+  lienzo.onpointerup = fin; lienzo.onpointercancel = fin; lienzo.onpointerleave = fin;
+}
+function borrarFirma() {
+  if (!ctx || E.enviando) return;
+  ctx.clearRect(0, 0, lienzo.width, lienzo.height); E.trazos = 0; E.caja = null;
+  document.getElementById('firma-ayuda').hidden = false;
+  actualizar();
+}
+// Recortada al contorno de lo dibujado y reducida: un PNG pequeño (5-25 KB)
+function firmaComoPNG(anchoMax = 480) {
+  const dpr = lienzo.width / (lienzo.clientWidth || lienzo.width) || 1;
+  let x0 = 0, y0 = 0, w = lienzo.clientWidth, h = lienzo.clientHeight;
+  const c = E.caja, m = 12;
+  if (c) {
+    x0 = Math.max(0, c.x0 - m); y0 = Math.max(0, c.y0 - m);
+    w = Math.max(1, Math.min(lienzo.clientWidth, c.x1 + m) - x0); h = Math.max(1, Math.min(lienzo.clientHeight, c.y1 + m) - y0);
+  }
+  const escala = Math.min(1, anchoMax / w);
+  const tmp = document.createElement('canvas');
+  tmp.width = Math.max(1, Math.round(w * escala)); tmp.height = Math.max(1, Math.round(h * escala));
+  tmp.getContext('2d').drawImage(lienzo, x0 * dpr, y0 * dpr, w * dpr, h * dpr, 0, 0, tmp.width, tmp.height);
+  return tmp.toDataURL('image/png');
+}
+
+// ─── Envío (una sola vez; repetirlo no firma dos veces: el servidor lo ignora) ─
+async function enviar() {
+  if (E.enviando) return;
+  const s = seleccion();
+  const com = document.getElementById('comentario');
+  const comentario = com && !document.getElementById('caja-com').hidden ? com.value.trim() : '';
+  if (!s.ids.length && !comentario) return;
+  if (s.ids.length && E.trazos <= 8) return;
+  const btn = document.getElementById('btn-firmar');
+  E.enviando = true; btn.disabled = true; btn.textContent = 'Enviando…';
+  document.getElementById('err-envio').innerHTML = '';
+  let firma = null;
+  if (s.ids.length) { firma = firmaComoPNG(); if (firma.length > 150000) firma = firmaComoPNG(300); }
+  try {
+    const res = await fetch('/api/firma-alumno', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
+      body: JSON.stringify({ t: T, practica_ids: s.ids, firma, no_confirmadas: s.fuera, comentario })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      if (res.status === 410 || res.status === 404) { E.enviando = false; pintarError(data.codigo === 'caducado' ? 'Enlace caducado' : 'Enlace no válido', data.error || ''); return; }
+      throw new Error(data.error || 'No se pudo enviar. Inténtalo de nuevo.');
+    }
+    E.hecho = { firmadas: (data.firmadas || []).length + (data.ya_firmadas || []).length, clases: s.clases, fuera: s.fuera.length, comentario: !!comentario };
+    E.enviando = false;
+    pintarHecho();
+  } catch (e) {
+    E.enviando = false;
+    const sinRed = e instanceof TypeError || !navigator.onLine;
+    document.getElementById('err-envio').innerHTML = `<div class="err">${ic('aviso', 20)}<span>${esc(sinRed ? 'Sin conexión: tu firma sigue aquí. Comprueba que tienes internet y vuelve a pulsar.' : e.message)}</span></div>`;
+    actualizar();
+  }
+}
+
+// ─── Pantallas finales ─────────────────────────────────────────────────────
+function pintarHecho() {
+  document.getElementById('barra').hidden = true;
+  const h = E.hecho, nc = nombreCentro();
+  const firmo = h.firmadas > 0;
+  document.getElementById('app').innerHTML = `<div class="centro-msg">
+    <div class="circ ${firmo ? 'ok' : ''}">${ic(firmo ? 'ok' : 'aviso', 40, 'style="stroke-width:2.4"')}</div>
+    <h1>${firmo ? '¡Listo, gracias!' : 'Aviso enviado'}</h1>
+    <p>${firmo ? `Has firmado ${h.clases === 1 ? 'la clase' : esc(clasesTxt(h.clases))}. ${nc ? esc(nc) : 'Tu autoescuela'} ya lo tiene en tu ficha.` : `${nc ? esc(nc) : 'Tu autoescuela'} verá tu comentario.`}</p>
+    ${firmo && h.fuera ? `<p>Las clases que quitaste se han quedado sin firmar${h.comentario ? ' y tu autoescuela verá tu comentario' : ''}.</p>` : ''}
+    <p style="font-size:15px;color:var(--muted);margin-top:18px">Ya puedes cerrar esta página.</p>
+  </div>`;
+}
+function pintarTodoFirmado() {
+  document.getElementById('barra').hidden = true;
+  document.getElementById('app').innerHTML = `<div class="centro-msg">
+    <div class="circ ok">${ic('ok', 40, 'style="stroke-width:2.4"')}</div>
+    <h1>Todo firmado</h1>
+    <p>Las clases de este enlace ya están firmadas. No tienes que hacer nada más.</p>
+  </div>
+  <div class="resumen">${E.grupos.map(g => htmlGrupo(g, false)).join('')}</div>`;
+}
+function pintarError(titulo, texto, reintentar) {
+  document.getElementById('barra').hidden = true;
+  document.getElementById('app').innerHTML = `<div class="centro-msg">
+    <div class="circ">${ic('aviso', 40)}</div>
+    <h1>${esc(titulo)}</h1>
+    <p>${esc(texto)}</p>
+    ${reintentar ? '<button class="btn btn-sec" style="margin-top:22px" onclick="location.reload()">Volver a intentarlo</button>' : ''}
+  </div>`;
+}
+
+document.addEventListener('input', e => { if (e.target && e.target.id === 'comentario') actualizar(); });
+// Girar el teléfono cambia el tamaño del recuadro: se prepara de nuevo (vacío)
+let anchoAntes = window.innerWidth;
+window.addEventListener('resize', () => {
+  if (Math.abs(window.innerWidth - anchoAntes) < 40 || !lienzo || E.enviando) return;
+  anchoAntes = window.innerWidth;
+  iniciarLienzo(); document.getElementById('firma-ayuda').hidden = false; actualizar();
+});
+cargar();
+</script>
+</body>
+</html>

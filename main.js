@@ -1353,6 +1353,18 @@ ipcMain.handle('install-update', () => {
 ipcMain.handle('sync-now', async () => sync.sync());
 ipcMain.handle('sondear-nube', async () => sync.sondearAhora());
 ipcMain.handle('cerrar-otras-sesiones', async () => sync.cerrarOtrasSesiones());
+// Enlace para que el alumno firme desde su móvil las clases que se quedaron sin firmar
+ipcMain.handle('get-clases-sin-firma', (_, alumnoId) => db.getClasesSinFirma(alumnoId));
+ipcMain.handle('crear-enlace-firma', async (_, opciones) => {
+  const r = await sync.crearEnlaceFirma(opciones);
+  if (r && r.ok) {
+    const a = db.getAlumnos().find(x => x.id === parseInt(opciones.alumno_id));
+    db.addLog('enlace_firma', `Enlace de firma para ${a ? [a.nombre, a.primer_apellido].filter(Boolean).join(' ') : 'el alumno ' + opciones.alumno_id}: ${r.n} ${r.n === 1 ? 'clase' : 'clases'}`, []);
+  }
+  return r;
+});
+ipcMain.handle('listar-enlaces-firma', async (_, alumnoId) => sync.listarEnlacesFirma(alumnoId));
+ipcMain.handle('anular-enlace-firma', async (_, id) => sync.anularEnlaceFirma(id));
 ipcMain.handle('sync-push-all', async () => sync.pushAll());
 ipcMain.handle('sync-status', () => sync.getStatus());
 

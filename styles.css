@@ -3388,6 +3388,38 @@ tr.fila-sep-proc td svg { vertical-align: -1px; margin-right: 4px; }
 .ficha-prof.actual { border-color: var(--accent); background: var(--accent-light); }
 .ficha-prof-flecha { color: var(--text-faint); }
 
+/* ── Enlace para que el alumno firme (2026-10-09, renderer/enlace-firma.js) ── */
+.ef-acciones { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; color: var(--text-muted); }
+.ef-acciones span { margin-right: auto; font-weight: 600; }
+.ef-lista { max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
+.ef-clase { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13.5px; cursor: pointer; }
+.ef-clase:last-child { border-bottom: none; }
+.ef-clase:hover { background: var(--surface-2); }
+.ef-clase input { width: auto; margin: 0; }
+.ef-clase.ef-no { cursor: default; color: var(--text-faint); }
+.ef-clase.ef-no:hover { background: transparent; }
+.ef-n { min-width: 26px; text-align: right; color: var(--text-muted); font-size: 12.5px; }
+.ef-fecha { font-weight: 600; min-width: 150px; }
+.ef-det { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--text-muted); }
+.ef-tag { font-size: 11px; padding: 1px 8px; }
+.ef-sin { font-size: 12px; color: var(--warn-fg); }
+.ef-pie-form { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13.5px; }
+.ef-pie-form label { white-space: nowrap; margin: 0; }
+.modal .ef-pie-form select { width: auto; min-width: 120px; }
+.ef-url { display: flex; gap: 8px; margin-top: 12px; }
+.ef-url input { flex: 1; min-width: 0; font-family: var(--font-mono, monospace); font-size: 13px; }
+.ef-botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ef-botones .btn { display: inline-flex; align-items: center; gap: 6px; }
+.ef-enlaces { margin-top: 18px; }
+.ef-enlaces:empty { display: none; }
+.ef-enl-tit { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+.ef-enl { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.ef-enl-l { flex: 1; min-width: 0; }
+.ef-enl-com { margin-top: 3px; font-style: italic; color: var(--text); }
+.ef-enl-aviso { margin-top: 3px; color: var(--warn-fg); }
+.ef-cargando { font-size: 13px; color: var(--text-faint); padding: 6px 0; }
+.ef-btn-ficha { margin-left: auto; }
+
 /* ── ESPACIADOS Y DETALLES (2026-10-09) ─────────────────────────────────────────
    Cosas que quedaban pegadas a lo de al lado o sin estilo. */
 /* Filtros (Desde/Hasta…) encima de una tabla: separados de ella */

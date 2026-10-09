@@ -103,7 +103,7 @@ test('el aviso de datos nuevos dice cuántas clases llegaron', async () => {
   sync.onDatosNuevos(null);
 
   expect(res.pulled).toBe(2);
-  expect(avisos).toEqual([{ pulled: 2, practicas: 2 }]);
+  expect(avisos).toEqual([{ pulled: 2, practicas: 2, firmas: 0 }]);
 });
 
 test('un sync que no trae nada no avisa a la pantalla', async () => {
