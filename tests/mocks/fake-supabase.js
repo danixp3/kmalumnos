@@ -110,6 +110,7 @@ module.exports = function makeFakeSupabase(remote) {
       gt(col, val) { state.filters.push(r => String(r[col] ?? '') > val); return api; },
       eq(col, val) { state.filters.push(r => r[col] === val); return api; },
       in(col, vals) { state.filters.push(r => vals.includes(r[col])); return api; },
+      is(col, val) { state.filters.push(r => (r[col] ?? null) === val); return api; },
       range(desde, hasta) { state.range = [desde, hasta]; return api; },
       order(col, opts = {}) { state.order = { col, ascending: opts.ascending !== false }; return api; },
       upsert(payload, opts = {}) { state.op = 'upsert'; state.payload = payload; state.onConflict = opts.onConflict; return api; },
