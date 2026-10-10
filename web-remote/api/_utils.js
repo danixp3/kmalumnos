@@ -216,14 +216,22 @@ export function limpiarZonas(v) {
 }
 
 // PostgREST devuelve como mucho 1.000 filas por consulta: pide páginas hasta
-// el final. `construir` devuelve una consulta nueva en cada llamada.
-export async function traerTodo(construir, tam = 1000) {
+// el final. `construir` devuelve una consulta nueva en cada llamada. Si la
+// primera página viene llena, las siguientes se piden de `tanda` en `tanda` a
+// la vez (3.400 alumnos: 2 viajes a la base de datos en vez de 4).
+export async function traerTodo(construir, tam = 1000, tanda = 4) {
   const filas = [];
-  for (let desde = 0; ; desde += tam) {
-    const { data, error } = await construir().range(desde, desde + tam - 1);
-    if (error) return { data: null, error };
-    filas.push(...(data || []));
-    if (!data || data.length < tam) return { data: filas, error: null };
+  const pagina = desde => construir().range(desde, desde + tam - 1);
+  let siguientes = [0];
+  for (;;) {
+    const respuestas = await Promise.all(siguientes.map(pagina));
+    for (const { data, error } of respuestas) {
+      if (error) return { data: null, error };
+      filas.push(...(data || []));
+      if (!data || data.length < tam) return { data: filas, error: null };
+    }
+    const desde = siguientes[siguientes.length - 1] + tam;
+    siguientes = Array.from({ length: tanda }, (_, i) => desde + i * tam);
   }
 }
 

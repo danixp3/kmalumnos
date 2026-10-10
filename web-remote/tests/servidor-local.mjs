@@ -1,7 +1,8 @@
 // Servidor de pruebas LOCAL de la web móvil: sirve web-remote/ y ejecuta los endpoints REALES contra el Supabase falso en memoria.
 // node --import ./web-remote/tests/register.mjs web-remote/tests/servidor-local.mjs   → http://localhost:8123
 // Sesión simulada: localStorage.km_sesion = {access_token:'x.<base64url {"sub":"emp1"}>.y', refresh_token:'r', expires_at:<futuro>, user:{id:'emp1'}} y kmalumnos_profesor:emp1 = {id:1,nombre:'...'}.
-// /__corte?v=1 devuelve 503 en /api (simula no tener cobertura; v=0 la devuelve), /__estado vuelca la BD simulada.
+// /__corte?v=1 devuelve 503 en /api (simula no tener cobertura; v=0 la devuelve), /__lento?ms=4000 hace que cada /api tarde
+// eso (red lenta), /__estado vuelca la BD simulada.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -74,13 +75,16 @@ BD.funciones.firma_enlace_firmar = p => {
 const MOVIL = ['hoy', 'iniciar-practica', 'finalizar-practica', 'firmar-practica', 'cancelar-practica', 'config', 'calendario', 'practica-detalle', 'anotar-practica', 'registrar-clase', 'firma-profesor', 'coche-profesor', 'km-coche', 'estado-practica', 'corregir-clases', 'avisos', 'enlace-firma', 'firma-alumno'];
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.woff2': 'font/woff2', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 let desconectado = false;   // simula «sin cobertura» desde el servidor: corta /api con 503
+let lento = 0;              // /__lento?ms=4000: cada /api tarda eso (red lenta al abrir la app; ms=0 la quita)
 
 http.createServer(async (req, res0) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/__estado') { res0.setHeader('content-type', 'application/json'); return res0.end(JSON.stringify({ practicas: BD.tablas.practicas, vehiculos: BD.tablas.vehiculos, enlaces_firma: BD.tablas.enlaces_firma })); }
   if (url.pathname === '/__corte') { desconectado = url.searchParams.get('v') === '1'; return res0.end('ok ' + desconectado); }
+  if (url.pathname === '/__lento') { lento = parseInt(url.searchParams.get('ms')) || 0; return res0.end('ok ' + lento); }
   if (url.pathname.startsWith('/api/')) {
     if (desconectado) { res0.statusCode = 503; return res0.end('{"error":"corte"}'); }
+    if (lento) await new Promise(ok => setTimeout(ok, lento));
     const nombre = url.pathname.slice(5);
     let body = '';
     for await (const c of req) body += c;

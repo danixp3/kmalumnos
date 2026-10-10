@@ -1,13 +1,14 @@
 // Service worker de AulaMovil: hace que la web del móvil se pueda instalar como
 // app (Android: «Instalar aplicación»; iOS: «Añadir a pantalla de inicio»).
 //  - Páginas: primero la red, así siempre se ve la última versión publicada;
-//    sin cobertura se abre la última copia guardada.
+//    sin cobertura, o si la red no contesta en 3 s, se abre la última copia guardada.
 //  - Fuentes e iconos: desde la caché (no cambian).
 //  - /api y Supabase: nunca se guardan aquí (datos vivos y privados); la web guarda
 //    en la tablet, con su propia lógica (offline.js), la última lectura y lo pendiente de enviar.
 //  - Avisos de la práctica (Web Push): los manda el servidor a su hora y aquí
 //    se muestran aunque la app esté cerrada; al tocarlos se abre la app.
 const VERSION = 'aulamovil-v3';
+const ESPERA_PAGINA_MS = 3000;
 // Todo lo que la app necesita para abrirse sin cobertura (dentro del coche no hay datos)
 const FUENTES = ['barlow-400', 'barlow-500', 'barlow-600', 'barlow-700', 'barlow-condensed-600', 'barlow-condensed-700', 'ibm-plex-mono-500', 'ibm-plex-mono-600']
   .flatMap(f => [`/fonts/${f}-latin.woff2`, `/fonts/${f}-latin-ext.woff2`]);
@@ -32,12 +33,22 @@ self.addEventListener('fetch', e => {
 
   if (r.mode === 'navigate') {
     const esApp = url.pathname === '/' || url.pathname === '/index.html';
-    e.respondWith(fetch(r)
-      .then(res => {
-        if (res.ok && esApp) { const copia = res.clone(); caches.open(VERSION).then(c => c.put('/', copia)); }
-        return res;
-      })
-      .catch(() => caches.match(esApp ? '/' : r).then(x => x || Response.error())));
+    let guardando = null;
+    const deRed = fetch(r).then(res => {
+      if (res.ok && esApp) { const copia = res.clone(); guardando = caches.open(VERSION).then(c => c.put('/', copia)).catch(() => {}); }
+      return res;
+    });
+    const guardada = () => caches.match(esApp ? '/' : r);
+    if (e.waitUntil) e.waitUntil(deRed.then(() => guardando, () => {}));   // la versión nueva queda guardada aunque se abra la copia
+    // Cobertura mala (la red ni contesta ni falla, p. ej. en un garaje): a los
+    // ESPERA_PAGINA_MS se abre la copia guardada en vez de dejar la pantalla en blanco.
+    e.respondWith(new Promise(resolver => {
+      let dada = false;
+      const dar = x => { if (!dada && x) { dada = true; resolver(x); } };
+      const reloj = setTimeout(() => guardada().then(dar, () => {}), ESPERA_PAGINA_MS);
+      deRed.then(res => { clearTimeout(reloj); dar(res); },
+        () => { clearTimeout(reloj); guardada().then(x => dar(x || Response.error()), () => dar(Response.error())); });
+    }));
     return;
   }
 

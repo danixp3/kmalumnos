@@ -9,7 +9,7 @@ const codigo = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
 
 function crearEntorno({ servidor }) {
   const manejadores = {}, almacenes = new Map();
-  let conRed = true;
+  let conRed = true, colgada = false;
   const clave = r => (typeof r === 'string' ? new URL(r, 'https://app.test') : new URL(r.url)).pathname;
   const cache = nombre => {
     if (!almacenes.has(nombre)) almacenes.set(nombre, new Map());
@@ -22,7 +22,8 @@ function crearEntorno({ servidor }) {
     };
   };
   const entorno = {
-    URL, Response, console,
+    URL, Response, console, clearTimeout,
+    setTimeout: (f, ms) => setTimeout(f, Math.min(ms, 30)),   // los 3 s de espera, en 30 ms
     self: { location: { origin: 'https://app.test' }, addEventListener: (t, f) => { manejadores[t] = f; }, skipWaiting: async () => {}, clients: { claim: async () => {}, matchAll: async () => [] }, registration: { showNotification: async () => {} } },
     caches: {
       open: async n => cache(n),
@@ -32,6 +33,7 @@ function crearEntorno({ servidor }) {
     },
     fetch: async r => {
       const ruta = clave(r);
+      if (colgada) return new Promise(() => {});   // cobertura mala: ni contesta ni falla
       if (!conRed) throw new TypeError('Failed to fetch');
       return ruta in servidor ? new Response(servidor[ruta], { status: 200 }) : new Response('no', { status: 404 });
     }
@@ -41,7 +43,8 @@ function crearEntorno({ servidor }) {
   return {
     manejadores, almacenes,
     cortarRed: () => { conRed = false; },
-    ponerRed: () => { conRed = true; },
+    ponerRed: () => { conRed = true; colgada = false; },
+    colgarRed: () => { colgada = true; },
     instalar: () => new Promise(ok => manejadores.install({ waitUntil: p => p.then(ok) })),
     pedir: async (ruta, extra) => {
       let respuesta;
@@ -85,6 +88,22 @@ test('sin cobertura: la página y offline.js salen de la copia guardada; con cob
   assert.equal(await (await e.pedir('/', { mode: 'navigate' })).text(), '<html>app v2</html>');
   assert.equal(await (await e.pedir('/offline.js')).text(), 'window.Offline=1');
   assert.equal(await (await e.pedir('/fonts/barlow-400-latin.woff2')).text(), 'woff2');
+});
+
+test('con cobertura mala (la red no contesta) la app se abre con la copia guardada en vez de quedarse en blanco', async () => {
+  const e = crearEntorno({ servidor: servidor() });
+  await e.instalar();
+  e.colgarRed();
+  const t0 = Date.now();
+  assert.equal(await (await e.pedir('/', { mode: 'navigate' })).text(), '<html>app v1</html>');
+  assert.ok(Date.now() - t0 < 2000);
+});
+
+test('sin copia guardada y con la red colgada, se sigue esperando a la red (no se da un error)', async () => {
+  const e = crearEntorno({ servidor: servidor() });
+  e.colgarRed();
+  const r = await Promise.race([e.pedir('/', { mode: 'navigate' }), new Promise(ok => setTimeout(() => ok('esperando'), 150))]);
+  assert.equal(r, 'esperando');
 });
 
 test('las llamadas a /api no las toca el service worker (los datos los guarda la propia web)', async () => {

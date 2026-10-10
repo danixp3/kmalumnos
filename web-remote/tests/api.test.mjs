@@ -283,6 +283,21 @@ test('alumnos?resumen=1: pagina las prácticas (más de 1.000) y devuelve el pun
   assert.equal(pablo.clases_previas, 8); assert.equal(pablo.km_previos, 300);
 });
 
+test('alumnos: con miles de alumnos los trae todos, en orden y sin repetir (páginas pedidas a la vez)', async () => {
+  for (const n of [2000, 3398, 4001]) {
+    const t = base();
+    t.alumnos = Array.from({ length: n }, (_, i) => ({ id: i + 1, nombre: 'A' + String(i).padStart(5, '0'), permiso: 'B', deleted: false, empresa_id: 'emp1' }));
+    reiniciar(t);
+    BD.maxRows = 1000;
+    const r = await llamar('alumnos', { method: 'GET', query: {} });
+    assert.equal(r.status, 200);
+    assert.equal(r.json.length, n, `con ${n} alumnos`);
+    assert.equal(new Set(r.json.map(a => a.id)).size, n);
+    assert.deepEqual(r.json.slice(0, 2).map(a => a.id), [1, 2]);
+    assert.equal(r.json[n - 1].id, n);
+  }
+});
+
 // ─── 2026-10-01 (2): sesiones de varias clases (90 min = 2 clases de 45) ───
 
 test('config: devuelve los minutos por clase del escritorio (por defecto 45)', async () => {
