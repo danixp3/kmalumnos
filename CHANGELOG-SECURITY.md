@@ -24,8 +24,11 @@ Pruebas en la web real con la sesión de la autoescuela y datos de prueba marcad
 - Página de firma del alumno: con alguna clase sin hora, los km del día salían mal («1.031 → 1.031»); lo mismo podía pasar en la fila del día de la ficha DGT.
 - En tablet u ordenador, el botón grande de abajo salía pegado a la izquierda; en el selector de coche salían primero las motos para un alumno de B; «Nuevo» en alumnos terminados.
 
+### Datos personales en el repositorio público (resuelto el 20-10-2026)
+El historial de GitHub (público) tenía `registro_kilometraje_alumnos.csv` (56 filas: nombre de alumno, coche, fecha y km, desde el 13-07-2026) y, dentro de pruebas y notas, el NIE y el teléfono de dos alumnos, los nombres de 6 alumnos y el de un profesor (tomados de datos reales al escribir las pruebas). Se reescribió todo el historial con `git filter-repo` (sin el CSV y con nombres inventados en lo demás; las 56 versiones publicadas y la actualización automática siguen intactas) y se forzó la subida de ramas y etiquetas. Copia del historial original en `Documentos\KMALUMNOS-copia-git-2026-10-20.git` (borrarla cuando ya no haga falta). **Norma:** las pruebas y la documentación solo con nombres, DNI y teléfonos inventados, nunca copiados de los datos reales.
+
 ### Pendiente (del propietario)
-- **Repositorio de GitHub público con `registro_kilometraje_alumnos.csv` (56 filas: nombre de alumno, coche, fecha y km) en el historial desde el 13-07-2026.** Tratarlo como incidente de seguridad (ver `LEGAL.md` § 5): anotarlo en el registro de incidentes y borrar el archivo del historial (reescribir la historia y forzar la subida) o pasar el repositorio a privado.
+- Pedir al soporte de GitHub que borre las vistas en caché de los commits antiguos (siguen abriéndose si alguien conoce su código exacto, p. ej. `f50558f`) y anotar el incidente en el registro de incidentes (`LEGAL.md` § 5).
 - Lo de la auditoría de octubre (Supabase Pro, Vercel Pro, firma de código, `pg_net`).
 
 ---
