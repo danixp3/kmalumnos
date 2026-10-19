@@ -115,16 +115,36 @@ function vehiculoSirveParaAlumno(v, alumno) {
 // La web tiene la misma regla en web-remote/api/_utils.js (siguienteNRegistro).
 // Con el año delante: 2026082, 200801 (año + 2 a 4 cifras)
 const RE_REGISTRO_ANIO = /^(199\d|20\d{2})\d{2,4}$/;
+// Años hacia atrás (desde el último alta) que cuentan para seguir la numeración
+const ANIOS_SERIE_REGISTRO = 3;
 function siguienteNRegistro(alumnos, anioActual = new Date().getFullYear()) {
-  let maxCorrelativo = 0, maxAnio = 0;
+  // Solo cuenta la serie de los alumnos dados de alta en los últimos años: una numeración antigua
+  // traída de otro programa (p. ej. 19991-19997 de alumnos de 1999, cuando la de ahora va por 4.900)
+  // no puede marcar el siguiente número. Sin fechas de alta, cuentan todos. Nunca repite uno usado.
+  let maxAnio = 0;
+  const correlativos = [], usados = new Set(), finAnio = `${anioActual}-12-31`;
   for (const a of alumnos || []) {
     if (!a || a.deleted) continue;
     const t = String(a.n_registro == null ? '' : a.n_registro).trim();
     if (!/^\d{1,9}$/.test(t)) continue;
+    usados.add(String(parseInt(t, 10)));
     const n = parseInt(t, 10);
-    if (RE_REGISTRO_ANIO.test(t)) { if (n > maxAnio) maxAnio = n; } else if (n > maxCorrelativo) maxCorrelativo = n;
+    if (RE_REGISTRO_ANIO.test(t)) { if (n > maxAnio) maxAnio = n; continue; }
+    const alta = /^\d{4}-\d{2}-\d{2}/.test(String(a.fecha_alta || '')) ? String(a.fecha_alta).slice(0, 10) : null;
+    correlativos.push({ n, alta: alta && alta <= finAnio ? alta : null });
   }
-  if (maxCorrelativo) return String(maxCorrelativo + 1);
+  if (correlativos.length) {
+    let serie = correlativos;
+    const ultima = correlativos.reduce((m, x) => (x.alta && x.alta > m ? x.alta : m), '');
+    if (ultima) {
+      const desde = String(Number(ultima.slice(0, 4)) - ANIOS_SERIE_REGISTRO) + ultima.slice(4);
+      const recientes = correlativos.filter(x => x.alta && x.alta >= desde);
+      if (recientes.length) serie = recientes;
+    }
+    let siguiente = serie.reduce((m, x) => Math.max(m, x.n), 0) + 1;
+    while (usados.has(String(siguiente))) siguiente++;
+    return String(siguiente);
+  }
   if (!maxAnio) return null;
   // «2026082» → el siguiente del año en curso; si cambió el año, empieza en 001
   const s = String(maxAnio), anio = s.slice(0, 4), cifras = s.length - 4;

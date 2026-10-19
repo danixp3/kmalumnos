@@ -9,6 +9,8 @@ const path = require('path');
 
 const VERSION_LEGAL = '2026-10-07';
 const FECHA_TEXTO = '7 de octubre de 2026';
+// La información para alumnos se puede poner al día sin cambiar las condiciones (no hace falta volver a aceptarlas)
+const FECHA_ALUMNOS = '20 de octubre de 2026';
 const T = {
   nombre: 'Daniel Alexis Pérez Nicolás',
   nif: '76735508X',
@@ -257,7 +259,7 @@ const CUERPOS = {
 
   alumnos: `
 <h1>Información para alumnos</h1>
-<p class="version">Última actualización: ${FECHA_TEXTO}</p>
+<p class="version">Última actualización: ${FECHA_ALUMNOS}</p>
 <p>Tu autoescuela usa ${T.marca} para gestionar tu formación: tus datos, tus clases y sus kilómetros, tus exámenes, tus pagos y tu firma de cada clase.</p>
 <h2>¿Quién trata tus datos?</h2>
 <p><b>Tu autoescuela es la responsable</b>: decide qué datos se recogen y para qué, y es quien te tiene que informar (con la hoja de protección de datos y el contrato de enseñanza que te entrega) y atender tus derechos. ${T.marca} (${T.nombre}, NIF ${T.nif}) solo guarda y trata esos datos por encargo de tu autoescuela, con las medidas de seguridad de su <a href="encargo-tratamiento.html">contrato de encargo</a>.</p>
@@ -265,8 +267,11 @@ const CUERPOS = {
 <p>Para tu matrícula y tu formación, para cumplir las obligaciones de las autoescuelas (libro de alumnos, fichas de formación y contrato de enseñanza del Reglamento de escuelas de conductores; trámites con Tráfico), para cobrar y facturar y, si das tu permiso, para otras cosas que tu autoescuela te pregunte.</p>
 <h2>Tu firma</h2>
 <p>Al terminar cada clase firmas en el móvil del profesor. Se guarda solo la imagen de la firma, para acreditar que diste la clase en tu ficha de formación. No se guardan datos biométricos.</p>
+<p>Si alguna clase se quedó sin firmar, tu autoescuela puede mandarte (por WhatsApp, SMS o correo) un <b>enlace personal</b> para revisarla y firmarla desde tu propio móvil, sin crear ninguna cuenta. El enlace caduca a los pocos días y quien lo tenga puede ver esas clases: no lo reenvíes. Si algo no cuadra, puedes no firmar ese día y contarlo en el propio enlace.</p>
 <h2>¿Dónde están?</h2>
-<p>En los ordenadores de tu autoescuela y en servidores de la Unión Europea (Irlanda).</p>
+<p>En los ordenadores de tu autoescuela, en servidores de la Unión Europea (base de datos en Irlanda y web en Dublín) y, para poder trabajar dentro del coche sin cobertura, una copia reducida (tu nombre y tus clases, sin DNI ni teléfono) en los móviles de los profesores, que se borra al cerrar la sesión. Los proveedores tecnológicos (Supabase y Vercel) son empresas con matriz fuera de la UE; cualquier acceso suyo desde fuera de la Unión está cubierto por cláusulas contractuales tipo de la Comisión Europea o por el Marco de Privacidad de Datos UE-EE. UU.</p>
+<h2>¿Tengo que dar mi consentimiento?</h2>
+<p>Para lo básico, no: tu autoescuela trata tus datos porque hace falta para tu matrícula y tus clases (contrato) y porque lo exigen las normas de Tráfico y fiscales (obligación legal). Por eso firmar la hoja informativa sirve para acreditar que te han informado, no para «autorizar» esos usos. Sí se pide tu permiso, aparte y por escrito, para lo opcional: tu foto, adaptar las clases a tus restricciones médicas o enviarte publicidad.</p>
 <h2>¿Cuánto tiempo?</h2>
 <p>Lo que dure tu formación y, después, lo que obligan las normas: el libro de alumnos se conserva 4 años y las fichas de formación al menos 2 años (RD 1295/2003); los datos de pagos y facturas, hasta 6 años. Pasado ese tiempo, tu autoescuela puede anonimizarlos.</p>
 <h2>Tus derechos</h2>

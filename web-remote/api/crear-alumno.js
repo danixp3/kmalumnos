@@ -97,7 +97,9 @@ export default async function handler(req, res) {
   {
     const leer = cols => traerTodo(() => supabase.from('alumnos')
       .select(cols).eq('empresa_id', auth.empresaId).eq('deleted', false).order('id'));
-    let { data, error: errN } = await leer('id, nombre, primer_apellido, segundo_apellido, dni, permiso, n_registro');
+    // fecha_alta: el siguiente nº sigue la serie de las altas recientes (no una numeración antigua)
+    let { data, error: errN } = await leer('id, nombre, primer_apellido, segundo_apellido, dni, permiso, n_registro, fecha_alta');
+    if (errN && esErrorColumnaInexistente(errN)) ({ data, error: errN } = await leer('id, nombre, primer_apellido, segundo_apellido, dni, permiso, n_registro'));
     if (errN && esErrorColumnaInexistente(errN)) {
       conNRegistro = false;
       ({ data, error: errN } = await leer('id, nombre, primer_apellido, segundo_apellido, dni, permiso'));
@@ -127,6 +129,8 @@ export default async function handler(req, res) {
   // Si choca la clave primaria (23505) es que la secuencia de la nube se quedó
   // atrás (el escritorio sube ids propios): se realinea con el RPC
   // reparar_secuencias y se reintenta una vez.
+  // Fecha de alta = el día del teléfono (va al libro de registro de alumnos, igual que las del escritorio)
+  const fechaHoy = validators.fecha(hoy).valid ? hoy : new Date().toISOString().slice(0, 10);
   const nuevoAlumno = {
     nombre: nombreVal.value,
     primer_apellido: apellido1 || null,
@@ -136,6 +140,7 @@ export default async function handler(req, res) {
     permiso: permisoFinal,
     vehiculo_id: vehiculoIdFinal,
     profesor_id: profesorIdFinal,
+    fecha_alta: fechaHoy,
     empresa_id: auth.empresaId,
     deleted: false,
     updated_at: new Date().toISOString(),
@@ -149,7 +154,7 @@ export default async function handler(req, res) {
 
   // Base sin las columnas de la ficha (muy antigua): los apellidos van en el nombre
   if (errInsert && esErrorColumnaInexistente(errInsert)) {
-    for (const k of ['primer_apellido', 'segundo_apellido', 'dni', 'telefono']) delete nuevoAlumno[k];
+    for (const k of ['primer_apellido', 'segundo_apellido', 'dni', 'telefono', 'fecha_alta']) delete nuevoAlumno[k];
     nuevoAlumno.nombre = [nombreVal.value, apellido1, apellido2].filter(Boolean).join(' ');
     ({ data: newAlumno, error: errInsert } = await supabase.from('alumnos').insert(nuevoAlumno).select('id').single());
   }
@@ -167,7 +172,6 @@ export default async function handler(req, res) {
 
   // Matrícula y demás conceptos «al dar de alta» (Ajustes → Cobros). Si no se
   // pueden anotar, el alumno queda creado igual y se avisa.
-  const fechaHoy = validators.fecha(hoy).valid ? hoy : new Date().toISOString().slice(0, 10);
   let cobros = { cargados: [] };
   try { cobros = await cargarCobrosAlta(supabase, auth.empresaId, newAlumno.id, fechaHoy); }
   catch (e) { cobros = { cargados: [], error: e.message }; }

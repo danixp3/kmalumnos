@@ -61,10 +61,9 @@ export function checkEnvVars() {
 
 // CORS restringido a dominios conocidos
 export function setCorsHeaders(req, res) {
+  // Solo la propia web (las pruebas locales sirven la página y la API desde el mismo sitio)
   const allowedOrigins = [
-    'https://aulamovil.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:5173'
+    'https://aulamovil.vercel.app'
   ];
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
@@ -127,19 +126,22 @@ export function handleSupabaseError(error, res, fallbackMsg) {
     res.status(401).json({ error: 'Sesión expirada. Inicia sesión de nuevo.' });
     return true;
   }
+  // El detalle técnico solo al registro del servidor: al teléfono no le sirve y enseña cómo es la base de datos
   console.error(fallbackMsg, error);
-  res.status(500).json({ error: fallbackMsg + ': ' + error.message });
+  res.status(500).json({ error: fallbackMsg + '. Inténtalo de nuevo en un momento.' });
   return true;
 }
 
 // Validadores de entrada
 export const validators = {
+  // Solo enteros de verdad («12abc» o «1e3» ya no pasan como 12 o 1) y dentro del tipo integer de la
+  // base de datos: un número gigante llegaba a Postgres y devolvía un error interno.
   positiveInt(value, fieldName) {
-    const num = parseInt(value);
-    if (isNaN(num) || num < 1) {
+    const t = typeof value === 'number' ? value : (typeof value === 'string' && /^\s*\d{1,10}\s*$/.test(value) ? Number(value) : NaN);
+    if (!Number.isInteger(t) || t < 1 || t > 2147483647) {
       return { valid: false, error: `${fieldName} debe ser un número positivo` };
     }
-    return { valid: true, value: num };
+    return { valid: true, value: t };
   },
   fecha(value) {
     if (!value || typeof value !== 'string') {
@@ -262,16 +264,36 @@ export function limpiarDni(v) {
 // única. Sin ningún número todavía → null. Misma regla que el escritorio
 // (db/campos-extra.js → siguienteNRegistro).
 const RE_REGISTRO_ANIO = /^(199\d|20\d{2})\d{2,4}$/;
+// Años hacia atrás (desde el último alta) que cuentan para seguir la numeración
+const ANIOS_SERIE_REGISTRO = 3;
 export function siguienteNRegistro(alumnos, anioActual = new Date().getFullYear()) {
-  let maxCorrelativo = 0, maxAnio = 0;
+  // Solo cuenta la serie de los alumnos dados de alta en los últimos años: una numeración antigua
+  // traída de otro programa (p. ej. 19991-19997 de alumnos de 1999, cuando la de ahora va por 4.900)
+  // no puede marcar el siguiente número. Sin fechas de alta, cuentan todos. Nunca repite uno usado.
+  let maxAnio = 0;
+  const correlativos = [], usados = new Set(), finAnio = `${anioActual}-12-31`;
   for (const a of alumnos || []) {
     if (!a || a.deleted) continue;
     const t = String(a.n_registro == null ? '' : a.n_registro).trim();
     if (!/^\d{1,9}$/.test(t)) continue;
+    usados.add(String(parseInt(t, 10)));
     const n = parseInt(t, 10);
-    if (RE_REGISTRO_ANIO.test(t)) { if (n > maxAnio) maxAnio = n; } else if (n > maxCorrelativo) maxCorrelativo = n;
+    if (RE_REGISTRO_ANIO.test(t)) { if (n > maxAnio) maxAnio = n; continue; }
+    const alta = /^\d{4}-\d{2}-\d{2}/.test(String(a.fecha_alta || '')) ? String(a.fecha_alta).slice(0, 10) : null;
+    correlativos.push({ n, alta: alta && alta <= finAnio ? alta : null });
   }
-  if (maxCorrelativo) return String(maxCorrelativo + 1);
+  if (correlativos.length) {
+    let serie = correlativos;
+    const ultima = correlativos.reduce((m, x) => (x.alta && x.alta > m ? x.alta : m), '');
+    if (ultima) {
+      const desde = String(Number(ultima.slice(0, 4)) - ANIOS_SERIE_REGISTRO) + ultima.slice(4);
+      const recientes = correlativos.filter(x => x.alta && x.alta >= desde);
+      if (recientes.length) serie = recientes;
+    }
+    let siguiente = serie.reduce((m, x) => Math.max(m, x.n), 0) + 1;
+    while (usados.has(String(siguiente))) siguiente++;
+    return String(siguiente);
+  }
   if (!maxAnio) return null;
   const s = String(maxAnio), anio = s.slice(0, 4), cifras = s.length - 4;
   if (Number(anio) === anioActual) return String(maxAnio + 1);
@@ -421,16 +443,19 @@ export function partirEnClases(kmIni, kmFin, horaIni, horaFin, cantidad) {
     if (km[i] > 0) continue; // una fracción pequeña con pocos km: se le cede 1 km de la mayor
     const mayor = km.indexOf(Math.max(...km)); km[mayor]--; km[i]++;
   }
-  const conHoras = hhmmValido(horaIni) && hhmmValido(horaFin) && aMin(horaFin) > aMin(horaIni);
-  const m0 = conHoras ? aMin(horaIni) : 0, mT = conHoras ? aMin(horaFin) - m0 : 0;
+  // Una sesión que cruza la medianoche (23:55 → 00:40) también se reparte: antes la 1.ª clase se
+  // quedaba sin hora de fin y la siguiente sin hora de inicio. Más de 12 h no es una clase.
+  const durMin = hhmmValido(horaIni) && hhmmValido(horaFin) ? (aMin(horaFin) - aMin(horaIni) + 1440) % 1440 : 0;
+  const conHoras = durMin > 0 && durMin <= 720;
+  const m0 = conHoras ? aMin(horaIni) : 0, mT = conHoras ? durMin : 0;
   const partes = [];
   let k = kmIni, acum = 0;
   for (let i = 0; i < n; i++) {
     const desde = acum; acum += pesos[i];
     partes.push({
       km_inicial: k, km_final: k + km[i],
-      hora_inicio: conHoras ? aHHMM(m0 + Math.round((mT * desde) / c)) : (i === 0 && hhmmValido(horaIni) ? horaIni : null),
-      hora_fin: conHoras ? aHHMM(m0 + Math.round((mT * acum) / c)) : (i === n - 1 && hhmmValido(horaFin) ? horaFin : null),
+      hora_inicio: conHoras ? aHHMM((m0 + Math.round((mT * desde) / c)) % 1440) : (i === 0 && hhmmValido(horaIni) ? horaIni : null),
+      hora_fin: conHoras ? aHHMM((m0 + Math.round((mT * acum) / c)) % 1440) : (i === n - 1 && hhmmValido(horaFin) ? horaFin : null),
       fraccion: pesos[i] < 1 ? pesos[i] : null
     });
     k += km[i];

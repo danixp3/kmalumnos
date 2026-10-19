@@ -1303,3 +1303,44 @@ test('practicas-alumno: trae TODAS las clases (más de 1.000 paginadas) con su n
   assert.deepEqual(r.json.por_profesor.map(x => x.nombre).sort(), ['Javier', 'Marta']);
   assert.equal(r.json.practicas.some(p => 'firma' in p), false);   // sin la imagen de la firma
 });
+
+test('partirEnClases: una sesión que cruza la medianoche reparte también las horas (antes se perdían)', () => {
+  assert.deepEqual(partirEnClases(1000, 1046, '23:55', '00:41', 2).map(p => [p.km_inicial, p.km_final, p.hora_inicio, p.hora_fin]),
+    [[1000, 1023, '23:55', '00:18'], [1023, 1046, '00:18', '00:41']]);
+  // la misma hora de inicio y fin (o más de 12 h) no se reparte: solo la de inicio y la de fin
+  assert.deepEqual(partirEnClases(1000, 1046, '10:00', '10:00', 2).map(p => [p.hora_inicio, p.hora_fin]), [['10:00', null], [null, '10:00']]);
+});
+
+test('validators.positiveInt: solo enteros de verdad y dentro del tipo de la base de datos', async () => {
+  const { validators } = await import('../api/_utils.js');
+  assert.equal(validators.positiveInt('12', 'id').value, 12);
+  assert.equal(validators.positiveInt(1000000003, 'id').value, 1000000003);
+  for (const malo of ['12abc', '1e3', '-5', '0', '', '1.5', '99999999999999999999', 2147483648, null, undefined, 'abc', 3.5]) {
+    assert.equal(validators.positiveInt(malo, 'id').valid, false, String(malo));
+  }
+});
+
+test('siguienteNRegistro: una numeración antigua (alumnos de 1999 con nº 1999x) no marca el siguiente; nunca repite', async () => {
+  const { siguienteNRegistro } = await import('../api/_utils.js');
+  const al = [{ n_registro: '4906', fecha_alta: '2026-09-30' }, { n_registro: '4905', fecha_alta: '2026-09-01' },
+    { n_registro: '19997', fecha_alta: '1999-11-08' }, { n_registro: '4907' }, { n_registro: '2026082', fecha_alta: '2026-10-01' }];
+  assert.equal(siguienteNRegistro(al, 2026), '4908');
+  assert.equal(siguienteNRegistro([{ n_registro: '12' }, { n_registro: '30' }], 2026), '31');   // sin fechas: como siempre
+  assert.equal(siguienteNRegistro([{ n_registro: '2026005' }], 2026), '2026006');
+});
+
+test('alumnos?resumen=1: a los móviles no van los alumnos terminados hace años (minimización de datos)', async () => {
+  const t = base();
+  const hace = d => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+  t.alumnos.push(
+    { id: 3, nombre: 'Antiguo Ariauto', permiso: 'B', estado: 'inactivo', fecha_alta: '2004-05-01', deleted: false, empresa_id: 'emp1' },
+    { id: 4, nombre: 'Aprobado reciente', permiso: 'B', estado: 'apto', fecha_alta: hace(400), deleted: false, empresa_id: 'emp1' },
+    { id: 5, nombre: 'Baja con clase reciente', permiso: 'B', estado: 'baja', fecha_alta: '2015-01-01', deleted: false, empresa_id: 'emp1' },
+    { id: 6, nombre: 'Activo sin fecha', permiso: 'B', estado: 'matriculado', deleted: false, empresa_id: 'emp1' });
+  t.practicas.push({ id: 9, alumno_id: 5, vehiculo_id: 1, fecha: hace(100), km_inicial: 10, km_final: 30, deleted: false, empresa_id: 'emp1' });
+  reiniciar(t);
+  const r = await llamar('alumnos', { method: 'GET', query: { resumen: '1' } });
+  assert.deepEqual(r.json.map(a => a.id).sort(), [1, 2, 4, 5, 6]);   // el 3 (inactivo desde 2004) ya no viaja al teléfono
+  // sin resumen (otros usos) sigue la lista entera
+  assert.equal((await llamar('alumnos', { method: 'GET', query: {} })).json.length, 6);
+});

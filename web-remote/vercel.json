@@ -3,6 +3,13 @@
   "regions": [
     "dub1"
   ],
+  "redirects": [
+    {
+      "source": "/lib/:ruta*",
+      "destination": "/",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/hoy",

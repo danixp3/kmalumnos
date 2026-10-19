@@ -133,13 +133,14 @@ function hojaProteccionDatosHTML(a) {
       <tr><td>Avisarte de tus clases y exámenes por teléfono, mensaje o correo.</td><td>Contrato.</td></tr>
       <tr><td>Solo si lo marcas abajo: tu foto en la ficha, usar las restricciones de tu permiso o tu reconocimiento médico para adaptar las clases y enviarte información de cursos y promociones.</td><td>Consentimiento (arts. 6.1.a y 9.2.a RGPD), que puedes retirar cuando quieras.</td></tr>
     </table>
-    <p><b>Tu firma:</b> al terminar cada clase firmas en la tablet del profesor; se guarda solo la imagen de la firma para acreditar la clase en tu ficha de formación (no datos biométricos).</p>
+    <p><b>Tu firma:</b> al terminar cada clase firmas en la tablet del profesor; se guarda solo la imagen de la firma para acreditar la clase en tu ficha de formación (no datos biométricos). Si una clase se queda sin firmar, podemos mandarte por WhatsApp, SMS o correo un enlace personal para firmarla desde tu móvil: caduca a los pocos días y no debes reenviarlo.</p>
     <h2>Quién más los recibe</h2>
     <ul>
       <li>La Dirección General de Tráfico y su Jefatura Provincial${c.jefatura ? ' (' + lgEsc(c.jefatura) + ')' : ''}, para tus exámenes y trámites (obligación legal).</li>
       <li>La Agencia Tributaria, nuestra gestoría y nuestro banco, para cobros y obligaciones fiscales.</li>
-      <li>Nuestro proveedor del programa de gestión (AulaMovil), que los trata por encargo nuestro, con servidores en la Unión Europea.</li>
+      <li>Nuestro proveedor del programa de gestión (AulaMovil), que los trata por encargo nuestro, con servidores en la Unión Europea (Irlanda). Sus proveedores tecnológicos (Supabase y Vercel) tienen matriz fuera de la UE; cualquier acceso desde fuera está cubierto por cláusulas contractuales tipo o por el Marco de Privacidad de Datos UE-EE. UU.</li>
     </ul>
+    <p>Para trabajar sin cobertura dentro del coche, los móviles de los profesores guardan una copia reducida de tus datos de clase (sin DNI ni teléfono), que se borra al cerrar la sesión.</p>
     <p>No los vendemos ni los usamos para decisiones automatizadas.</p>
     <h2>Cuánto tiempo</h2>
     <p>Mientras dure tu formación y, después, los plazos legales: el libro de alumnos se conserva 4 años, las fichas de formación al menos 2 años y la documentación de cobros y facturas 6 años. Después se anonimizan o se borran.</p>

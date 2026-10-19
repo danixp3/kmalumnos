@@ -242,7 +242,8 @@ function agrupar(lista) {
       clases: ps.reduce((s, p) => s + valeClase(p), 0),
       desde: nums.length ? Math.min(...nums) : null, hasta: nums.length ? Math.max(...nums) : null,
       horaIni, horaFin,
-      kmIni: conKm.length ? conKm[0].km_inicial : null, kmFin: conKm.length ? conKm[conKm.length - 1].km_final : null,
+      // Del km más bajo al más alto: con alguna clase sin hora el orden no es el del cuentakilómetros
+      kmIni: conKm.length ? Math.min(...conKm.map(p => p.km_inicial)) : null, kmFin: conKm.length ? Math.max(...conKm.map(p => p.km_final)) : null,
       km: conKm.reduce((s, p) => s + Math.max(0, p.km_final - p.km_inicial), 0),
       kmAuto: conKm.some(p => p.km_auto), pista: ps.every(p => p.tipo === 'pista'),
       profesor: [...new Set(ps.map(p => p.profesor).filter(Boolean))].join(', '),

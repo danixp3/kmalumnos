@@ -4,6 +4,12 @@ import { setCorsHeaders, requireAuth, getSupabase, withRetry, handleSupabaseErro
 // clases, los km totales y la fecha de su última práctica (para la pantalla
 // «Alumnos» del móvil). `clases_previas`/`km_previos` = punto de partida
 // (lo hecho antes de usar la app); la web los suma a la numeración y totales.
+// Estados de un alumno que ya no da clases (como alumnoTerminado del móvil y core.alumnoTerminado del escritorio)
+const TERMINADOS = new Set(['baja', 'apto', 'aprobado', 'no_apto', 'inactivo']);
+const alumnoTerminado = a => TERMINADOS.has(String((a && a.estado) || '').toLowerCase());
+// Años sin actividad tras los que un alumno terminado ya no se manda a los móviles
+const ANIOS_TERMINADOS_MOVIL = 2;
+
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
 
@@ -75,6 +81,12 @@ export default async function handler(req, res) {
       km: (resumen[a.id] || {}).km || 0,
       ultima_fecha: (resumen[a.id] || {}).ultima || null
     }));
+    // Minimización de datos (art. 5.1.c RGPD): a los móviles de los profesores no les hacen falta los
+    // alumnos que terminaron hace años (miles, tras traer el histórico de otro programa) y es una copia
+    // menos de sus nombres en cada teléfono. Siguen en la oficina y se pueden abrir por su ficha.
+    const limite = new Date(Date.now() - ANIOS_TERMINADOS_MOVIL * 365.25 * 86400000).toISOString().slice(0, 10);
+    alumnos = alumnos.filter(a => !alumnoTerminado(a) || (a.ultima_fecha && a.ultima_fecha >= limite) ||
+      (a.fecha_alta && String(a.fecha_alta).slice(0, 10) >= limite));
   }
 
   res.json(alumnos);

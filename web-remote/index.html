@@ -297,6 +297,8 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .lnk-olvido { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 18px; }
   .barra-fija { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, transparent); z-index: 20; }
   .barra-fija > * { max-width: 528px; margin: 0 auto; }
+  .barra-fija > .btn { display: flex; }   /* inline-flex no se centra con margin:auto (en tablet salía pegado a la izquierda) */
+  .fila-otro-permiso { opacity: .55; }
   body.oscuro .barra-fija { background: linear-gradient(to top, var(--curso-bg) 70%, transparent); }
 
   /* ── EN CURSO (oscura) ── */
@@ -904,6 +906,13 @@ function sobreponerJornada() {
         firmada: !!e.firmada, en_curso: false, sin_cerrar: false, zonas: op.cuerpo.zonas || [], clase_n: e.clase_n || null });
     }
     const F = S.flujo;
+    // La clase de este teléfono que empezó antes de medianoche y sigue en marcha: hoy sigue «en curso»
+    // (no «sin cerrar» de ayer, y sin desaparecer de Hoy y del riel).
+    if (F && !F.local && F.practica_id && !F.cerrada && F.fecha && F.fecha < dia && dia === S.hoy && !J.practicas.some(p => p.id === F.practica_id)) {
+      J.sin_cerrar = J.sin_cerrar.filter(p => p.id !== F.practica_id);
+      J.practicas.push({ id: F.practica_id, alumno_id: F.alumno_id, alumno_nombre: F.alumno_nombre, vehiculo_id: F.vehiculo_id, matricula: F.matricula, fecha: F.fecha,
+        hora_inicio: F.hora_inicio, km_inicial: F.km_inicial, km_final: 0, km: 0, firmada: false, en_curso: true, sin_cerrar: false, zonas: F.zonas || [], clase_n: F.clase_n, profesor_id: F.profesor_id || null });
+    }
     if (F && F.local && !F.cerrada && F.fecha === dia) {
       J.practicas.push({ id: idLocal(F.cid), local: true, alumno_id: F.alumno_id, alumno_nombre: F.alumno_nombre, vehiculo_id: F.vehiculo_id, matricula: F.matricula, fecha: F.fecha,
         hora_inicio: F.hora_inicio, km_inicial: F.km_inicial, km_final: 0, km: 0, firmada: false, en_curso: true, sin_cerrar: false, zonas: F.zonas || [], clase_n: F.clase_n });
@@ -1538,8 +1547,14 @@ function elegirCocheDelDia() {
 function actualizarHoy() {
   const nuevo = fechaLocal();
   if (nuevo === S.hoy) return false;
-  if (S.fecha === S.hoy) S.fecha = nuevo; // si se miraba «hoy», se pasa al nuevo día
+  const mirabaHoy = S.fecha === S.hoy;
+  if (mirabaHoy) S.fecha = nuevo; // si se miraba «hoy», se pasa al nuevo día
   S.hoy = nuevo;
+  // Lo que había era la jornada de ayer: se pide la de hoy aunque la pantalla abierta sea la de la clase
+  // en curso (antes, al volver a Hoy pasada la medianoche salía la fecha nueva con las clases de ayer).
+  S.jornadaHoy = diaEnCache(nuevo) || jornadaVacia(true);
+  if (mirabaHoy) S.jornada = S.jornadaHoy;
+  setTimeout(() => { if (S.perfil) cargarJornada(); }, 0);
   return true;
 }
 function urlJornada(fecha) {
@@ -1950,7 +1965,11 @@ async function aparcarFlujo() {
 }
 
 function filasVehiculos() {
-  const filas = S.vehiculos.map(v => `<button class="fila" onclick="fijarVehiculo(${v.id})"><span class="veh-ic">${ic('coche', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(v.nombre)}</div><div style="margin:3px 0">${placa(v.matricula)}</div><div class="fila-sub">Último km ${miles(v.ultimo ? v.ultimo.km_final : v.km_actual)}</div></div>${v.id === S.vehId ? ic('ok', 22) : ''}</button>`).join('');
+  // Con un alumno elegido, primero los coches de su permiso; los de otro permiso (motos para un alumno de B…) al final y apagados
+  const al = S.vista === 'iniciar' && S.iniciar ? alumno(S.iniciar.alumno_id) : (S.vista === 'anotar' && S.anotar ? alumno(S.anotar.alumno_id) : null);
+  const otroPermiso = v => !!al && cocheSirve(v, al) === 'no';
+  const lista = al ? S.vehiculos.slice().sort((x, y) => otroPermiso(x) - otroPermiso(y)) : S.vehiculos;
+  const filas = lista.map(v => `<button class="fila${otroPermiso(v) ? ' fila-otro-permiso' : ''}" onclick="fijarVehiculo(${v.id})"><span class="veh-ic">${ic('coche', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(v.nombre)}</div><div style="margin:3px 0">${placa(v.matricula)}</div><div class="fila-sub">Último km ${miles(v.ultimo ? v.ultimo.km_final : v.km_actual)}${otroPermiso(v) ? ` · no es para el permiso ${esc(al.permiso)}` : ''}</div></div>${v.id === S.vehId ? ic('ok', 22) : ''}</button>`).join('');
   return filas || (cargandoLista(S.vehiculos) ? '<div class="cargando">Cargando coches…</div>' : '<div class="vacio">No hay vehículos.</div>');
 }
 function elegirVehiculo(despues) {
@@ -2523,6 +2542,8 @@ async function firmarAnotada(id, volverA) {
 async function continuarPractica(id) {
   let p = S.jornada.practicas.find(x => x.id === id) || S.jornada.sin_cerrar.find(x => x.id === id) ||
     S.jornadaHoy.practicas.find(x => x.id === id) || S.jornadaHoy.sin_cerrar.find(x => x.id === id);
+  // La de este teléfono aunque la jornada aún no la traiga (recién pasada la medianoche, sin red…)
+  if (!p && S.flujo && !S.flujo.local && S.flujo.practica_id === id) { go(S.flujo.cerrada ? 'firma' : 'curso'); return; }
   if (!p) return;
   if (p.local) {   // clase que vive solo en esta tablet: en marcha, o por enviar
     if (S.flujo && S.flujo.local) go(S.flujo.cerrada ? 'firma' : 'curso'); else hojaPendientes();
@@ -3113,7 +3134,7 @@ async function terminarFlujo(msg) {
 // Alumnos que ya terminaron (de baja o aprobados): no llenan las listas del
 // profesor (p. ej. tras traer el histórico de otro programa); se ven en el
 // filtro «Terminados» y el buscador del selector los sigue encontrando.
-const alumnoTerminado = a => ['baja', 'apto', 'aprobado', 'inactivo'].includes(a && a.estado);
+const alumnoTerminado = a => ['baja', 'apto', 'aprobado', 'no_apto', 'inactivo'].includes(a && a.estado);
 const alumnosEnCurso = () => S.alumnos.filter(a => !alumnoTerminado(a));
 function renderAlumnos() {
   const enCurso = alumnosEnCurso(), terminados = S.alumnos.length - enCurso.length;
@@ -3155,7 +3176,7 @@ function pintarListaAlumnos() {
   caja.innerHTML = lista.length ? lista.map(a =>
     `<button class="fila-alumno" onclick="abrirFicha(${a.id})"><span class="ini">${esc(iniciales(nombreAlumno(a)))}</span>
       <div style="flex:1;min-width:0"><div class="fila-tit">${esc(nombreAlumno(a))}${procTxt(a)}</div><div class="fila-sub">${nRegTxt(a)}<b style="color:var(--ink)">${fmtC(clasesAlumno(a))}</b> ${clasesAlumno(a) > 0 && clasesAlumno(a) <= 1 ? 'clase' : 'clases'} · <span class="mono">${miles(kmAlumno(a))}</span> km</div></div>
-      ${clasesAlumno(a) > 0 ? '' : '<span class="pill pill-info">Nuevo</span>'}${ic('chev', 20, 'style="color:var(--faint)"')}</button>`).join('')
+      ${clasesAlumno(a) > 0 || alumnoTerminado(a) ? '' : '<span class="pill pill-info">Nuevo</span>'}${ic('chev', 20, 'style="color:var(--faint)"')}</button>`).join('')
       + (resto ? `<button class="fila-alumno" style="justify-content:center;font-weight:600" onclick="S.alumnosMax+=ALUMNOS_TANDA;pintarListaAlumnos()">Ver ${Math.min(resto, ALUMNOS_TANDA)} más · quedan ${resto}</button>` : '')
     : cargandoLista(S.alumnos) ? '<div class="cargando">Cargando alumnos…</div>'
     : (S.filtroAlumnos === 'mios' && !q
@@ -3189,7 +3210,8 @@ async function abrirFicha(id) {
   }
   if (S.vista === 'ficha' && S.ficha && S.ficha.id === id) renderFicha();
 }
-const sinFirmaFicha = p => !p.firmada && p.km_final > 0;
+// Clase que falta por firmar: cerrada y sin firma (las anteriores a la app y las traídas de otro programa se firmaron en papel)
+const sinFirmaFicha = p => !p.firmada && p.km_final > 0 && p.tipo_detalle !== 'anterior' && !p.procedencia;
 // Las clases de la ficha según el filtro elegido (más recientes primero)
 function clasesFicha() {
   const d = S.ficha && S.ficha.datos; if (!d) return [];
@@ -3348,18 +3370,18 @@ function renderNuevo() {
   document.getElementById('v-nuevo').innerHTML = `
     <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Nuevo alumno</h1></div></div>
     <div class="card card-pad" style="display:flex;flex-direction:column;gap:12px">
-      <div><div class="etq" style="margin:0 0 6px">Nombre</div><input class="campo" id="n-nombre" placeholder="Nombre" autocomplete="off" autocapitalize="words" maxlength="60"></div>
+      <div><div class="etq" style="margin:0 0 6px">Nombre</div><input class="campo" id="n-nombre" aria-label="Nombre" placeholder="Nombre" autocomplete="off" autocapitalize="words" maxlength="60"></div>
       <div class="par-campos">
-        <div><div class="etq" style="margin:0 0 6px">1.er apellido</div><input class="campo" id="n-ape1" autocomplete="off" autocapitalize="words" maxlength="60"></div>
-        <div><div class="etq" style="margin:0 0 6px">2.º apellido</div><input class="campo" id="n-ape2" autocomplete="off" autocapitalize="words" maxlength="60" placeholder="Si tiene"></div>
+        <div><div class="etq" style="margin:0 0 6px">1.er apellido</div><input class="campo" id="n-ape1" aria-label="Primer apellido" autocomplete="off" autocapitalize="words" maxlength="60"></div>
+        <div><div class="etq" style="margin:0 0 6px">2.º apellido</div><input class="campo" id="n-ape2" aria-label="Segundo apellido" autocomplete="off" autocapitalize="words" maxlength="60" placeholder="Si tiene"></div>
       </div>
       <div class="par-campos">
-        <div><div class="etq" style="margin:0 0 6px">DNI / NIE</div><input class="campo" id="n-dni" autocomplete="off" autocapitalize="characters" maxlength="20" placeholder="Opcional" oninput="pintarAvisoDni(false)" onblur="pintarAvisoDni(true)"><div class="aviso-dni" id="n-dni-aviso" role="status"></div></div>
-        <div><div class="etq" style="margin:0 0 6px">Teléfono</div><input class="campo" id="n-tel" type="tel" inputmode="tel" autocomplete="off" maxlength="20" placeholder="Opcional"></div>
+        <div><div class="etq" style="margin:0 0 6px">DNI / NIE</div><input class="campo" id="n-dni" aria-label="DNI o NIE" autocomplete="off" autocapitalize="characters" maxlength="20" placeholder="Opcional" oninput="pintarAvisoDni(false)" onblur="pintarAvisoDni(true)"><div class="aviso-dni" id="n-dni-aviso" role="status"></div></div>
+        <div><div class="etq" style="margin:0 0 6px">Teléfono</div><input class="campo" id="n-tel" aria-label="Teléfono" type="tel" inputmode="tel" autocomplete="off" maxlength="20" placeholder="Opcional"></div>
       </div>
       <p class="fila-sub" style="margin:-4px 2px 0;font-size:14px">Igual que en el ordenador. Con el DNI, al traer los datos del programa anterior se junta solo con su ficha.</p>
-      <div><div class="etq" style="margin:0 0 6px">Permiso</div><select class="campo" id="n-permiso" onchange="filtrarCochesAlta()"><option value="B">B (Coche)</option><option value="A">A (Moto)</option><option value="A2">A2</option><option value="A1">A1</option><option value="AM">AM</option><option value="BE">BE</option><option value="C1">C1</option><option value="C">C (Camión)</option><option value="D">D (Autobús)</option></select></div>
-      <div><div class="etq" style="margin:0 0 6px">Vehículo asignado</div><select class="campo" id="n-vehiculo"><option value="">— Sin asignar —</option>${S.vehiculos.filter(v => cocheSirve(v, { permiso: 'B' }) !== 'no').map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('')}</select></div>
+      <div><div class="etq" style="margin:0 0 6px">Permiso</div><select class="campo" id="n-permiso" aria-label="Permiso" onchange="filtrarCochesAlta()"><option value="B">B (Coche)</option><option value="A">A (Moto)</option><option value="A2">A2</option><option value="A1">A1</option><option value="AM">AM</option><option value="BE">BE</option><option value="C1">C1</option><option value="C">C (Camión)</option><option value="D">D (Autobús)</option></select></div>
+      <div><div class="etq" style="margin:0 0 6px">Vehículo asignado</div><select class="campo" id="n-vehiculo" aria-label="Vehículo asignado"><option value="">— Sin asignar —</option>${S.vehiculos.filter(v => cocheSirve(v, { permiso: 'B' }) !== 'no').map(v => `<option value="${v.id}">${esc(v.nombre)}${v.matricula ? ' (' + esc(v.matricula) + ')' : ''}</option>`).join('')}</select></div>
       <label style="display:flex;align-items:center;gap:10px;font-size:16px;font-weight:600"><input type="checkbox" id="n-mio" ${S.perfil && S.perfil.id ? 'checked' : 'disabled'} style="width:22px;height:22px"> Asignármelo a mí${S.perfil && S.perfil.id ? '' : ' (elige un perfil de profesor)'}</label>
       <div class="err-txt" id="n-error" role="alert"></div>
     </div>
@@ -3408,7 +3430,7 @@ async function crearAlumno(forzar = false) {
       btn.disabled = false;
       const a = data.alumno || {};
       const quien = `${a.nombre || ''}${a.n_registro ? ' (nº ' + a.n_registro + ')' : ''}${a.permiso ? ', permiso ' + a.permiso : ''}`;
-      if (confirm(`${data.error}\n\n${quien}\n\nNo hace falta darlo de alta otra vez: ya está en la lista de alumnos. Pulsa Aceptar solo si es OTRA persona${data.por_dni ? ' (o el mismo alumno sacándose otro permiso)' : ''}.`)) return (crearAlumno.original || crearAlumno)(true);
+      if (confirm(`${data.error}\n\n${quien}\n\nNo hace falta darlo de alta otra vez: ya está dado de alta en la autoescuela (si es un alumno antiguo, pide en la oficina que lo reactiven). Pulsa Aceptar solo si es OTRA persona${data.por_dni ? ' (o el mismo alumno sacándose otro permiso)' : ''}.`)) return (crearAlumno.original || crearAlumno)(true);
       err.textContent = `Ya está dado de alta: ${quien}.`; return;
     }
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo crear el alumno');
@@ -3543,7 +3565,7 @@ function moverDetalle(n) {
 }
 function pintarDetalle(p) {
   S.detalle = p;
-  const dur = p.hora_inicio && p.hora_fin ? Math.max(1, horaAMin(p.hora_fin) - horaAMin(p.hora_inicio)) : null;
+  const dur = p.hora_inicio && p.hora_fin ? Math.max(1, (horaAMin(p.hora_fin) - horaAMin(p.hora_inicio) + 1440) % 1440) : null;   // también si cruza la medianoche
   const firmable = p.km_final > 0 && !p.firma;
   const fila = (etq, val, ancho) => `<div${ancho ? ' style="grid-column:1/-1"' : ''}><div class="etq2">${etq}</div><div class="val" style="font-size:16px">${val}</div></div>`;
   const pos = S.detNav ? S.detNav.indexOf(p.id) : -1;
