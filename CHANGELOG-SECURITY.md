@@ -1,5 +1,35 @@
 # Seguridad de AulaMovil
 
+## Auditoría de la web del móvil del 19-20 de octubre de 2026 (con el navegador, en producción)
+
+Pruebas en la web real con la sesión de la autoescuela y datos de prueba marcados («PRUEBA AUDITORIA», coche 0000TST; borrados al terminar con borrado suave): todas las pantallas, una clase completa que cruzó la medianoche (empezar, pausa, 2 clases, firma, corregir a 1 ½, enlace de firma firmado desde otra pestaña, anotar clase pasada con «Los pone la app», asignarse y pasarse el alumno) y ataques a la API (sin sesión, token falso, ids de otra autoescuela, datos absurdos, firmas falsas, JSON roto).
+
+### Correcto
+- Sin sesión o con token falso, todo `/api` da 401; los datos de otra autoescuela dan 404 (aislamiento por la base de datos, comprobado con ids reales de otra empresa).
+- La API rechaza km imposibles, fechas futuras o de hace más de 30 días, cantidades de clase fuera de ¼–6, firmas que no son PNG o demasiado grandes, nombres de 5.000 caracteres y permisos inventados.
+- Todo lo que se pinta pasa por `esc()` (probado con `<script>`, comillas y emojis en la observación) y la página de firma del alumno también.
+- RLS activo en las 17 tablas; funciones con secreto solo para el servidor.
+
+### Corregido
+| Hallazgo | Riesgo | Solución |
+|---|---|---|
+| El código de las funciones del servidor (`/lib/movil/*.js`) se podía descargar | Bajo (sin secretos, pero enseña la lógica) | `vercel.json` redirige `/lib/*` a la portada |
+| Un id gigante (`alumno_id=99999999999999999999`) devolvía un error interno con el mensaje de la base de datos; «12abc» o «1e3» se leían como 12 o 1 | Bajo | `validators.positiveInt` estricto (enteros ≤ 2.147.483.647) y errores 500 sin detalles internos |
+| CORS admitía `http://localhost:3000/5173` en producción | Bajo | Solo la propia web |
+| Los móviles de los profesores guardaban la lista de los ~3.200 alumnos, incluidos los terminados desde 1998 | Privacidad (minimización, art. 5.1.c RGPD) | `/api/alumnos?resumen=1` ya no manda los terminados sin actividad en 2 años: 242 alumnos, 8 KB en vez de 83 KB |
+
+### Fallos de funcionamiento encontrados y corregidos
+- Clase que cruza la medianoche: «Hoy» enseñaba la fecha nueva con las clases de ayer y la clase en marcha desaparecía; al guardarla como 2 clases se perdían las horas intermedias.
+- Nº de registro: daba 19998 (por 8 alumnos de 1999 traídos de Ariauto con nº 1999x) en vez de ~4.906, en el móvil y en el escritorio. Las altas del móvil no guardaban la fecha de alta (libro de registro).
+- Página de firma del alumno: con alguna clase sin hora, los km del día salían mal («1.031 → 1.031»); lo mismo podía pasar en la fila del día de la ficha DGT.
+- En tablet u ordenador, el botón grande de abajo salía pegado a la izquierda; en el selector de coche salían primero las motos para un alumno de B; «Nuevo» en alumnos terminados.
+
+### Pendiente (del propietario)
+- **Repositorio de GitHub público con `registro_kilometraje_alumnos.csv` (56 filas: nombre de alumno, coche, fecha y km) en el historial desde el 13-07-2026.** Tratarlo como incidente de seguridad (ver `LEGAL.md` § 5): anotarlo en el registro de incidentes y borrar el archivo del historial (reescribir la historia y forzar la subida) o pasar el repositorio a privado.
+- Lo de la auditoría de octubre (Supabase Pro, Vercel Pro, firma de código, `pg_net`).
+
+---
+
 ## Auditoría de octubre de 2026 (v1.31.0)
 
 Revisión completa de la app de escritorio, la web del móvil, la base de datos en la nube y el repositorio.

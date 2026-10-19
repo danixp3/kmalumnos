@@ -560,7 +560,6 @@ function getDatosFichaDGT(alumno_id, tipo, profesorId) {
   const sinFirma = new Map();
   const practicas = [...grupos.values()].map(g => {
     const conKm = g.filter(p => p.km_final > 0);
-    const primera = conKm[0] || g[0], ultima = conKm[conKm.length - 1] || g[g.length - 1];
     const hora = (g.find(p => p.hora_inicio) || {}).hora_inicio || '';
     const clases = g.reduce((s, p) => s + clasesDePractica(p), 0);
     const conFirma = g.find(p => firmaValida(p.firma));
@@ -568,7 +567,8 @@ function getDatosFichaDGT(alumno_id, tipo, profesorId) {
     if (firmante && !firmaValida(firmante.firma)) sinFirma.set(firmante.id, firmante.nombre);
     return {
       // Sin km (clases de pista, o sin leer) las casillas quedan en blanco, no con «0»
-      fecha: fmt(g[0].fecha), hora, km_inicial: conKm.length ? km(primera.km_inicial) : '', km_final: conKm.length ? km(ultima.km_final) : '',
+      // Del km más bajo al más alto del día en ese coche: con alguna clase sin hora, el orden no es el del cuentakilómetros
+      fecha: fmt(g[0].fecha), hora, km_inicial: conKm.length ? km(Math.min(...conKm.map(p => p.km_inicial))) : '', km_final: conKm.length ? km(Math.max(...conKm.map(p => p.km_final))) : '',
       // Km que no leyó nadie del cuentakilómetros: los puso la app (Cuadrar, Generar km, «Los pone la app»)
       km_calculados: conKm.some(p => p.tipo_detalle === 'km_auto'),
       clases, ejercicio: clases >= 2 ? '2 CLASES' : `${fmtClases(clases)} ${clases > 1 ? 'CLASES' : 'CLASE'}`,

@@ -13,7 +13,7 @@ Titular: Daniel Alexis Pérez Nicolás, NIF 76735508X, Rúa Vicente Risco 1, 1.�
 | Alumnos, tutores, profesores, empleados, interesados que mete cada autoescuela | La autoescuela | **Encargado del tratamiento** (art. 28 RGPD). Contrato de encargo aceptado en la app |
 | Cuentas de las autoescuelas, facturación del servicio, soporte, registros técnicos | Daniel (titular) | Responsable |
 
-Subencargados: Supabase (base de datos y login, **Irlanda**) y Vercel (web y funciones, **Dublín** desde esta versión: antes corrían en Washington). Ambos con cláusulas contractuales tipo; Vercel además en el Marco de Privacidad UE-EE. UU.
+Subencargados: Supabase (base de datos y login, **Irlanda**) y Vercel (web y funciones, **Dublín** desde esta versión: antes corrían en Washington). Ambos con cláusulas contractuales tipo; Vercel además en el Marco de Privacidad UE-EE. UU. **Ojo:** el contrato de tratamiento de Vercel no cubre el plan gratuito (Hobby): ver § 5, tarea 1.
 
 ## 2. Normas y cómo se cubren
 
@@ -63,3 +63,27 @@ La ficha de formación práctica lleva los km de cada clase y se conserva para T
 - La ficha DGT los señala con «*» y una nota al pie, salvo que se desmarque conscientemente.
 - Las condiciones dejan claro que la autoescuela responde de que los documentos oficiales reflejen la realidad.
 Lo mejor es que los profesores anoten el km real en el móvil al empezar y terminar cada clase: entonces no hay nada que estimar.
+
+## 5. Revisión del 20 de octubre de 2026 (la autoescuela del propio titular)
+
+Daniel es el dueño de la autoescuela y hace el programa. Para sus alumnos, **la autoescuela es la responsable** de los datos; AulaMovil (Daniel como desarrollador) es el encargado y Supabase y Vercel son subencargados.
+
+### ¿Basta con el documento de protección de datos que firman al matricularse?
+Sirve, **si dice lo que de verdad pasa con los datos**. Lo que exige la ley (art. 13 RGPD) es *informar*, no pedir permiso: la autoescuela trata los datos porque hace falta para el contrato de enseñanza y porque lo exigen las normas de Tráfico y fiscales (arts. 6.1.b y 6.1.c). La firma solo prueba que se informó. Un modelo genérico (de gestoría o de antes de usar AulaMovil) suele quedarse corto en:
+1. Que los datos se gestionan con un programa en la nube y quién es el proveedor (AulaMovil, con servidores en Irlanda; Supabase y Vercel, empresas de EE. UU. con garantías).
+2. Que el alumno **firma cada clase en la tablet** (se guarda la imagen) y que puede recibir **un enlace por WhatsApp** para firmar desde su móvil.
+3. Que los móviles de los profesores guardan una copia reducida para trabajar sin cobertura.
+4. Los plazos de conservación (libro 4 años, fichas 2, cobros 6) y el derecho a reclamar ante la AEPD.
+5. Los consentimientos aparte (casillas): foto, restricciones médicas, publicidad.
+
+**Qué hacer:** a los alumnos nuevos, darles la hoja que genera AulaMovil (Ficha del alumno → menú de documentos → «Hoja de protección de datos»; en blanco, desde Ajustes → Legal y privacidad), que ya incluye todo lo anterior (actualizada el 20-10-2026). A los que ya están no hace falta volver a firmarles nada: basta con tenerles informados (la página https://aulamovil.vercel.app/legal/alumnos.html, un cartel en la oficina o mandarles el enlace). Solo lo opcional (foto, médico, publicidad) necesita su firma.
+
+### Tareas del propietario, por orden
+1. **Vercel → plan Pro** (≈ 20 $/mes). La web del móvil pasa por Vercel los nombres, clases y firmas de los alumnos; el plan gratuito es solo para uso personal no comercial y no tiene contrato de tratamiento de datos (DPA). Sin él falta el contrato del art. 28 con ese proveedor. Al pasar a Pro, aceptar su DPA. Alternativa: mover la web a otro proveedor con DPA.
+2. **Supabase:** pedir y firmar su DPA (panel → Organization → Legal Documents; gratis). Recomendable el plan Pro (copias diarias, que el proyecto no se pause).
+3. **Incidente del repositorio público:** `registro_kilometraje_alumnos.csv` (56 filas con nombre de alumno, coche, fecha y km) estuvo publicado en GitHub desde el 13-07-2026 y sigue en el historial. Es una violación de la confidencialidad (art. 4.12 RGPD). Riesgo bajo (sin DNI, contacto ni datos sensibles), por lo que probablemente no hay que notificarlo a la AEPD, pero **hay que anotarlo** en el registro de incidentes (art. 33.5) con esta valoración y quitarlo: reescribir el historial y forzar la subida (las actualizaciones no se rompen) y pedir a GitHub que borre las copias en caché; o pasar el repositorio a privado con otro público solo para las actualizaciones.
+4. **Alumnos antiguos:** tras traer Ariauto hay ~3.150 alumnos terminados, algunos de 1998. Lo que pase de los plazos legales no se debe guardar (art. 5.1.e): Ajustes → Legal y privacidad → Conservación (6 años por defecto) para anonimizarlos. Desde el 20-10-2026 ya no viajan a los móviles los terminados sin actividad en 2 años.
+5. **Profesores y empleados:** informarles también (cláusula en su contrato) de que sus datos, su firma y su registro de jornada están en AulaMovil; pedirles bloqueo de pantalla en el móvil y, si se pierde uno, cerrar la sesión en los demás dispositivos (Ajustes → Cuenta). Los enlaces de firma, mejor desde el WhatsApp de la autoescuela que desde el personal.
+6. **Ordenadores de la oficina:** usuario de Windows con contraseña y cifrado del disco (BitLocker o «Cifrado del dispositivo»); `data.json` y las copias de seguridad tienen todos los datos.
+7. **Registro de actividades** (art. 30): generarlo en Ajustes → Legal y guardarlo firmado; repasarlo si cambia algo.
+8. Que un abogado revise los textos antes de vender AulaMovil a otras autoescuelas.

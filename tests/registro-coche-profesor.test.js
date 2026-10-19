@@ -165,3 +165,15 @@ test('Puesta en marcha: nº de registro, coche del profesor, alumnos repetidos y
   // El terminado sigue intacto
   expect(leerLocal().alumnos.find(a => a.id === viejo)).toMatchObject({ estado: 'apto', n_registro: '3001' });
 });
+
+// 2026-10-20: tras traer Ariauto, 8 alumnos de 1999 con nº 19991-19997 hacían que el siguiente fuera 19998
+test('siguienteNRegistro: una numeración antigua no marca el siguiente; sigue la de las altas recientes y no repite', () => {
+  const alumnos = [
+    { n_registro: '4904', fecha_alta: '2026-09-02' }, { n_registro: '4905', fecha_alta: '2026-09-30' },
+    { n_registro: '19997', fecha_alta: '1999-11-08' }, { n_registro: '19991', fecha_alta: '1999-06-02' },
+    { n_registro: '3100', fecha_alta: '2008-01-01' }, { n_registro: '4906' }   // dado de alta sin fecha (móvil antiguo)
+  ];
+  expect(siguienteNRegistro(alumnos, 2026)).toBe('4907');
+  // sin ninguna fecha de alta, como siempre: el mayor + 1
+  expect(siguienteNRegistro([{ n_registro: '12' }, { n_registro: '19997' }], 2026)).toBe('19998');
+});

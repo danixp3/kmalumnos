@@ -95,7 +95,9 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-10-10 (v1.36.0 + web). El detalle histórico completo está en HISTORIAL.md._
+_Última actualización: 2026-10-20 (v1.37.0 + web). El detalle histórico completo está en HISTORIAL.md._
+
+- **v1.37.0 (2026-10-20, escritorio PUBLICADO y web DESPLEGADA; sin migraciones):** en el móvil el profesor se **asigna un alumno** desde su ficha («Asignármelo» / «Pasármelo», `/api/asignar-alumno`, como `cambiarProfesorAlumno`; el escritorio lo anota en Historial) y ve **todas sus clases** por meses con detalle y anterior/siguiente. **Auditoría con Chrome en producción** (`CHANGELOG-SECURITY.md`): clase que cruza la medianoche, nº de registro 19998 (`siguienteNRegistro` sigue la serie reciente), fecha de alta en el móvil, API endurecida, `/lib` oculto, móviles sin los alumnos terminados hace > 2 años. **Revisión legal** en `LEGAL.md` § 5 (pendiente del propietario: Vercel Pro/DPA, DPA de Supabase, quitar el CSV con nombres del historial público de GitHub, anonimizar alumnos antiguos). Jest 725/77 + test:api 118 + smoke.
 
 - **Web móvil al instante (2026-10-10, web DESPLEGADA; sin migraciones ni release de escritorio):** al abrir pinta YA con la copia del teléfono (coches, alumnos, profesores, ajustes y jornada de hoy: `cargarDeCopia`) y la red la pone al día detrás; sin copia, «Cargando alumnos…/tu coche…» y la pantalla abierta se completa sola (`completarVistaAbierta`, el km escrito a mano se respeta). `traerTodo` pide páginas a la vez; `sw.js` abre la copia si la página tarda > 3 s. test:api 110 + Jest 723/77 + prueba en local con red lenta (`/__lento`). Falta la prueba con sesión en producción (este PC no tiene credenciales).
 
