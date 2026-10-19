@@ -130,7 +130,7 @@ function textoClasesNuevas(n) {
 // opciones.ya: repintar sin esperar al pequeño margen que agrupa avisos seguidos
 function refrescarPantallaActual(info, opciones = {}) {
   const acumulado = refrescoPendiente || { pulled: 0, practicas: 0 };
-  refrescoPendiente = { pulled: acumulado.pulled + ((info && info.pulled) || 0), practicas: acumulado.practicas + ((info && info.practicas) || 0), firmas: (acumulado.firmas || 0) + ((info && info.firmas) || 0), avisar: opciones.avisar !== false };
+  refrescoPendiente = { pulled: acumulado.pulled + ((info && info.pulled) || 0), practicas: acumulado.practicas + ((info && info.practicas) || 0), firmas: (acumulado.firmas || 0) + ((info && info.firmas) || 0), profesores: (acumulado.profesores || 0) + ((info && info.profesores) || 0), avisar: opciones.avisar !== false };
   refrescoDesde = refrescoDesde || Date.now();
   clearTimeout(refrescoTimer);
   refrescoTimer = setTimeout(intentarRefresco, opciones.ya ? 0 : 400);
@@ -153,6 +153,7 @@ function intentarRefresco() {
     const partes = [];
     if (info.practicas > 0) partes.push(textoClasesNuevas(info.practicas));
     if (info.firmas > 0) partes.push(info.firmas === 1 ? '1 clase firmada por el alumno' : `${info.firmas} clases firmadas por el alumno`);
+    if (info.profesores > 0) partes.push(info.profesores === 1 ? '1 alumno ha cambiado de profesor (míralo en Historial)' : `${info.profesores} alumnos han cambiado de profesor (míralo en Historial)`);
     if (partes.length) toastApp(partes.join(' · '));
   }
 }

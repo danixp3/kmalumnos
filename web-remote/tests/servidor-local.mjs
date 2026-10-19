@@ -20,7 +20,10 @@ reiniciar({
   alumnos: [{ id: 1, nombre: 'NICOLAS', primer_apellido: 'PEREZ', permiso: 'B', vehiculo_id: 1, profesor_id: 1, deleted: false, empresa_id: e, estado: 'activo', clases_previas: 16 },
             { id: 2, nombre: 'ROSALBA', primer_apellido: 'LAGO', permiso: 'B', vehiculo_id: 1, profesor_id: 1, deleted: false, empresa_id: e, estado: 'activo', clases_previas: 15 },
             // Traído de otro programa (procedencia, 2026-10-08): sale con su etiqueta en las listas y la ficha
-            { id: 3, nombre: 'HUGO', primer_apellido: 'TABOADA', permiso: 'B', vehiculo_id: 2, profesor_id: 1, deleted: false, empresa_id: e, estado: 'activo', procedencia: 'Ariauto' }],
+            { id: 3, nombre: 'HUGO', primer_apellido: 'TABOADA', permiso: 'B', vehiculo_id: 2, profesor_id: 1, deleted: false, empresa_id: e, estado: 'activo', procedencia: 'Ariauto' },
+            // Sin profesor (para «Asignármelo») y de MARTA (para «Pasármelo»), con clases de varios meses (2026-10-19)
+            { id: 4, nombre: 'LAURA', primer_apellido: 'SOTO', permiso: 'B', vehiculo_id: 1, profesor_id: null, deleted: false, empresa_id: e, estado: 'activo' },
+            { id: 5, nombre: 'IRENE', primer_apellido: 'VÁZQUEZ', permiso: 'B', vehiculo_id: 2, profesor_id: 2, deleted: false, empresa_id: e, estado: 'activo', clases_previas: 2 }],
   profesores: [{ id: 1, nombre: 'JULIO MARTÍN SOTO', vehiculo_id: 1, deleted: false, empresa_id: e },
                { id: 2, nombre: 'MARTA GIL', vehiculo_id: 2, deleted: false, empresa_id: e }],
   practicas: [{ id: 1, alumno_id: 1, vehiculo_id: 1, fecha: hoy(), hora_inicio: '08:43', hora_fin: '09:08', km_inicial: 17793, km_final: 17816, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'web-remote', tipo_detalle: 'km_auto' },
@@ -29,7 +32,10 @@ reiniciar({
               { id: 3, alumno_id: 3, vehiculo_id: 2, fecha: hoy(), hora_inicio: '09:30', km_inicial: 295250, km_final: 0, tipo: 'circulacion', profesor_id: 2, deleted: false, empresa_id: e, source: 'web-remote' },
               // Clases de días anteriores del TAIGO (para «Anotar clase pasada»); la de hace 3 días es del móvil y sin firma → sale en «Firmas pendientes»
               { id: 4, alumno_id: 2, vehiculo_id: 1, fecha: haceDias(3), hora_inicio: '17:00', hora_fin: '17:45', km_inicial: 17700, km_final: 17722, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'web-remote' },
-              { id: 5, alumno_id: 2, vehiculo_id: 1, fecha: haceDias(1), hora_inicio: '12:00', hora_fin: '12:45', km_inicial: 17770, km_final: 17793, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'desktop' }],
+              { id: 5, alumno_id: 2, vehiculo_id: 1, fecha: haceDias(1), hora_inicio: '12:00', hora_fin: '12:45', km_inicial: 17770, km_final: 17793, tipo: 'circulacion', profesor_id: 1, deleted: false, empresa_id: e, source: 'desktop' },
+              // Historial de LAURA (sin profesor) e IRENE (de MARTA): varios meses, pista, traídas, sin profesor propio, ½ clase
+              ...Array.from({ length: 14 }, (_, i) => ({ id: 20 + i, alumno_id: 4, vehiculo_id: 1, fecha: haceDias(4 + i * 6), hora_inicio: '10:00', hora_fin: '10:45', km_inicial: 17000 + i * 25, km_final: 17022 + i * 25, tipo: i === 5 ? 'pista' : 'circulacion', profesor_id: i % 3 ? null : 1, deleted: false, empresa_id: e, source: 'desktop', zonas: i % 2 ? ['Centro'] : null, nota: i === 2 ? 'Rotondas: mirar antes el retrovisor' : null, firma: i % 4 ? 'data:image/png;base64,AAAA' : null, fraccion: i === 1 ? 0.5 : null })),
+              ...Array.from({ length: 6 }, (_, i) => ({ id: 40 + i, alumno_id: 5, vehiculo_id: 2, fecha: haceDias(10 + i * 9), hora_inicio: '16:00', km_inicial: 294000 + i * 30, km_final: 294024 + i * 30, tipo: 'circulacion', profesor_id: i < 4 ? 2 : null, deleted: false, empresa_id: e, source: 'desktop', procedencia: i > 3 ? 'Ariauto' : null, tipo_detalle: i === 5 ? 'anterior' : null }))],
   reservas: [], ajustes_empresa: [{ empresa_id: e, clave: 'duracion_clase_min', valor: 45 }]
 });
 
@@ -72,7 +78,7 @@ BD.funciones.firma_enlace_firmar = p => {
   return { data: { ok: true, firmadas, ya_firmadas: ya, no_confirmadas: p.p_no_confirmadas || [] }, error: null };
 };
 
-const MOVIL = ['hoy', 'iniciar-practica', 'finalizar-practica', 'firmar-practica', 'cancelar-practica', 'config', 'calendario', 'practica-detalle', 'anotar-practica', 'registrar-clase', 'firma-profesor', 'coche-profesor', 'km-coche', 'estado-practica', 'corregir-clases', 'avisos', 'enlace-firma', 'firma-alumno'];
+const MOVIL = ['hoy', 'iniciar-practica', 'finalizar-practica', 'firmar-practica', 'cancelar-practica', 'config', 'calendario', 'practica-detalle', 'anotar-practica', 'registrar-clase', 'firma-profesor', 'coche-profesor', 'km-coche', 'estado-practica', 'corregir-clases', 'avisos', 'enlace-firma', 'firma-alumno', 'asignar-alumno'];
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.woff2': 'font/woff2', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 let desconectado = false;   // simula «sin cobertura» desde el servidor: corta /api con 503
 let lento = 0;              // /__lento?ms=4000: cada /api tarda eso (red lenta al abrir la app; ms=0 la quita)

@@ -9,7 +9,7 @@ const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const TOKEN = `x.${b64({ sub: 'emp1' })}.y`;
 
 async function llamar(nombre, { method = 'POST', body, query } = {}) {
-  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor','km-coche','estado-practica','corregir-clases','enlace-firma','firma-alumno'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
+  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor','km-coche','estado-practica','corregir-clases','enlace-firma','firma-alumno','asignar-alumno'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
   let status = 200, json;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
   await mod.default({ method, headers: { authorization: 'Bearer ' + TOKEN }, body, query }, res);
@@ -1231,4 +1231,75 @@ test('firma-alumno: código raro o inexistente → 404, caducado → 410, sin se
   delete process.env.AVISOS_SECRETO;
   assert.equal((await llamar('firma-alumno', { method: 'GET', query: { t } })).status, 503);
   process.env.AVISOS_SECRETO = 's3cr3t';
+});
+
+// ─── 2026-10-19: el profesor se asigna un alumno; la ficha trae todas sus clases ───
+
+test('asignar-alumno: sin profesor → se lo queda; sus clases de hoy en adelante pasan a ser suyas y repetir no cambia nada', async () => {
+  const t = base();
+  t.profesores.push({ id: 2, nombre: 'Marta', deleted: false, empresa_id: 'emp1' });
+  t.alumnos[1].profesor_id = null;
+  t.practicas.push({ id: 2, alumno_id: 2, vehiculo_id: 1, fecha: '2026-09-01', km_inicial: 900, km_final: 920, profesor_id: null, deleted: false, empresa_id: 'emp1' },
+    { id: 3, alumno_id: 2, vehiculo_id: 1, fecha: hoy(), km_inicial: 1000, km_final: 1020, profesor_id: null, deleted: false, empresa_id: 'emp1' });
+  reiniciar(t);
+  const r = await llamar('asignar-alumno', { body: { alumno_id: 2, profesor_id: 2, profesor_antes: null, hoy: hoy() } });
+  assert.equal(r.status, 200); assert.equal(r.json.profesor_nombre, 'Marta');
+  assert.equal(BD.tablas.alumnos.find(a => a.id === 2).profesor_id, 2);
+  // sin profesor antes: la clase pasada no tiene a quién atribuirse; la de hoy, a la nueva
+  assert.equal(BD.tablas.practicas.find(p => p.id === 2).profesor_id, null);
+  assert.equal(BD.tablas.practicas.find(p => p.id === 3).profesor_id, 2);
+  assert.deepEqual([r.json.conservadas, r.json.nuevas], [0, 1]);
+  const otra = await llamar('asignar-alumno', { body: { alumno_id: 2, profesor_id: 2, profesor_antes: null, hoy: hoy() } });
+  assert.equal(otra.status, 200); assert.equal(otra.json.sin_cambios, true);
+});
+
+test('asignar-alumno: de otro profesor → lo ya dado se queda con quien lo dio; si el teléfono no sabía de quién era → 409', async () => {
+  const t = base();
+  t.profesores.push({ id: 2, nombre: 'Marta', deleted: false, empresa_id: 'emp1' });
+  t.practicas[0].profesor_id = null;   // clase de Lucía sin profesor propio (del escritorio)
+  reiniciar(t);
+  // el teléfono creía que no tenía profesor: no se toca nada y se dice de quién es
+  let r = await llamar('asignar-alumno', { body: { alumno_id: 1, profesor_id: 2, profesor_antes: null, hoy: hoy() } });
+  assert.equal(r.status, 409); assert.equal(r.json.codigo, 'profesor_cambiado'); assert.equal(r.json.profesor_nombre, 'Javier');
+  assert.equal(BD.tablas.alumnos.find(a => a.id === 1).profesor_id, 1);
+  assert.equal(BD.tablas.practicas[0].profesor_id, null);
+  // confirmando sabiendo que es de Javier
+  r = await llamar('asignar-alumno', { body: { alumno_id: 1, profesor_id: 2, profesor_antes: 1, hoy: hoy() } });
+  assert.equal(r.status, 200); assert.equal(r.json.profesor_antes_nombre, 'Javier'); assert.equal(r.json.conservadas, 1);
+  assert.equal(BD.tablas.alumnos.find(a => a.id === 1).profesor_id, 2);
+  assert.equal(BD.tablas.practicas[0].profesor_id, 1);   // la clase del 28/09 sigue siendo de Javier
+});
+
+test('asignar-alumno: valida alumno y profesor (de la empresa, no borrados)', async () => {
+  const t = base();
+  t.profesores.push({ id: 3, nombre: 'Ajeno', deleted: false, empresa_id: 'otra' }, { id: 4, nombre: 'Borrado', deleted: true, empresa_id: 'emp1' });
+  reiniciar(t);
+  assert.equal((await llamar('asignar-alumno', { body: { alumno_id: 99, profesor_id: 1 } })).status, 404);
+  assert.equal((await llamar('asignar-alumno', { body: { alumno_id: 1, profesor_id: 3, profesor_antes: 1 } })).status, 404);
+  assert.equal((await llamar('asignar-alumno', { body: { alumno_id: 1, profesor_id: 4, profesor_antes: 1 } })).status, 404);
+  assert.equal((await llamar('asignar-alumno', { body: { alumno_id: 'x', profesor_id: 1 } })).status, 400);
+  assert.equal((await llamar('asignar-alumno', { body: { alumno_id: 1, profesor_id: 1, profesor_antes: 'z' } })).status, 400);
+  assert.equal((await llamar('asignar-alumno', { method: 'GET' })).status, 405);
+});
+
+test('practicas-alumno: trae TODAS las clases (más de 1.000 paginadas) con su nº de clase, profesor y coche', async () => {
+  const t = base();
+  t.profesores.push({ id: 2, nombre: 'Marta', deleted: false, empresa_id: 'emp1' });
+  t.alumnos[0].clases_previas = 3;
+  for (let i = 0; i < 1100; i++) {
+    const d = new Date(Date.UTC(2023, 0, 1) + i * 86400000).toISOString().slice(0, 10);
+    t.practicas.push({ id: 100 + i, alumno_id: 1, vehiculo_id: 1, fecha: d, hora_inicio: '10:00', km_inicial: 10 * i, km_final: 10 * i + 10, profesor_id: i % 2 ? 2 : 1, fraccion: i === 0 ? 0.5 : null, deleted: false, empresa_id: 'emp1' });
+  }
+  reiniciar(t); BD.maxRows = 1000;
+  const r = await llamar('practicas-alumno', { method: 'GET', query: { alumno_id: '1', hoy: hoy() } });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.practicas.length, 1101); assert.equal(r.json.n_practicas, 1101);
+  // las más recientes primero; la primera de todas (½ clase tras 3 previas) es la nº 4
+  assert.equal(r.json.practicas[0].fecha, '2026-09-28');
+  const primera = r.json.practicas[r.json.practicas.length - 1];
+  assert.deepEqual([primera.clase_n, primera.fraccion, primera.profesor_nombre, primera.matricula], [4, 0.5, 'Javier', '4821 LKM']);
+  assert.equal(r.json.practicas[r.json.practicas.length - 2].clase_n, 5);   // 3 + ½ + 1 = 4,5 → nº 5
+  assert.equal(r.json.total, 1100.5);
+  assert.deepEqual(r.json.por_profesor.map(x => x.nombre).sort(), ['Javier', 'Marta']);
+  assert.equal(r.json.practicas.some(p => 'firma' in p), false);   // sin la imagen de la firma
 });

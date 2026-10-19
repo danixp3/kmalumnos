@@ -4,7 +4,7 @@
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError,
   COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_MOVIL, conFallbackColumnas, kmDePractica, nombreCompleto,
-  sesionDePractica, clasesDe
+  sesionDePractica, clasesDe, esErrorColumnaInexistente
 } from '../../api/_utils.js';
 
 export default async function handler(req, res) {
@@ -19,9 +19,11 @@ export default async function handler(req, res) {
   const idVal = validators.positiveInt((req.query || {}).id, 'id');
   if (!idVal.valid) return res.status(400).json({ error: idVal.error });
 
-  const { res: r } = await conFallbackColumnas(conOpc => supabase
-    .from('practicas').select(COLUMNAS_PRACTICA_BASE + ', updated_at' + (conOpc ? ', ' + COLUMNAS_PRACTICA_MOVIL : ''))
-    .eq('id', idVal.value).eq('deleted', false).eq('empresa_id', auth.empresaId).maybeSingle());
+  // procedencia: programa del que se trajo la clase (migración 2026-10-08); sin la columna, sin ella
+  const leer = cols => supabase.from('practicas').select(COLUMNAS_PRACTICA_BASE + ', updated_at' + cols)
+    .eq('id', idVal.value).eq('deleted', false).eq('empresa_id', auth.empresaId).maybeSingle();
+  let r = await leer(', ' + COLUMNAS_PRACTICA_MOVIL + ', procedencia');
+  if (r.error && esErrorColumnaInexistente(r.error)) ({ res: r } = await conFallbackColumnas(conOpc => leer(conOpc ? ', ' + COLUMNAS_PRACTICA_MOVIL : '')));
   if (r.error && isAuthError(r.error)) return res.status(401).json({ error: 'Sesión expirada. Inicia sesión de nuevo.' });
   if (handleSupabaseError(r.error, res, 'Error al obtener la práctica')) return;
   const p = r.data;
@@ -75,7 +77,7 @@ export default async function handler(req, res) {
       fraccion: clasesDe(p) < 1 ? clasesDe(p) : null,
       tipo: p.tipo || 'circulacion', tipo_detalle: p.tipo_detalle || null,
       zonas: Array.isArray(p.zonas) ? p.zonas : [], trabajado: Array.isArray(p.trabajado) ? p.trabajado : [],
-      nota: p.nota || '', firma: p.firma || null, source: p.source || null, cancelable: !!cancelable,
+      nota: p.nota || '', firma: p.firma || null, source: p.source || null, procedencia: p.procedencia || null, cancelable: !!cancelable,
       sesion, corregible
     }
   });

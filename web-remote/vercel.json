@@ -81,6 +81,10 @@
       "destination": "/api/movil?op=firma-alumno"
     },
     {
+      "source": "/api/asignar-alumno",
+      "destination": "/api/movil?op=asignar-alumno"
+    },
+    {
       "source": "/f/:codigo",
       "destination": "/firmar.html"
     }

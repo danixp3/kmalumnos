@@ -1,6 +1,6 @@
 // Único endpoint serverless del flujo móvil de prácticas. El plan Hobby de Vercel
 // admite 12 funciones, así que hoy/iniciar/finalizar/firmar/cancelar/config/
-// calendario/practica-detalle/anotar-practica/registrar-clase/firma-profesor/coche-profesor/avisos/km-coche/estado-practica/corregir-clases/enlace-firma/firma-alumno viven en lib/movil/ y vercel.json reescribe
+// calendario/practica-detalle/anotar-practica/registrar-clase/firma-profesor/coche-profesor/avisos/km-coche/estado-practica/corregir-clases/enlace-firma/firma-alumno/asignar-alumno viven en lib/movil/ y vercel.json reescribe
 // /api/<nombre> → /api/movil?op=<nombre>.
 import hoy from '../lib/movil/hoy.js';
 import iniciar from '../lib/movil/iniciar-practica.js';
@@ -20,6 +20,7 @@ import estadoPractica from '../lib/movil/estado-practica.js';
 import corregirClases from '../lib/movil/corregir-clases.js';
 import enlaceFirma from '../lib/movil/enlace-firma.js';
 import firmaAlumno from '../lib/movil/firma-alumno.js';
+import asignarAlumno from '../lib/movil/asignar-alumno.js';
 
 const OPS = {
   'hoy': hoy,
@@ -40,6 +41,7 @@ const OPS = {
   'estado-practica': estadoPractica,
   'corregir-clases': corregirClases,
   'enlace-firma': enlaceFirma,
+  'asignar-alumno': asignarAlumno,
   // Sin sesión: la página del alumno (firmar.html); la protege el código del enlace
   'firma-alumno': firmaAlumno
 };

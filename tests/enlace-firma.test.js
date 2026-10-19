@@ -174,3 +174,22 @@ test('listarEnlacesFirma y anularEnlaceFirma: leen y anulan los enlaces de la em
   expect(sinTabla.ok).toBe(false);
   expect(sinTabla.msg).toMatch(/todavía no admite enlaces/);
 });
+
+// 2026-10-19: un profesor se asigna un alumno desde el móvil → el escritorio lo anota en el Historial y lo avisa
+test('sync: un cambio de profesor que llega de la nube queda en el Historial y se avisa', async () => {
+  mockRemote.authUserId = EMPRESA;
+  sync.setCredentials('jefe@test.com', 'password123');
+  const d0 = datos(); d0.profesores.push({ id: 2, nombre: 'Marta' }); d0.alumnos[0].profesor_id = null;
+  writeData(d0);
+  sync.markDirty('vehiculos', 1); sync.markDirty('alumnos', 1);
+  expect((await sync.sync()).ok).toBe(true);
+  Object.assign(mockRemote.tables.alumnos.find(a => a.id === 1), { profesor_id: 2, updated_at: new Date(Date.now() + 5000).toISOString() });
+  const avisos = [];
+  sync.onDatosNuevos(info => avisos.push(info));
+  expect((await sync.sync()).ok).toBe(true);
+  sync.onDatosNuevos(null);
+  const d = leerData();
+  expect(d.alumnos.find(a => a.id === 1).profesor_id).toBe(2);
+  expect(d.logs[0].descripcion).toBe('Cambio de profesor (desde otro dispositivo): Lucía Martín pasa de sin profesor a Marta');
+  expect(avisos).toEqual([expect.objectContaining({ profesores: 1 })]);
+});

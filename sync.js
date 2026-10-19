@@ -2370,6 +2370,7 @@ async function _syncInterno() {
     let pulled = 0;
     let practicasTraidas = 0; // las que llegaron nuevas o cambiadas (clases del móvil, del otro PC)
     let firmasTraidas = 0;    // clases que ya había aquí y llegan firmadas por el alumno (móvil o enlace de firma)
+    const cambiosProfesor = []; // alumnos que cambiaron de profesor en otro dispositivo (p. ej. un profesor que se lo asigna en el móvil)
     let dataChanged = false;
 
     // Con sesión autenticada, cada bajada se filtra por empresa_id (uid de la
@@ -2578,6 +2579,7 @@ async function _syncInterno() {
           const remoteUpdated = ra.updated_at || '1970-01-01T00:00:00.000Z';
 
           if (remoteUpdated > localUpdated) {
+            if ((local.profesor_id || null) !== (alumno.profesor_id || null)) cambiosProfesor.push({ alumno, antes: local.profesor_id || null });
             _detectarYRegistrarConflicto(data, 'alumnos', pending.alumnos, ra.id,
               ['nombre', 'permiso', 'vehiculo_id', 'profesor_id', 'email',
                 'telefono', 'dni', 'fecha_nacimiento', 'direccion', 'fecha_alta', 'observaciones', 'estado',
@@ -2599,6 +2601,18 @@ async function _syncInterno() {
       if (alumnosFuera.size) {
         data.alumnos = data.alumnos.filter(a => !alumnosFuera.has(a.id));
         data.practicas = data.practicas.filter(p => !alumnosFuera.has(p.alumno_id));
+      }
+      // Queda en el Historial de este PC (la oficina se entera de que un profesor se quedó con un alumno)
+      if (cambiosProfesor.length) {
+        const nombreProf = id => { if (!id) return 'sin profesor'; const p = (data.profesores || []).find(x => x.id === id); return p ? p.nombre : 'otro profesor'; };
+        const nombreAl = a => [a.nombre, a.primer_apellido].filter(Boolean).join(' ');
+        try {
+          require('./db').registrarLogEnData(data, 'alumnos',
+            cambiosProfesor.length === 1
+              ? `Cambio de profesor (desde otro dispositivo): ${nombreAl(cambiosProfesor[0].alumno)} pasa de ${nombreProf(cambiosProfesor[0].antes)} a ${nombreProf(cambiosProfesor[0].alumno.profesor_id)}`
+              : `Cambio de profesor (desde otro dispositivo): ${cambiosProfesor.length} alumnos`,
+            cambiosProfesor.map(c => `${nombreAl(c.alumno)}: ${nombreProf(c.antes)} → ${nombreProf(c.alumno.profesor_id)}`));
+        } catch (e) { /* el historial no debe tumbar el sync */ }
       }
     }
 
@@ -2971,7 +2985,7 @@ async function _syncInterno() {
     }
     pending.lastSync = new Date(inicioSync - MARGEN_LASTSYNC_MS).toISOString();
     savePending(pending);
-    if (pulled > 0 && _onDatosNuevos) { try { _onDatosNuevos({ pulled, practicas: practicasTraidas, firmas: firmasTraidas }); } catch (e) { /* la UI no debe tumbar el sync */ } }
+    if (pulled > 0 && _onDatosNuevos) { try { _onDatosNuevos({ pulled, practicas: practicasTraidas, firmas: firmasTraidas, profesores: cambiosProfesor.length }); } catch (e) { /* la UI no debe tumbar el sync */ } }
 
     if (erroresSubida.length) {
       // Siguen en la cola y se reintentan en el próximo sync; la UI lo avisa.
