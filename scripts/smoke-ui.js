@@ -420,4 +420,5 @@ fs.mkdirSync(UD_PRUEBA, { recursive: true });
 const datosReales = path.join(app.getPath('appData'), 'KMAlumnos', 'data.json');
 if (fs.existsSync(datosReales)) fs.copyFileSync(datosReales, path.join(UD_PRUEBA, 'data.json'));
 app.setPath('userData', UD_PRUEBA);
-info.push(`datos de prueba (copia, sin nube): ${UD_PRUEBA}`);
+require('./limpiar-copia-datos').borrarCopiaAlSalir(app, UD_PRUEBA); // la copia no se queda en %TEMP%
+info.push(`datos de prueba (copia, sin nube; se borra al terminar): ${UD_PRUEBA}`);

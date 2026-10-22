@@ -29,6 +29,7 @@ fs.mkdirSync(path.join(SALIDA, 'capturas'), { recursive: true });
 const real = path.join(app.getPath('appData'), 'KMAlumnos', 'data.json');
 if (fs.existsSync(real)) fs.copyFileSync(real, path.join(UD, 'data.json'));
 app.setPath('userData', UD);
+require('./limpiar-copia-datos').borrarCopiaAlSalir(app, UD); // la copia no se queda en %TEMP%
 
 const ventana = () => BrowserWindow.getAllWindows().find(w => { try { return /index\.html/i.test(w.webContents.getURL()); } catch (e) { return false; } });
 const ev = js => ventana().webContents.executeJavaScript(js);

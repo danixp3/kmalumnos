@@ -95,6 +95,14 @@ test('reparto de las clases de Ariauto: con su día, bonos y las que ya están e
   expect(repartirClases(e, '2026-09-18')).toMatchObject({ conFecha: [{ fecha: '2026-09-17', n: 2 }], sinFecha: 12, omitidas: 3.5 });
   // Un bono cobrado poco antes de la primera clase en la app: dudoso, no se suma
   expect(repartirClases([{ fecha: '2026-09-05', n: 10 }], '2026-09-11')).toMatchObject({ sinFecha: 0, omitidas: 10, bonoDudoso: 10 });
+  // Caso real (2026-10-22): bono de 10 cobrado en noviembre, teórico aprobado en
+  // agosto y primera clase en la app en septiembre → son las mismas clases
+  const bono = [{ fecha: '2025-11-20', n: 10 }];
+  expect(repartirClases(bono, '2026-09-21')).toMatchObject({ sinFecha: 10, bonoDudoso: 0 });              // sin saber el teórico, como antes
+  expect(repartirClases(bono, '2026-09-21', '2026-08-24')).toMatchObject({ sinFecha: 0, omitidas: 10, bonoDudoso: 10 });
+  expect(repartirClases(bono, '2026-09-21', new Date(Date.UTC(2026, 7, 24)))).toMatchObject({ sinFecha: 0, bonoDudoso: 10 }); // fecha de Access
+  // Teórico de hace mucho: el bono antiguo sí pudo darse antes de la app
+  expect(repartirClases(bono, '2026-09-21', '2025-10-01')).toMatchObject({ sinFecha: 10, bonoDudoso: 0 });
   expect(trocearClases(2.5)).toEqual([1, 1, 0.5]);
   expect(trocearClases(0.75)).toEqual([0.75]);
 });
@@ -126,7 +134,7 @@ test('Ariauto tras la Puesta en marcha: no duplica, no repite clases, corrige al
   expect(fila('4512').cambios).toMatchObject({ nombre: { despues: 'Ilirë' }, primer_apellido: { despues: 'Mardheli' }, clases_previas: { despues: 10 }, fecha_alta: { despues: '2023-09-25' } });
   // ROSALBA: el bono de justo antes puede ser el de sus clases: no se suma y se avisa
   expect(fila('4846').reparto).toMatchObject({ conFecha: [], sinFecha: 0, bonoDudoso: 10 });
-  expect(fila('4846').avisos.join(' ')).toMatch(/bono de 10 clases poco antes/);
+  expect(fila('4846').avisos.join(' ')).toMatch(/bono de 10 clases que pueden ser las mismas.*cobrado poco antes/);
   expect(fila('4846').cambios).not.toHaveProperty('clases_previas');
   // Noa ya tenía sus «clases ya hechas»: nada
   expect(fila('4733').reparto.total).toBe(0);

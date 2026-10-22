@@ -101,18 +101,25 @@ const cuarto = n => Math.round(n * 4) / 4;
 // o sin fecha (bonos). hasta: solo las de antes de ese día (las demás ya están
 // en la app: el alumno las tiene anotadas). Un bono cobrado en los 60 días de
 // antes de su primera clase en la app puede ser el de esas mismas clases: no
-// se suma (bonoDudoso). { conFecha:[{fecha,n}], sinFecha, omitidas, bonoDudoso, total }
+// se suma (bonoDudoso). Igual si aprobó el teórico en esos 60 días (teorico):
+// sin teórico no hay clases por la calle, así que un bono pagado por
+// adelantado (meses antes) se gastó en las clases que ya están en la app
+// (caso 2026-10-22: bono de 10 cobrado en noviembre, teórico en agosto,
+// primera clase en septiembre → 10 clases contadas dos veces).
+// { conFecha:[{fecha,n}], sinFecha, omitidas, bonoDudoso, total }
 const DIAS_BONO_DUDOSO = 60;
-function repartirClases(entradas, hasta = null) {
+function repartirClases(entradas, hasta = null, teorico = null) {
   const porDia = new Map();
   let sinFecha = 0, omitidas = 0, bonoDudoso = 0;
   const desdeDudoso = hasta ? restarDias(hasta, DIAS_BONO_DUDOSO) : null;
+  const fTeorico = teorico instanceof Date ? fechaDe(teorico) : (/^\d{4}-\d{2}-\d{2}/.test(teorico || '') ? String(teorico).slice(0, 10) : null);
+  const teoricoReciente = !!(hasta && fTeorico && fTeorico >= desdeDudoso);
   for (const e of entradas || []) {
     const n = cuarto(e.n);
     if (!(n > 0)) continue;
     if (hasta && e.fecha && e.fecha >= hasta) { omitidas += n; continue; }
     const bono = n > MAX_CLASES_APUNTE || !e.fecha;
-    if (bono && hasta && (!e.fecha || e.fecha >= desdeDudoso)) { omitidas += n; bonoDudoso += n; continue; }
+    if (bono && hasta && (!e.fecha || e.fecha >= desdeDudoso || teoricoReciente)) { omitidas += n; bonoDudoso += n; continue; }
     if (bono) { sinFecha += n; continue; }
     porDia.set(e.fecha, (porDia.get(e.fecha) || 0) + n);
   }
@@ -452,8 +459,8 @@ function planAriauto(tablas, opciones = {}, d = load()) {
     fila.primeraApp = primera;
     if (al.clases_previas > 0) fila.reparto = { conFecha: [], sinFecha: 0, omitidas: fila.clases, total: 0 };
     else if (!fila.activo) fila.reparto = primera ? { conFecha: [], sinFecha: 0, omitidas: fila.clases, total: 0 } : { conFecha: [], sinFecha: fila.clases, omitidas: 0, total: fila.clases };
-    else fila.reparto = repartirClases(fila.entradasClase, primera);
-    if (fila.reparto.bonoDudoso) fila.avisos.push(`Ariauto le cobró un bono de ${String(fila.reparto.bonoDudoso).replace('.', ',')} clases poco antes de su primera clase en la app (${primera.split('-').reverse().join('/')}): no se suma, pueden ser las mismas. Si son otras, añádelas en Puesta en marcha.`);
+    else fila.reparto = repartirClases(fila.entradasClase, primera, al.fecha_teorico || fila.datos.fecha_teorico || null);
+    if (fila.reparto.bonoDudoso) fila.avisos.push(`Ariauto le cobró un bono de ${String(fila.reparto.bonoDudoso).replace('.', ',')} clases que pueden ser las mismas que ya tiene en la app (primera el ${primera.split('-').reverse().join('/')}; cobrado poco antes o con el teórico recién aprobado): no se suma. Si son otras, añádelas en Puesta en marcha.`);
     fila.cambios = cambiosAlumno(al, fila);
     if (fila.datos.n_registro && !vacio(al.n_registro) && String(al.n_registro).trim() !== String(fila.datos.n_registro)) {
       fila.avisos.push(`En la app tiene el nº ${al.n_registro} y en Ariauto el ${fila.datos.n_registro}: se deja el de la app`);
