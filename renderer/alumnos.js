@@ -692,7 +692,7 @@ const FD_GRUPOS = [
     { c: 'fecha_alta', l: 'Alta', t: 'fecha' }, { c: 'fecha_teorico', l: 'Teórico aprobado', t: 'fecha' }, { c: 'fecha_fin', l: 'Fin de la enseñanza', t: 'fecha' },
     { c: 'resultado', l: 'Resultado final', t: 'select', op: [['', '—'], ['apto', 'Apto'], ['no_apto', 'No apto'], ['baja', 'Baja']] },
     { c: 'n_solicitud', l: 'Nº de solicitud', t: 'num', ayuda: 'Solicitud del expediente en Tráfico' }, { c: 'convocatoria', l: 'Convocatoria', t: 'num' },
-    { c: 'clases_previas', l: 'Clases antes de la app', t: 'clases', ayuda: 'Punto de partida: la numeración de clases y los totales continúan desde aquí. De ¼ en ¼ (12 · 12,5 · 12 ½)' },
+    { c: 'clases_previas', l: 'Clases sin fecha (antes de la app)', t: 'clases', ayuda: 'Clases que hizo antes de usar la app y que NO están en su lista: suman al total y la numeración sigue desde aquí. Las que ya están en la lista no van aquí. De ¼ en ¼ (12 · 12,5 · 12 ½)' },
     { c: 'km_previos', l: 'Km antes de la app', t: 'num' },
     { c: 'procedencia', l: 'Procedencia', t: 'procedencia', ayuda: 'Programa del que se trajo este alumno (lo pone sola la importación). Vacío = creado en AulaMovil' }] },
   { titulo: 'Salud, tutor y facturación', campos: [
@@ -1124,7 +1124,7 @@ function abrirModalCargo() {
   document.getElementById('cargo-tipo').value = 'cargo';
   document.getElementById('cargo-concepto').value = '';
   document.getElementById('cargo-importe').value = '';
-  document.getElementById('cargo-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('cargo-fecha').value = hoyISO();
   document.getElementById('cargo-nota').value = '';
   openModal('modal-cargo');
 }
@@ -1319,7 +1319,7 @@ async function imprimirLibroRegistro() {
       <img src="icon.png" alt="AulaMovil" class="ficha-logo">
       <div>
         <h1>AulaMovil — Libro de registro de alumnos (art. 39)</h1>
-        <div class="ficha-fecha">Generado el ${fmtFecha(new Date().toISOString().split('T')[0])}</div>
+        <div class="ficha-fecha">Generado el ${fmtFecha(hoyISO())}</div>
       </div>
     </div>
     <table class="ficha-tabla">

@@ -11,7 +11,7 @@
 // mientras tanto) → 409 `profesor_cambiado` con el de verdad, para que vuelva a confirmar.
 // Repetir la petición (doble toque, mala cobertura) → 200 `sin_cambios`.
 import {
-  setCorsHeaders, requireAuth, validators, getSupabase, withRetry, handleSupabaseError, nombreCompleto
+  setCorsHeaders, requireAuth, validators, getSupabase, withRetry, handleSupabaseError, nombreCompleto, hoyEspana
 } from '../../api/_utils.js';
 
 export default async function handler(req, res) {
@@ -34,7 +34,7 @@ export default async function handler(req, res) {
     if (!v.valid) return res.status(400).json({ error: v.error });
     esperado = v.value;
   }
-  const hoy = /^\d{4}-\d{2}-\d{2}$/.test(b.hoy || '') ? b.hoy : new Date().toISOString().slice(0, 10);
+  const hoy = /^\d{4}-\d{2}-\d{2}$/.test(b.hoy || '') ? b.hoy : hoyEspana();
 
   const [rA, rP] = await Promise.all([
     withRetry(() => supabase.from('alumnos').select('id, nombre, primer_apellido, segundo_apellido, profesor_id')

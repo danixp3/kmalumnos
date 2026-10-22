@@ -43,8 +43,11 @@ function importarCSV(rows, kmMin = 40, kmMax = 45) {
         return;
       }
 
-      // Vehículo
-      let v = d.vehiculos.find(x => x.nombre.toLowerCase() === vehiculo.toLowerCase());
+      // Vehículo: por nombre o por matrícula («1234 ABC», «1234-abc»...); antes
+      // solo por el nombre exacto y una matrícula creaba un coche repetido
+      const mat = t => String(t || '').toUpperCase().replace(/[\s.-]/g, '');
+      let v = d.vehiculos.find(x => !x.deleted && String(x.nombre || '').trim().toLowerCase() === vehiculo.toLowerCase()) ||
+        (mat(vehiculo).length >= 4 ? d.vehiculos.find(x => !x.deleted && x.matricula && mat(x.matricula) === mat(vehiculo)) : null);
       if (!v) {
         const vid = nextId('v');
         v = { id: vid, nombre: vehiculo, matricula: '', km_actual: 0 };

@@ -3313,6 +3313,9 @@ tr.fila-sep-proc td {
 }
 tr.fila-sep-proc.fila-sep-app td { background: var(--surface-2, var(--btn-gray-bg)); color: var(--text-muted); border-top-color: var(--border-strong); }
 tr.fila-sep-proc td svg { vertical-align: -1px; margin-right: 4px; }
+/* Ficha del alumno: clases de antes de la app sin fecha (al final: son las primeras) */
+tr.fila-previas td { background: var(--surface-2, var(--btn-gray-bg)); color: var(--text-muted); font-size: 12.5px; border-top: 2px dashed var(--border-strong); }
+tr.fila-previas td b { color: var(--text); }
 /* Ajustes → Datos de otros programas */
 .proc-lista { display: flex; flex-direction: column; gap: 8px; max-width: 900px; }
 .proc-fila {

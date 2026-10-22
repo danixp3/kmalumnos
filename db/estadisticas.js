@@ -2,7 +2,7 @@
 // Resumen general, tarjetas opcionales del dashboard y timeline de prácticas
 // de un vehículo (con detección de huecos/solapamientos frente a la anterior).
 
-const { load, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, nombreCorto, alumnoTerminado } = require('./core');
+const { load, filtrarPorSucursal, esPracticaEnCurso, esPracticaSinCerrar, nombreCorto, alumnoTerminado, clasesDePractica, aCuartos, fmtClases, hoyLocalISO } = require('./core');
 const { getSolapamientos } = require('./km-algoritmos');
 const { getDeudas } = require('./pagos');
 const { vehiculoEnUso } = require('./campos-extra');
@@ -89,13 +89,15 @@ function getStatsProfesores(desde, hasta) {
         .filter(x => !(x.km_inicial === 0 && x.km_final === 0))
         .reduce((sum, x) => sum + (x.km_final - x.km_inicial), 0);
       const numAlumnos = new Set(propias.map(x => x.alumno_id)).size;
-      const practicasPista = propias.filter(x => x.tipo === 'pista').length;
-      const practicasCirculacion = propias.filter(x => x.tipo !== 'pista').length;
+      // Clases dadas (½ clase cuenta ½), no filas
+      const clases = lista => aCuartos(lista.reduce((n, x) => n + clasesDePractica(x), 0));
+      const practicasPista = clases(propias.filter(x => x.tipo === 'pista'));
+      const practicasCirculacion = clases(propias.filter(x => x.tipo !== 'pista'));
       const ultimaPractica = propias.reduce((max, x) => (!max || x.fecha > max) ? x.fecha : max, null);
       return {
         id: p.id,
         nombre: p.nombre,
-        num_practicas: propias.length,
+        num_practicas: clases(propias),
         km_totales: Math.round(kmTotales * 10) / 10,
         num_alumnos: numAlumnos,
         practicas_pista: practicasPista,
@@ -160,7 +162,7 @@ function getDatosGraficos(meses, sucursalId) {
     .map(p => {
       const propias = practicasValidas.filter(x => x.profesor_id === p.id);
       const km = propias.filter(conKm).reduce((sum, x) => sum + (x.km_final - x.km_inicial), 0);
-      return { nombre: p.nombre, num_practicas: propias.length, km: Math.round(km * 10) / 10 };
+      return { nombre: p.nombre, num_practicas: aCuartos(propias.reduce((n, x) => n + clasesDePractica(x), 0)), km: Math.round(km * 10) / 10 };
     })
     .sort((a, b) => b.num_practicas - a.num_practicas);
 
@@ -233,10 +235,14 @@ const SEMAFORO_MIN_PRACTICAS_AMBAR = 10; // por debajo de esto, directo a rojo
 // `previas` = punto de partida del alumno (clases/km hechos antes de usar la
 // app): cuentan igual que las registradas para decidir si está listo.
 function _calcularSemaforo(practicasAlumno, previas = {}) {
-  const nPracticas = practicasAlumno.length + (previas.clases_previas > 0 ? previas.clases_previas : 0);
+  // Clases, no filas: ½ clase suma ½ y la que está en curso aún no cuenta
+  // (mismo total que la ficha y la lista de Alumnos).
+  const hoyIso = hoyLocalISO();
+  const nPracticas = aCuartos(practicasAlumno.filter(p => !esPracticaEnCurso(p, hoyIso)).reduce((n, p) => n + clasesDePractica(p), 0) +
+    (previas.clases_previas > 0 ? previas.clases_previas : 0));
   const kmTotalesRaw = practicasAlumno
     .filter(p => p.km_inicial > 0 && p.km_final > 0)
-    .reduce((sum, p) => sum + (p.km_final - p.km_inicial), 0) + (previas.km_previos > 0 ? previas.km_previos : 0);
+    .reduce((sum, p) => sum + Math.max(0, p.km_final - p.km_inicial), 0) + (previas.km_previos > 0 ? previas.km_previos : 0);
   const kmTotales = Math.round(kmTotalesRaw * 10) / 10;
 
   let diasDesdeUltima = null;
@@ -256,16 +262,16 @@ function _calcularSemaforo(practicasAlumno, previas = {}) {
     motivo = 'sin prácticas';
   } else if (nPracticas < SEMAFORO_MIN_PRACTICAS_AMBAR) {
     nivel = 'rojo';
-    motivo = `${nPracticas} prácticas — faltan clases`;
+    motivo = `${fmtClases(nPracticas)} prácticas — faltan clases`;
   } else if (nPracticas >= SEMAFORO_MIN_PRACTICAS_VERDE && diasDesdeUltima !== null && diasDesdeUltima <= SEMAFORO_MAX_DIAS_SIN_PRACTICA_VERDE) {
     nivel = 'verde';
-    motivo = `${nPracticas} prácticas, al día`;
+    motivo = `${fmtClases(nPracticas)} prácticas, al día`;
   } else if (nPracticas >= SEMAFORO_MIN_PRACTICAS_VERDE) {
     nivel = 'ambar';
-    motivo = `${nPracticas} prácticas, última hace ${diasDesdeUltima} días — repasar`;
+    motivo = `${fmtClases(nPracticas)} prácticas, última hace ${diasDesdeUltima} días — repasar`;
   } else {
     nivel = 'ambar';
-    motivo = `${nPracticas} prácticas — casi listo`;
+    motivo = `${fmtClases(nPracticas)} prácticas — casi listo`;
   }
 
   return { nivel, motivo, nPracticas, kmTotales, diasDesdeUltima };
@@ -338,7 +344,7 @@ function getAlumnosEnRiesgo() {
   const enRiesgo = [];
   for (const a of alumnos) {
     const propias = practicasPorAlumno.get(a.id) || [];
-    const nPracticas = propias.length;
+    const nPracticas = aCuartos(propias.reduce((n, p) => n + clasesDePractica(p), 0));
     if (nPracticas === 0) continue; // "sin empezar", no es riesgo de abandono
 
     const ultimaFecha = propias.reduce((max, p) => (p.fecha && (!max || p.fecha > max)) ? p.fecha : max, null);
@@ -631,7 +637,7 @@ function getPanel(hoy, sucursalId) {
   const alumnosActivos = alumnos.filter(a => !ESTADOS_ALUMNO_FUERA_PANEL.includes(a.estado || 'activo'));
 
   const nPracticasAlumno = new Map();
-  for (const p of practicas) nPracticasAlumno.set(p.alumno_id, (nPracticasAlumno.get(p.alumno_id) || 0) + 1);
+  for (const p of practicas) if (!esPracticaEnCurso(p, hoy)) nPracticasAlumno.set(p.alumno_id, (nPracticasAlumno.get(p.alumno_id) || 0) + clasesDePractica(p));
   const proximosExamenes = pendientes.slice()
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
     .slice(0, 6)
@@ -639,7 +645,7 @@ function getPanel(hoy, sucursalId) {
       id: x.id, fecha: x.fecha, tipo: x.tipo, alumno_id: x.alumno_id,
       alumno: nombreAlumno.get(x.alumno_id) || '—',
       profesor: prof.get(x.profesor_id) || '',
-      clases: nPracticasAlumno.get(x.alumno_id) || 0
+      clases: aCuartos((nPracticasAlumno.get(x.alumno_id) || 0) + Math.max(0, Number((alumnos.find(a => a.id === x.alumno_id) || {}).clases_previas) || 0))
     }));
 
   const bonosCasiAgotados = [];

@@ -241,7 +241,7 @@ function pintarExamenesPanel(p) {
       html += `<div class="exa-fecha">${esc(dia)} ${f.d} ${MESES_CORTOS[f.m - 1]}</div>`;
       ultima = x.fecha;
     }
-    const sub = `${x.clases} ${x.clases === 1 ? 'clase' : 'clases'}${x.profesor ? ' · ' + esc(x.profesor) : ''}`;
+    const sub = `${fmtClases(x.clases)} ${x.clases > 0 && x.clases <= 1 ? 'clase' : 'clases'}${x.profesor ? ' · ' + esc(x.profesor) : ''}`;
     html += `<div class="exa-fila" style="cursor:pointer" onclick="navegarA('examenes')" title="Ir a Exámenes">
       <span class="exa-tipo">${esc(TIPO_EXAMEN_TXT[x.tipo] || x.tipo)}</span>
       <div><div class="exa-nombre">${esc(x.alumno)}</div><div class="exa-sub">${sub}</div></div></div>`;
@@ -349,7 +349,7 @@ async function loadAgendaDashboard() {
     contSolic.innerHTML = '';
   }
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyISO();
   const proximas = reservas
     .filter(r => r.estado === 'confirmada' && r.fecha >= hoy)
     .sort((a, b) => (a.fecha + (a.hora_inicio || '')).localeCompare(b.fecha + (b.hora_inicio || '')))

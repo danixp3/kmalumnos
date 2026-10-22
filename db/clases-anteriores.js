@@ -98,6 +98,8 @@ function getClasesAnteriores(alumno_id) {
  * km_inicial?, km_final? }. Valida fechas, km y que no se solapen ni se
  * contradigan (fecha anterior con más km) con otras clases del mismo coche.
  * No guarda nada si hay errores. Devuelve { ok, errores[], anotadas, pendientes }.
+ * opciones.sinMas = true: las anotadas son TODAS (el total que se apuntó antes
+ * era de más); no queda ninguna «por crear» sumando al total del alumno.
  */
 function guardarClasesAnteriores(alumno_id, filas = [], opciones = {}) {
   const d = load();
@@ -207,8 +209,11 @@ function guardarClasesAnteriores(alumno_id, filas = [], opciones = {}) {
   const borradas = previas.filter(p => !quedan.has(p.id)).map(p => p.id);
   if (borradas.length) d.practicas = d.practicas.filter(p => !borradas.includes(p.id));
   const anotadas = sumaClases(limpias);
-  a.clases_previas = Math.max(0, aCuartos(totalAntes - anotadas));
-  addLog('puesta_en_marcha', `Clases anteriores de ${nombreDe(a)}: ${fmtC(anotadas)} anotadas (${limpias.filter(tiene).length} con km); faltan ${fmtC(a.clases_previas)} por crear`, []);
+  // Lo que no se anote queda «por crear» (suma al total del alumno) salvo que
+  // se diga que no hay más: entonces el total pasa a ser lo anotado.
+  const sinMas = !!(opciones && opciones.sinMas);
+  a.clases_previas = sinMas ? 0 : Math.max(0, aCuartos(totalAntes - anotadas));
+  addLog('puesta_en_marcha', `Clases anteriores de ${nombreDe(a)}: ${fmtC(anotadas)} anotadas (${limpias.filter(tiene).length} con km); ${sinMas && totalAntes > anotadas ? `no hay más (antes ponía ${fmtC(totalAntes)})` : `faltan ${fmtC(a.clases_previas)} por crear`}`, []);
   save();
   if (s) {
     s.markDirtyVarios('practicas', tocadas);

@@ -9,7 +9,7 @@
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, isAuthError, handleSupabaseError,
   conFallbackColumnas, cantidadClases, partirEnClases, insertarPractica, sesionDePractica, clasesDe, fmtClases,
-  borrarAvisosPractica, kmDePractica
+  borrarAvisosPractica, kmDePractica, hoyEspana
 } from '../../api/_utils.js';
 
 const DIAS_MAX = 30;
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   if (errFind || !practica) return res.status(404).json({ error: 'Práctica no encontrada' });
   if (!(practica.km_final > 0)) return res.status(409).json({ error: 'Esa clase no está cerrada: ciérrala primero (km final).' });
   if (practica.source !== 'web-remote') return res.status(403).json({ error: 'Solo se pueden corregir desde el móvil las clases que se dieron con el móvil. Las del ordenador se cambian allí.' });
-  const fechaHoy = validators.fecha(hoy).valid ? hoy : new Date().toISOString().slice(0, 10);
+  const fechaHoy = validators.fecha(hoy).valid ? hoy : hoyEspana();
   const dias = Math.round((new Date(fechaHoy + 'T00:00:00Z') - new Date(practica.fecha + 'T00:00:00Z')) / 86400000);
   if (dias > DIAS_MAX) return res.status(403).json({ error: `Solo se puede corregir una clase de los últimos ${DIAS_MAX} días.` });
 

@@ -414,7 +414,18 @@ async function pmAnotGuardar() {
     tr.querySelectorAll('[data-c]').forEach(el => { o[el.dataset.c] = el.value; });
     return o;
   });
-  const res = await window.api.guardarClasesAnteriores(pmAnot.alumno.id, filas, { duracion: getDuracionClaseMin() });
+  // Menos anotadas que las apuntadas: ¿faltan de verdad o el total era de más?
+  // (si no se pregunta, las que faltan siguen sumando al total del alumno sin
+  // estar en ninguna lista: así un alumno con 50 ½ clases salía con 51 ½)
+  const n = filas.filter(f => String(f.fecha || '').trim()).reduce((t, f) => t + (leerClases(f.clases) || 1), 0);
+  const total = pmAnot.total || 0;
+  let sinMas = false;
+  if (n < total) {
+    const C = fmtClases, faltan = total - n;
+    sinMas = await confirmar(`Tenía apuntadas ${C(total)} clases y has anotado ${C(n)}.\n\n¿Hizo de verdad ${faltan > 0 && faltan <= 1 ? 'la que falta' : `las ${C(faltan)} que faltan`}? Si es así, la app ${faltan > 0 && faltan <= 1 ? 'la crea' : 'las crea'} en el paso 4 y ${faltan > 0 && faltan <= 1 ? 'cuenta' : 'cuentan'} en su total. Si no, su total queda en ${C(n)}.`,
+      { titulo: 'Clases que faltan por anotar', textoAceptar: `No hay más: total ${C(n)}`, textoCancelar: faltan > 0 && faltan <= 1 ? `Sí, falta ${C(faltan)}` : `Sí, faltan ${C(faltan)}` });
+  }
+  const res = await window.api.guardarClasesAnteriores(pmAnot.alumno.id, filas, { duracion: getDuracionClaseMin(), sinMas });
   const err = document.getElementById('pm-anot-error');
   if (!res.ok) { err.textContent = res.errores.join('\n'); err.classList.remove('hidden'); err.scrollIntoView({ block: 'nearest' }); return; }
   closeModal('modal-pm-anotar');

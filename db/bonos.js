@@ -4,13 +4,14 @@
 // sincroniza con Supabase en esta v1 (no toca sync.js ni markDirty/markDeleted);
 // cada PC lleva el suyo propio en su data.json.
 
-const { load, save, nextId, addLog, filtrarPorSucursal } = require('./core');
+const { load, save, nextId, addLog, filtrarPorSucursal, hoyLocalISO } = require('./core');
 
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ESTADOS_VALIDOS = ['activo', 'agotado', 'anulado'];
 
+// Hoy en hora local (en UTC, de 00:00 a 02:00 aún sería ayer)
 function _hoy() {
-  return new Date().toISOString().slice(0, 10);
+  return hoyLocalISO();
 }
 
 function _validarNClases(n_clases) {

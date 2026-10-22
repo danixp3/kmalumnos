@@ -7,7 +7,7 @@ const FORMA_LABEL_CAJA = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferenc
 async function loadCaja() {
   const desdeEl = document.getElementById('caja-desde');
   const hastaEl = document.getElementById('caja-hasta');
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = hoyISO();
   if (!desdeEl.value) desdeEl.value = hoy;
   if (!hastaEl.value) hastaEl.value = hoy;
 
@@ -67,7 +67,7 @@ function renderMorosos(morosos) {
     ? morosos.map(m => `<tr>
         <td>${esc(m.alumno_nombre)}</td>
         <td>${tagPermiso(m.permiso)}</td>
-        <td>${m.num_practicas}</td>
+        <td>${fmtClases(m.num_practicas)}</td>
         <td>${fmt(m.total_generado)} €</td>
         <td>${fmt(m.total_pagado)} €</td>
         <td><span class="saldo-pendiente">${fmt(m.saldo)} €</span></td>

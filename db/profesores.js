@@ -1,7 +1,7 @@
 // ─── PROFESORES ──────────────────────────────────────────────────────────────
 // CRUD de profesores; getProfesores añade el nº de prácticas impartidas.
 
-const { load, save, nextId, _sync, filtrarPorSucursal, firmaValida, addLog } = require('./core');
+const { load, save, nextId, _sync, filtrarPorSucursal, firmaValida, addLog, clasesDePractica, aCuartos } = require('./core');
 const { extraerCamposExtra, camposExtraVacios } = require('./campos-extra');
 
 // sucursalId opcional: sin argumento devuelve todos los profesores (modo
@@ -17,7 +17,7 @@ function getProfesores(sucursalId) {
       const coche = p.vehiculo_id ? coches.get(p.vehiculo_id) : null;
       const sugerido = coche ? null : coches.get(sugerirCocheProfesor(d, p.id));
       return {
-        ...p, tiene_firma: firmaValida(firma), num_practicas: d.practicas.filter(x => x.profesor_id === p.id).length,
+        ...p, tiene_firma: firmaValida(firma), num_practicas: aCuartos(d.practicas.filter(x => x.profesor_id === p.id && !x.deleted).reduce((n, x) => n + clasesDePractica(x), 0)),
         // Coche habitual (null si no tiene o si ese coche ya no existe)
         vehiculo_nombre: coche ? coche.nombre : null, vehiculo_matricula: coche ? coche.matricula || null : null,
         vehiculo_retirado: coche ? coche.activo === false : false,

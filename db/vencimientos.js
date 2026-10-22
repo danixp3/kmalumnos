@@ -5,7 +5,7 @@
 // esta v1 (no toca sync.js ni markDirty/markDeleted); cada PC lleva el suyo
 // propio en su data.json.
 
-const { load, save, nextId, addLog, filtrarPorSucursal, alumnoTerminado } = require('./core');
+const { load, save, nextId, addLog, filtrarPorSucursal, alumnoTerminado, hoyLocalISO } = require('./core');
 const { vehiculoEnUso } = require('./campos-extra');
 
 const ENTIDADES_VALIDAS = ['vehiculo', 'profesor', 'alumno', 'general'];
@@ -118,7 +118,7 @@ function deleteVencimiento(id) {
 
 function getProximosVencimientos(diasAviso, hoyStr, sucursalId) {
   const dias = diasAviso != null ? diasAviso : 30;
-  const hoy = hoyStr || new Date().toISOString().slice(0, 10);
+  const hoy = hoyStr || hoyLocalISO();
   const d = load();
   if (!d.vencimientos) d.vencimientos = [];
 

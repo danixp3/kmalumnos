@@ -22,7 +22,7 @@ async function loadProfesores() {
           ? `<span class="al-sub" style="margin:0">Suele usar ${esc(p.vehiculo_sugerido.nombre)}</span><button type="button" class="btn btn-outline btn-sm" style="margin-top:4px" onclick="usarCocheSugerido(${p.id}, ${p.vehiculo_sugerido.id})" title="Ponerlo como su coche habitual: la web del móvil se lo propondrá al empezar sus clases">Ponerlo como el suyo</button>`
           : `<button type="button" class="btn btn-outline btn-sm" onclick="openEditProfesor(${p.id})" title="El coche que la web del móvil le propone al empezar o anotar sus clases">Elegir coche</button>`}</td>
       <td>${esc(p.nota) || '<span style="color:var(--placeholder)">—</span>'}</td>
-      <td>${p.num_practicas}</td>
+      <td>${fmtClases(p.num_practicas)}</td>
       <td>${p.tiene_firma
         ? `<button type="button" class="pill pill-ok firma-pill" onclick="abrirFirmaProfesor(${p.id})" title="Ver o cambiar su firma">${fichaSvg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 12)} Guardada</button>`
         : `<button type="button" class="pill pill-warn firma-pill" onclick="abrirFirmaProfesor(${p.id})" title="Dibujar su firma para la ficha DGT">Sin firma · Firmar</button>`}</td>
@@ -421,11 +421,11 @@ function renderStatsProfesoresTabla() {
 
   tbody.innerHTML = filas.map(s => `<tr>
       <td><strong>${esc(s.nombre)}</strong></td>
-      <td>${s.num_practicas}</td>
+      <td>${fmtClases(s.num_practicas)}</td>
       <td><span class="km-badge">${fmt(s.km_totales)} km</span></td>
       <td>${s.num_alumnos}</td>
-      <td>${s.practicas_pista}</td>
-      <td>${s.practicas_circulacion}</td>
+      <td>${fmtClases(s.practicas_pista)}</td>
+      <td>${fmtClases(s.practicas_circulacion)}</td>
       <td>${s.ultima_practica ? fmtFecha(s.ultima_practica) : '<span style="color:var(--placeholder)">—</span>'}</td>
     </tr>`).join('');
 }

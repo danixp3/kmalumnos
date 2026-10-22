@@ -69,7 +69,7 @@ function pintarCabeceraFicha(f) {
   const estado = a.estado || 'activo';
   const idx = estado === 'baja' ? -1 : (FICHA_ESTADO_IDX[estado] ?? 3);
   const m = f.metricas;
-  const minutos = m.clases * getDuracionClaseMin();
+  const minutos = Math.round(m.clases * getDuracionClaseMin()); // ½ clase de 45 min = 22,5 → 23 (sin decimales)
   const horas = `${Math.floor(minutos / 60)} h ${String(minutos % 60).padStart(2, '0')}`;
 
   const linea1 = [a.n_registro ? `Nº ${esc(a.n_registro)}` : '', `Permiso ${esc(a.permiso)}`, a.fecha_alta ? 'Alta el ' + fmtFecha(a.fecha_alta) : '', a.profesor_nombre ? 'Profesor: ' + esc(a.profesor_nombre) : ''].filter(Boolean).join(' · ');
@@ -89,7 +89,7 @@ function pintarCabeceraFicha(f) {
   const pasos = [
     { tit: 'Matrícula', sub: a.fecha_alta ? fmtFecha(a.fecha_alta) : 'Alumno dado de alta', est: 'hecho' },
     { tit: 'Examen teórico', sub: idx >= 3 ? 'Aprobado' : (idx === 2 ? 'Apto teórico' : (idx === 1 ? 'En teórica' : 'Pendiente')), est: idx >= 2 ? 'hecho' : (idx === 1 ? 'actual' : 'pend') },
-    { tit: 'Prácticas', sub: `${fmtClases(m.clases)} ${m.clases > 0 && m.clases <= 1 ? 'clase' : 'clases'} · ${fmtMiles(m.km)} km${m.clases_previas ? ` <span title="Clases hechas antes de usar la app (punto de partida)">(${fmtClases(m.clases_previas)} anteriores)</span>` : ''}`, est: idx >= 4 ? 'hecho' : (idx >= 2 ? 'actual' : 'pend') },
+    { tit: 'Prácticas', sub: `${fmtClases(m.clases)} ${m.clases > 0 && m.clases <= 1 ? 'clase' : 'clases'} · ${fmtMiles(m.km)} km${m.clases_previas ? ` <span title="Clases que hizo antes de usar la app y que no están en su lista (sin fecha): suman al total">(${fmtClases(m.clases_previas)} sin fecha)</span>` : ''}`, est: idx >= 4 ? 'hecho' : (idx >= 2 ? 'actual' : 'pend') },
     { tit: 'Examen práctico', sub: idx >= 5 ? 'Aprobado' : (ex ? fechaCorta(ex.fecha) : (idx === 4 ? 'Presentado' : 'Sin fecha')), est: idx >= 5 ? 'hecho' : (idx === 4 ? 'actual' : 'pend'), bandera: true },
     { tit: `Permiso ${esc(a.permiso)}`, sub: idx >= 5 ? 'Obtenido' : 'Tras aprobar el práctico', est: idx >= 5 ? 'hecho' : 'pend', ultimo: true }
   ];
@@ -262,7 +262,7 @@ function pintarProximasFicha(f) {
     const antes = f.proximasClases.filter(c => c.fecha <= f.proximoExamen.fecha).length;
     const alExamen = a.num_practicas + antes;
     const quedan = Math.max(0, a.bono.total - a.bono.usadas - antes);
-    pie = `<div class="prox-pie">Llegará al examen con ${alExamen} clases; le quedarán ${quedan} del bono.</div>`;
+    pie = `<div class="prox-pie">Llegará al examen con ${fmtClases(alExamen)} clases; le quedarán ${quedan} del bono.</div>`;
   }
   cont.innerHTML = `<div class="card-head"><h2>Próximas clases</h2><span class="card-note">${[a.profesor_nombre, a.vehiculo_matricula].filter(Boolean).map(esc).join(' · ')}</span></div>` +
     ((filas || examen) ? filas + examen + pie : '<div class="vacio-panel">No hay clases programadas.<small>Usa «Programar clase» para reservar la siguiente.</small></div>');
@@ -303,8 +303,11 @@ async function loadPracticas() {
   pintarObservacionesFicha(f);
 
   const practicas = f.practicas;
-  document.getElementById('ficha-historial-nota').textContent = practicas.length
-    ? `${practicas.length} ${practicas.length === 1 ? 'práctica' : 'prácticas'}` : '';
+  // Lo que valen (½ clase = ½), igual que el total de la cabecera
+  const enLista = practicas.filter(p => !p.enCurso).reduce((t, p) => t + (p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : 1), 0);
+  const previas = f.metricas.clases_previas || 0;
+  document.getElementById('ficha-historial-nota').textContent = practicas.length || previas
+    ? `${fmtClases(enLista)} ${enLista > 0 && enLista <= 1 ? 'clase' : 'clases'}${previas ? ` + ${fmtClases(previas)} sin fecha` : ''}` : '';
   // Clases que se quedaron sin firmar (sin contar las anteriores a la app ni las traídas): enlace para que firme
   const sinFirmar = practicas.filter(p => !p.firmada && !p.enCurso && !p.sinCerrar && firmablePorEnlace(p) && p.tipo_detalle !== 'anterior' && !p.procedencia).length;
   const btnFirma = document.getElementById('ficha-btn-firma');
@@ -313,8 +316,13 @@ async function loadPracticas() {
     btnFirma.textContent = `Enlace para firmar · ${sinFirmar} sin firmar`;
   }
   const tbody = document.querySelector('#tabla-practicas tbody');
+  // Clases de antes de la app sin fecha: una fila al final (son las primeras)
+  // para que se vea de dónde salen en el total y en la numeración.
+  const filaPrevias = previas ? `<tr class="fila-previas"><td class="num-mono">${previas <= 1 ? '1' : `1–${Math.ceil(previas - 1e-9)}`}</td>
+      <td colspan="8"><b>${fmtClases(previas)} ${previas <= 1 ? 'clase' : 'clases'} sin fecha</b> · ${previas <= 1 ? 'hecha antes de usar la app; no está' : 'hechas antes de usar la app; no están'} en la lista pero ${previas <= 1 ? 'suma' : 'suman'} al total
+        <button type="button" class="btn btn-outline btn-sm" style="margin-left:10px" onclick="cambiarClasesSinFecha()" title="Cambiar cuántas clases sin fecha tiene (0 si no hay ninguna)">Cambiar</button></td></tr>` : '';
   if (!practicas.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">No hay prácticas registradas para este alumno</td></tr>';
+    tbody.innerHTML = (previas ? '' : '<tr><td colspan="9" class="empty">No hay prácticas registradas para este alumno</td></tr>') + filaPrevias;
     document.getElementById('dup-aviso')?.classList.add('hidden');
     return;
   }
@@ -348,7 +356,7 @@ async function loadPracticas() {
         <button class="btn btn-gray btn-sm btn-icon btn-borrar" title="Borrar práctica" aria-label="Borrar práctica" onclick="deletePractica(${p.id})">${fichaSvg('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>', 13)}</button>
       </td>
     </tr>`;
-  }).join('');
+  }).join('') + filaPrevias;
   actualizarAvisoDuplicados();
   if (typeof comprobarTutorial === 'function') comprobarTutorial('ficha'); // primera vez que se abre una ficha
 }
@@ -357,6 +365,24 @@ async function deletePractica(id) {
   if (!await confirmar('¿Borrar esta práctica?', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deletePractica(id);
   loadPracticas();
+}
+
+// Clases de antes de la app que no están en la lista (sin fecha): suman al
+// total del alumno. Desde la fila de la ficha se cambian o se quitan (0).
+async function cambiarClasesSinFecha() {
+  if (!fichaCache) return;
+  const a = fichaCache.alumno;
+  const actual = a.clases_previas || 0;
+  const txt = await pedirTexto(`Clases que hizo antes de usar la app y que NO están en su lista. Ahora suman ${fmtClases(actual)} a su total. Escribe 0 si no hay ninguna.`,
+    { titulo: 'Clases sin fecha', valor: String(actual).replace('.', ','), textoAceptar: 'Guardar' });
+  if (txt == null) return;
+  const t = txt.trim();
+  const n = t === '' || t === '0' ? 0 : leerClases(t);
+  if (n == null) { showToast('fd-alerta', `«${t}» no vale: las clases van de ¼ en ¼ (12 · 12,5 · 12 ½) o 0.`, 'err'); return; }
+  if (n === actual) return;
+  await window.api.setPuntoDePartidaAlumno(a.id, n, a.km_previos || 0);
+  await loadPracticas();
+  showToast('fd-alerta', n ? `Ahora tiene ${fmtClases(n)} ${n <= 1 ? 'clase' : 'clases'} sin fecha.` : 'Quitadas las clases sin fecha: su total es el de la lista.', 'ok');
 }
 
 // ─── DUPLICADOS ──────────────────────────────────────────────────────────────

@@ -186,11 +186,22 @@ function _construirLog(tipo, descripcion, detalles = []) {
   };
 }
 
+// Anotaciones que prueban que se cumplió la ley (RGPD art. 5.2, responsabilidad
+// proactiva): exportaciones y anonimizaciones de datos de alumnos, aceptación
+// de las condiciones y registro de jornada. No se recortan ni se borran con
+// «Borrar historial»: el resto se queda en las 500 últimas.
+const TIPOS_LOG_PERMANENTES = ['privacidad', 'exportacion', 'legal', 'jornada'];
+const MAX_LOGS = 500;
+function _recortarLogs(logs) {
+  if (logs.length <= MAX_LOGS) return logs;
+  let normales = 0;
+  return logs.filter(l => TIPOS_LOG_PERMANENTES.includes(l && l.tipo) || ++normales <= MAX_LOGS);
+}
+
 function addLog(tipo, descripcion, detalles = []) {
   const d = load();
   d.logs.unshift(_construirLog(tipo, descripcion, detalles));
-  // Limitar a 500 entradas
-  if (d.logs.length > 500) d.logs = d.logs.slice(0, 500);
+  d.logs = _recortarLogs(d.logs);
 }
 
 // Añade una entrada de log directamente a un objeto `data` ya cargado por otro
@@ -201,7 +212,7 @@ function addLog(tipo, descripcion, detalles = []) {
 function registrarLogEnData(data, tipo, descripcion, detalles = []) {
   if (!Array.isArray(data.logs)) data.logs = [];
   data.logs.unshift(_construirLog(tipo, descripcion, detalles));
-  if (data.logs.length > 500) data.logs = data.logs.slice(0, 500);
+  data.logs = _recortarLogs(data.logs);
 }
 
 // filtro opcional: { texto, tipo, desde, hasta }. Sin filtro (o filtro vacío)
@@ -216,7 +227,9 @@ function getLogs(filtro) {
     // log.fecha es un ISO string completo (new Date().toISOString()); los 10
     // primeros caracteres son la fecha YYYY-MM-DD, comparable como texto con
     // los límites del filtro (mismas convenciones de fecha del proyecto).
-    const fechaLog = (log.fecha || '').slice(0, 10);
+    // ...en hora local: un cambio de las 00:30 es de ese día, no del anterior (UTC)
+    const dt = log.fecha ? new Date(log.fecha) : null;
+    const fechaLog = dt && !isNaN(dt) ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}` : '';
     if (desde && fechaLog < desde) return false;
     if (hasta && fechaLog > hasta) return false;
     if (texto) {
@@ -229,10 +242,13 @@ function getLogs(filtro) {
   });
 }
 
+// Vacía el historial salvo las anotaciones que la ley pide conservar.
+// Devuelve cuántas se conservan.
 function clearLogs() {
   const d = load();
-  d.logs = [];
+  d.logs = (d.logs || []).filter(l => TIPOS_LOG_PERMANENTES.includes(l && l.tipo));
   save();
+  return d.logs.length;
 }
 
 // ─── BACKUP ──────────────────────────────────────────────────────────────────

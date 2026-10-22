@@ -93,10 +93,56 @@ test('getJornadas filtra por rango de fechas', () => {
   expect(db.getJornadas({ hasta: '2000-01-01' })).toHaveLength(0);
 });
 
-test('borrarJornada elimina el registro', () => {
+test('una jornada no se borra: se anula con motivo, se conserva y queda en el Historial', () => {
   const id = db.ficharEntrada({ empleado: 'María' });
+  expect(db.anularJornada(id, '')).toMatchObject({ ok: false });
+  expect(db.anularJornada(id, 'Fichada por error')).toMatchObject({ ok: true });
+  const j = db.getJornadas()[0];
   expect(db.getJornadas()).toHaveLength(1);
+  expect(j.anulada).toMatchObject({ motivo: 'Fichada por error' });
+  expect(j.correcciones.at(-1)).toMatchObject({ campo: 'anulada', despues: 'Fichada por error' });
+  expect(db.getLogs({ tipo: 'jornada' })[0].descripcion).toMatch(/María.*Fichada por error/);
+  // anulada: ni se corrige, ni se le ficha salida, ni cuenta como abierta
+  db.corregirJornada(id, { entrada: '08:00' });
+  expect(db.getJornadas()[0].entrada).toBe(j.entrada);
+  expect(db.ficharSalida(id)).toMatchObject({ ok: false });
+  expect(db.jornadaAbiertaDe('María')).toBeNull();
+  expect(db.anularJornada(id, 'otra vez')).toMatchObject({ ok: false });
+  // el nombre antiguo tampoco borra
+  const id2 = db.ficharEntrada({ empleado: 'Luis' });
+  db.borrarJornada(id2);
+  expect(db.getJornadas()).toHaveLength(2);
+});
 
-  db.borrarJornada(id);
-  expect(db.getJornadas()).toHaveLength(0);
+describe('turno que cruza la medianoche', () => {
+  afterEach(() => jest.useRealTimers());
+  const a = (d, h, m) => { jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] }); jest.setSystemTime(new Date(2026, 9, d, h, m)); };
+
+  test('entrada a las 21:00 y salida a las 00:40: es la misma jornada, con la fecha de salida', () => {
+    a(21, 21, 0);
+    const id = db.ficharEntrada({ empleado: 'Ana' });
+    a(22, 0, 40);
+    expect(db.jornadaAbiertaDe('Ana')).toMatchObject({ id });
+    expect(db.ficharSalida(id)).toMatchObject({ ok: true });
+    expect(db.getJornadas()[0]).toMatchObject({ fecha: '2026-10-21', entrada: '21:00', salida: '00:40', salida_fecha: '2026-10-22' });
+  });
+
+  test('una de ayer olvidada sin salida no se cierra hoy con 24 h', () => {
+    a(21, 9, 0);
+    db.ficharEntrada({ empleado: 'Ana' });
+    a(22, 9, 5);
+    expect(db.jornadaAbiertaDe('Ana')).toBeNull();
+  });
+});
+
+test('«Borrar historial» y el recorte a 500 conservan las anotaciones que pide la ley', () => {
+  db.addLog('privacidad', 'Alumno anonimizado', []);
+  db.addLog('exportacion', 'Datos exportados', []);
+  for (let i = 0; i < 520; i++) db.addLog('relleno', `fila ${i}`, []);
+  const logs = db.getLogs();
+  expect(logs.filter(l => l.tipo === 'relleno')).toHaveLength(500);
+  expect(logs.some(l => l.tipo === 'privacidad')).toBe(true);
+  expect(logs.some(l => l.tipo === 'exportacion')).toBe(true);
+  expect(db.clearLogs()).toBe(2);
+  expect(db.getLogs().map(l => l.tipo).sort()).toEqual(['exportacion', 'privacidad']);
 });

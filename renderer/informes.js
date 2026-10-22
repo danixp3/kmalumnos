@@ -35,7 +35,7 @@ function renderInformes(informe) {
     : '<tr><td colspan="3" class="empty">Sin datos por profesor</td></tr>';
 
   const filasOcupacionProfesores = informe.ocupacionProfesores.length
-    ? informe.ocupacionProfesores.map(p => `<tr><td>${esc(p.nombre)}</td><td>${p.nPracticas}</td><td>${p.kmTotales} km</td></tr>`).join('')
+    ? informe.ocupacionProfesores.map(p => `<tr><td>${esc(p.nombre)}</td><td>${fmtClases(p.nPracticas)}</td><td>${p.kmTotales} km</td></tr>`).join('')
     : '<tr><td colspan="3" class="empty">Sin prácticas en el periodo</td></tr>';
 
   const filasOcupacionVehiculos = informe.ocupacionVehiculos.length
@@ -126,7 +126,7 @@ async function imprimirInforme() {
   }).join('');
 
   const filasOcupacionProfesores = informe.ocupacionProfesores.map(p =>
-    `<tr><td>${esc(p.nombre)}</td><td>${p.nPracticas}</td><td>${p.kmTotales} km</td></tr>`).join('');
+    `<tr><td>${esc(p.nombre)}</td><td>${fmtClases(p.nPracticas)}</td><td>${p.kmTotales} km</td></tr>`).join('');
 
   const filasOcupacionVehiculos = informe.ocupacionVehiculos.map(v =>
     `<tr><td>${esc(v.nombre)}</td><td>${esc(v.matricula || '—')}</td><td>${v.nPracticas}</td><td>${v.kmTotales} km</td></tr>`).join('');
@@ -145,7 +145,7 @@ async function imprimirInforme() {
       <img src="icon.png" alt="AulaMovil" class="ficha-logo">
       <div>
         <h1>AulaMovil — Informe (${esc(rango)})</h1>
-        <div class="ficha-fecha">Generado el ${fmtFecha(new Date().toISOString().split('T')[0])}</div>
+        <div class="ficha-fecha">Generado el ${fmtFecha(hoyISO())}</div>
       </div>
     </div>
 

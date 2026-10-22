@@ -1,6 +1,6 @@
 import {
   setCorsHeaders, requireAuth, validators, getSupabase, withRetry, handleSupabaseError,
-  COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_LISTA, esErrorColumnaInexistente, clasesDe, traerTodo
+  COLUMNAS_PRACTICA_BASE, COLUMNAS_PRACTICA_LISTA, esErrorColumnaInexistente, clasesDe, traerTodo, hoyEspana
 } from './_utils.js';
 
 // Ficha de un alumno para el móvil: datos básicos, totales, TODAS sus prácticas (de todos los
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: alumnoIdVal.error });
   }
   const alumnoId = alumnoIdVal.value;
-  const hoy = (req.query.hoy && /^\d{4}-\d{2}-\d{2}$/.test(req.query.hoy)) ? req.query.hoy : new Date().toISOString().slice(0, 10);
+  const hoy = (req.query.hoy && /^\d{4}-\d{2}-\d{2}$/.test(req.query.hoy)) ? req.query.hoy : hoyEspana();
 
   // El alumno (con caídas por si faltan columnas de migraciones posteriores)
   const leerAlumno = async () => {

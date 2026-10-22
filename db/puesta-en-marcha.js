@@ -41,8 +41,13 @@ function setPuntoDePartidaAlumno(id, clases_previas, km_previos) {
   const d = load();
   const a = d.alumnos.find(x => x.id === parseInt(id));
   if (!a) return false;
+  const antes = [a.clases_previas || 0, a.km_previos || 0];
   a.clases_previas = cuartos(clases_previas, 500);
   a.km_previos = entero(km_previos, 100000);
+  // Queda en el Historial: cambia el total de clases del alumno
+  if (antes[0] !== a.clases_previas || antes[1] !== a.km_previos) {
+    addLog('alumno', `Clases sin fecha (antes de la app) de ${nombreCompleto(a)}: ${fmtClases(antes[0])} → ${fmtClases(a.clases_previas)}${antes[1] !== a.km_previos ? ` · km previos ${antes[1]} → ${a.km_previos}` : ''}`, []);
+  }
   save();
   const s = _sync(); if (s) s.markDirty('alumnos', a.id);
   return true;

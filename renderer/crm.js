@@ -111,7 +111,7 @@ function abrirNuevoLead() {
   document.getElementById('lead-permiso-interes').value = '';
   document.getElementById('lead-presupuesto').value = '';
   document.getElementById('lead-estado').value = 'nuevo';
-  document.getElementById('lead-fecha-alta').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('lead-fecha-alta').value = hoyISO();
   document.getElementById('lead-notas').value = '';
   document.getElementById('lead-alert').classList.add('hidden');
   openModal('modal-lead');

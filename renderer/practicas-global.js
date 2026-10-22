@@ -219,7 +219,8 @@ function renderPracticasGlobalTabla() {
 
   // Resumen de la cabecera: rango de fechas, nº de prácticas, km y horas al volante (sobre lo filtrado)
   const kmTotales = filtradas.reduce((sum, p) => sum + p.km_recorridos, 0);
-  const minutos = filtradas.filter(p => !p.en_curso).length * getDuracionClaseMin();
+  // Horas al volante con lo que vale cada clase (½ clase = media)
+  const minutos = filtradas.filter(p => !p.en_curso).reduce((t, p) => t + (p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : 1), 0) * getDuracionClaseMin();
   const fechas = filtradas.map(p => p.fecha).sort();
   const rango = fechas.length ? (fechas[0] === fechas[fechas.length - 1] ? diaMes(fechas[0]) : `${diaMes(fechas[0])} – ${diaMes(fechas[fechas.length - 1])}`) : '';
   const resumen = document.getElementById('pg-resumen');

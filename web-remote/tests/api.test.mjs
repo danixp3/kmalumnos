@@ -1344,3 +1344,10 @@ test('alumnos?resumen=1: a los móviles no van los alumnos terminados hace años
   // sin resumen (otros usos) sigue la lista entera
   assert.equal((await llamar('alumnos', { method: 'GET', query: {} })).json.length, 6);
 });
+
+test('hoyEspana: si el teléfono no manda su fecha, el día es el de España (Vercel va en UTC)', async () => {
+  const { hoyEspana } = await import('../api/_utils.js');
+  assert.equal(hoyEspana(new Date('2026-10-21T22:30:00Z')), '2026-10-22');   // 00:30 en verano (UTC+2)
+  assert.equal(hoyEspana(new Date('2026-01-15T23:30:00Z')), '2026-01-16');   // 00:30 en invierno (UTC+1)
+  assert.equal(hoyEspana(new Date('2026-10-22T10:00:00Z')), '2026-10-22');
+});

@@ -163,3 +163,14 @@ test('acepta fechas dd/mm/aaaa y empareja al alumno por nombre y apellidos o por
   // La exportación lleva nombre completo y DNI para cruzarla con otro programa
   expect(db.exportarCSV().csv.split('\n')[1]).toBe('Lucía Martín Gómez,Coche 1,2026-07-01,100,140,,,12345678Z,');
 });
+
+test('reconoce el coche por su matrícula (con o sin espacios/guion) y no crea uno repetido', () => {
+  const vid = db.addVehiculo('Kia Ceed', '1234ABC', 1000);
+  const res = db.importarCSV([
+    { alumno: 'Ana', vehiculo: '1234 abc', fecha: '2026-07-01', km_inicial: '100', km_final: '140' },
+    { alumno: 'Ana', vehiculo: '1234-ABC', fecha: '2026-07-02', km_inicial: '140', km_final: '180' }
+  ]);
+  expect(res.insertados).toBe(2);
+  expect(db.getVehiculos()).toHaveLength(1);
+  expect(db.getVehiculos()[0].id).toBe(vid);
+});

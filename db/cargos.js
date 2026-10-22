@@ -13,7 +13,7 @@
 // borrado para no reaparecer si otro dispositivo aún no ha sincronizado el
 // borrado.
 
-const { load, save, nextId, _sync, addLog, filtrarPorSucursal } = require('./core');
+const { load, save, nextId, _sync, addLog, filtrarPorSucursal, hoyLocalISO } = require('./core');
 
 const TIPOS_VALIDOS = ['matricula', 'tasa', 'cargo', 'descuento', 'promo'];
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -134,7 +134,7 @@ function addCargosAlta(alumnoId, conceptos, fecha, sucursal_id = null) {
   if (!alumno) throw new Error('Alumno no encontrado');
   _validarFecha(fecha);
   if (!d.cargos) d.cargos = [];
-  const fechaFinal = fecha || alumno.fecha_alta || new Date().toISOString().slice(0, 10);
+  const fechaFinal = fecha || alumno.fecha_alta || hoyLocalISO();
   const ahora = new Date().toISOString();
   const creados = [];
   for (const c of Array.isArray(conceptos) ? conceptos : []) {

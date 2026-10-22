@@ -240,6 +240,12 @@ export async function traerTodo(construir, tam = 1000, tanda = 4) {
 // Nombre completo del alumno (nombre + apellidos si los tiene).
 export const nombreCompleto = a => a ? [a.nombre, a.primer_apellido, a.segundo_apellido].filter(Boolean).join(' ') : '';
 
+// Día de hoy en España (YYYY-MM-DD) para cuando el teléfono no manda el suyo:
+// Vercel va en UTC y de 00:00 a 02:00 de aquí allí aún es el día anterior.
+export function hoyEspana(ahora = new Date()) {
+  try { return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Madrid' }).format(ahora); } catch (_) { return ahora.toISOString().slice(0, 10); }
+}
+
 // Clave para saber si dos nombres son la misma persona: sin tildes, mayúsculas
 // ni partículas y en cualquier orden (igual que db/migracion.js del escritorio).
 const PARTICULAS_NOMBRE = new Set(['de', 'del', 'la', 'las', 'los', 'y', 'i', 'e', 'da', 'das', 'do', 'dos', 'van', 'von', 'der', 'di', 'san', 'santa']);

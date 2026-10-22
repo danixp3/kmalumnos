@@ -1,4 +1,4 @@
-import { setCorsHeaders, requireAuth, validators, getSupabase, handleSupabaseError, cargarCobrosAlta, esErrorColumnaInexistente, traerTodo, siguienteNRegistro, limpiarDni, claveNombre, nombreCompleto } from './_utils.js';
+import { setCorsHeaders, requireAuth, validators, getSupabase, handleSupabaseError, cargarCobrosAlta, esErrorColumnaInexistente, traerTodo, siguienteNRegistro, limpiarDni, claveNombre, nombreCompleto, hoyEspana } from './_utils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -130,7 +130,7 @@ export default async function handler(req, res) {
   // atrás (el escritorio sube ids propios): se realinea con el RPC
   // reparar_secuencias y se reintenta una vez.
   // Fecha de alta = el día del teléfono (va al libro de registro de alumnos, igual que las del escritorio)
-  const fechaHoy = validators.fecha(hoy).valid ? hoy : new Date().toISOString().slice(0, 10);
+  const fechaHoy = validators.fecha(hoy).valid ? hoy : hoyEspana();
   const nuevoAlumno = {
     nombre: nombreVal.value,
     primer_apellido: apellido1 || null,

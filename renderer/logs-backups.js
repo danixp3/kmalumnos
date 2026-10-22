@@ -81,7 +81,7 @@ function exportarLogsCSV() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `historial_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `historial_${hoyISO()}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -89,7 +89,7 @@ function exportarLogsCSV() {
 }
 
 async function borrarLogs() {
-  if (!await confirmar('¿Borrar todo el historial de operaciones automáticas?', { peligro: true, textoAceptar: 'Borrar' })) return;
+  if (!await confirmar('¿Borrar el historial de operaciones?\n\nSe conservan las anotaciones que la ley pide guardar: exportaciones y anonimizaciones de datos, aceptación de las condiciones y anulaciones de jornadas.', { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.clearLogs();
   loadLogs();
 }

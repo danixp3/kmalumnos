@@ -266,7 +266,7 @@ contextBridge.exposeInMainWorld('api', {
   ficharSalida:        (id)                        => ipcRenderer.invoke('fichar-salida', id),
   jornadaAbiertaDe:   (empleado, sucursalId)      => ipcRenderer.invoke('jornada-abierta-de', empleado, sucursalId),
   corregirJornada:    (id, campos)                => ipcRenderer.invoke('corregir-jornada', id, campos),
-  borrarJornada:      (id)                        => ipcRenderer.invoke('borrar-jornada', id),
+  anularJornada:      (id, motivo)                => ipcRenderer.invoke('borrar-jornada', id, motivo),
 
   // Vencimientos / alertas de caducidades — local por puesto, sin sync
   getVencimientos:            (sucursalId)                 => ipcRenderer.invoke('get-vencimientos', sucursalId),

@@ -30,7 +30,7 @@ function renderBonosLista() {
     return;
   }
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyISO();
   const filas = bonosCache.map(b => {
     const caducado = !!(b.fecha_caducidad && b.fecha_caducidad < hoy);
     let estadoHtml;
@@ -80,7 +80,7 @@ function abrirNuevoBono() {
   document.getElementById('bono-nombre').value = '';
   document.getElementById('bono-n-clases').value = '';
   document.getElementById('bono-precio').value = '';
-  document.getElementById('bono-fecha-compra').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('bono-fecha-compra').value = hoyISO();
   document.getElementById('bono-fecha-caducidad').value = '';
   document.getElementById('bono-nota').value = '';
   document.getElementById('bono-alert').classList.add('hidden');

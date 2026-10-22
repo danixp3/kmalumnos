@@ -152,7 +152,7 @@ function validarMatricula(texto) {
 // Edad con una fecha de nacimiento ISO (null si no es fecha)
 function edadDe(iso, hoy) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return null;
-  const h = hoy || new Date().toISOString().slice(0, 10);
+  const n = new Date(), h = hoy || `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; // hoy en hora local
   let e = +h.slice(0, 4) - +iso.slice(0, 4);
   if (h.slice(5) < iso.slice(5)) e--;
   return e;

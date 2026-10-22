@@ -38,6 +38,18 @@ function renderJornadasLista() {
   }
 
   tbody.innerHTML = jornadasCache.map(j => {
+    // Anulada: se ve tachada con su motivo (el registro no se borra nunca)
+    if (j.anulada) {
+      return `<tr class="jornada-anulada" title="${esc('Anulada el ' + fmtFecha(String(j.anulada.ts).slice(0, 10)) + ': ' + j.anulada.motivo)}">
+      <td><s>${fmtFecha(j.fecha)}</s></td>
+      <td><s>${esc(j.empleado)}</s></td>
+      <td>${j.sucursal_nombre ? esc(j.sucursal_nombre) : '<span style="color:var(--placeholder)">—</span>'}</td>
+      <td><s>${j.entrada ? esc(j.entrada) : '—'}</s></td>
+      <td><s>${j.salida ? esc(j.salida) : '—'}</s></td>
+      <td>—</td>
+      <td colspan="2"><span class="pill pill-warn">Anulada</span> <span style="color:var(--text-muted);font-size:12px">${esc(j.anulada.motivo)}</span></td>
+    </tr>`;
+    }
     const nCorr = (j.correcciones || []).length;
     const correccionesTitle = nCorr
       ? (j.correcciones.map(c => `${c.ts}: ${c.campo} "${c.antes || ''}" → "${c.despues || ''}"`).join('\n'))
@@ -56,7 +68,7 @@ function renderJornadasLista() {
       <td>${correccionesTxt}</td>
       <td>
         <button class="btn btn-warn btn-sm" onclick="abrirCorregirJornada(${j.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Corregir</button>
-        <button class="btn btn-danger btn-sm" onclick="borrarJornadaUI(${j.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
+        <button class="btn btn-danger btn-sm" onclick="anularJornadaUI(${j.id})" title="Una jornada no se borra (se conserva 4 años): se anula con su motivo"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Borrar</button>
       </td>
     </tr>`;
   }).join('');
@@ -136,9 +148,13 @@ async function guardarCorreccionJornada() {
   loadJornadas();
 }
 
-async function borrarJornadaUI(id) {
-  if (!await confirmar('¿Borrar esta jornada?', { peligro: true, textoAceptar: 'Borrar' })) return;
-  await window.api.borrarJornada(id);
+// El registro de jornada se conserva 4 años (art. 34.9 ET): no se borra, se
+// anula con su motivo y sigue en la lista y en la exportación.
+async function anularJornadaUI(id) {
+  const motivo = await pedirTexto('Motivo de la anulación (queda en el registro y en el Historial):', { titulo: 'Anular jornada', textoAceptar: 'Anular', placeholder: 'p. ej. fichada por error, era de otro empleado…' });
+  if (motivo == null) return;
+  const r = await window.api.anularJornada(id, motivo);
+  if (r && r.ok === false) { await avisar(r.msg || 'No se pudo anular.'); return; }
   loadJornadas();
 }
 
@@ -146,15 +162,19 @@ async function borrarJornadaUI(id) {
 // la lista actualmente en cache — mismo patrón que las demás exportaciones.
 function exportarJornadasCSV() {
   const escCSV = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
-  const cabecera = ['Fecha', 'Empleado', 'Sucursal', 'Entrada', 'Salida', 'Horas', 'Nota'];
+  // Estado y correcciones van también: Inspección debe poder ver qué se cambió
+  const cabecera = ['Fecha', 'Empleado', 'Sucursal', 'Entrada', 'Salida', 'Fecha de salida', 'Horas', 'Nota', 'Estado', 'Correcciones'];
   const filas = jornadasCache.map(j => [
     j.fecha || '',
     j.empleado || '',
     j.sucursal_nombre || '',
     j.entrada || '',
     j.salida || '',
-    calcHoras(j.entrada, j.salida),
-    j.nota || ''
+    j.salida_fecha || '',
+    j.anulada ? '' : calcHoras(j.entrada, j.salida),
+    j.nota || '',
+    j.anulada ? `Anulada: ${j.anulada.motivo}` : 'Válida',
+    (j.correcciones || []).map(c => `${c.ts} ${c.campo}: "${c.antes == null ? '' : c.antes}" → "${c.despues == null ? '' : c.despues}"`).join(' | ')
   ]);
   const csv = '﻿' + [cabecera, ...filas].map(fila => fila.map(escCSV).join(';')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });

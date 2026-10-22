@@ -9,6 +9,8 @@ const fs = require('fs');
 app.setPath('userData', path.join(app.getPath('appData'), 'KMAlumnos'));
 
 const db = require('./db');
+// Día de hoy en hora local (para nombres de archivo; en UTC, de 00:00 a 02:00 aún es ayer)
+const hoyLocal = () => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; };
 const sync = require('./sync');
 const actualizaciones = require('./actualizaciones');
 const { autoUpdater } = require('electron-updater');
@@ -624,7 +626,7 @@ ipcMain.handle('fichar-entrada', (_, datos) => db.ficharEntrada(datos));
 ipcMain.handle('fichar-salida', (_, id) => db.ficharSalida(id));
 ipcMain.handle('jornada-abierta-de', (_, empleado, sucursalId) => db.jornadaAbiertaDe(empleado, sucursalId));
 ipcMain.handle('corregir-jornada', (_, id, campos) => { db.corregirJornada(id, campos); return true; });
-ipcMain.handle('borrar-jornada', (_, id) => { db.borrarJornada(id); return true; });
+ipcMain.handle('borrar-jornada', (_, id, motivo) => db.anularJornada(id, motivo));
 
 // Vencimientos / alertas de caducidades (ITV, seguro, psicotécnico, DNI...) —
 // local por puesto, NO sincroniza con Supabase (ver db/vencimientos.js).
@@ -888,7 +890,7 @@ ipcMain.handle('exportar-datos', async (_, opciones = {}) => {
   try {
     const o = opciones || {};
     const formato = ['xlsx', 'csv', 'json'].includes(o.formato) ? o.formato : 'xlsx';
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = hoyLocal();
     const base = (o.nombreBase ? String(o.nombreBase).replace(/[^\w\-áéíóúñüÁÉÍÓÚÑÜ ]+/g, '').trim().replace(/\s+/g, '_').slice(0, 60) : '') || 'aulamovil_datos';
     const filtros = { conjuntos: o.conjuntos, desde: o.desde || null, hasta: o.hasta || null, alumnoId: o.alumnoId != null ? o.alumnoId : null, sucursalId: o.sucursalId || null };
     if (formato === 'json') {
@@ -986,6 +988,8 @@ ipcMain.handle('get-aceptacion-legal', () => db.getAjusteEmpresa('legal_aceptaci
 ipcMain.handle('aceptar-legal', (_, version, quien) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(version || ''))) return false;
   const valor = { version: String(version), fecha: new Date().toISOString(), quien: String(quien || '').slice(0, 120), app: app.getVersion() };
+  // Cada aceptación queda para siempre en el Historial (el ajuste solo guarda la última)
+  db.addLog('legal', `Condiciones y contrato de encargo aceptados (versión ${valor.version}) por ${valor.quien || 'la cuenta de este PC'} · app ${valor.app}`, []);
   db.setAjusteEmpresa('legal_aceptacion', valor);
   return valor;
 });
@@ -1009,7 +1013,7 @@ ipcMain.handle('exportar-tabla', async (_, tipo, opciones) => {
     const res = tipo === 'examenes' ? db.exportarExamenes((opciones || {}).filtros || {}, (opciones || {}).sucursalId) : db.exportarAlumnos(opciones || {});
     const result = await dialog.showSaveDialog(mainWin, {
       title: 'Guardar para abrir con Excel',
-      defaultPath: res.nombre + '_' + new Date().toISOString().slice(0, 10) + '.csv',
+      defaultPath: res.nombre + '_' + hoyLocal() + '.csv',
       filters: [{ name: 'CSV (Excel)', extensions: ['csv'] }]
     });
     if (result.canceled || !result.filePath) return { ok: false, canceled: true };
@@ -1025,7 +1029,7 @@ ipcMain.handle('exportar-csv', async (_, opciones) => {
     const res = db.exportarCSV(opciones || {});
     const result = await dialog.showSaveDialog({
       title: 'Guardar CSV',
-      defaultPath: 'practicas_' + new Date().toISOString().slice(0, 10) + '.csv',
+      defaultPath: 'practicas_' + hoyLocal() + '.csv',
       filters: [{ name: 'CSV', extensions: ['csv'] }]
     });
     if (result.canceled || !result.filePath) return { ok: false, canceled: true };

@@ -87,3 +87,14 @@ Sirve, **si dice lo que de verdad pasa con los datos**. Lo que exige la ley (art
 6. **Ordenadores de la oficina:** usuario de Windows con contraseña y cifrado del disco (BitLocker o «Cifrado del dispositivo»); `data.json` y las copias de seguridad tienen todos los datos.
 7. **Registro de actividades** (art. 30): generarlo en Ajustes → Legal y guardarlo firmado; repasarlo si cambia algo.
 8. Que un abogado revise los textos antes de vender AulaMovil a otras autoescuelas.
+
+## 6. Revisión del 22 de octubre de 2026 (v1.38.0)
+
+**Normas:** sin cambios desde el 20-10. El **real decreto del registro de jornada digital sigue sin publicarse en el BOE** (Consejo de Estado desfavorable en marzo; aplazado en julio; sin fecha). VeriFactu sigue en 2027 (1-1 sociedades, 1-7 resto). Cuando salga el decreto de jornada habrá que revisar el módulo Jornada: hoy el registro está en cada PC (no en la nube) y los borradores piden que Inspección pueda consultarlo a distancia y que cada trabajador acceda al suyo.
+
+**Arreglado en la app:**
+- **Registro de jornada (art. 34.9 ET, conservar 4 años):** un fichaje ya **no se puede borrar**: se *anula* con su motivo, sigue en la lista (tachado) y en la exportación, y queda en el Historial. La exportación para Inspección lleva ahora el estado y todas las correcciones. Un turno que pasa de la medianoche se cierra en la misma jornada (con la fecha de salida). La fecha del fichaje era la de UTC: entre las 00:00 y las 02:00 quedaba en el día anterior.
+- **Responsabilidad proactiva (art. 5.2 RGPD):** el Historial guardaba solo las 500 últimas operaciones y «Borrar historial» lo vaciaba todo, así que se perdía la prueba de las exportaciones y anonimizaciones de datos de alumnos. Ahora esas anotaciones, las anulaciones de jornada y **cada aceptación de las condiciones** (antes solo se guardaba la última) se conservan siempre.
+- Fechas de «hoy» en hora de España en todo el programa y en la web (caja, cargos, bonos, caducidades, interesados, exportaciones, filtros del Historial).
+
+**Comprobado y correcto:** la web no usa cookies; al cerrar sesión en el móvil se borra la copia de datos del teléfono; la ficha DGT no incluye las «clases sin fecha» (solo cuentan en el total del alumno). Los avisos de seguridad de Supabase siguen siendo los conocidos (`pg_net` en `public`, funciones con secreto del servidor; la protección de contraseñas filtradas necesita el plan Pro: § 5, tarea 2).
