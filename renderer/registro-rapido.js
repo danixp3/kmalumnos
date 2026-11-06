@@ -192,11 +192,18 @@ function ajustarRR(alumnoId, signo) {
 
 async function rrAplicarDelta(vid, fecha, alumnoId, delta) {
   const rango = getRangoPref();
-  const res = await window.api.sumarClasesDia({
+  const pedir = confirmarFirma => window.api.sumarClasesDia({
     vehiculo_id: vid, fecha, alumno_id: alumnoId, delta,
     profesor_id: rrProfesorActual, tipo: rrTipoActual, sucursal_id: getSucursalActual(),
-    km: rrKmAuto ? 'auto' : 'sin', kmMin: rango.min, kmMax: rango.max
+    km: rrKmAuto ? 'auto' : 'sin', kmMin: rango.min, kmMax: rango.max, confirmarFirma
   });
+  let res = await pedir(false);
+  // Una clase ya firmada por el alumno: cambiar cuántas fueron borra su firma, así que se pregunta antes
+  if (res && res.confirmar === 'firma') {
+    const seguir = await confirmar('Esta clase ya está firmada por el alumno. Si cambias cuántas clases fueron, su firma se borra y tendrá que firmar otra vez.\n\n¿Cambiarlo igualmente?', { textoAceptar: 'Cambiarlo' });
+    if (!seguir) return;
+    res = await pedir(true);
+  }
   // Si mientras tanto se cambió de día o de coche, esta respuesta ya no es de lo que se ve
   const ahora = rrCtx();
   if (ahora.vid !== vid || ahora.fecha !== fecha) return;

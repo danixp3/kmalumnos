@@ -228,3 +228,53 @@ describe('detector de clases duplicadas', () => {
     expect(dup[0]).toMatchObject({ fecha: '2026-10-02', km_inicial: 100, km_final: 140 });
   });
 });
+
+describe('clases en curso y clases anteriores con fracciones', () => {
+  test('no se puede borrar desde el escritorio una clase que el profesor está dando ahora (en curso hoy)', () => {
+    const vid = db.addVehiculo('Ibiza', '', 1000);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const hoy = new Date(); const iso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+    const abierta = db.addPractica(aid, vid, iso, 1000, 0);
+    const r = db.quitarSesionClase(abierta);
+    expect(r.ok).toBe(false);
+    expect(db.getTodasPracticas({}).map(p => p.id)).toContain(abierta);
+    // una «sin cerrar» de otro día sí se puede limpiar
+    const vieja = db.addPractica(aid, vid, '2026-01-10', 900, 0);
+    expect(db.quitarSesionClase(vieja).ok).toBe(true);
+  });
+
+  test('las clases anteriores que se crean reparten km por lo que valen: la media clase recorre menos que una entera', () => {
+    const vid = db.addVehiculo('Ibiza', '', 5000);
+    const pid = db.addProfesor('Julio');
+    const aid = db.addAlumno('Ana', 'B', vid, pid);
+    db.setPuntoDePartidaAlumno(aid, 1.5, 0);
+    const plan = db.planificarClasesAnteriores({ kmMin: 40, kmMax: 40 });
+    expect(plan.errores).toEqual([]);
+    expect(plan.altas).toHaveLength(2);
+    const ord = plan.altas.slice().sort((a, b) => (a.fraccion ? 1 : 0) - (b.fraccion ? 1 : 0));
+    const entera = ord.find(c => !c.fraccion), media = ord.find(c => c.fraccion);
+    expect(entera.km_final - entera.km_inicial).toBe(40);
+    expect(media.km_final - media.km_inicial).toBe(20);
+  });
+});
+
+describe('Registro rápido y firmas', () => {
+  test('sumar o quitar clases a una sesión ya firmada pide confirmación; con ella se hace y la firma se borra', () => {
+    const vid = db.addVehiculo('Ibiza', '', 1000);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const pid = db.addPractica(aid, vid, '2026-10-01', 1000, 1030);
+    const d = JSON.parse(fs.readFileSync(path.join(userDataDir, 'data.json'), 'utf-8'));
+    d.practicas.find(p => p.id === pid).firma = 'data:image/png;base64,AAAA';
+    fs.writeFileSync(path.join(userDataDir, 'data.json'), JSON.stringify(d), 'utf-8');
+    db._clearCache();
+    const base = { vehiculo_id: vid, fecha: '2026-10-01', alumno_id: aid, delta: 0.5 };
+    const sin = db.sumarClasesDia(base);
+    expect(sin).toMatchObject({ ok: false, confirmar: 'firma', firmas: 1 });
+    expect(db.getTodasPracticas({}).filter(p => p.firmada)).toHaveLength(1);       // nada cambió
+    const con = db.sumarClasesDia({ ...base, confirmarFirma: true });
+    expect(con.ok).toBe(true);
+    expect(db.getTodasPracticas({}).filter(p => p.firmada)).toHaveLength(0);       // la firma se borró
+    // sin firma, no pregunta
+    expect(db.sumarClasesDia({ ...base, delta: 0.25 }).ok).toBe(true);
+  });
+});

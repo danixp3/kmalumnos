@@ -640,7 +640,7 @@ async function abrirNuevoAlumno() {
 }
 
 async function deleteAlumno(id, nombre) {
-  if (!await confirmar(`¿Borrar al alumno "${nombre}" y todas sus prácticas?`, { peligro: true, textoAceptar: 'Borrar' })) return;
+  if (!await confirmar(`¿Borrar al alumno "${nombre}" con todas sus prácticas, reservas y exámenes? (Sus cobros se conservan.)`, { peligro: true, textoAceptar: 'Borrar' })) return;
   await window.api.deleteAlumno(id);
   loadAlumnos();
 }

@@ -523,6 +523,10 @@ function quitarSesionClase(practica_id) {
   const p = d.practicas.find(x => x.id === parseInt(practica_id) && !x.deleted);
   if (!p) return { ok: false, errores: ['No se encuentra la clase.'] };
   const sesion = sesionDe(d, p);
+  // Una clase que el profesor está dando AHORA (abierta hoy desde el móvil) no se borra desde aquí: el móvil
+  // seguiría con una clase que ya no existe. Las «sin cerrar» de días anteriores sí se pueden limpiar.
+  const hoy = hoyLocalISO();
+  if (sesion.some(x => esPracticaEnCurso(x, hoy))) return { ok: false, errores: ['Esa clase está en curso ahora mismo en el móvil: no se puede borrar hasta que el profesor la cierre o la cancele.'] };
   const ids = sesion.map(x => x.id);
   const a = d.alumnos.find(x => x.id === p.alumno_id);
   d.practicas = d.practicas.filter(x => !ids.includes(x.id));
@@ -548,6 +552,12 @@ function sumarClasesDia(opts) {
   const sesion = ultima ? sesionDe(d, ultima) : [];
   const total = aCuartos(sesion.reduce((s, x) => s + clasesDePractica(x), 0));
   const nuevo = aCuartos(total + delta);
+  // Cambiar cuántas clases fueron (o quitarlas) borra la firma que el alumno ya hizo: un clic perdido en «+» o «−»
+  // no debe hacerlo sin avisar; la pantalla pregunta y vuelve a llamar con confirmarFirma
+  const firmadas = sesion.filter(x => x.firma).length;
+  if (firmadas && nuevo !== total && !o.confirmarFirma) {
+    return { ok: false, confirmar: 'firma', firmas: firmadas, errores: ['Esa clase ya está firmada por el alumno: si cambias cuántas clases fueron, su firma se borra.'] };
+  }
   if (nuevo <= 0) {
     if (!sesion.length) return { ok: true, errores: [], clases: 0 };
     const r = quitarSesionClase(sesion[0].id);

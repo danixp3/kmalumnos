@@ -324,8 +324,10 @@ const PLANTILLA_CLASES_ANTERIORES = 'fecha;hora;clases\n08/09/2025;10:00;1\n10/0
 
 // Reparte `total` km entre `n` clases: cada una al azar dentro del rango y, si
 // hay que encajarlas en un hueco concreto (`exacto`), escaladas para sumarlo justo.
-function repartirKm(n, kmMin, kmMax, exacto) {
-  const base = Array.from({ length: n }, () => kmMin + Math.random() * (kmMax - kmMin));
+// `pesos` = lo que vale cada clase (1, ½, ¼…): una media clase recorre la mitad, no los mismos 40-45 km
+function repartirKm(n, kmMin, kmMax, exacto, pesos) {
+  const w = i => (pesos && pesos[i] > 0 ? pesos[i] : 1);
+  const base = Array.from({ length: n }, (_, i) => (kmMin + Math.random() * (kmMax - kmMin)) * w(i));
   if (exacto == null) return base.map(x => Math.max(1, Math.round(x)));
   const suma = base.reduce((s, x) => s + x, 0);
   const crudos = base.map(x => (x / suma) * exacto);
@@ -478,9 +480,11 @@ function planificarClasesAnteriores(opciones = {}) {
     const cerrarTanda = (siguiente) => {
       if (!tanda.length) return;
       const hasta = siguiente != null ? siguiente : tope;
+      const pesosTanda = tanda.map(t => clasesDePractica(t.c || t.b));
+      const valorTanda = pesosTanda.reduce((a, b) => a + b, 0);
       if (previo == null) {
         // Sin nada conocido antes: se encadenan hacia atrás desde `hasta`
-        const kms = repartirKm(tanda.length, kmMin, kmMax);
+        const kms = repartirKm(tanda.length, kmMin, kmMax, null, pesosTanda);
         let fin = hasta;
         for (let i = tanda.length - 1; i >= 0; i--) { tanda[i].km_final = fin; tanda[i].km_inicial = fin - kms[i]; fin = tanda[i].km_inicial; }
         if (fin < 0) errores.push(hasta < kmMax ? `${v.nombre}: falta el km de hoy de su cuentakilómetros (paso 1); sin él no se pueden poner km a sus clases.` : `${v.nombre}: no caben ${tanda.length} clases por debajo del km ${miles(hasta)}.`);
@@ -489,9 +493,9 @@ function planificarClasesAnteriores(opciones = {}) {
         if (hueco < tanda.length) {
           errores.push(`${v.nombre}: entre el km ${miles(previo)} y el ${miles(hasta)} no caben ${tanda.length} clases sin km.`);
         } else {
-          const holgado = hueco >= tanda.length * kmMax;
-          const kms = holgado ? repartirKm(tanda.length, kmMin, kmMax) : repartirKm(tanda.length, kmMin, kmMax, hueco);
-          if (!holgado && hueco < tanda.length * kmMin) avisos.push(`${v.nombre}: entre el km ${miles(previo)} y el ${miles(hasta)} solo hay ${hueco} km para ${tanda.length} clases (≈ ${Math.round(hueco / tanda.length)} km cada una).`);
+          const holgado = hueco >= valorTanda * kmMax;
+          const kms = holgado ? repartirKm(tanda.length, kmMin, kmMax, null, pesosTanda) : repartirKm(tanda.length, kmMin, kmMax, hueco, pesosTanda);
+          if (!holgado && hueco < valorTanda * kmMin) avisos.push(`${v.nombre}: entre el km ${miles(previo)} y el ${miles(hasta)} solo hay ${hueco} km para ${tanda.length} clases (≈ ${Math.round(hueco / tanda.length)} km cada una).`);
           // Holgado: la tanda termina pegada a lo siguiente conocido (continuidad)
           let ini = holgado ? hasta - kms.reduce((s, x) => s + x, 0) : previo;
           for (let i = 0; i < tanda.length; i++) { tanda[i].km_inicial = ini; tanda[i].km_final = ini + kms[i]; ini += kms[i]; }
