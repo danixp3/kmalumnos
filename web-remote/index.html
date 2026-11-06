@@ -295,6 +295,14 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .km-par .etq2 { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
   .par-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: end; }
   .lnk-olvido { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 18px; }
+  /* Botón «Anotar un examen»: tarjeta con icono ámbar, título, ayuda y flecha (en vez de un enlace subrayado) */
+  .accion-ex { display: flex; align-items: center; gap: 14px; width: 100%; margin-top: 18px; padding: 14px 16px; text-align: left; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 18px; font: inherit; }
+  .accion-ex:active { background: var(--soft); transform: scale(.985); transition-duration: .1s; }
+  .accion-ex .ex-ic { width: 48px; height: 48px; border-radius: 14px; background: var(--amber-soft); color: var(--amber-ink); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .accion-ex .ex-tx { flex: 1; min-width: 0; }
+  .accion-ex .ex-tit { display: block; font-size: 17.5px; font-weight: 700; }
+  .accion-ex .ex-sub { display: block; font-size: 14px; color: var(--muted); margin-top: 1px; }
+  .accion-ex > svg:last-child { color: var(--faint); flex-shrink: 0; }
   .barra-fija { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, transparent); z-index: 20; }
   .barra-fija > * { max-width: 528px; margin: 0 auto; }
   .barra-fija > .btn { display: flex; }   /* inline-flex no se centra con margin:auto (en tablet salía pegado a la izquierda) */
@@ -479,7 +487,7 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   @keyframes hojaSube { from { transform: translateY(100%); } to { transform: none; } }
   @keyframes hojaBaja { to { transform: translateY(100%); } }
   /* Pulsar: el botón se hunde un poco y vuelve con un pequeño rebote */
-  .btn, .chip, .perfil-op, .avatar, .cab-atras, .seg3 button, .lnk, #tabbar button, .fila, .riel-fila, .veh-card .lnk, .paso-n button, .teclado button, .cal-cab button, .fecha-lin button {
+  .btn, .chip, .perfil-op, .accion-ex, .avatar, .cab-atras, .seg3 button, .lnk, #tabbar button, .fila, .riel-fila, .veh-card .lnk, .paso-n button, .teclado button, .cal-cab button, .fecha-lin button {
     transition: transform .3s var(--muelle), background-color .2s ease, color .2s ease, border-color .2s ease, box-shadow .25s ease, opacity .2s ease;
     -webkit-tap-highlight-color: transparent;
   }
@@ -1838,7 +1846,7 @@ function renderHoy() {
   if (!cargando && !r.total && !S.jornada.sin_cerrar.length && !esHoy) html += '<div class="vacio">Sin clases este día.</div>';
   if (!esHoy && S.fecha < S.hoy && S.fecha >= sumaDias(S.hoy, -DIAS_ANOTAR)) html += `<button class="btn btn-sec" style="margin-top:14px" onclick="abrirAnotar({fecha:'${S.fecha}',volverA:'hoy'})">${ic('mas', 20)} Anotar una clase de este día</button>`;
   else if (esHoy) html += `<button class="lnk lnk-suave lnk-olvido" onclick="abrirAnotar({volverA:'hoy'})">${ic('hist', 18)} ¿Se te olvidó anotar una clase? Anotar clase pasada</button>`;
-  if (esHoy) html += `<button class="lnk lnk-suave lnk-olvido" onclick="abrirExamen({volverA:'hoy'})">${ic('bandera', 18)} ¿Examen hoy? Anotar un examen</button>`;
+  if (esHoy) html += `<button class="accion-ex" onclick="abrirExamen({volverA:'hoy'})"><span class="ex-ic">${ic('bandera', 24)}</span><span class="ex-tx"><span class="ex-tit">Anotar un examen</span><span class="ex-sub">Apto, no apto o apuntar el día</span></span>${ic('chev', 20)}</button>`;
   document.getElementById('v-hoy').innerHTML = html;
 }
 // Clases seguidas de una misma sesión (mismo alumno y coche, km encadenados y
@@ -3322,7 +3330,7 @@ function renderFicha() {
     ${bloques || `<div class="card"><div class="vacio">${d.practicas.length ? 'Ninguna clase con este filtro.' : 'Todavía no tiene prácticas.'}</div></div>`}
     ${resto > 0 ? `<button class="btn btn-sec" style="margin-top:12px" onclick="S.fichaMax=(S.fichaMax||FICHA_TANDA)+FICHA_TANDA;renderFicha()">Ver ${Math.min(resto, FICHA_TANDA)} más · quedan ${resto}</button>` : ''}
     <div id="ficha-examenes">${htmlExamenesFicha(f)}</div>
-    <button class="lnk lnk-suave lnk-olvido" onclick="abrirExamen({alumno_id:${a.id},volverA:'ficha'})">${ic('bandera', 18)} Anotar un examen de ${pila}</button>
+    <button class="accion-ex" onclick="abrirExamen({alumno_id:${a.id},volverA:'ficha'})"><span class="ex-ic">${ic('bandera', 24)}</span><span class="ex-tx"><span class="ex-tit">Anotar un examen</span><span class="ex-sub">Apto, no apto o apuntar el día</span></span>${ic('chev', 20)}</button>
     <button class="lnk lnk-suave lnk-olvido" onclick="abrirAnotar({alumno_id:${a.id},volverA:'ficha'})">${ic('hist', 18)} Anotar una clase pasada de ${pila}</button>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" onclick="abrirIniciar({alumno_id:${a.id}})">${ic('play', 18)} Iniciar práctica con ${pila}</button></div>`;
   // Sus exámenes se piden aparte (una vez por ficha abierta)
