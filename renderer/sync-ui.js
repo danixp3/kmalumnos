@@ -83,6 +83,7 @@ const REFRESCO_PANTALLAS = {
   'practicas-global': () => loadPracticasGlobal(),
   'registro-rapido': () => loadRegistroRapido(),
   'reservas': () => loadReservas(),
+  'examenes': () => loadExamenes(),
   'agenda-visual': () => loadAgendaVisual(),
   'profesores': () => { loadProfesores(); loadStatsProfesores(); },
   'alumnos': () => { if (currentAlumnoId) return loadPracticas(); return loadAlumnos(); }
@@ -130,7 +131,7 @@ function textoClasesNuevas(n) {
 // opciones.ya: repintar sin esperar al pequeño margen que agrupa avisos seguidos
 function refrescarPantallaActual(info, opciones = {}) {
   const acumulado = refrescoPendiente || { pulled: 0, practicas: 0 };
-  refrescoPendiente = { pulled: acumulado.pulled + ((info && info.pulled) || 0), practicas: acumulado.practicas + ((info && info.practicas) || 0), firmas: (acumulado.firmas || 0) + ((info && info.firmas) || 0), profesores: (acumulado.profesores || 0) + ((info && info.profesores) || 0), avisar: opciones.avisar !== false };
+  refrescoPendiente = { pulled: acumulado.pulled + ((info && info.pulled) || 0), practicas: acumulado.practicas + ((info && info.practicas) || 0), firmas: (acumulado.firmas || 0) + ((info && info.firmas) || 0), profesores: (acumulado.profesores || 0) + ((info && info.profesores) || 0), examenes: (acumulado.examenes || 0) + ((info && info.examenes) || 0), avisar: opciones.avisar !== false };
   refrescoDesde = refrescoDesde || Date.now();
   clearTimeout(refrescoTimer);
   refrescoTimer = setTimeout(intentarRefresco, opciones.ya ? 0 : 400);
@@ -152,6 +153,7 @@ function intentarRefresco() {
   if (info.avisar && typeof toastApp === 'function') {
     const partes = [];
     if (info.practicas > 0) partes.push(textoClasesNuevas(info.practicas));
+    if (info.examenes > 0) partes.push(info.examenes === 1 ? 'Se ha recibido 1 examen' : `Se han recibido ${info.examenes} exámenes`);
     if (info.firmas > 0) partes.push(info.firmas === 1 ? '1 clase firmada por el alumno' : `${info.firmas} clases firmadas por el alumno`);
     if (info.profesores > 0) partes.push(info.profesores === 1 ? '1 alumno ha cambiado de profesor (míralo en Historial)' : `${info.profesores} alumnos han cambiado de profesor (míralo en Historial)`);
     if (partes.length) toastApp(partes.join(' · '));

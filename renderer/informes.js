@@ -39,7 +39,7 @@ function renderInformes(informe) {
     : '<tr><td colspan="3" class="empty">Sin prácticas en el periodo</td></tr>';
 
   const filasOcupacionVehiculos = informe.ocupacionVehiculos.length
-    ? informe.ocupacionVehiculos.map(v => `<tr><td>${esc(v.nombre)}</td><td>${esc(v.matricula || '—')}</td><td>${v.nPracticas}</td><td>${v.kmTotales} km</td><td>${v.mediaKmPractica} km</td></tr>`).join('')
+    ? informe.ocupacionVehiculos.map(v => `<tr><td>${esc(v.nombre)}</td><td>${esc(v.matricula || '—')}</td><td>${fmtClases(v.nPracticas)}</td><td>${v.kmTotales} km</td><td>${v.mediaKmPractica} km</td></tr>`).join('')
     : '<tr><td colspan="5" class="empty">Sin prácticas en el periodo</td></tr>';
 
   const filasIngresosPorMes = informe.ingresos.porMes.length
@@ -129,7 +129,7 @@ async function imprimirInforme() {
     `<tr><td>${esc(p.nombre)}</td><td>${fmtClases(p.nPracticas)}</td><td>${p.kmTotales} km</td></tr>`).join('');
 
   const filasOcupacionVehiculos = informe.ocupacionVehiculos.map(v =>
-    `<tr><td>${esc(v.nombre)}</td><td>${esc(v.matricula || '—')}</td><td>${v.nPracticas}</td><td>${v.kmTotales} km</td></tr>`).join('');
+    `<tr><td>${esc(v.nombre)}</td><td>${esc(v.matricula || '—')}</td><td>${fmtClases(v.nPracticas)}</td><td>${v.kmTotales} km</td></tr>`).join('');
 
   const filasIngresos = informe.ingresos.porMes.map(m =>
     `<tr><td>${esc(m.mes)}</td><td>${fmt(m.total)} €</td></tr>`).join('');

@@ -118,8 +118,8 @@ function aplicarSepararNombres(lista = []) {
 
 // Tablas con `alumno_id` que se pasan a la ficha que se queda. Las primeras se
 // sincronizan con la nube; las demás viven solo en este PC.
-const TABLAS_SYNC = ['practicas', 'pagos', 'cargos', 'reservas'];
-const TABLAS_LOCALES = ['presentaciones', 'tasas', 'bonos', 'leads'];
+const TABLAS_SYNC = ['practicas', 'pagos', 'cargos', 'reservas', 'presentaciones'];
+const TABLAS_LOCALES = ['tasas', 'bonos', 'leads'];
 const NOMBRE_TABLA = { practicas: 'clases', pagos: 'cobros', cargos: 'cargos', reservas: 'reservas de la agenda', presentaciones: 'exámenes', tasas: 'tasas', bonos: 'bonos', leads: 'contactos del CRM', vencimientos: 'caducidades' };
 // Datos de la ficha que la que se queda completa con los de la otra si los tiene vacíos
 const CAMPOS_COMPLETAR = ['primer_apellido', 'segundo_apellido', 'dni', 'telefono', 'email', 'fecha_nacimiento', 'direccion', 'codigo_postal', 'poblacion',
@@ -242,7 +242,7 @@ function fusionarAlumnos(idQueda, idSeVa) {
   const ahora = new Date().toISOString();
   for (const t of [...TABLAS_SYNC, ...TABLAS_LOCALES]) {
     const ids = new Set(plan.mover[t]);
-    for (const x of d[t] || []) if (ids.has(x.id)) { x.alumno_id = queda.id; if (TABLAS_LOCALES.includes(t) || t === 'cargos') x.updated_at = ahora; }
+    for (const x of d[t] || []) if (ids.has(x.id)) { x.alumno_id = queda.id; if (TABLAS_LOCALES.includes(t) || t === 'cargos' || t === 'presentaciones') x.updated_at = ahora; }
   }
   const idsVenc = new Set(plan.mover.vencimientos);
   for (const v of d.vencimientos || []) if (idsVenc.has(v.id)) v.entidad_id = queda.id;
@@ -281,7 +281,7 @@ function deshacerFusionAlumnos(id) {
   d.alumnos.push({ ...r.seVa, deleted: false });
   for (const t of [...TABLAS_SYNC, ...TABLAS_LOCALES]) {
     const ids = new Set(r.movidos[t] || []);
-    for (const x of d[t] || []) if (ids.has(x.id) && x.alumno_id === r.queda) { x.alumno_id = r.seVa.id; if (TABLAS_LOCALES.includes(t) || t === 'cargos') x.updated_at = ahora; }
+    for (const x of d[t] || []) if (ids.has(x.id) && x.alumno_id === r.queda) { x.alumno_id = r.seVa.id; if (TABLAS_LOCALES.includes(t) || t === 'cargos' || t === 'presentaciones') x.updated_at = ahora; }
   }
   const idsVenc = new Set(r.movidos.vencimientos || []);
   for (const v of d.vencimientos || []) if (idsVenc.has(v.id) && v.entidad_id === r.queda) v.entidad_id = r.seVa.id;

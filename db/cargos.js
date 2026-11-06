@@ -32,6 +32,11 @@ function _validarImporte(importe) {
   return n;
 }
 
+// Un descuento o promoción SIEMPRE resta (el importe se guarda con signo negativo aunque se escriba en
+// positivo): antes, escribir «20» en un descuento SUBÍA la deuda del alumno en 20 €.
+const TIPOS_QUE_RESTAN = ['descuento', 'promo'];
+const conSigno = (tipo, importe) => (TIPOS_QUE_RESTAN.includes(tipo) ? -Math.abs(importe) : importe);
+
 function _validarFecha(fecha) {
   if (fecha == null || fecha === '') return;
   if (!FECHA_RE.test(fecha)) {
@@ -65,7 +70,7 @@ function getTotalCargosAlumno(alumnoId) {
 
 function addCargo({ alumno_id, concepto, tipo, importe, fecha, sucursal_id, nota } = {}) {
   _validarTipo(tipo);
-  const importeNum = _validarImporte(importe);
+  const importeNum = conSigno(tipo, _validarImporte(importe));
   _validarFecha(fecha);
   const d = load();
   if (!d.cargos) d.cargos = [];
@@ -107,6 +112,7 @@ function updateCargo(id, campos = {}) {
       }
     }
   }
+  c.importe = conSigno(c.tipo, c.importe);   // también si solo se cambió el tipo a descuento
   c.updated_at = new Date().toISOString();
   save();
   const s = _sync(); if (s) s.markDirty('cargos', id);

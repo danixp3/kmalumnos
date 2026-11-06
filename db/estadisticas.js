@@ -13,11 +13,15 @@ const { getEstadisticasAprobados } = require('./convocatorias');
 
 // sucursalId opcional: sin argumento (o "Todas las sucursales" en el
 // selector) cuenta todo, igual que antes de sucursales.
+// Clases que suman unas prácticas: ½ clase cuenta ½, no una entera (todo recuento de
+// pantalla va por aquí; contar filas es contar sesiones, no clases)
+const sumaClases = lista => aCuartos(lista.reduce((n, p) => n + clasesDePractica(p), 0));
+
 function getResumen(sucursalId) {
   const d = load();
-  const vehiculos = filtrarPorSucursal(d.vehiculos, sucursalId);
-  const alumnos = filtrarPorSucursal(d.alumnos, sucursalId);
-  const practicas = filtrarPorSucursal(d.practicas, sucursalId);
+  const vehiculos = filtrarPorSucursal(d.vehiculos, sucursalId).filter(v => !v.deleted);
+  const alumnos = filtrarPorSucursal(d.alumnos, sucursalId).filter(a => !a.deleted);
+  const practicas = filtrarPorSucursal(d.practicas, sucursalId).filter(p => !p.deleted);
   const sinKm = practicas.filter(p => p.km_inicial === 0 && p.km_final === 0 && p.tipo !== 'pista').length;
   // Contar solapamientos (no filtrado por sucursal: fuera del alcance de esta
   // funcionalidad, la detección de conflictos es global)
@@ -25,7 +29,7 @@ function getResumen(sucursalId) {
   return {
     vehiculos: vehiculos.filter(vehiculoEnUso).length,
     alumnos: alumnos.length,
-    practicas: practicas.length,
+    practicas: sumaClases(practicas),
     sinKm,
     solapamientos: conflictos.length
   };
@@ -44,9 +48,9 @@ function getStatsDashboard(hoy, sucursalId) {
     hoy = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   }
   const mesActual = hoy.slice(0, 7);
-  const practicas = filtrarPorSucursal(d.practicas, sucursalId);
+  const practicas = filtrarPorSucursal(d.practicas, sucursalId).filter(p => !p.deleted);
 
-  const practicasHoy = practicas.filter(p => p.fecha === hoy).length;
+  const practicasHoy = sumaClases(practicas.filter(p => p.fecha === hoy));
 
   const kmMesRaw = practicas
     .filter(p => p.fecha && p.fecha.slice(0, 7) === mesActual)
@@ -145,9 +149,9 @@ function getDatosGraficos(meses, sucursalId) {
 
   const practicasPorMes = listaMeses.map(mes => {
     const delMes = practicasValidas.filter(p => p.fecha && p.fecha.slice(0, 7) === mes);
-    const pista = delMes.filter(p => p.tipo === 'pista').length;
-    const circulacion = delMes.length - pista;
-    return { mes, total: delMes.length, pista, circulacion };
+    const pista = sumaClases(delMes.filter(p => p.tipo === 'pista'));
+    const circulacion = sumaClases(delMes.filter(p => p.tipo !== 'pista'));
+    return { mes, total: aCuartos(pista + circulacion), pista, circulacion };
   });
 
   const ingresosPorMes = listaMeses.map(mes => {
@@ -171,7 +175,7 @@ function getDatosGraficos(meses, sucursalId) {
     .map(v => {
       const propias = practicasValidas.filter(x => x.vehiculo_id === v.id);
       const km = propias.filter(conKm).reduce((sum, x) => sum + (x.km_final - x.km_inicial), 0);
-      return { nombre: v.nombre, num_practicas: propias.length, km: Math.round(km * 10) / 10 };
+      return { nombre: v.nombre, num_practicas: sumaClases(propias), km: Math.round(km * 10) / 10 };
     })
     .sort((a, b) => b.num_practicas - a.num_practicas);
 
@@ -393,7 +397,7 @@ function getAnalisisVehiculos() {
 
   const resultado = vehiculos.map(v => {
     const propias = practicasPorVehiculo.get(v.id) || [];
-    const nPracticas = propias.length;
+    const nPracticas = sumaClases(propias);
 
     const kmTotalesRaw = propias.filter(conKm).reduce((sum, p) => sum + (p.km_final - p.km_inicial), 0);
     const kmTotales = Math.round(kmTotalesRaw * 10) / 10;
@@ -412,7 +416,10 @@ function getAnalisisVehiculos() {
       .reduce((sum, p) => sum + (p.km_final - p.km_inicial), 0);
     const kmUltimos30 = Math.round(kmUltimos30Raw * 10) / 10;
 
-    const mediaKmPractica = nPracticas === 0 ? 0 : Math.round((kmTotales / nPracticas) * 10) / 10;
+    // Media por clase SOLO entre las que tienen km: las que están en blanco o en curso
+    // no recorrieron «0 km», faltan por anotar, y no deben bajar la media
+    const clasesConKm = sumaClases(propias.filter(conKm));
+    const mediaKmPractica = clasesConKm === 0 ? 0 : Math.round((kmTotales / clasesConKm) * 10) / 10;
 
     return {
       vehiculo_id: v.id,
@@ -466,10 +473,11 @@ function getInformes(desde, hasta, sucursalId) {
   const conKm = p => p.km_final != null && p.km_inicial != null && p.km_final >= p.km_inicial && !(p.km_inicial === 0 && p.km_final === 0);
   const ocupacionVehiculos = vehiculos.map(v => {
     const propias = practicasPeriodo.filter(p => p.vehiculo_id === v.id);
-    const nPracticas = propias.length;
+    const nPracticas = sumaClases(propias);
     const kmTotalesRaw = propias.filter(conKm).reduce((sum, p) => sum + (p.km_final - p.km_inicial), 0);
     const kmTotales = Math.round(kmTotalesRaw * 10) / 10;
-    const mediaKmPractica = nPracticas === 0 ? 0 : Math.round((kmTotales / nPracticas) * 10) / 10;
+    const clasesConKm = sumaClases(propias.filter(conKm));
+    const mediaKmPractica = clasesConKm === 0 ? 0 : Math.round((kmTotales / clasesConKm) * 10) / 10;
     return { vehiculo_id: v.id, nombre: v.nombre, matricula: v.matricula, nPracticas, kmTotales, mediaKmPractica };
   }).sort((a, b) => b.kmTotales - a.kmTotales);
 
@@ -595,11 +603,14 @@ function getPanel(hoy, sucursalId) {
   const delDia = practicas.filter(p => p.fecha === hoy);
   const delMes = practicas.filter(p => p.fecha && p.fecha.slice(0, 7) === mes);
   const kmMes = Math.round(delMes.reduce((s, p) => s + kmDe(p), 0) * 10) / 10;
-  const mediaKmPractica = delMes.length ? Math.round((kmMes / delMes.length) * 10) / 10 : 0;
+  // Km de media por clase: solo entre las clases con km (las en blanco o en curso no recorrieron 0 km)
+  const clasesMesConKm = sumaClases(delMes.filter(p => kmDe(p) > 0));
+  const mediaKmPractica = clasesMesConKm ? Math.round((kmMes / clasesMesConKm) * 10) / 10 : 0;
+  const clasesHoy = sumaClases(delDia);
 
   const reservasHoy = (d.reservas || []).filter(r => !r.deleted && r.fecha === hoy && r.estado !== 'cancelada'
     && (!sucursalId || r.sucursal_id === parseInt(sucursalId))).length;
-  const programadasHoy = Math.max(reservasHoy, delDia.length);
+  const programadasHoy = Math.max(reservasHoy, clasesHoy);
 
   // Hueco de km antes de empezar: km_inicial menos el mayor km_final ya cerrado del mismo coche.
   const hueco = p => {
@@ -624,14 +635,13 @@ function getPanel(hoy, sucursalId) {
   for (let dia = 1; dia <= diaHoy; dia++) {
     const fecha = `${anio}-${pad(nMes)}-${pad(dia)}`;
     const dow = new Date(anio, nMes - 1, dia).getDay();
-    const n = practicas.filter(p => p.fecha === fecha).length;
+    const n = sumaClases(practicas.filter(p => p.fecha === fecha));
     const finde = dow === 0 || dow === 6;
     if (finde && n === 0) continue;
     porDia.push({ dia, fecha, n, finde, hoy: dia === diaHoy });
     if (!finde && dia < diaHoy) { sumaLaborables += n; diasLaborables++; }
   }
   const mediaPorDia = diasLaborables ? Math.round((sumaLaborables / diasLaborables) * 10) / 10 : 0;
-
   const pendientes = (d.presentaciones || []).filter(x => !x.deleted && x.resultado === 'pendiente' && x.fecha >= hoy);
   const idsConExamen = new Set(pendientes.map(x => x.alumno_id));
   const alumnosActivos = alumnos.filter(a => !ESTADOS_ALUMNO_FUERA_PANEL.includes(a.estado || 'activo'));
@@ -667,11 +677,11 @@ function getPanel(hoy, sucursalId) {
   return {
     hoy,
     vehiculos: resumen.vehiculos,
-    practicasHoy: delDia.length,
+    practicasHoy: clasesHoy,
     programadasHoy,
     enCursoAhora: enCurso.length,
     enCurso,
-    kmMes, practicasMes: delMes.length, mediaKmPractica,
+    kmMes, practicasMes: sumaClases(delMes), mediaKmPractica,
     alumnosActivos: alumnosActivos.length,
     alumnosConExamen: idsConExamen.size,
     sinKm: resumen.sinKm,
@@ -781,9 +791,11 @@ function getPanelVehiculos(hoy, sucursalId, duracionMin) {
       recorridos_mes: Math.round(recorridos),
       km_en_practicas_mes: kmPracticas,
       sin_asignar_mes: Math.round(sinAsignar),
-      practicas_mes: delMes.length,
-      km_por_practica: delMes.filter(conKm).length ? Math.round((kmPracticas / delMes.filter(conKm).length) * 10) / 10 : 0,
-      sin_km: propias.filter(p => p.km_inicial === 0 && p.km_final === 0).length,
+      practicas_mes: sumaClases(delMes),
+      clases_con_km_mes: sumaClases(delMes.filter(conKm)),
+      km_por_practica: delMes.filter(conKm).length ? Math.round((kmPracticas / sumaClases(delMes.filter(conKm))) * 10) / 10 : 0,
+      // Una clase de pista sin km no tiene que tenerlos: no es «sin km»
+      sin_km: propias.filter(p => p.km_inicial === 0 && p.km_final === 0 && p.tipo !== 'pista').length,
       km_hoy: bloques.filter(b => b.tipo === 'hecha').reduce((s, b) => s + b.km, 0),
       hueco_hoy: bloques.filter(b => b.tipo === 'hueco').reduce((s, b) => s + b.km, 0),
       itv: itvInfo,
@@ -795,9 +807,11 @@ function getPanelVehiculos(hoy, sucursalId, duracionMin) {
     recorridos_mes: t.recorridos_mes + v.recorridos_mes,
     km_en_practicas_mes: t.km_en_practicas_mes + v.km_en_practicas_mes,
     sin_asignar_mes: t.sin_asignar_mes + v.sin_asignar_mes,
-    practicas_mes: t.practicas_mes + v.practicas_mes
-  }), { recorridos_mes: 0, km_en_practicas_mes: 0, sin_asignar_mes: 0, practicas_mes: 0 });
-  total.km_por_practica = total.practicas_mes ? Math.round((total.km_en_practicas_mes / total.practicas_mes) * 10) / 10 : 0;
+    practicas_mes: aCuartos(t.practicas_mes + v.practicas_mes),
+    clases_con_km_mes: aCuartos(t.clases_con_km_mes + v.clases_con_km_mes)
+  }), { recorridos_mes: 0, km_en_practicas_mes: 0, sin_asignar_mes: 0, practicas_mes: 0, clases_con_km_mes: 0 });
+  // Km de media por clase entre las que tienen km (las que están en blanco no recorrieron 0 km)
+  total.km_por_practica = total.clases_con_km_mes ? Math.round((total.km_en_practicas_mes / total.clases_con_km_mes) * 10) / 10 : 0;
 
   return { hoy, mes, vehiculos, total };
 }

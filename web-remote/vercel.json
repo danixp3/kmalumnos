@@ -92,6 +92,10 @@
       "destination": "/api/movil?op=asignar-alumno"
     },
     {
+      "source": "/api/examenes",
+      "destination": "/api/movil?op=examenes"
+    },
+    {
       "source": "/f/:codigo",
       "destination": "/firmar.html"
     }

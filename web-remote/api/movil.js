@@ -21,6 +21,7 @@ import corregirClases from '../lib/movil/corregir-clases.js';
 import enlaceFirma from '../lib/movil/enlace-firma.js';
 import firmaAlumno from '../lib/movil/firma-alumno.js';
 import asignarAlumno from '../lib/movil/asignar-alumno.js';
+import examenes from '../lib/movil/examenes.js';
 
 const OPS = {
   'hoy': hoy,
@@ -42,6 +43,7 @@ const OPS = {
   'corregir-clases': corregirClases,
   'enlace-firma': enlaceFirma,
   'asignar-alumno': asignarAlumno,
+  'examenes': examenes,
   // Sin sesión: la página del alumno (firmar.html); la protege el código del enlace
   'firma-alumno': firmaAlumno
 };

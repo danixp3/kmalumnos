@@ -67,6 +67,12 @@ function fmtClases(n) {
   const ent = Math.floor(v), frac = ['', '¼', '½', '¾'][Math.round((v - ent) * 4)];
   return ent && frac ? `${ent} ${frac}` : frac || String(ent);
 }
+// Lo que vale una fila de clase (entera = 1, ¼ ½ ¾ = su fracción) y la suma de una lista:
+// los recuentos de pantalla suman esto, no filas (media clase no es una clase).
+const clasesDeFila = p => (p && p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : 1);
+const sumaClasesUI = lista => Math.round(lista.reduce((t, p) => t + clasesDeFila(p), 0) * 4) / 4;
+// «1 clase», «½ clase», «12 ½ clases»
+const textoClases = n => `${fmtClases(n)} ${n > 0 && n <= 1 ? 'clase' : 'clases'}`;
 // Cantidad de clases escrita de cualquier forma (de ¼ en ¼): «12», «12,5», «12.5»,
 // «0.25», «½», «12 ½», «1/2», «1 1/2». null si no se entiende. Igual que
 // leerCantidadClases de db/core.js.

@@ -199,7 +199,8 @@ function renderPracticasGlobalTabla() {
   document.querySelectorAll('#pg-tabs button').forEach(btn => {
     const t = btn.dataset.tab;
     const nombres = { todas: 'Todas', hoy: 'Hoy', semana: 'Esta semana', sinkm: 'Sin km', curso: 'En curso' };
-    btn.innerHTML = `${nombres[t]} <span class="seg-n">· ${base.filter(PG_PREDICADOS[t]).length}</span>`;
+    // El número de cada pestaña son clases (½ clase cuenta ½), no filas de la lista
+    btn.innerHTML = `${nombres[t]} <span class="seg-n">· ${fmtClases(sumaClasesUI(base.filter(PG_PREDICADOS[t])))}</span>`;
     btn.setAttribute('aria-pressed', t === pgTab ? 'true' : 'false');
   });
   let filtradas = base.filter(PG_PREDICADOS[pgTab]);
@@ -219,14 +220,18 @@ function renderPracticasGlobalTabla() {
 
   // Resumen de la cabecera: rango de fechas, nº de prácticas, km y horas al volante (sobre lo filtrado)
   const kmTotales = filtradas.reduce((sum, p) => sum + p.km_recorridos, 0);
-  // Horas al volante con lo que vale cada clase (½ clase = media)
-  const minutos = filtradas.filter(p => !p.en_curso).reduce((t, p) => t + (p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : 1), 0) * getDuracionClaseMin();
+  // Clases con lo que vale cada una (½ clase = ½) y horas al volante sobre ese mismo valor
+  const totalClases = sumaClasesUI(filtradas);
+  const minutos = sumaClasesUI(filtradas.filter(p => !p.en_curso)) * getDuracionClaseMin();
+  const horas = minutos / 60;
   const fechas = filtradas.map(p => p.fecha).sort();
   const rango = fechas.length ? (fechas[0] === fechas[fechas.length - 1] ? diaMes(fechas[0]) : `${diaMes(fechas[0])} – ${diaMes(fechas[fechas.length - 1])}`) : '';
   const resumen = document.getElementById('pg-resumen');
   if (resumen) resumen.textContent = filtradas.length
-    ? [rango, `${fmtMiles(filtradas.length)} ${filtradas.length === 1 ? 'práctica' : 'prácticas'}`, `${fmtMiles(kmTotales)} km`, `${Math.round(minutos / 60)} h al volante`].filter(Boolean).join(' · ')
+    ? [rango, textoClases(totalClases), `${fmtMiles(kmTotales)} km`, `${horas < 10 ? fmtDec(horas) : Math.round(horas)} h al volante`].filter(Boolean).join(' · ')
     : 'No hay prácticas con estos filtros';
+  // Filas ≠ clases cuando hay fracciones: el pie lo explica en vez de contar filas como clases
+  const detalleFilas = n => (totalClases !== n ? ` · son ${textoClases(totalClases)}` : '');
 
   const pie = document.getElementById('pg-pie');
   if (!filtradas.length) {
@@ -241,7 +246,7 @@ function renderPracticasGlobalTabla() {
     let html = '';
     for (const g of gruposProcedencia(filtradas)) {
       if (!g.items.length) continue;
-      html += cabeceraGrupoProcedencia('practicas', g, g.items.length, 10, ['clase', 'clases'], { femenino: true });
+      html += cabeceraGrupoProcedencia('practicas', g, g.items.length, 10, ['clase', 'clases'], { femenino: true, texto: textoClases(sumaClasesUI(g.items)) });
       if (grupoProcPlegado('practicas', g.clave)) continue;
       const k = String(g.clave).toLowerCase();
       const pags = Math.max(1, Math.ceil(g.items.length / PG_TAM_PAGINA));
@@ -254,7 +259,7 @@ function renderPracticasGlobalTabla() {
       }
     }
     tbody.innerHTML = html;
-    if (pie) pie.innerHTML = `<span>${fmtMiles(filtradas.length)} ${filtradas.length === 1 ? 'práctica' : 'prácticas'}, separadas por procedencia</span><span>Ajustes → Datos de otros programas</span>`;
+    if (pie) pie.innerHTML = `<span>${textoClases(totalClases)}, separadas por procedencia</span><span>Ajustes → Datos de otros programas</span>`;
     return;
   }
 
@@ -265,7 +270,7 @@ function renderPracticasGlobalTabla() {
 
   if (pie) {
     const desde = (pgPagina - 1) * PG_TAM_PAGINA + 1, hasta = desde + visibles.length - 1;
-    pie.innerHTML = `<span>Mostrando ${desde}–${hasta} de ${filtradas.length} ${filtradas.length === 1 ? 'práctica' : 'prácticas'}</span>` +
+    pie.innerHTML = `<span>Mostrando ${desde}–${hasta} de ${filtradas.length} ${filtradas.length === 1 ? 'fila' : 'filas'}${detalleFilas(filtradas.length)}</span>` +
       (paginas > 1 ? `<span class="paginador"><button class="btn btn-outline btn-sm btn-icon" ${pgPagina <= 1 ? 'disabled' : ''} onclick="irPaginaPracticasGlobal(${pgPagina - 1})" aria-label="Página anterior">‹</button> Página ${pgPagina} de ${paginas} <button class="btn btn-outline btn-sm btn-icon" ${pgPagina >= paginas ? 'disabled' : ''} onclick="irPaginaPracticasGlobal(${pgPagina + 1})" aria-label="Página siguiente">›</button></span>` : '');
   }
 }
@@ -288,7 +293,7 @@ function filaPracticaGlobalHTML(p) {
     else aviso = `<div class="pg-hueco" title="Respecto al final de la práctica anterior de este coche">${c.diferencia > 0 ? '+' + fmtMiles(c.diferencia) + ' km sin asignar' : 'solapa ' + fmtMiles(-c.diferencia) + ' km'}</div>`;
   }
   return `<tr class="fila-pg${abierta ? ' abierta' : ''}" onclick="togglePracticaGlobal(${p.id})"${p.sin_km && !p.en_curso ? ' style="background:var(--warn-bg-soft)"' : ''}>
-    <td>${esc(fechaTxt)}<div class="al-sub">${fmtFecha(p.fecha)}</div></td>
+    <td>${esc(fechaTxt)}${p.fraccion > 0 && p.fraccion < 1 ? ` <span class="pill pill-line" style="font-size:11px;padding:1px 7px" title="Fracción de clase: cuenta ${fmtClases(p.fraccion)}, no una clase entera">${fmtClases(p.fraccion)} clase</span>` : ''}<div class="al-sub">${fmtFecha(p.fecha)}</div></td>
     <td class="num-mono">${p.hora_inicio ? esc(p.hora_inicio) : guion}</td>
     <td><b>${esc(p.alumno_nombre)}</b>${p.clase_n || p.procedencia ? `<div class="al-sub">${p.clase_n ? 'Clase ' + p.clase_n : ''}${etiquetaProcedencia(p.procedencia)}</div>` : ''}</td>
     <td>${esc(p.profesor_nombre)}</td>

@@ -304,7 +304,7 @@ async function loadPracticas() {
 
   const practicas = f.practicas;
   // Lo que valen (½ clase = ½), igual que el total de la cabecera
-  const enLista = practicas.filter(p => !p.enCurso).reduce((t, p) => t + (p.fraccion > 0 && p.fraccion < 1 ? p.fraccion : 1), 0);
+  const enLista = sumaClasesUI(practicas.filter(p => !p.enCurso));
   const previas = f.metricas.clases_previas || 0;
   document.getElementById('ficha-historial-nota').textContent = practicas.length || previas
     ? `${fmtClases(enLista)} ${enLista > 0 && enLista <= 1 ? 'clase' : 'clases'}${previas ? ` + ${fmtClases(previas)} sin fecha` : ''}` : '';

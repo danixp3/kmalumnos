@@ -176,8 +176,10 @@ function loadDataSafe() {
   if (!Array.isArray(data.sucursales)) data.sucursales = [];
   if (!Array.isArray(data.reservas))   data.reservas = [];
   if (!Array.isArray(data.cargos))     data.cargos = [];
+  if (!Array.isArray(data.presentaciones)) data.presentaciones = [];
   if (!Array.isArray(data.logs))       data.logs = [];
-  if (!data._seq) data._seq = { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1, r: 1, cargo: 1 };
+  if (!data._seq) data._seq = { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1, r: 1, cargo: 1, pres: 1 };
+  if (!data._seq.pres) data._seq.pres = 1;
   if (!data._seq.pf) data._seq.pf = 1;
   if (!data._seq.t) data._seq.t = 1;
   if (!data._seq.pg) data._seq.pg = 1;
@@ -191,7 +193,7 @@ function loadDataSafe() {
 // Contadores locales que una versión anterior pudo empujar al rango de la web
 // (>= ID_WEB_MIN) al bajar un registro creado desde el móvil: se devuelven al
 // siguiente id libre del rango del escritorio.
-const _SEQ_TABLA = { v: 'vehiculos', pf: 'profesores', a: 'alumnos', p: 'practicas', t: 'tarifas', pg: 'pagos', r: 'reservas', cargo: 'cargos', suc: 'sucursales' };
+const _SEQ_TABLA = { v: 'vehiculos', pf: 'profesores', a: 'alumnos', p: 'practicas', t: 'tarifas', pg: 'pagos', r: 'reservas', cargo: 'cargos', suc: 'sucursales', pres: 'presentaciones' };
 function _repararSeqWeb(data) {
   for (const [k, tabla] of Object.entries(_SEQ_TABLA)) {
     if (!data._seq || !(data._seq[k] >= ID_WEB_MIN)) continue;
@@ -214,7 +216,7 @@ function _avanzarSeq(data, k, id) {
 // empresa: se quedaba en la cola para siempre). ids_maximos() (función de la
 // migración 2026-10-03, sin exponer ninguna fila) da el mayor id de cada tabla
 // y el contador local se pone por encima. Sin la migración, no hace nada.
-const SEQ_POR_TABLA = { vehiculos: 'v', profesores: 'pf', alumnos: 'a', practicas: 'p', tarifas: 't', pagos: 'pg', sucursales: 'suc', reservas: 'r', cargos: 'cargo' };
+const SEQ_POR_TABLA = { vehiculos: 'v', profesores: 'pf', alumnos: 'a', practicas: 'p', tarifas: 't', pagos: 'pg', sucursales: 'suc', reservas: 'r', cargos: 'cargo', presentaciones: 'pres' };
 let _idsMaximosDisponible = null; // false = la función no existe todavía
 async function _avanzarSeqGlobal(sb, data) {
   if (_idsMaximosDisponible === false || !_empresaId || !sb || typeof sb.rpc !== 'function') return false;
@@ -255,6 +257,7 @@ function setCredentials(email, password) {
   _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
   _reservasDisponibleCache = null; // idem: reconsultar si la migración de reservas está aplicada
   _cargosDisponibleCache = null; // idem: reconsultar si la migración de cargos está aplicada
+  _presentacionesDisponibleCache = null; // idem: reconsultar si la migración de exámenes está aplicada
   _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
   _alumnosDatosDisponibleCache = null; // idem: reconsultar si las columnas de ficha ampliada están disponibles
   _alumnosLibroDisponibleCache = null; // idem: reconsultar si las columnas del libro de registro están disponibles
@@ -407,6 +410,7 @@ async function registrarEmpresa(email, password) {
       _sucursalesDisponibleCache = null; // idem: reconsultar si la migración está aplicada
       _reservasDisponibleCache = null; // idem: reconsultar si la migración de reservas está aplicada
       _cargosDisponibleCache = null; // idem: reconsultar si la migración de cargos está aplicada
+      _presentacionesDisponibleCache = null; // idem: reconsultar si la migración de exámenes está aplicada
       _alumnosEmailDisponibleCache = null; // idem: reconsultar si la columna email está disponible
       _alumnosDatosDisponibleCache = null; // idem: reconsultar si las columnas de ficha ampliada están disponibles
       _alumnosLibroDisponibleCache = null; // idem: reconsultar si las columnas del libro de registro están disponibles
@@ -597,6 +601,45 @@ async function _cargosDisponible(sb) {
     _cargosDisponibleCache = false;
   }
   return _cargosDisponibleCache;
+}
+
+// ─── EXÁMENES (presentaciones a convocatoria, 2026-11-06) ────────────────────
+// Mismo patrón que reservas/cargos: mientras `migraciones/2026-11-06_examenes.sql`
+// no esté aplicada la tabla `presentaciones` no existe en Supabase y se trata como
+// «modo local» (cada PC con sus exámenes, como antes), nunca como un error.
+let _presentacionesDisponibleCache = null;
+
+async function _presentacionesDisponible(sb) {
+  if (_presentacionesDisponibleCache !== null) return _presentacionesDisponibleCache;
+  try {
+    const { error } = await sb.from('presentaciones').select('id').limit(1);
+    _presentacionesDisponibleCache = !error;
+  } catch {
+    _presentacionesDisponibleCache = false;
+  }
+  return _presentacionesDisponibleCache;
+}
+
+// Campos de un examen que viajan a la nube (todos los que guarda db/convocatorias.js)
+function _payloadPresentacion(x) {
+  const num = v => (v != null && v !== '' && Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : null);
+  const txt = v => (v != null && String(v).trim() !== '' ? String(v) : null);
+  return {
+    id: x.id, alumno_id: num(x.alumno_id), profesor_id: num(x.profesor_id),
+    tipo: x.tipo, fecha: x.fecha || null, n_convocatoria: num(x.n_convocatoria) || 1,
+    resultado: x.resultado || 'pendiente', nota: x.nota || '',
+    permiso: txt(x.permiso), examinador: txt(x.examinador), vehiculo: txt(x.vehiculo),
+    fallos: num(x.fallos), fallos_detalle: txt(x.fallos_detalle), n_solicitud: num(x.n_solicitud),
+    procedencia: normalizarProcedencia(x.procedencia),
+    origen: x.origen || 'desktop',
+    sucursal_id: x.sucursal_id != null ? x.sucursal_id : null
+  };
+}
+// «Huella» de lo que hay subido de un examen: si cambia sin que nadie lo marcara (importadores,
+// fusiones de alumnos…), el sync lo sube igualmente; no puede perderse un cambio por olvidar la marca.
+function _huellaPresentacion(x) {
+  const { id, ...resto } = _payloadPresentacion(x);
+  return JSON.stringify(resto);
 }
 
 // Mismo patrón exacto que _sucursalesDisponible de arriba: mientras la
@@ -1232,8 +1275,8 @@ function _copiarAtomico(origen, destino) {
 }
 function _colaVacia() {
   return {
-    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [],
-    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [] },
+    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [], presentaciones: [],
+    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [], presentaciones: [] },
     lastSync: '1970-01-01T00:00:00.000Z'
   };
 }
@@ -1308,7 +1351,7 @@ async function cambiarDatosDeCuenta(ajustesLocales) {
       if (fs.existsSync(path.join(dirNueva, 'pending_sync.json'))) _copiarAtomico(path.join(dirNueva, 'pending_sync.json'), getPendingPath());
       else savePending(_colaVacia());
     } else {
-      saveData({ vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [], logs: [], _seq: seqAnterior });
+      saveData({ vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [], presentaciones: [], logs: [], _seq: seqAnterior });
       savePending(_colaVacia());
     }
     // 3) Este PC nunca repite un id entre sus cuentas: la clave primaria de la
@@ -1347,8 +1390,8 @@ function loadPending() {
     try { return JSON.parse(fs.readFileSync(p, 'utf-8')); } catch {}
   }
   return {
-    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [],
-    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [] },
+    vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [], presentaciones: [],
+    deleted: { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: [], reservas: [], cargos: [], presentaciones: [] },
     lastSync: '1970-01-01T00:00:00.000Z'
   };
 }
@@ -1501,7 +1544,8 @@ const _TABLAS_COLISION = [
   { tabla: 'practicas',  seq: 'p'  },
   { tabla: 'pagos',      seq: 'pg' },
   { tabla: 'reservas',   seq: 'r'  },
-  { tabla: 'cargos',     seq: 'cargo' }
+  { tabla: 'cargos',     seq: 'cargo' },
+  { tabla: 'presentaciones', seq: 'pres' }
 ];
 
 async function _resolverColisionesPrimeraVinculacion(data, pending, sb) {
@@ -1545,12 +1589,14 @@ async function _resolverColisionesPrimeraVinculacion(data, pending, sb) {
     data.alumnos.forEach(a => { if (a.profesor_id != null && remaps.profesores.has(a.profesor_id)) a.profesor_id = remaps.profesores.get(a.profesor_id); });
     data.practicas.forEach(p => { if (p.profesor_id != null && remaps.profesores.has(p.profesor_id)) p.profesor_id = remaps.profesores.get(p.profesor_id); });
     data.reservas.forEach(r => { if (r.profesor_id != null && remaps.profesores.has(r.profesor_id)) r.profesor_id = remaps.profesores.get(r.profesor_id); });
+    data.presentaciones.forEach(x => { if (x.profesor_id != null && remaps.profesores.has(x.profesor_id)) x.profesor_id = remaps.profesores.get(x.profesor_id); });
   }
   if (remaps.alumnos.size) {
     data.practicas.forEach(p => { if (remaps.alumnos.has(p.alumno_id)) p.alumno_id = remaps.alumnos.get(p.alumno_id); });
     data.pagos.forEach(pg => { if (remaps.alumnos.has(pg.alumno_id)) pg.alumno_id = remaps.alumnos.get(pg.alumno_id); });
     data.reservas.forEach(r => { if (r.alumno_id != null && remaps.alumnos.has(r.alumno_id)) r.alumno_id = remaps.alumnos.get(r.alumno_id); });
     data.cargos.forEach(c => { if (c.alumno_id != null && remaps.alumnos.has(c.alumno_id)) c.alumno_id = remaps.alumnos.get(c.alumno_id); });
+    data.presentaciones.forEach(x => { if (x.alumno_id != null && remaps.alumnos.has(x.alumno_id)) x.alumno_id = remaps.alumnos.get(x.alumno_id); });
   }
 
   // Colas de pendientes: que sigan apuntando al id correcto tras la reasignación.
@@ -1782,7 +1828,7 @@ async function _verificarIntegridad(sb, data, pending, ahora = Date.now()) {
 // cual los borraría. Antes de guardar se relee el disco y se respetan: los
 // registros marcados durante el sync (_remarcados), las tablas que el sync no
 // toca (jornadas, bonos...), los logs nuevos y el contador de ids más alto.
-const _TABLAS_SYNC = ['vehiculos', 'profesores', 'tarifas', 'alumnos', 'practicas', 'pagos', 'sucursales', 'reservas', 'cargos'];
+const _TABLAS_SYNC = ['vehiculos', 'profesores', 'tarifas', 'alumnos', 'practicas', 'pagos', 'sucursales', 'reservas', 'cargos', 'presentaciones'];
 function _fusionarConDisco(data) {
   const { data: disco } = loadDataSafe();
   const remarcado = (t, id) => !!_remarcados && _remarcados.has(t + ':' + id);
@@ -1943,6 +1989,8 @@ async function _syncInterno() {
     // está aplicada la tabla `cargos` ni se sube ni se baja, sin errores ni
     // reintentos atascados.
     const cargosOn = await _cargosDisponible(sb);
+    // Exámenes (2026-11-06, los profesores los anotan desde el móvil): mismo patrón.
+    const presentacionesOn = await _presentacionesDisponible(sb);
     // Email de alumno (Bloque 2 SaaS, portal del alumno — ver comentario junto
     // a _alumnosEmailDisponible): mismo patrón que sucursalesOn, si la
     // migración no está aplicada la columna `email` no se estampa en el
@@ -2330,6 +2378,27 @@ async function _syncInterno() {
       await subirEnLotes('cargos', loteCargos);
     }
 
+    // Exámenes (presentaciones). Sube lo marcado (db/convocatorias.js, importadores…) Y, como red de
+    // seguridad, todo examen cuyo contenido no coincide con lo último subido o bajado (huella): así un
+    // importador, una fusión de alumnos o una versión anterior que no marcó el cambio no lo pierde.
+    // La primera vez, todos los que ya había en este PC suben solos.
+    if (presentacionesOn) {
+      if (!pending.presHuellas) pending.presHuellas = {};
+      const marcados = new Set(pending.presentaciones || []);
+      const lotePres = [];
+      for (const x of data.presentaciones) {
+        if (x.deleted) continue;
+        if (!marcados.has(x.id) && pending.presHuellas[x.id] === _huellaPresentacion(x)) continue;
+        const payload = { ..._payloadPresentacion(x), deleted: false, updated_at: new Date().toISOString() };
+        if (_empresaId) payload.empresa_id = _empresaId;
+        if (!sucursalesOn) delete payload.sucursal_id;
+        lotePres.push([x.id, payload, x]);
+      }
+      for (const id of marcados) if (!data.presentaciones.some(x => x.id === id)) hecho('presentaciones', id);
+      await subirEnLotes('presentaciones', lotePres);
+      for (const [id, , x] of lotePres) if (hechos.presentaciones && hechos.presentaciones.has(id)) pending.presHuellas[id] = _huellaPresentacion(x);
+    }
+
     // Ajustes compartidos con la web (p. ej. zonas de prácticas): la "id" en la
     // cola es la clave del ajuste. Sin la tabla o sin sesión se quedan en cola.
     if (ajustesOn) {
@@ -2359,6 +2428,10 @@ async function _syncInterno() {
     if (sucursalesOn) await borrarEnNube('sucursales', pending.deleted.sucursales);
     if (reservasOn) await borrarEnNube('reservas', pending.deleted.reservas);
     if (cargosOn) await borrarEnNube('cargos', pending.deleted.cargos);
+    if (presentacionesOn) {
+      await borrarEnNube('presentaciones', (pending.deleted || {}).presentaciones || []);
+      if (pending.presHuellas) for (const id of ((pending.deleted || {}).presentaciones || [])) delete pending.presHuellas[id];
+    }
 
     // ── 2. BAJAR CAMBIOS REMOTOS (del móvil / del otro PC) ───────────────────
     // Orden importante: vehiculos → profesores → tarifas → alumnos → practicas → pagos,
@@ -2369,6 +2442,7 @@ async function _syncInterno() {
     const lastSync = pending.lastSync || '1970-01-01T00:00:00.000Z';
     let pulled = 0;
     let practicasTraidas = 0; // las que llegaron nuevas o cambiadas (clases del móvil, del otro PC)
+    let examenesTraidos = 0;  // exámenes anotados en el móvil u otro PC
     let firmasTraidas = 0;    // clases que ya había aquí y llegan firmadas por el alumno (móvil o enlace de firma)
     const cambiosProfesor = []; // alumnos que cambiaron de profesor en otro dispositivo (p. ej. un profesor que se lo asigna en el móvil)
     let dataChanged = false;
@@ -2928,6 +3002,67 @@ async function _syncInterno() {
       }
     }
 
+    // Exámenes nuevos o modificados (los anotados en el móvil por los profesores, o en otro PC).
+    // Un examen borrado en otro dispositivo se quita también aquí (en local no se guarda marca de borrado).
+    if (presentacionesOn) {
+      try {
+        const { data: remotasPres, error: errP } = await _traerTodo(() => conEmpresa(sb
+          .from('presentaciones')
+          .select('*')
+          .gt('updated_at', lastSync))
+          .order('id', { ascending: true }));
+
+        if (!errP && remotasPres) {
+          if (!pending.presHuellas) pending.presHuellas = {};
+          const posPres = posiciones(data.presentaciones);
+          for (const rp of remotasPres) {
+            const idx = posPres.has(rp.id) ? posPres.get(rp.id) : -1;
+            if (rp.deleted) {
+              if (idx !== -1) {
+                data.presentaciones.splice(idx, 1);
+                posPres.clear(); data.presentaciones.forEach((x, i) => posPres.set(x.id, i));
+                dataChanged = true;
+              }
+              delete pending.presHuellas[rp.id];
+              continue;
+            }
+            const examen = {
+              id: rp.id, alumno_id: rp.alumno_id != null ? rp.alumno_id : null,
+              profesor_id: rp.profesor_id != null ? rp.profesor_id : null,
+              tipo: rp.tipo, fecha: rp.fecha || null, n_convocatoria: rp.n_convocatoria != null ? rp.n_convocatoria : 1,
+              resultado: rp.resultado || 'pendiente', nota: rp.nota || '',
+              permiso: rp.permiso || null, examinador: rp.examinador || null, vehiculo: rp.vehiculo || null,
+              fallos: rp.fallos != null ? rp.fallos : null, fallos_detalle: rp.fallos_detalle || null,
+              n_solicitud: rp.n_solicitud != null ? rp.n_solicitud : null,
+              origen: rp.origen || 'desktop',
+              sucursal_id: rp.sucursal_id != null ? rp.sucursal_id : null,
+              updated_at: rp.updated_at
+            };
+            _traerProcedencia(examen, rp, idx !== -1 ? data.presentaciones[idx] : null);
+            if (idx === -1) {
+              posPres.set(rp.id, data.presentaciones.push(examen) - 1);
+              _avanzarSeq(data, 'pres', rp.id);
+              pending.presHuellas[rp.id] = _huellaPresentacion(examen);
+              dataChanged = true;
+              pulled++; examenesTraidos++;
+            } else {
+              const localUpdated  = data.presentaciones[idx].updated_at || '1970-01-01T00:00:00.000Z';
+              const remoteUpdated = rp.updated_at || '1970-01-01T00:00:00.000Z';
+              if (remoteUpdated > localUpdated && !(pending.presentaciones || []).includes(rp.id)) {
+                data.presentaciones[idx] = examen;
+                pending.presHuellas[rp.id] = _huellaPresentacion(examen);
+                dataChanged = true;
+                pulled++; examenesTraidos++;
+              }
+              // Si local es más reciente o está sin subir, no se sobrescribe (el usuario lo editó aquí)
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Sync: no se pudo leer exámenes (permiso denegado o error de red):', e.message);
+      }
+    }
+
     // Ajustes compartidos (zonas de prácticas...): gana el más reciente.
     if (ajustesOn) {
       try {
@@ -2985,7 +3120,7 @@ async function _syncInterno() {
     }
     pending.lastSync = new Date(inicioSync - MARGEN_LASTSYNC_MS).toISOString();
     savePending(pending);
-    if (pulled > 0 && _onDatosNuevos) { try { _onDatosNuevos({ pulled, practicas: practicasTraidas, firmas: firmasTraidas, profesores: cambiosProfesor.length }); } catch (e) { /* la UI no debe tumbar el sync */ } }
+    if (pulled > 0 && _onDatosNuevos) { try { _onDatosNuevos({ pulled, practicas: practicasTraidas, firmas: firmasTraidas, profesores: cambiosProfesor.length, examenes: examenesTraidos }); } catch (e) { /* la UI no debe tumbar el sync */ } }
 
     if (erroresSubida.length) {
       // Siguen en la cola y se reintentan en el próximo sync; la UI lo avisa.
@@ -3087,6 +3222,8 @@ async function pushAll() {
     // cuidado, si la tabla no existe aún en el servidor ni se sube ni se
     // intenta.
     const cargosOn = await _cargosDisponible(sb);
+    // exámenes (2026-11-06): igual, sin la tabla ni se sube ni se intenta
+    const presentacionesOn = await _presentacionesDisponible(sb);
     // `...v` ya trae sucursal_id si el registro local lo tiene; sin la
     // migración aplicada se elimina del objeto para no mandarlo al servidor.
     const quitarSucursal = obj => {
@@ -3272,6 +3409,12 @@ async function pushAll() {
         data.cargos.map(c => _quitarProcedencia(quitarSucursal({ ...c, ...conEmpresaTag, updated_at: now }), procOn.cargos)),
         'subida completa');
     }
+    // Exámenes: solo si la migración está aplicada
+    if (presentacionesOn && data.presentaciones.length) {
+      await subirTodo('presentaciones',
+        data.presentaciones.map(x => quitarSucursal({ ..._payloadPresentacion(x), ...conEmpresaTag, deleted: false, updated_at: now })),
+        'subida completa');
+    }
     // Pagos: igual tolerancia que en sync() — un empleado sin acceso a la
     // tabla por RLS no debe abortar la subida completa de las demás tablas.
     try {
@@ -3302,6 +3445,7 @@ async function pushAll() {
     if (sucursalesOn) await borrar('sucursales');
     if (reservasOn) await borrar('reservas');
     if (cargosOn) await borrar('cargos');
+    if (presentacionesOn) await borrar('presentaciones');
 
     if (erroresPush.length) {
       // No se vacía la cola: lo que falló se reintentará en el siguiente sync.
@@ -3313,10 +3457,15 @@ async function pushAll() {
     // Limpiar pending. OJO: no adelantar lastSync aquí — si este PC aún no ha
     // descargado los datos antiguos de la nube, adelantarla se los saltaría.
     pending.vehiculos = []; pending.profesores = []; pending.tarifas = []; pending.alumnos = []; pending.practicas = []; pending.pagos = [];
-    pending.deleted = { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: pending.deleted.sucursales, reservas: pending.deleted.reservas, cargos: pending.deleted.cargos };
+    pending.deleted = { practicas: [], alumnos: [], vehiculos: [], profesores: [], tarifas: [], pagos: [], sucursales: pending.deleted.sucursales, reservas: pending.deleted.reservas, cargos: pending.deleted.cargos, presentaciones: pending.deleted.presentaciones || [] };
     if (sucursalesOn) { pending.sucursales = []; pending.deleted.sucursales = []; }
     if (reservasOn) { pending.reservas = []; pending.deleted.reservas = []; }
     if (cargosOn) { pending.cargos = []; pending.deleted.cargos = []; }
+    if (presentacionesOn) {
+      pending.presentaciones = []; pending.deleted.presentaciones = [];
+      // Todo lo que hay en este PC queda subido tal cual: la huella lo recuerda
+      pending.presHuellas = Object.fromEntries(data.presentaciones.map(x => [x.id, _huellaPresentacion(x)]));
+    }
     savePending(pending);
 
     _lastError = null;
@@ -3340,7 +3489,7 @@ async function pushAll() {
 // que ya sabe bajar y mezclar. Sin cambios = unas pocas consultas ligeras y nada más.
 // La web escribe: prácticas (clases), alumnos (altas), profesores (firma, coche
 // habitual) y reservas (solicitudes del portal del alumno).
-const TABLAS_SONDEO = ['practicas', 'alumnos', 'profesores', 'reservas'];
+const TABLAS_SONDEO = ['practicas', 'alumnos', 'profesores', 'reservas', 'presentaciones'];
 let _sondeoVisto = null;          // { tabla: última updated_at vista tras un sync correcto }
 let _sondeoTimer = null;
 let _sondeoActivo = false;

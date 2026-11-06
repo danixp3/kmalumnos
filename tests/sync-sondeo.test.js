@@ -58,7 +58,7 @@ test('sin nada nuevo en la nube NO se lanza el sync completo (solo unas consulta
   expect(r).toMatchObject({ ok: true, novedades: false });
   expect(espia).not.toHaveBeenCalled();
   // Una consulta por tabla vigilada y ninguna escritura
-  expect(mockRemote.registro.length).toBe(4);
+  expect(mockRemote.registro.length).toBe(5); // practicas, alumnos, profesores, reservas y exámenes
   expect(mockRemote.registro.every(x => x.op === 'select')).toBe(true);
   expect(aid).toBeGreaterThan(0);
 });
@@ -103,7 +103,7 @@ test('el aviso de datos nuevos dice cuántas clases llegaron', async () => {
   sync.onDatosNuevos(null);
 
   expect(res.pulled).toBe(2);
-  expect(avisos).toEqual([{ pulled: 2, practicas: 2, firmas: 0, profesores: 0 }]);
+  expect(avisos).toEqual([{ pulled: 2, practicas: 2, firmas: 0, profesores: 0, examenes: 0 }]);
 });
 
 test('un sync que no trae nada no avisa a la pantalla', async () => {

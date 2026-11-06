@@ -341,12 +341,24 @@ function deleteAlumno(id) {
   // Encolar también el borrado de sus prácticas en la nube: si no, quedan
   // "vivas" en Supabase y reaparecen al reconstruir otro PC.
   const practicasDelAlumno = d.practicas.filter(x => x.alumno_id === id).map(x => x.id);
+  // También lo que cuelga de él y no tiene sentido sin él: sus reservas y exámenes (que viajan a la nube: si
+  // no, se quedaban allí con un alumno que ya no existe), y sus tasas, bonos y caducidades (solo de este PC).
+  // Sus cobros y cargos SÍ se conservan: son contabilidad (el dinero se cobró).
+  const reservasDelAlumno = (d.reservas || []).filter(x => x.alumno_id === id).map(x => x.id);
+  const examenesDelAlumno = (d.presentaciones || []).filter(x => x.alumno_id === id).map(x => x.id);
   d.alumnos   = d.alumnos.filter(x => x.id !== id);
   d.practicas = d.practicas.filter(x => x.alumno_id !== id);
+  if (d.reservas) d.reservas = d.reservas.filter(x => x.alumno_id !== id);
+  if (d.presentaciones) d.presentaciones = d.presentaciones.filter(x => x.alumno_id !== id);
+  if (d.tasas) d.tasas = d.tasas.filter(x => x.alumno_id !== id);
+  if (d.bonos) d.bonos = d.bonos.filter(x => x.alumno_id !== id);
+  if (d.vencimientos) d.vencimientos = d.vencimientos.filter(v => !(v.entidad_tipo === 'alumno' && v.entidad_id === id));
   save();
   const s = _sync();
   if (s) {
     s.markDeletedVarios('practicas', practicasDelAlumno);
+    s.markDeletedVarios('reservas', reservasDelAlumno);
+    s.markDeletedVarios('presentaciones', examenesDelAlumno);
     s.markDeleted('alumnos', id);
   }
 }

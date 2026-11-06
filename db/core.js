@@ -190,7 +190,7 @@ function _construirLog(tipo, descripcion, detalles = []) {
 // proactiva): exportaciones y anonimizaciones de datos de alumnos, aceptación
 // de las condiciones y registro de jornada. No se recortan ni se borran con
 // «Borrar historial»: el resto se queda en las 500 últimas.
-const TIPOS_LOG_PERMANENTES = ['privacidad', 'exportacion', 'legal', 'jornada'];
+const TIPOS_LOG_PERMANENTES = ['privacidad', 'exportacion', 'legal', 'jornada', 'borrado_alumnos'];
 const MAX_LOGS = 500;
 function _recortarLogs(logs) {
   if (logs.length <= MAX_LOGS) return logs;

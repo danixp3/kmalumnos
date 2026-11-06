@@ -81,7 +81,7 @@ function pintarTarjetasVehiculos(panel) {
       <div class="veh-odo"><span class="num-mono">${fmtMiles(v.km_actual)}</span><span class="veh-odo-u">km</span>${v.registro_hora ? `<span class="veh-odo-r">registro de las ${esc(v.registro_hora)}</span>` : ''}</div>
       <div class="veh-kpis">
         <div><span class="eyebrow">${mesTxt}</span><b class="num-mono">${fmtMiles(v.recorridos_mes)} km</b></div>
-        <div><span class="eyebrow">Prácticas</span><b class="num-mono">${fmtMiles(v.practicas_mes)}</b></div>
+        <div><span class="eyebrow">Prácticas</span><b class="num-mono">${fmtClases(v.practicas_mes)}</b></div>
         <div><span class="eyebrow">Sin asignar</span><b class="num-mono${v.sin_asignar_mes > 0 ? ' rojo' : ''}">${v.sin_asignar_mes > 0 ? panelIcono('aviso', 13) + ' ' : ''}${fmtMiles(v.sin_asignar_mes)} km</b></div>
       </div>
       <div class="veh-pie">${itv}${sinKm}</div>
@@ -189,7 +189,7 @@ function pintarResumenVehiculos(panel) {
     <td class="col-num num-mono">${fmtMiles(v.recorridos_mes)}</td>
     <td class="col-num num-mono">${fmtMiles(v.km_en_practicas_mes)}</td>
     <td class="col-num num-mono${v.sin_asignar_mes > 0 ? ' rojo' : ''}">${v.sin_asignar_mes > 0 ? panelIcono('aviso', 13) + ' ' : ''}${fmtMiles(v.sin_asignar_mes)}</td>
-    <td class="col-num num-mono">${fmtMiles(v.practicas_mes)}</td>
+    <td class="col-num num-mono">${fmtClases(v.practicas_mes)}</td>
     <td class="col-num num-mono">${fmtDec(v.km_por_practica)}</td>
   </tr>`;
   const t = panel.total;
@@ -197,7 +197,7 @@ function pintarResumenVehiculos(panel) {
     `<tr class="fila-total"><td><b>Total flota</b></td><td class="col-num">${dash}</td><td class="col-num">${dash}</td>
       <td class="col-num num-mono"><b>${fmtMiles(t.recorridos_mes)}</b></td><td class="col-num num-mono"><b>${fmtMiles(t.km_en_practicas_mes)}</b></td>
       <td class="col-num num-mono${t.sin_asignar_mes > 0 ? ' rojo' : ''}"><b>${fmtMiles(t.sin_asignar_mes)}</b></td>
-      <td class="col-num num-mono"><b>${fmtMiles(t.practicas_mes)}</b></td><td class="col-num num-mono"><b>${fmtDec(t.km_por_practica)}</b></td></tr>`;
+      <td class="col-num num-mono"><b>${fmtClases(t.practicas_mes)}</b></td><td class="col-num num-mono"><b>${fmtDec(t.km_por_practica)}</b></td></tr>`;
 }
 
 // El relleno de km vive en Kilómetros (asistente): se abre con este vehículo ya elegido.
@@ -275,7 +275,7 @@ async function loadAnalisisVehiculos() {
     return `<tr>
       <td><strong>${esc(v.nombre)}</strong></td>
       <td>${esc(v.matricula) || '<span style="color:var(--placeholder)">—</span>'}</td>
-      <td>${v.nPracticas}</td>
+      <td>${fmtClases(v.nPracticas)}</td>
       <td>${fmt(v.kmTotales)} km</td>
       <td>${fmt(v.mediaKmPractica)} km</td>
       <td>${fmt(v.kmUltimos30)} km</td>

@@ -36,8 +36,11 @@ function _diasRestantes(fecha, hoyStr) {
 // coche retirado): no debe avisar
 function _deAlumnoTerminado(d, v) {
   if (v.entidad_id == null) return false;
-  if (v.entidad_tipo === 'alumno') return alumnoTerminado((d.alumnos || []).find(x => x.id === v.entidad_id));
-  if (v.entidad_tipo === 'vehiculo') { const veh = (d.vehiculos || []).find(x => x.id === v.entidad_id); return !!veh && !vehiculoEnUso(veh); }
+  // Si la persona o el coche ya no existe (borrado), su caducidad tampoco avisa: antes salía eternamente
+  // como «—» en el Panel y en los avisos
+  if (v.entidad_tipo === 'alumno') { const al = (d.alumnos || []).find(x => x.id === v.entidad_id); return !al || !!al.deleted || alumnoTerminado(al); }
+  if (v.entidad_tipo === 'vehiculo') { const veh = (d.vehiculos || []).find(x => x.id === v.entidad_id); return !veh || !!veh.deleted || !vehiculoEnUso(veh); }
+  if (v.entidad_tipo === 'profesor') { const pr = (d.profesores || []).find(x => x.id === v.entidad_id); return !pr || !!pr.deleted; }
   return false;
 }
 

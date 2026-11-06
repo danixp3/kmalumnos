@@ -69,9 +69,19 @@ function setVehiculoActivo(id, activo) {
 function deleteVehiculo(id) {
   const d = load();
   d.vehiculos = d.vehiculos.filter(x => x.id !== id);
-  d.alumnos.forEach(a => { if (a.vehiculo_id === id) a.vehiculo_id = null; });
+  // Los alumnos y profesores que lo tenían como suyo se quedan sin coche, y eso se sube a la nube: antes
+  // solo se cambiaba aquí y la web seguía proponiendo un coche que ya no existe
+  const alumnosSinCoche = [], profesoresSinCoche = [];
+  const ahora = new Date().toISOString();
+  d.alumnos.forEach(a => { if (a.vehiculo_id === id) { a.vehiculo_id = null; a.updated_at = ahora; alumnosSinCoche.push(a.id); } });
+  d.profesores.forEach(p => { if (p.vehiculo_id === id) { p.vehiculo_id = null; p.updated_at = ahora; profesoresSinCoche.push(p.id); } });
   save();
-  const s = _sync(); if (s) s.markDeleted('vehiculos', id);
+  const s = _sync();
+  if (s) {
+    s.markDeleted('vehiculos', id);
+    s.markDirtyVarios('alumnos', alumnosSinCoche);
+    s.markDirtyVarios('profesores', profesoresSinCoche);
+  }
 }
 
 // ─── PERMISOS DE CADA COCHE ──────────────────────────────────────────────────

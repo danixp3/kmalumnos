@@ -25,6 +25,7 @@ module.exports = {
   ...require('./db/tarifas'),
   ...require('./db/alumnos'),
   ...require('./db/alumnos-repetidos'),
+  ...require('./db/borrado-alumnos'),
   ...require('./db/practicas'),
   ...require('./db/clases-sesion'),
   ...require('./db/pagos'),

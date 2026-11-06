@@ -2546,6 +2546,16 @@
   .aa-barra .seg button { height: 32px; padding: 0 12px; font-size: 13.5px; }
   .aa-tabla { max-height: 46vh; overflow: auto; }
 
+  /* Borrar alumnos por fechas */
+  .bo-fechas { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; margin: 0 0 8px; }
+  .bo-fechas label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+  .bo-fechas label small { font-weight: 400; color: var(--text-faint); }
+  .bo-opcion { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 13.5px; color: var(--text-muted); cursor: pointer; }
+  .bo-opcion input[type="checkbox"] { width: auto !important; }
+  .bo-resumen { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .bo-historial { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13.5px; }
+  .bo-fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+
   /* Modal ancho de dos/tres columnas (alta de alumno, práctica...) */
   .modal-ancho { width: 860px; }
   .modal-ancho .form-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 14px; align-items: end; margin-top: 12px; }

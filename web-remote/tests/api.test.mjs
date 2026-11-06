@@ -9,7 +9,7 @@ const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const TOKEN = `x.${b64({ sub: 'emp1' })}.y`;
 
 async function llamar(nombre, { method = 'POST', body, query } = {}) {
-  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor','km-coche','estado-practica','corregir-clases','enlace-firma','firma-alumno','asignar-alumno'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
+  const mod = await import(['hoy','iniciar-practica','finalizar-practica','firmar-practica','cancelar-practica','config','calendario','practica-detalle','anotar-practica','registrar-clase','firma-profesor','coche-profesor','km-coche','estado-practica','corregir-clases','enlace-firma','firma-alumno','asignar-alumno','examenes'].includes(nombre) ? `../lib/movil/${nombre}.js` : `../api/${nombre}.js`);
   let status = 200, json;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(o) { json = o; return this; }, end() { return this; } };
   await mod.default({ method, headers: { authorization: 'Bearer ' + TOKEN }, body, query }, res);
@@ -1350,4 +1350,87 @@ test('hoyEspana: si el teléfono no manda su fecha, el día es el de España (Ve
   assert.equal(hoyEspana(new Date('2026-10-21T22:30:00Z')), '2026-10-22');   // 00:30 en verano (UTC+2)
   assert.equal(hoyEspana(new Date('2026-01-15T23:30:00Z')), '2026-01-16');   // 00:30 en invierno (UTC+1)
   assert.equal(hoyEspana(new Date('2026-10-22T10:00:00Z')), '2026-10-22');
+});
+
+// ─── Exámenes anotados desde el móvil (2026-11-06) ───────────────────────────
+const baseEx = () => ({ ...base(), presentaciones: [] });
+const exam = (extra = {}) => ({ accion: 'crear', alumno_id: 1, tipo: 'circulacion', fecha: hoy(), resultado: 'apto', profesor_id: 1, hoy: hoy(), ...extra });
+const fechaMas = dias => { const n = new Date(); n.setDate(n.getDate() + dias); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; };
+
+test('examenes: el profesor anota un examen hecho; queda con el origen móvil, la convocatoria y el permiso del alumno', async () => {
+  reiniciar(baseEx());
+  const r = await llamar('examenes', { body: exam({ resultado: 'no_apto', fallos: 3, nota: 'Rotonda', examinador: 'J. Pérez' }) });
+  assert.equal(r.status, 200); assert.equal(r.json.ok, true); assert.equal(r.json.n_convocatoria, 1);
+  const x = BD.tablas.presentaciones.find(f => f.id === r.json.id);
+  assert.deepEqual([x.alumno_id, x.tipo, x.resultado, x.fallos, x.nota, x.examinador, x.permiso, x.origen, x.empresa_id, x.deleted, x.profesor_id],
+    [1, 'circulacion', 'no_apto', 3, 'Rotonda', 'J. Pérez', 'B', 'web-remote', 'emp1', false, 1]);
+  // otra convocatoria del mismo tipo, otro día: la 2.ª
+  const r2 = await llamar('examenes', { body: exam({ fecha: fechaMas(-7), resultado: 'apto' }) });
+  assert.equal(r2.status, 200);
+  assert.equal(BD.tablas.presentaciones.length, 2);
+});
+
+test('examenes: repetir la misma petición (doble toque) no duplica; otro resultado el mismo día pide confirmar', async () => {
+  reiniciar(baseEx());
+  const a = await llamar('examenes', { body: exam() });
+  const b = await llamar('examenes', { body: exam() });
+  assert.equal(b.status, 200); assert.equal(b.json.repetida, true); assert.equal(b.json.id, a.json.id);
+  assert.equal(BD.tablas.presentaciones.length, 1);
+  const c = await llamar('examenes', { body: exam({ resultado: 'no_apto' }) });
+  assert.equal(c.status, 409); assert.equal(c.json.codigo, 'ya_existe'); assert.equal(c.json.existente.id, a.json.id);
+  assert.equal(BD.tablas.presentaciones.length, 1);
+});
+
+test('examenes: valida tipo, fecha, resultado, fallos, un resultado en un examen que aún no ha llegado y alumno inexistente', async () => {
+  reiniciar(baseEx());
+  assert.equal((await llamar('examenes', { body: exam({ tipo: 'moto' }) })).status, 400);
+  assert.equal((await llamar('examenes', { body: exam({ fecha: '2026-13-45' }) })).status, 400);
+  assert.equal((await llamar('examenes', { body: exam({ fecha: '2001-01-01' }) })).status, 400);
+  assert.equal((await llamar('examenes', { body: exam({ resultado: 'genial' }) })).status, 400);
+  assert.equal((await llamar('examenes', { body: exam({ resultado: undefined }) })).status, 400);   // hoy sin resultado: falta
+  assert.equal((await llamar('examenes', { body: exam({ fallos: 500 }) })).status, 400);
+  assert.equal((await llamar('examenes', { body: exam({ alumno_id: 99 }) })).status, 404);
+  assert.equal((await llamar('examenes', { body: exam({ fecha: fechaMas(10), resultado: 'apto' }) })).status, 400);   // aún no ha pasado
+  const p = await llamar('examenes', { body: exam({ fecha: fechaMas(10), resultado: undefined }) });                   // se apunta como pendiente
+  assert.equal(p.status, 200); assert.equal(BD.tablas.presentaciones[0].resultado, 'pendiente');
+  assert.equal(BD.tablas.presentaciones.length, 1);
+});
+
+test('examenes: listar (próximos primero), cerrar uno apuntado por la oficina y borrar solo lo anotado en el móvil', async () => {
+  const f = fechaMas(5);
+  reiniciar({ ...baseEx(), presentaciones: [
+    { id: 7, alumno_id: 2, profesor_id: 1, tipo: 'teorico', fecha: f, n_convocatoria: 1, resultado: 'pendiente', origen: 'desktop', deleted: false, empresa_id: 'emp1' },
+    { id: 8, alumno_id: 1, profesor_id: 1, tipo: 'circulacion', fecha: hoy(), n_convocatoria: 1, resultado: 'apto', origen: 'web-remote', deleted: false, empresa_id: 'emp1' },
+    { id: 9, alumno_id: 1, profesor_id: 1, tipo: 'teorico', fecha: hoy(), n_convocatoria: 1, resultado: 'apto', origen: 'desktop', deleted: true, empresa_id: 'emp1' },
+    { id: 10, alumno_id: 1, profesor_id: 1, tipo: 'teorico', fecha: hoy(), n_convocatoria: 1, resultado: 'apto', origen: 'desktop', deleted: false, empresa_id: 'otra' }
+  ] });
+  const l = await llamar('examenes', { method: 'GET', query: { hoy: hoy() } });
+  assert.equal(l.status, 200);
+  assert.deepEqual(l.json.examenes.map(x => x.id), [7, 8]);          // sin borrados ni de otra empresa; próximos primero
+  assert.equal(l.json.examenes[0].alumno, 'Pablo Ortega'); assert.equal(l.json.examenes[1].borrable, true); assert.equal(l.json.examenes[0].borrable, false);
+  // aún es futuro: no se le puede poner resultado hasta que llegue el día
+  assert.equal((await llamar('examenes', { body: { accion: 'editar', id: 7, resultado: 'apto', hoy: hoy() } })).status, 400);
+  const e2 = await llamar('examenes', { body: { accion: 'editar', id: 7, fecha: hoy(), resultado: 'no_apto', fallos: 2, hoy: hoy() } });
+  assert.equal(e2.status, 200);
+  assert.deepEqual([BD.tablas.presentaciones[0].resultado, BD.tablas.presentaciones[0].fallos, BD.tablas.presentaciones[0].fecha], ['no_apto', 2, hoy()]);
+  assert.ok(BD.tablas.presentaciones[0].updated_at);
+  assert.equal((await llamar('examenes', { body: { accion: 'editar', id: 7, resultado: 'no_apto', hoy: hoy() } })).json.sin_cambios, true);
+  // borrar: lo del móvil sí (borrado suave), lo de la oficina no
+  assert.equal((await llamar('examenes', { body: { accion: 'borrar', id: 7 } })).status, 403);
+  assert.equal((await llamar('examenes', { body: { accion: 'borrar', id: 8 } })).status, 200);
+  assert.equal(BD.tablas.presentaciones.find(x => x.id === 8).deleted, true);
+  assert.equal((await llamar('examenes', { body: { accion: 'borrar', id: 8 } })).json.ya_borrado, true);
+  assert.equal((await llamar('examenes', { body: { accion: 'otra' } })).status, 400);
+});
+
+test('examenes: filtra por alumno y devuelve todos los suyos aunque sean antiguos', async () => {
+  reiniciar({ ...baseEx(), presentaciones: [
+    { id: 1, alumno_id: 1, tipo: 'teorico', fecha: '2025-01-10', n_convocatoria: 1, resultado: 'apto', deleted: false, empresa_id: 'emp1' },
+    { id: 2, alumno_id: 2, tipo: 'teorico', fecha: hoy(), n_convocatoria: 1, resultado: 'apto', deleted: false, empresa_id: 'emp1' }
+  ] });
+  const sin = await llamar('examenes', { method: 'GET', query: { hoy: hoy() } });
+  assert.deepEqual(sin.json.examenes.map(x => x.id), [2]);   // el de 2025 queda fuera de los últimos 90 días
+  const a1 = await llamar('examenes', { method: 'GET', query: { alumno_id: '1', hoy: hoy() } });
+  assert.deepEqual(a1.json.examenes.map(x => x.id), [1]);
+  assert.equal((await llamar('examenes', { method: 'GET', query: { alumno_id: 'abc' } })).status, 400);
 });

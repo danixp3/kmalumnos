@@ -22,7 +22,9 @@ async function loadTimeline() {
 
   const conKm = practicas.filter(p => !p.sin_km);
   const sinKm = practicas.filter(p => p.sin_km);
-  resumen.textContent = `${practicas.length} prácticas · ${conKm.length} con km · ${sinKm.length} sin km`;
+  // Cada fila es una tanda de km; una fracción (½ clase) cuenta ½ en el total de clases
+  const totalClases = sumaClasesUI(practicas);
+  resumen.textContent = `${textoClases(totalClases)}${totalClases !== practicas.length ? ` (${practicas.length} filas)` : ''} · ${conKm.length} con km · ${sinKm.length} sin km`;
 
   const ocultarHuecos = typeof kmOcultarHuecos === 'function' && kmOcultarHuecos();
   let html = '<div class="table-wrap"><table><thead><tr>'

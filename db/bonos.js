@@ -103,8 +103,13 @@ function updateBono(id, campos = {}) {
       }
     }
   }
-  if (b.n_usadas >= b.n_clases && b.estado !== 'anulado') {
-    b.estado = 'agotado';
+  // Las clases usadas nunca pasan de las del bono (bajar n_clases por debajo de lo gastado dejaba un saldo negativo)
+  if (b.n_usadas > b.n_clases) b.n_usadas = b.n_clases;
+  if (b.estado !== 'anulado') {
+    if (b.n_usadas >= b.n_clases) b.estado = 'agotado';
+    // Un bono agotado al que se le amplían las clases (o se corrige un error de tecleo) vuelve a estar activo:
+    // antes se quedaba «agotado» para siempre con clases por gastar y no se podía usar
+    else if (b.estado === 'agotado' && !('estado' in campos)) b.estado = 'activo';
   }
   save();
 }

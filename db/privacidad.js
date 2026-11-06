@@ -68,7 +68,7 @@ function anonimizarAlumnos(ids, motivo = 'supresion') {
   const lista = (Array.isArray(ids) ? ids : [ids]).map(Number).filter(Number.isInteger);
   const s = _sync();
   const hechos = [];
-  const tocadas = { practicas: [], pagos: [], cargos: [], reservas: [] };
+  const tocadas = { practicas: [], pagos: [], cargos: [], reservas: [], presentaciones: [] };
   const nombresViejos = [];
   const ahora = new Date().toISOString();
   for (const id of lista) {
@@ -87,13 +87,14 @@ function anonimizarAlumnos(ids, motivo = 'supresion') {
       if (p.alumno_id !== id || p.deleted) continue;
       if (p.firma || p.nota) { p.firma = null; p.firma_borrar = true; p.nota = ''; p.updated_at = ahora; tocadas.practicas.push(p.id); }
     }
-    for (const [tabla, campo] of [['pagos', 'nota'], ['cargos', 'nota'], ['reservas', 'nota']]) {
+    // También las notas de sus exámenes (que ahora viajan a la nube)
+    for (const [tabla, campo] of [['pagos', 'nota'], ['cargos', 'nota'], ['reservas', 'nota'], ['presentaciones', 'nota']]) {
       for (const x of d[tabla] || []) {
         if (x.alumno_id === id && !x.deleted && x[campo]) { x[campo] = ''; x.updated_at = ahora; tocadas[tabla].push(x.id); }
       }
     }
     // Solo locales (no viajan a la nube)
-    for (const tabla of ['bonos', 'presentaciones', 'tasas']) {
+    for (const tabla of ['bonos', 'tasas']) {
       for (const x of d[tabla] || []) if (x.alumno_id === id && x.nota) x.nota = '';
     }
     for (const v of d.vencimientos || []) if (v.entidad_tipo === 'alumno' && v.entidad_id === id) { v.descripcion = ''; v.nota = ''; }

@@ -8,6 +8,10 @@ const { getPracticasByAlumno } = require('./practicas');
 // se guarda como null en vez de romper el guardado.
 const FORMAS_PAGO = ['efectivo', 'tarjeta', 'transferencia', 'bizum', 'otro'];
 
+// El dinero se redondea siempre a céntimos al sumar o restar: con decimales de coma flotante, 3 clases a 23,45 €
+// pagadas con 70,35 € daban un saldo de 0,00000000000001 € y el alumno salía como moroso «debiendo 0,00 €».
+const aCentimos = x => Math.round((Number(x) || 0) * 100) / 100;
+
 function getPagosByAlumno(alumno_id) {
   const d = load();
   const aid = parseInt(alumno_id);
@@ -90,10 +94,10 @@ function getDeudas(sucursalId) {
           sin_tarifa = true;
         }
       }
-      const total_cargos = _totalCargosAlumno(d, alumno.id);
-      const total_generado = generado_practicas + total_cargos;
-      const total_pagado = getPagosByAlumno(alumno.id).reduce((sum, p) => sum + p.cantidad, 0);
-      const saldo = total_generado - total_pagado;
+      const total_cargos = aCentimos(_totalCargosAlumno(d, alumno.id));
+      const total_generado = aCentimos(generado_practicas + total_cargos);
+      const total_pagado = aCentimos(getPagosByAlumno(alumno.id).reduce((sum, p) => sum + p.cantidad, 0));
+      const saldo = aCentimos(total_generado - total_pagado);
       return {
         alumno_id: alumno.id,
         alumno_nombre: nombreCorto(alumno),
@@ -116,7 +120,7 @@ function getDesglosePagosAlumno(alumno_id) {
   if (!alumno) return null;
 
   const practicasAlumno = getPracticasByAlumno(aid);
-  const total_pagado = getPagosByAlumno(aid).reduce((sum, p) => sum + p.cantidad, 0);
+  const total_pagado = aCentimos(getPagosByAlumno(aid).reduce((sum, p) => sum + p.cantidad, 0));
   let total_generado = 0;
   let restanteCts = Math.round(total_pagado * 100);
 
@@ -153,8 +157,8 @@ function getDesglosePagosAlumno(alumno_id) {
     .filter(c => !c.deleted && c.alumno_id === aid)
     .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || a.id - b.id)
     .map(c => ({ id: c.id, concepto: c.concepto, tipo: c.tipo, importe: c.importe, fecha: c.fecha }));
-  const total_cargos = cargosAlumno.reduce((sum, c) => sum + (c.importe || 0), 0);
-  total_generado += total_cargos;
+  const total_cargos = aCentimos(cargosAlumno.reduce((sum, c) => sum + (c.importe || 0), 0));
+  total_generado = aCentimos(total_generado + total_cargos);
 
   return {
     alumno_id: aid,
@@ -164,7 +168,7 @@ function getDesglosePagosAlumno(alumno_id) {
     cargos: cargosAlumno,
     total_generado,
     total_pagado,
-    saldo: total_generado - total_pagado
+    saldo: aCentimos(total_generado - total_pagado)
   };
 }
 
@@ -202,14 +206,15 @@ function getArqueo(desde, hasta, sucursalId) {
     sucursales.get(sid).total += p.cantidad;
   }
 
+  for (const k of Object.keys(porForma)) porForma[k] = aCentimos(porForma[k]);
   return {
     desde: desde || null,
     hasta: hasta || null,
     nPagos: pagos.length,
-    total,
+    total: aCentimos(total),
     porForma,
-    porEmpleado: Array.from(empleados.values()),
-    porSucursal: Array.from(sucursales.values())
+    porEmpleado: Array.from(empleados.values()).map(e => ({ ...e, total: aCentimos(e.total) })),
+    porSucursal: Array.from(sucursales.values()).map(x => ({ ...x, total: aCentimos(x.total) }))
   };
 }
 

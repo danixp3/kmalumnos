@@ -1,11 +1,13 @@
 // ─── EXÁMENES: PRESENTACIONES A CONVOCATORIA Y TASAS ───────────────────────
 // Control de presentación a examen (teórico/maniobras/circulación) por
 // convocatoria, tasas administrativas asociadas al alumno y estadísticas de
-// aprobados. Es un registro LOCAL — igual que jornadas/vencimientos, NO
-// sincroniza con Supabase en esta v1 (no toca sync.js ni markDirty/markDeleted);
-// cada PC lleva el suyo propio en su data.json.
+// aprobados. Las PRESENTACIONES (exámenes) sincronizan con la nube desde
+// 2026-11-06 (tabla `presentaciones`, migración 2026-11-06_examenes.sql): los
+// profesores las anotan desde el móvil y llegan a todos los PCs. Todo cambio de
+// un examen marca sync (markDirty / markDeleted). Las tasas siguen siendo LOCALES
+// (jornadas, vencimientos y tasas: cada PC lleva las suyas en su data.json).
 
-const { load, save, nextId, addLog, filtrarPorSucursal } = require('./core');
+const { load, save, nextId, addLog, filtrarPorSucursal, _sync } = require('./core');
 const { coincideProcedencia } = require('./procedencia');
 
 const TIPOS_VALIDOS = ['teorico', 'maniobras', 'circulacion'];
@@ -87,11 +89,13 @@ function addPresentacion(campos = {}) {
     resultado: res,
     sucursal_id: sucursal_id ? parseInt(sucursal_id) : null,
     nota: nota || '',
-    ..._examenExtra(campos, false)
+    ..._examenExtra(campos, false),
+    updated_at: new Date().toISOString()
   };
   d.presentaciones.push(p);
   addLog('presentacion', 'Añadida presentación a examen ' + tipo, [fecha]);
   save();
+  const s = _sync(); if (s) s.markDirty('presentaciones', id);
   return p;
 }
 
@@ -118,7 +122,9 @@ function updatePresentacion(id, campos = {}) {
     }
   }
   Object.assign(p, _examenExtra(campos, true));
+  p.updated_at = new Date().toISOString();
   save();
+  const s = _sync(); if (s) s.markDirty('presentaciones', id);
 }
 
 function setResultadoPresentacion(id, resultado) {
@@ -128,17 +134,20 @@ function setResultadoPresentacion(id, resultado) {
   const p = d.presentaciones.find(x => x.id === id);
   if (!p) return;
   p.resultado = resultado;
+  p.updated_at = new Date().toISOString();
   save();
+  const s = _sync(); if (s) s.markDirty('presentaciones', id);
 }
 
-// Borrado local: igual que vencimientos/jornadas, se quita de verdad del
-// array — es un registro por puesto que no sincroniza, no hace falta la
-// marca `deleted` que sí usan las entidades que viajan a Supabase.
+// Se quita del array local (como las reservas) y se marca el borrado: en la nube
+// queda con `deleted: true` para que los demás dispositivos se enteren.
 function deletePresentacion(id) {
   const d = load();
   if (!d.presentaciones) d.presentaciones = [];
+  const existia = d.presentaciones.some(x => x.id === id);
   d.presentaciones = d.presentaciones.filter(x => x.id !== id);
   save();
+  if (existia) { const s = _sync(); if (s) s.markDeleted('presentaciones', id); }
 }
 
 // ─── TASAS ───────────────────────────────────────────────────────────────────

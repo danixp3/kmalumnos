@@ -1293,7 +1293,7 @@ function deshacerImportacion(id) {
     return fuera.length;
   };
   res.pagos = quitar('pagos', imp.creados.pagos, true);
-  res.examenes = quitar('presentaciones', imp.creados.presentaciones);
+  res.examenes = quitar('presentaciones', imp.creados.presentaciones, true);
   res.tasas = quitar('tasas', imp.creados.tasas);
   res.vencimientos = quitar('vencimientos', imp.creados.vencimientos);
 
@@ -1319,7 +1319,7 @@ function deshacerImportacion(id) {
   // nadie lo ha cambiado después.
   // Búsqueda por id y marcas de sync de una vez por tabla (con los miles de
   // alumnos completados de Ariauto, de uno en uno la app se quedaba parada)
-  const SINCRONIZADAS = new Set(['alumnos', 'profesores', 'vehiculos']);
+  const SINCRONIZADAS = new Set(['alumnos', 'profesores', 'vehiculos', 'presentaciones']);
   const porTabla = new Map(), restauradosPorTabla = new Map();
   for (const { tabla = 'alumnos', id: rid, antes, despues } of imp.actualizados) {
     if (!porTabla.has(tabla)) porTabla.set(tabla, new Map((d[tabla] || []).map(x => [x.id, x])));

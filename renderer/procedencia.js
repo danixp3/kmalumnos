@@ -116,7 +116,7 @@ function plegarGrupoProcedencia(pantalla, clave) {
  * Fila de cabecera de un grupo dentro de una tabla: «▾ Traídos de Ariauto ·
  * 2.800 alumnos · traídos el 08/10/2026». Pulsar abre o cierra el grupo.
  */
-function cabeceraGrupoProcedencia(pantalla, grupo, n, colspan, [uno, varios] = ['registro', 'registros'], { femenino = false } = {}) {
+function cabeceraGrupoProcedencia(pantalla, grupo, n, colspan, [uno, varios] = ['registro', 'registros'], { femenino = false, texto = null } = {}) {
   const plegado = grupoProcPlegado(pantalla, grupo.clave);
   const deAqui = grupo.clave === PROC_APP;
   const fecha = deAqui ? null : fechaProcedencia(grupo.nombre);
@@ -126,7 +126,7 @@ function cabeceraGrupoProcedencia(pantalla, grupo, n, colspan, [uno, varios] = [
   const claveJs = esc(String(grupo.clave).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
   return `<tr class="grupo-proc${deAqui ? ' grupo-proc-app' : ''}${plegado ? ' plegado' : ''}"><td colspan="${colspan}">
     <button type="button" class="grupo-proc-btn" aria-expanded="${!plegado}" onclick="plegarGrupoProcedencia('${pantalla}', '${claveJs}')" title="${plegado ? 'Abrir' : 'Cerrar'} este grupo">
-      ${chev}${deAqui ? '' : ICONO_PROC}<b>${titulo}</b><span class="grupo-proc-n">${fmtMiles(n)} ${n === 1 ? uno : varios}</span>${fecha ? `<span class="grupo-proc-fecha">traíd${o}s el ${esc(fmtFecha(fecha))}</span>` : ''}
+      ${chev}${deAqui ? '' : ICONO_PROC}<b>${titulo}</b><span class="grupo-proc-n">${texto != null ? esc(texto) : `${fmtMiles(n)} ${n === 1 ? uno : varios}`}</span>${fecha ? `<span class="grupo-proc-fecha">traíd${o}s el ${esc(fmtFecha(fecha))}</span>` : ''}
     </button></td></tr>`;
 }
 

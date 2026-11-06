@@ -250,9 +250,9 @@ async function loadGraficos() {
         valores: [m.circulacion, m.pista],
         tituloTooltip: graficoEtiquetaMes(m.mes),
         tooltipLineas: [
-          { label: 'Circulación', value: m.circulacion, colorVar: 'var(--chart-series-1)' },
-          { label: 'Pista', value: m.pista, colorVar: 'var(--chart-series-2)' },
-          { label: 'Total', value: m.total, colorVar: 'var(--text-faint)' }
+          { label: 'Circulación', value: fmtClases(m.circulacion), colorVar: 'var(--chart-series-1)' },
+          { label: 'Pista', value: fmtClases(m.pista), colorVar: 'var(--chart-series-2)' },
+          { label: 'Total', value: fmtClases(m.total), colorVar: 'var(--text-faint)' }
         ]
       }))
     });
@@ -269,7 +269,7 @@ async function loadGraficos() {
         valores: [p.num_practicas],
         tituloTooltip: p.nombre,
         tooltipLineas: [
-          { label: 'Prácticas', value: p.num_practicas, colorVar: 'var(--chart-series-3)' },
+          { label: 'Clases', value: fmtClases(p.num_practicas), colorVar: 'var(--chart-series-3)' },
           { label: 'Km', value: fmt(p.km) + ' km', colorVar: 'var(--chart-series-3)' }
         ]
       }))
@@ -287,7 +287,7 @@ async function loadGraficos() {
         valores: [v.num_practicas],
         tituloTooltip: v.nombre,
         tooltipLineas: [
-          { label: 'Prácticas', value: v.num_practicas, colorVar: 'var(--chart-series-7)' },
+          { label: 'Clases', value: fmtClases(v.num_practicas), colorVar: 'var(--chart-series-7)' },
           { label: 'Km', value: fmt(v.km) + ' km', colorVar: 'var(--chart-series-7)' }
         ]
       }))

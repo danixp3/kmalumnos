@@ -36,7 +36,10 @@ reiniciar({
               // Historial de LAURA (sin profesor) e IRENE (de MARTA): varios meses, pista, traídas, sin profesor propio, ½ clase
               ...Array.from({ length: 14 }, (_, i) => ({ id: 20 + i, alumno_id: 4, vehiculo_id: 1, fecha: haceDias(4 + i * 6), hora_inicio: '10:00', hora_fin: '10:45', km_inicial: 17000 + i * 25, km_final: 17022 + i * 25, tipo: i === 5 ? 'pista' : 'circulacion', profesor_id: i % 3 ? null : 1, deleted: false, empresa_id: e, source: 'desktop', zonas: i % 2 ? ['Centro'] : null, nota: i === 2 ? 'Rotondas: mirar antes el retrovisor' : null, firma: i % 4 ? 'data:image/png;base64,AAAA' : null, fraccion: i === 1 ? 0.5 : null })),
               ...Array.from({ length: 6 }, (_, i) => ({ id: 40 + i, alumno_id: 5, vehiculo_id: 2, fecha: haceDias(10 + i * 9), hora_inicio: '16:00', km_inicial: 294000 + i * 30, km_final: 294024 + i * 30, tipo: 'circulacion', profesor_id: i < 4 ? 2 : null, deleted: false, empresa_id: e, source: 'desktop', procedencia: i > 3 ? 'Ariauto' : null, tipo_detalle: i === 5 ? 'anterior' : null }))],
-  reservas: [], ajustes_empresa: [{ empresa_id: e, clave: 'duracion_clase_min', valor: 45 }]
+  reservas: [], ajustes_empresa: [{ empresa_id: e, clave: 'duracion_clase_min', valor: 45 }],
+  // Exámenes (2026-11-06): uno apuntado por la oficina para dentro de unos días y uno ya hecho en el móvil
+  presentaciones: [{ id: 1, alumno_id: 2, profesor_id: 1, tipo: 'circulacion', fecha: haceDias(-6), n_convocatoria: 1, resultado: 'pendiente', origen: 'desktop', permiso: 'B', deleted: false, empresa_id: e },
+                   { id: 2, alumno_id: 1, profesor_id: 1, tipo: 'teorico', fecha: haceDias(20), n_convocatoria: 1, resultado: 'apto', origen: 'web-remote', permiso: 'B', fallos: 2, deleted: false, empresa_id: e }]
 });
 
 // Enlace de firma del alumno (2026-10-09): las funciones de la base de datos, simuladas (la de verdad: migraciones/2026-10-09_enlaces_firma.sql)
@@ -78,7 +81,7 @@ BD.funciones.firma_enlace_firmar = p => {
   return { data: { ok: true, firmadas, ya_firmadas: ya, no_confirmadas: p.p_no_confirmadas || [] }, error: null };
 };
 
-const MOVIL = ['hoy', 'iniciar-practica', 'finalizar-practica', 'firmar-practica', 'cancelar-practica', 'config', 'calendario', 'practica-detalle', 'anotar-practica', 'registrar-clase', 'firma-profesor', 'coche-profesor', 'km-coche', 'estado-practica', 'corregir-clases', 'avisos', 'enlace-firma', 'firma-alumno', 'asignar-alumno'];
+const MOVIL = ['hoy', 'iniciar-practica', 'finalizar-practica', 'firmar-practica', 'cancelar-practica', 'config', 'calendario', 'practica-detalle', 'anotar-practica', 'registrar-clase', 'firma-profesor', 'coche-profesor', 'km-coche', 'estado-practica', 'corregir-clases', 'avisos', 'enlace-firma', 'firma-alumno', 'asignar-alumno', 'examenes'];
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.woff2': 'font/woff2', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 let desconectado = false;   // simula «sin cobertura» desde el servidor: corta /api con 503
 let lento = 0;              // /__lento?ms=4000: cada /api tarda eso (red lenta al abrir la app; ms=0 la quita)

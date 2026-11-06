@@ -52,9 +52,10 @@ function addPractica(alumno_id, vehiculo_id, fecha, km_inicial, km_final, profes
   });
   // Actualizar km vehículo si corresponde
   const v = d.vehiculos.find(x => x.id === parseInt(vehiculo_id));
-  if (v && kf > v.km_actual) v.km_actual = kf;
+  const subeKm = !!v && kf > v.km_actual;
+  if (subeKm) v.km_actual = kf;
   save();
-  const s = _sync(); if (s) s.markDirty('practicas', id);
+  const s = _sync(); if (s) { s.markDirty('practicas', id); if (subeKm) s.markDirty('vehiculos', v.id); }
   return id;
 }
 
@@ -78,8 +79,12 @@ function updatePractica(id, fecha, km_inicial, km_final, profesor_id = null, tip
     p.tipo = tipo || 'circulacion';
     p.hora_inicio = hora_inicio || null;
     if (fraccion !== undefined) p.fraccion = [0.25, 0.5, 0.75].includes(Number(fraccion)) ? Number(fraccion) : null;
+    // El cuentakilómetros del coche nunca queda por debajo de lo que ya se ha anotado en sus clases
+    const v = d.vehiculos.find(x => x.id === p.vehiculo_id);
+    const subeKm = !!v && p.km_final > v.km_actual;
+    if (subeKm) v.km_actual = p.km_final;
     save();
-    const s = _sync(); if (s) s.markDirty('practicas', id);
+    const s = _sync(); if (s) { s.markDirty('practicas', id); if (subeKm) s.markDirty('vehiculos', v.id); }
   }
 }
 

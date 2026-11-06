@@ -296,7 +296,7 @@ function vaciarDatosDePrueba({ vehiculos = false, profesores = false } = {}) {
   quitar('cargos', c => idsAl.has(c.alumno_id) || c.alumno_id == null, true);
   quitar('reservas', r => idsAl.has(r.alumno_id) || r.alumno_id == null, true);
   quitar('bonos', b => idsAl.has(b.alumno_id), false);
-  quitar('presentaciones', x => idsAl.has(x.alumno_id), false);
+  quitar('presentaciones', x => idsAl.has(x.alumno_id), true);
   quitar('tasas', t => idsAl.has(t.alumno_id), false);
   quitar('alumnos', () => true, true);
   if (vehiculos) quitar('vehiculos', () => true, true);

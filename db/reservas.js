@@ -103,9 +103,16 @@ function completarReserva(id) {
     return { ok: true, yaRealizada: true, creadas: 0 };
   }
 
+  // Una reserva cancelada no se da: antes se podía «completar» y creaba clases que nadie dio
+  if (r.estado === 'cancelada') {
+    return { ok: false, msg: 'Esa reserva está cancelada: no se puede completar.' };
+  }
   if (!r.vehiculo_id) {
     return { ok: false, msg: 'Asigna un vehículo a la reserva para poder completarla.' };
   }
+  // Sin alumno o sin día las clases nacerían huérfanas o sin fecha (y rompían las listas ordenadas por fecha)
+  if (!r.alumno_id) return { ok: false, msg: 'Asigna un alumno a la reserva para poder completarla.' };
+  if (!r.fecha) return { ok: false, msg: 'Pon el día de la reserva para poder completarla.' };
 
   const n = r.n_practicas != null ? Math.max(1, parseInt(r.n_practicas)) : 1;
   if (!d.practicas) d.practicas = [];
@@ -120,7 +127,9 @@ function completarReserva(id) {
       km_final: 0,
       profesor_id: r.profesor_id || null,
       tipo: 'circulacion',
-      sucursal_id: r.sucursal_id || null
+      sucursal_id: r.sucursal_id || null,
+      // La hora de la reserva se conserva (ordena el día y sale en la ficha DGT); varias clases seguidas, la misma hora de inicio
+      hora_inicio: r.hora_inicio || null
     });
     const s1 = _sync(); if (s1) s1.markDirty('practicas', pid);
   }

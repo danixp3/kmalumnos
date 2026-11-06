@@ -89,7 +89,7 @@ async function abrirCajon() {
   try {
     const s = await window.api.getStatsDashboard();
     const el = document.getElementById('tb-cajon-dia');
-    if (el && s) el.textContent = `${s.practicasHoy} ${s.practicasHoy === 1 ? 'práctica' : 'prácticas'} hoy · ${fmtMiles(s.kmMes || 0)} km este mes`;
+    if (el && s) el.textContent = `${textoClases(s.practicasHoy)} hoy · ${fmtMiles(s.kmMes || 0)} km este mes`;
   } catch (e) { /* el resumen es opcional */ }
 }
 

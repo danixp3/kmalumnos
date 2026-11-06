@@ -48,7 +48,7 @@ async function loadDashboard() {
   // Tarjetas personalizables (Ajustes → Preferencias): siguen disponibles, ahora como "Resumen personalizado".
   animarContador(document.getElementById('stat-vehiculos'), r.vehiculos);
   animarContador(document.getElementById('stat-alumnos'), r.alumnos);
-  animarContador(document.getElementById('stat-practicas'), r.practicas);
+  animarContador(document.getElementById('stat-practicas'), r.practicas, fmtClases);
   const pref = getDashboardPref();
   const flags = {
     'stat-card-vehiculos': pref.vehiculos, 'stat-card-alumnos': pref.alumnos, 'stat-card-practicas': pref.practicas,
@@ -62,7 +62,7 @@ async function loadDashboard() {
 
   if (pref.practicasHoy || pref.kmMes || pref.totalAdeudado || pref.alumnosConDeuda) {
     const stats = await window.api.getStatsDashboard(undefined, suc);
-    animarContador(document.getElementById('stat-practicas-hoy'), stats.practicasHoy);
+    animarContador(document.getElementById('stat-practicas-hoy'), stats.practicasHoy, fmtClases);
     animarContador(document.getElementById('stat-km-mes'), stats.kmMes, v => v + ' km');
     animarContador(document.getElementById('stat-total-adeudado'), stats.totalAdeudado, v => fmt(v) + ' €');
     animarContador(document.getElementById('stat-alumnos-deuda'), stats.alumnosConDeuda);
@@ -85,8 +85,8 @@ function pintarKpisPanel(p) {
   const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
   const html = (id, h) => { const el = document.getElementById(id); if (el) el.innerHTML = h; };
 
-  set('kpi-hoy-num', p.practicasHoy);
-  set('kpi-hoy-unit', `de ${p.programadasHoy} programadas`);
+  set('kpi-hoy-num', fmtClases(p.practicasHoy));
+  set('kpi-hoy-unit', `de ${fmtClases(p.programadasHoy)} programadas`);
   html('kpi-hoy-sub', p.enCursoAhora > 0
     ? `<span class="pill-dot"></span>${p.enCursoAhora} en curso ahora mismo`
     : 'Ninguna en curso ahora mismo');
@@ -95,7 +95,7 @@ function pintarKpisPanel(p) {
   const mes = new Date(y, m - 1, 1).toLocaleDateString('es-ES', { month: 'long' });
   set('kpi-km-lbl', `Km en ${mes}`);
   set('kpi-km-num', fmtMiles(p.kmMes));
-  set('kpi-km-sub', `${fmtMiles(p.practicasMes)} prácticas · ${fmtDec(p.mediaKmPractica)} km de media`);
+  set('kpi-km-sub', `${textoClases(p.practicasMes)} · ${fmtDec(p.mediaKmPractica)} km de media por clase`);
 
   set('kpi-alumnos-num', p.alumnosActivos);
   set('kpi-alumnos-sub', p.alumnosConExamen === 1 ? '1 con examen programado' : `${p.alumnosConExamen} con examen programado`);
@@ -150,12 +150,12 @@ function pintarDiasPanel(p) {
   p.porDia.forEach(d => {
     if (prev !== null && d.dia - prev > 1) { barras += '<span class="dia-bar dia-gap"></span>'; etiquetas += '<span class="dia-gap"></span>'; }
     prev = d.dia;
-    const tip = `${fechaCorta(d.fecha)} · ${d.n} ${d.n === 1 ? 'práctica' : 'prácticas'}`;
+    const tip = `${fechaCorta(d.fecha)} · ${textoClases(d.n)}`;
     let barra;
     if (d.hoy) {
       const pendientes = Math.max(0, p.programadasHoy - d.n);
       const hecho = px(d.n), prog = px(d.n + pendientes) - hecho;
-      barra = (p.programadasHoy > 0 ? `<span class="dia-hoy-lbl" style="bottom:${px(d.n + pendientes) + 2}px">${d.n} / ${p.programadasHoy}</span>` : '') +
+      barra = (p.programadasHoy > 0 ? `<span class="dia-hoy-lbl" style="bottom:${px(d.n + pendientes) + 2}px">${fmtClases(d.n)} / ${fmtClases(p.programadasHoy)}</span>` : '') +
         (prog > 0 ? `<span class="dia-prog" style="height:${prog}px"></span>` : '') +
         (d.n > 0 ? `<span class="dia-hoy" style="height:${Math.max(hecho, 3)}px"></span>` : '');
     } else {
@@ -188,8 +188,8 @@ function tablaSemanasPanel(p) {
   });
   const hayFinde = [...semanas.values()].some(w => w.finde > 0);
   const filas = [...semanas.values()].map(w => {
-    const celdas = [1, 2, 3, 4, 5].map(dw => `<td>${w.dias[dw] !== undefined ? w.dias[dw] : '–'}</td>`).join('');
-    return `<tr><td>${w.desde}–${w.hasta} ${MESES_CORTOS[w.mesIdx]}</td>${celdas}${hayFinde ? `<td>${w.finde || '–'}</td>` : ''}<td style="font-weight:600">${w.total}</td></tr>`;
+    const celdas = [1, 2, 3, 4, 5].map(dw => `<td>${w.dias[dw] !== undefined ? fmtClases(w.dias[dw]) : '–'}</td>`).join('');
+    return `<tr><td>${w.desde}–${w.hasta} ${MESES_CORTOS[w.mesIdx]}</td>${celdas}${hayFinde ? `<td>${w.finde ? fmtClases(w.finde) : '–'}</td>` : ''}<td style="font-weight:600">${fmtClases(w.total)}</td></tr>`;
   }).join('');
   return `<div class="table-wrap"><table class="tabla-semanas"><thead><tr><th>Semana</th><th>Lun</th><th>Mar</th><th>Mié</th><th>Jue</th><th>Vie</th>${hayFinde ? '<th>Fin sem.</th>' : ''}<th>Total</th></tr></thead><tbody>${filas}</tbody></table></div>`;
 }

@@ -31,17 +31,31 @@ test('kmTotales suma correctamente, excluyendo prácticas 0/0 y borradas', () =>
   expect(v.kmTotales).toBe(40);
 });
 
-test('mediaKmPractica es kmTotales/nPracticas redondeada a 1 decimal', () => {
+test('mediaKmPractica = km entre las clases que TIENEN km (una en blanco no recorrió 0 km)', () => {
   const vid = db.addVehiculo('Coche 1', '', 0);
   const aid = db.addAlumno('Bea', 'B', vid);
   db.addPractica(aid, vid, fechaHaceNDias(1), 0, 40);
   db.addPractica(aid, vid, fechaHaceNDias(2), 0, 43);
-  db.addPractica(aid, vid, fechaHaceNDias(3), 0, 0); // sin km, cuenta para nPracticas pero no para km
+  db.addPractica(aid, vid, fechaHaceNDias(3), 0, 0); // sin km: cuenta como clase, pero no baja la media
 
   const [v] = db.getAnalisisVehiculos();
   expect(v.nPracticas).toBe(3);
   expect(v.kmTotales).toBe(83);
-  expect(v.mediaKmPractica).toBe(Math.round((83 / 3) * 10) / 10);
+  expect(v.mediaKmPractica).toBe(41.5);
+});
+
+test('las fracciones de clase cuentan lo que valen: ½ + 1 = 1 ½ y la media es por clase', () => {
+  const vid = db.addVehiculo('Coche 1', '', 0);
+  const aid = db.addAlumno('Fina', 'B', vid);
+  const p1 = db.addPractica(aid, vid, fechaHaceNDias(1), 100, 130);   // 1 clase, 30 km
+  const p2 = db.addPractica(aid, vid, fechaHaceNDias(2), 130, 145);   // ½ clase, 15 km
+  db.updatePractica(p2, fechaHaceNDias(2), 130, 145, null, 'circulacion', null, 0.5);
+
+  const [v] = db.getAnalisisVehiculos();
+  expect(v.nPracticas).toBe(1.5);
+  expect(v.kmTotales).toBe(45);
+  expect(v.mediaKmPractica).toBe(30); // 45 km / 1,5 clases
+  expect(p1).toBeDefined();
 });
 
 test('kmUltimos30 solo cuenta prácticas de los últimos 30 días', () => {

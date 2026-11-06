@@ -1048,6 +1048,7 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
   };
   const tocados = new Set(), profTocados = new Set(), vehTocados = new Set();
   for (const k of ['pagos', 'cargos', 'presentaciones', 'tasas', 'vencimientos']) if (!d[k]) d[k] = [];
+  const examenesTocados = new Set(); // exámenes ya existentes que se completan (suben a la nube)
   // Completa un registro existente y lo apunta para poder deshacerlo
   const completar = (tabla, obj, cambios) => {
     const antes = {}, despues = {};
@@ -1171,7 +1172,7 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
     }
     for (const x of f.examenesCompletar || []) {
       const ex = d.presentaciones.find(y => y.id === x.id);
-      if (ex) completar('presentaciones', ex, x.cambios);
+      if (ex && completar('presentaciones', ex, x.cambios)) examenesTocados.add(ex.id);
     }
     for (const t of f.tasas) {
       const id = nextId('tasa');
@@ -1203,6 +1204,7 @@ function aplicarAriauto(tablas, opciones = {}, archivo = 'Ariauto') {
     s.markDirtyVarios('vehiculos', vehTocados);
     s.markDirtyVarios('cargos', registro.creados.cargos);
     s.markDirtyVarios('pagos', registro.creados.pagos);
+    s.markDirtyVarios('presentaciones', [...registro.creados.presentaciones, ...examenesTocados]);
   }
   return { ok: true, id: registro.id, resumen: registro.resumen, centro: plan.centro, copia: copia && copia.ok ? copia.file : null };
 }

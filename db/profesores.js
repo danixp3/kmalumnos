@@ -99,6 +99,7 @@ function deleteProfesor(id) {
   d.profesores = d.profesores.filter(x => x.id !== id);
   // Las prácticas ya impartidas conservan su profesor_id: no se tocan ni se
   // reasignan, igual que las prácticas de un alumno borrado conservan sus km.
+  // Sus alumnos conservan el profesor_id (decisión anterior, con su prueba): el historial sigue cuadrando.
   save();
   const s = _sync(); if (s) s.markDeleted('profesores', id);
 }
