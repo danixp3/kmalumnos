@@ -32,7 +32,12 @@ function load() {
   if (_data) return _data;
   const p = getDataPath();
   if (fs.existsSync(p)) {
-    try { _data = JSON.parse(fs.readFileSync(p, 'utf-8')); } catch { _data = null; }
+    try { _data = JSON.parse(fs.readFileSync(p, 'utf-8')); } catch {
+      // Archivo dañado: se guarda una copia ANTES de seguir (el siguiente save() lo sobrescribiría con datos vacíos y
+      // se perdería todo sin remedio; sync.js ya hacía esto al cargar, el resto de la app no)
+      _data = null;
+      try { fs.copyFileSync(p, p + '.danado-' + Date.now()); } catch { /* sin permisos: no hay más que hacer */ }
+    }
   }
   if (!_data) _data = { vehiculos: [], profesores: [], alumnos: [], practicas: [], tarifas: [], pagos: [], sucursales: [], reservas: [], logs: [], _seq: { v: 1, pf: 1, a: 1, p: 1, t: 1, pg: 1, suc: 1, r: 1, venc: 1, pres: 1, tasa: 1, bono: 1, cargo: 1, lead: 1 } };
   if (!_data._seq) _data._seq = { v: 1, pf: 1, a: 1, p: 1 };
@@ -282,8 +287,11 @@ function crearBackup(destDir) {
   }
   const pad = n => String(n).padStart(2, '0');
   const now = new Date();
-  const nombre = `backup-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
-  const destFile = path.join(getBackupsDir(), nombre);
+  const base = `backup-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+  // Dos copias en el mismo segundo (p. ej. la de «restaurar» justo tras otra operación con copia previa) no se
+  // pisan: la segunda lleva un sufijo. Antes la última sobrescribía a la primera y se perdía el estado anterior.
+  let destFile = path.join(getBackupsDir(), `${base}.json`);
+  for (let n = 2; fs.existsSync(destFile); n++) destFile = path.join(getBackupsDir(), `${base}_${n}.json`);
   fs.copyFileSync(src, destFile);
   _pruneBackupsAntiguos();
   return { ok: true, file: destFile, nombre: path.basename(destFile) };
@@ -311,6 +319,8 @@ function restaurarBackup(srcFile) {
     if (!parsed.vehiculos || !parsed.alumnos || !parsed.practicas) {
       return { ok: false, msg: 'El archivo no parece un backup válido de AulaMovil.' };
     }
+    // Antes de pisar lo actual se guarda una copia de ello: un backup equivocado no debe hacer perder lo de hoy
+    try { if (fs.existsSync(getDataPath())) crearBackup(); } catch { /* sin copia previa se sigue: el usuario ya eligió restaurar */ }
     fs.writeFileSync(getDataPath(), JSON.stringify(parsed, null, 2), 'utf-8');
     _data = null; // limpiar caché para recargar
     return { ok: true };

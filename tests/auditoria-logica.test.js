@@ -139,3 +139,92 @@ describe('borrar un coche deja a sus alumnos y profesores sin él y lo sube a la
     expect(p.profesores).toContain(pid);
   });
 });
+
+describe('clases abiertas y fracciones en los km', () => {
+  test('una clase en curso o sin cerrar (km final 0) no resta su km inicial a los totales del profesor ni del coche', () => {
+    const vid = db.addVehiculo('Ibiza', '', 17000);
+    const pid = db.addProfesor('Julio');
+    const aid = db.addAlumno('Ana', 'B', vid, pid);
+    db.addPractica(aid, vid, '2026-10-01', 17000, 17030, pid);
+    db.addPractica(aid, vid, '2026-10-02', 17030, 0, pid);   // sin cerrar de un día anterior
+    expect(db.getStatsProfesores().find(p => p.id === pid).km_totales).toBe(30);
+    const g = db.getDatosGraficos(60);
+    expect(g.porProfesor.find(p => p.nombre === 'Julio').km).toBe(30);
+    expect(g.porVehiculo.find(v => v.nombre === 'Ibiza').km).toBe(30);
+  });
+
+  test('«Corregir solapamientos» no convierte una clase abierta en una clase cerrada de 1 km', () => {
+    const vid = db.addVehiculo('Ibiza', '', 1000);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    db.addPractica(aid, vid, '2026-10-01', 1000, 1050);
+    const abierta = db.addPractica(aid, vid, '2026-10-02', 1020, 0);   // en curso, con un km inicial «raro»
+    db.corregirSolapamientos(vid);
+    const p = db.getTodasPracticas({ hoy: '2026-10-02' }).find(x => x.id === abierta);
+    expect(p.km_final).toBe(0);
+    expect(p.km_inicial).toBe(1020);
+  });
+
+  test('rellenar km: una media clase recorre menos que una entera (proporcional), no los mismos 40-45 km', () => {
+    const vid = db.addVehiculo('Ibiza', '', 1000);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const entera = db.addPractica(aid, vid, '2026-10-01', 0, 0);
+    const media = db.addPractica(aid, vid, '2026-10-02', 0, 0);
+    db.updatePractica(media, '2026-10-02', 0, 0, null, 'circulacion', null, 0.5);
+    db.rellenarKmMasivo(vid, 40, 40);
+    const lista = db.getTodasPracticas({});
+    const kmE = lista.find(p => p.id === entera).km_recorridos, kmM = lista.find(p => p.id === media).km_recorridos;
+    expect(kmE).toBe(40);
+    expect(kmM).toBe(20);
+  });
+
+  test('km por rango: el reparto es proporcional a lo que vale cada clase y suma exactamente el rango', () => {
+    const vid = db.addVehiculo('Ibiza', '', 0);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    const a = db.addPractica(aid, vid, '2026-10-01', 0, 0);
+    const b = db.addPractica(aid, vid, '2026-10-02', 0, 0);
+    db.updatePractica(b, '2026-10-02', 0, 0, null, 'circulacion', null, 0.5);
+    const r = db.generarKmPorRango(vid, 1000, 1060, 0, false);
+    const km = id => { const x = r.asignaciones.find(y => y.practica_id === id); return x.km_final - x.km_inicial; };
+    expect(km(a) + km(b)).toBe(60);
+    expect(km(a)).toBe(40);   // 2/3 del recorrido para la clase entera, 1/3 para la media
+    expect(km(b)).toBe(20);
+  });
+});
+
+describe('datos dañados y restaurar', () => {
+  test('un data.json dañado no se pisa en silencio: queda una copia «.danado»', () => {
+    const f = path.join(userDataDir, 'data.json');
+    fs.writeFileSync(f, '{ esto no es json', 'utf-8');
+    db._clearCache();
+    expect(db.getAlumnos()).toEqual([]);
+    const copias = fs.readdirSync(userDataDir).filter(n => n.startsWith('data.json.danado-'));
+    expect(copias.length).toBeGreaterThan(0);
+    expect(fs.readFileSync(path.join(userDataDir, copias[0]), 'utf-8')).toBe('{ esto no es json');
+    for (const c of copias) fs.rmSync(path.join(userDataDir, c), { force: true });
+  });
+
+  test('restaurar un backup guarda antes una copia de lo que había', () => {
+    db.addAlumno('Ana', 'B', null);
+    const copia = db.crearBackup();
+    db.addAlumno('Bea', 'B', null);
+    const antes = fs.readdirSync(path.join(userDataDir, 'backups')).length;
+    expect(db.restaurarBackup(copia.file).ok).toBe(true);
+    expect(db.getAlumnos().map(a => a.nombre)).toEqual(['Ana']);
+    expect(fs.readdirSync(path.join(userDataDir, 'backups')).length).toBeGreaterThan(antes);
+  });
+});
+
+describe('detector de clases duplicadas', () => {
+  test('dos clases del mismo día SIN km (1 ½ clases, o anotadas sin km) no son «duplicadas»; las de km iguales sí', () => {
+    const vid = db.addVehiculo('Ibiza', '', 0);
+    const aid = db.addAlumno('Ana', 'B', vid);
+    db.addPractica(aid, vid, '2026-10-01', 0, 0);
+    db.addPractica(aid, vid, '2026-10-01', 0, 0);
+    expect(db.getPracticasDuplicadas(aid)).toHaveLength(0);
+    db.addPractica(aid, vid, '2026-10-02', 100, 140);
+    db.addPractica(aid, vid, '2026-10-02', 100, 140);
+    const dup = db.getPracticasDuplicadas(aid);
+    expect(dup).toHaveLength(1);
+    expect(dup[0]).toMatchObject({ fecha: '2026-10-02', km_inicial: 100, km_final: 140 });
+  });
+});

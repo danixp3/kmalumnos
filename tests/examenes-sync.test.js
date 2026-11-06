@@ -147,3 +147,18 @@ test('juntar dos fichas de alumno mueve sus exámenes y suben a la nube con el a
   await sync.sync();
   expect(mockRemote.tables.presentaciones.find(x => x.id === ex.id).alumno_id).toBe(a1);
 });
+
+test('un examen de un alumno que ya no existe (resto de un borrado antiguo) no se sube a la nube', async () => {
+  const aid = db.addAlumno('Ana', 'B', null);
+  const d = leerData();
+  d.presentaciones = [
+    { id: 70, alumno_id: aid, tipo: 'teorico', fecha: '2026-09-01', n_convocatoria: 1, resultado: 'apto', nota: '' },
+    { id: 71, alumno_id: 99999, tipo: 'teorico', fecha: '2026-09-01', n_convocatoria: 1, resultado: 'apto', nota: '' }
+  ];
+  d._seq.pres = 72;
+  fs.writeFileSync(dataFile, JSON.stringify(d, null, 2), 'utf-8');
+  db._clearCache();
+  await sync.sync();
+  expect(mockRemote.tables.presentaciones.map(x => x.id)).toEqual([70]);
+  expect(db.getPresentaciones()).toHaveLength(2);   // en este PC no se toca nada
+});

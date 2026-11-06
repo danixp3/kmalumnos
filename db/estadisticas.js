@@ -16,6 +16,9 @@ const { getEstadisticasAprobados } = require('./convocatorias');
 // Clases que suman unas prácticas: ½ clase cuenta ½, no una entera (todo recuento de
 // pantalla va por aquí; contar filas es contar sesiones, no clases)
 const sumaClases = lista => aCuartos(lista.reduce((n, p) => n + clasesDePractica(p), 0));
+// Km de una clase CERRADA (con km final). Una en curso o sin cerrar (km final 0) no ha recorrido nada todavía:
+// antes restaba su km inicial entero (-17.000 km) a los totales del profesor y del coche mientras estuviera abierta.
+const kmDeClaseCerrada = p => (p.km_final > 0 && p.km_final >= p.km_inicial && !(p.km_inicial === 0 && p.km_final === 0) ? p.km_final - p.km_inicial : 0);
 
 function getResumen(sucursalId) {
   const d = load();
@@ -89,9 +92,7 @@ function getStatsProfesores(desde, hasta) {
     .filter(p => !p.deleted)
     .map(p => {
       const propias = practicasValidas.filter(x => x.profesor_id === p.id);
-      const kmTotales = propias
-        .filter(x => !(x.km_inicial === 0 && x.km_final === 0))
-        .reduce((sum, x) => sum + (x.km_final - x.km_inicial), 0);
+      const kmTotales = propias.reduce((sum, x) => sum + kmDeClaseCerrada(x), 0);
       const numAlumnos = new Set(propias.map(x => x.alumno_id)).size;
       // Clases dadas (½ clase cuenta ½), no filas
       const clases = lista => aCuartos(lista.reduce((n, x) => n + clasesDePractica(x), 0));
@@ -165,7 +166,7 @@ function getDatosGraficos(meses, sucursalId) {
     .filter(p => !p.deleted)
     .map(p => {
       const propias = practicasValidas.filter(x => x.profesor_id === p.id);
-      const km = propias.filter(conKm).reduce((sum, x) => sum + (x.km_final - x.km_inicial), 0);
+      const km = propias.reduce((sum, x) => sum + kmDeClaseCerrada(x), 0);
       return { nombre: p.nombre, num_practicas: aCuartos(propias.reduce((n, x) => n + clasesDePractica(x), 0)), km: Math.round(km * 10) / 10 };
     })
     .sort((a, b) => b.num_practicas - a.num_practicas);
@@ -174,7 +175,7 @@ function getDatosGraficos(meses, sucursalId) {
     .filter(v => !v.deleted && vehiculoCuenta(v, practicasValidas))
     .map(v => {
       const propias = practicasValidas.filter(x => x.vehiculo_id === v.id);
-      const km = propias.filter(conKm).reduce((sum, x) => sum + (x.km_final - x.km_inicial), 0);
+      const km = propias.reduce((sum, x) => sum + kmDeClaseCerrada(x), 0);
       return { nombre: v.nombre, num_practicas: sumaClases(propias), km: Math.round(km * 10) / 10 };
     })
     .sort((a, b) => b.num_practicas - a.num_practicas);

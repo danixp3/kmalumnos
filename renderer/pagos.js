@@ -194,7 +194,8 @@ function cambiarModoPago(modo) {
 
 function pasoClasesPago(delta) {
   const inp = document.getElementById('edit-pago-nclases');
-  inp.value = Math.max(1, Math.min(200, (parseInt(inp.value) || 0) + delta));
+  // De ¼ en ¼: «1 ½ clases» se puede cobrar (antes solo clases enteras y la parte fraccionada se perdía)
+  inp.value = Math.max(0.25, Math.min(200, Math.round(((leerClases(inp.value) || 0) + delta) * 4) / 4));
   recalcularPagoClases();
 }
 
@@ -206,7 +207,7 @@ function fijarClasesPago(n) {
 // Precio por clase del tipo elegido y total (en céntimos para no arrastrar decimales).
 function calculoPagoClases() {
   if (!pagoCtx) return null;
-  const n = parseInt(document.getElementById('edit-pago-nclases').value) || 0;
+  const n = leerClases(document.getElementById('edit-pago-nclases').value) || 0;
   const tipo = document.getElementById('edit-pago-tipo-clase').value === 'pista' ? 'pista' : 'circulacion';
   const precio = pagoCtx.precios[tipo] || 0;
   return { n, tipo, precio, total: Math.round(n * precio * 100) / 100 };
@@ -215,18 +216,18 @@ function calculoPagoClases() {
 function recalcularPagoClases() {
   const c = calculoPagoClases();
   if (!c) return;
-  document.querySelectorAll('#pago-chips-clases button').forEach(b => b.setAttribute('aria-pressed', String(parseInt(b.dataset.n) === c.n)));
+  document.querySelectorAll('#pago-chips-clases button').forEach(b => b.setAttribute('aria-pressed', String(parseFloat(b.dataset.n) === c.n)));
   const out = document.getElementById('pago-calculo');
   if (!(c.precio > 0)) { out.innerHTML = ''; return; }
   out.innerHTML = c.n > 0
-    ? `<span>${c.n} ${c.n === 1 ? 'clase' : 'clases'} × ${fmt(c.precio)} €</span><b>${fmt(c.total)} €</b>`
+    ? `<span>${textoClases(c.n)} × ${fmt(c.precio)} €</span><b>${fmt(c.total)} €</b>`
     : '<span>Indica cuántas clases paga</span><b>—</b>';
   const nota = document.getElementById('edit-pago-nota');
   nota.placeholder = c.n > 0 ? `Si lo dejas vacío: «${notaPagoClases(c)}»` : 'Ej: pago en efectivo, transferencia...';
 }
 
 function notaPagoClases(c) {
-  return `${c.n} ${c.n === 1 ? 'clase' : 'clases'}${c.tipo === 'pista' ? ' de pista' : ''}`;
+  return `${textoClases(c.n)}${c.tipo === 'pista' ? ' de pista' : ''}`;
 }
 
 function cobrarSaldoPago() {

@@ -2386,8 +2386,12 @@ async function _syncInterno() {
       if (!pending.presHuellas) pending.presHuellas = {};
       const marcados = new Set(pending.presentaciones || []);
       const lotePres = [];
+      // Un examen de un alumno que ya no existe (restos de alumnos borrados antes de que los exámenes viajaran a la
+      // nube) no se sube: aparecería en el móvil como «—» y no le sirve a nadie
+      const alumnosLocales = new Set(data.alumnos.map(a => a.id));
       for (const x of data.presentaciones) {
         if (x.deleted) continue;
+        if (x.alumno_id != null && !alumnosLocales.has(x.alumno_id)) continue;
         if (!marcados.has(x.id) && pending.presHuellas[x.id] === _huellaPresentacion(x)) continue;
         const payload = { ..._payloadPresentacion(x), deleted: false, updated_at: new Date().toISOString() };
         if (_empresaId) payload.empresa_id = _empresaId;

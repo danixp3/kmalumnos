@@ -2,7 +2,12 @@
 // Detección de solapamientos, relleno masivo de km en blanco y corrección
 // quirúrgica de solapamientos entre prácticas del mismo vehículo.
 
-const { load, save, addLog, fmtFechaLog, _sync, nombreCorto } = require('./core');
+const { load, save, addLog, fmtFechaLog, _sync, nombreCorto, clasesDePractica } = require('./core');
+
+// Una media clase (o ¼, ¾) recorre proporcionalmente menos: el incremento al azar de una clase entera
+// se escala por lo que vale la clase (mínimo 1 km). Sin esto, ½ clase recibía los mismos 40-45 km que una entera
+// y descuadraba la cadena del cuentakilómetros.
+const kmDeClase = (p, incremento) => { const w = clasesDePractica(p); return w < 1 ? Math.max(1, Math.round(incremento * w)) : incremento; };
 
 // Una clase de pista (circuito cerrado) sin km no es una clase «en blanco» por rellenar:
 // no recorre la carretera, así que ningún algoritmo de km le inventa kilómetros.
@@ -102,7 +107,7 @@ function rellenarKmMasivo(vehiculo_id, kmMin = 40, kmMax = 45, kmInicio = null, 
     // Rellenar las prácticas sin km de este día
     for (const p of sinKmHoy) {
       const kmI = Math.round(cursor);
-      const incremento = _randomKm(kmMin, kmMax);
+      const incremento = kmDeClase(p, _randomKm(kmMin, kmMax));
       let kmF = kmI + incremento;
 
       // Si hay tope final y lo superaríamos, saltar esta práctica
@@ -201,6 +206,32 @@ function _repartirConVariacion(total, n, variacion) {
   return incs;
 }
 
+// Como _repartirConVariacion pero cada práctica recibe km en proporción a lo que vale (`pesos`: 1, ½, ¼…):
+// la suma es exactamente `total` y cada incremento >= 1. null si no cabe (menos de 1 km por práctica).
+function _repartirPonderado(total, pesos, variacion) {
+  const n = pesos.length;
+  if (n <= 0) return [];
+  if (total < n) return null;
+  const suma = pesos.reduce((a, b) => a + b, 0);
+  const v = Math.max(0, Math.round(variacion || 0));
+  const incs = pesos.map(w => {
+    const jitter = v > 0 ? (Math.random() * 2 - 1) * v * w : 0;
+    return Math.max(1, Math.round((total * w) / suma + jitter));
+  });
+  let diff = total - incs.reduce((a, b) => a + b, 0);
+  // La diferencia se reparte de uno en uno, empezando por las clases que más valen
+  const orden = pesos.map((w, i) => i).sort((a, b) => pesos[b] - pesos[a] || a - b);
+  let guard = 0;
+  while (diff !== 0 && guard < 1000000) {
+    for (const i of orden) {
+      if (diff === 0) break;
+      if (diff > 0) { incs[i]++; diff--; } else if (incs[i] > 1) { incs[i]--; diff++; }
+    }
+    guard++;
+  }
+  return incs;
+}
+
 // Persiste un plan de asignaciones (array de {p, ki, kf}) sobre las prácticas,
 // marca los cambios para la nube, actualiza el odómetro del vehículo y registra
 // el log. Devuelve el número de prácticas rellenadas.
@@ -259,7 +290,7 @@ function generarKmHastaMaximo(vehiculo_id, kmMin = 40, kmMax = 45, kmMaximo = nu
   let cursor = Math.round(kmMaximo);
   for (let i = blancas.length - 1; i >= 0; i--) {
     const kf = cursor;
-    const inc = _randomKmEntero(kmMin, kmMax);
+    const inc = kmDeClase(blancas[i], _randomKmEntero(kmMin, kmMax));
     const ki = kf - inc;
     plan[i] = { p: blancas[i], ki, kf };
     cursor = ki;
@@ -317,7 +348,9 @@ function generarKmPorRango(vehiculo_id, kmDesde = null, kmHasta = null, variacio
   if (!blancas.length) return { asignaciones: [], rellenadas: 0, solapamientos: 0, errores: ['Este vehículo no tiene prácticas con km en blanco.'] };
 
   const total = hasta - desde;
-  const incs = _repartirConVariacion(total, blancas.length, variacion);
+  // Con clases fraccionadas el reparto es proporcional a lo que vale cada una (½ clase recorre la mitad)
+  const pesos = blancas.map(clasesDePractica);
+  const incs = pesos.some(w => w < 1) ? _repartirPonderado(total, pesos, variacion) : _repartirConVariacion(total, blancas.length, variacion);
   if (!incs) {
     return {
       asignaciones: [], rellenadas: 0, solapamientos: 0,
@@ -404,8 +437,10 @@ function corregirSolapamientos(vehiculo_id, kmMin = 40, kmMax = 45) {
   const MAX_PASADAS = 10;
 
   for (let pasada = 0; pasada < MAX_PASADAS; pasada++) {
+    // Solo clases CERRADAS (con km final): una en curso o sin cerrar (km final 0) no se mueve —antes se
+    // «corregía» convirtiéndola en una clase de 1 km ya cerrada—
     const practicas = d.practicas
-      .filter(p => p.vehiculo_id === vid && !(p.km_inicial === 0 && p.km_final === 0))
+      .filter(p => p.vehiculo_id === vid && !(p.km_inicial === 0 && p.km_final === 0) && p.km_final > 0)
       .sort((a, b) => a.km_inicial - b.km_inicial);
 
     let encontrado = false;

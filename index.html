@@ -3599,8 +3599,8 @@ Pedro Ruiz,Moto 1,2026-01-16,12000,12043,17:30,</pre>
           <label for="edit-pago-nclases">Número de clases</label>
           <div class="pago-clases-fila">
             <div class="pago-stepper">
-              <button type="button" onclick="pasoClasesPago(-1)" aria-label="Una clase menos">−</button>
-              <input type="number" id="edit-pago-nclases" min="1" max="200" step="1" value="1" oninput="recalcularPagoClases()">
+              <button type="button" onclick="pasoClasesPago(-1)" aria-label="Una clase menos" title="Una clase menos (en el campo puedes poner también ½ o ¼)">−</button>
+              <input type="number" id="edit-pago-nclases" min="0.25" max="200" step="0.25" value="1" oninput="recalcularPagoClases()" title="Las clases van de ¼ en ¼: 1, 1,5, 0,25…">
               <button type="button" onclick="pasoClasesPago(1)" aria-label="Una clase más">+</button>
             </div>
             <div class="seg pago-chips" id="pago-chips-clases">

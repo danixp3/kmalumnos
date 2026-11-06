@@ -651,6 +651,10 @@ function getPracticasDuplicadas(alumno_id) {
   d.practicas
     .filter(p => p.alumno_id === aid && !p.deleted)
     .forEach(p => {
+      // Solo hay «repetida» si coinciden los km LEÍDOS del cuentakilómetros. Las clases sin km (0 → 0) del mismo día
+      // no son repetidas: una clase de 1 ½ se guarda como dos filas y «Anotar clase pasada» sin km también, y el
+      // detector las daba por duplicadas y proponía borrar clases reales
+      if (!(p.km_inicial > 0 && p.km_final > p.km_inicial)) return;
       const key = `${p.fecha}|${p.km_inicial}|${p.km_final}`;
       if (!grupos.has(key)) grupos.set(key, []);
       grupos.get(key).push(p);

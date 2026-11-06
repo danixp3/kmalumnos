@@ -208,13 +208,16 @@ async function marcarRealizadaReserva(id) {
   try {
     if (r && r.alumno_id) {
       const saldo = await window.api.getSaldoBonosAlumno(r.alumno_id);
-      if (saldo > 0 && await confirmar('El alumno tiene bonos con saldo. ¿Consumir 1 clase del bono?')) {
+      // Se consumen tantas clases como se han dado (una reserva puede ser de 2 o 3), no siempre 1
+      const nClases = Math.max(1, res.creadas || 1);
+      if (saldo > 0 && await confirmar(`El alumno tiene bonos con saldo. ¿Consumir ${nClases === 1 ? '1 clase' : nClases + ' clases'} del bono?`)) {
         const bonos = await window.api.getBonosAlumno(r.alumno_id);
         const bono = bonos.find(b => b.estado === 'activo' && b.saldo > 0 && !b.caducado);
         if (bono) {
-          const consumo = await window.api.consumirBono(bono.id, 1);
+          const gastar = Math.min(nClases, bono.saldo);
+          const consumo = await window.api.consumirBono(bono.id, gastar);
           if (consumo && consumo.ok) {
-            showToast('reservas-toast', `Clase consumida del bono. Saldo restante: ${consumo.saldo}.`, 'ok');
+            showToast('reservas-toast', `${gastar === 1 ? 'Clase consumida' : gastar + ' clases consumidas'} del bono. Saldo restante: ${consumo.saldo}.`, 'ok');
           }
         }
       }
