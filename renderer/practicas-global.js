@@ -182,7 +182,7 @@ function detallePracticaGlobal(p) {
     <div class="pg-detalle-acc">
       <button class="btn btn-outline btn-sm" onclick="verClasePractica(${p.id})">${svgMini('ficha')} Ver clase${p.firmada ? ' y firma' : ''}</button>
       <button class="btn btn-outline btn-sm" onclick="editarPracticaGlobal(${p.id})">${svgMini('editar')} Editar</button>
-      <button class="btn btn-outline btn-sm" onclick="verFichaDesdePracticas(${p.alumno_id},${p.vehiculo_id || 'null'},'${esc(p.alumno_nombre)}')">${svgMini('ficha')} Ficha del alumno</button>
+      <button class="btn btn-outline btn-sm" onclick="verFichaDesdePracticas(${p.alumno_id},${p.vehiculo_id || 'null'},'${escJs(p.alumno_nombre)}')">${svgMini('ficha')} Ficha del alumno</button>
       ${p.vehiculo_id && !p.en_curso && !p.sin_cerrar && !p.sin_km ? `<button class="btn btn-outline btn-sm" onclick="cuadreIrA(${p.vehiculo_id}, ${p.id})" title="Esta clase empieza donde terminó la anterior del coche y las siguientes se recalculan con el baremo">${svgMini('editar')} Encajar km desde aquí</button>` : ''}
     </div>
   </div>`;
@@ -253,7 +253,7 @@ function renderPracticasGlobalTabla() {
       const pag = Math.min(pgPaginasGrupo[k] || 1, pags);
       html += g.items.slice((pag - 1) * PG_TAM_PAGINA, pag * PG_TAM_PAGINA).map(filaPracticaGlobalHTML).join('');
       if (pags > 1) {
-        const arg = esc(String(g.clave).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+        const arg = escJs(String(g.clave));
         const desde = (pag - 1) * PG_TAM_PAGINA + 1, hasta = Math.min(pag * PG_TAM_PAGINA, g.items.length);
         html += `<tr class="grupo-proc-pag"><td colspan="10"><span>${desde}–${hasta} de ${fmtMiles(g.items.length)}</span><span class="paginador"><button class="btn btn-outline btn-sm btn-icon" ${pag <= 1 ? 'disabled' : ''} onclick="irPaginaGrupoPG('${arg}', ${pag - 1})" aria-label="Página anterior">‹</button> Página ${pag} de ${pags} <button class="btn btn-outline btn-sm btn-icon" ${pag >= pags ? 'disabled' : ''} onclick="irPaginaGrupoPG('${arg}', ${pag + 1})" aria-label="Página siguiente">›</button></span></td></tr>`;
       }

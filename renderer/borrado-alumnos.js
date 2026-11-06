@@ -32,7 +32,7 @@ function boHTML(borrados) {
   const deshacibles = (borrados || []).filter(b => !b.deshecho && b.disponible);
   const histo = deshacibles.length ? `<div class="bo-historial"><b>Borrados que se pueden deshacer</b>${deshacibles.slice(0, 5).map(b => `
       <div class="bo-fila"><span>${esc(fmtFecha(b.fecha.slice(0, 10)))} · ${fmtMiles(b.alumnos)} ${b.alumnos === 1 ? 'alumno' : 'alumnos'}, ${fmtMiles(b.clases)} clases${b.cobros_borrados ? ' y sus cobros' : ''}</span>
-      <button class="btn btn-outline btn-sm" onclick="boDeshacer('${esc(b.id)}')">Deshacer</button></div>`).join('')}</div>` : '';
+      <button class="btn btn-outline btn-sm" onclick="boDeshacer('${escJs(b.id)}')">Deshacer</button></div>`).join('')}</div>` : '';
   return `
     <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
       <h3 style="margin:0">Borrar alumnos por fechas</h3>

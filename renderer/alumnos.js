@@ -366,7 +366,7 @@ function filaAlumnoHTML(a) {
   const nombreCompleto = apellidos ? `${a.nombre} ${apellidos}` : a.nombre;
   const sub = a.telefono ? esc(a.telefono) : '';
   const alta = a.fecha_alta ? `<span title="Alta el ${esc(fmtFecha(a.fecha_alta))}">${esc(fechaAltaCorta(a.fecha_alta))}</span>` : guion;
-  const nombreArg = esc(a.nombre);
+  const nombreArg = escJs(a.nombre);
   const examen = a.proximo_examen
     ? `<div class="examen-fecha">${diaMes(a.proximo_examen.fecha)}</div>${pillSemaforo}`
     : (pillSemaforo || guion);

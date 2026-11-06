@@ -141,13 +141,13 @@ async function loadEmpleados() {
   tbody.innerHTML = empleadosCache.map(e => `<tr>
       <td>${esc(e.nombre || '— sin nombre —')}</td>
       <td>
-        <select onchange="cambiarRolEmpleadoUI('${esc(e.user_id)}', this.value)">
+        <select onchange="cambiarRolEmpleadoUI('${escJs(e.user_id)}', this.value)">
           <option value="empleado" ${e.rol === 'empleado' ? 'selected' : ''}>Empleado</option>
           <option value="jefe" ${e.rol === 'jefe' ? 'selected' : ''}>Jefe</option>
         </select>
       </td>
       <td>${e.sucursal_id != null ? esc(String(e.sucursal_id)) : '<span style="color:var(--placeholder)">— sede principal —</span>'}</td>
-      <td><button class="btn btn-danger btn-sm" onclick="quitarEmpleadoUI('${esc(e.user_id)}')">Quitar</button></td>
+      <td><button class="btn btn-danger btn-sm" onclick="quitarEmpleadoUI('${escJs(e.user_id)}')">Quitar</button></td>
     </tr>`).join('');
 }
 

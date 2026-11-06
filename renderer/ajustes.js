@@ -571,7 +571,7 @@ async function renderZonasUI() {
     : '<p class="zonas-vacio">Todavía no hay zonas. Mientras no añadas ninguna, la web del móvil no muestra el apartado «Zonas recorridas».</p>';
   const sug = document.getElementById('zonas-sugeridas');
   const faltan = ZONAS_SUGERIDAS.filter(z => !zonasCache.some(x => x.toLowerCase() === z.toLowerCase()));
-  if (sug) sug.innerHTML = faltan.length ? `<span>Sugerencias:</span>${faltan.map(z => `<button type="button" class="btn btn-sm btn-outline" onclick="anadirZonaUI('${z.replace(/'/g, "\\'")}')">+ ${esc(z)}</button>`).join('')}` : '';
+  if (sug) sug.innerHTML = faltan.length ? `<span>Sugerencias:</span>${faltan.map(z => `<button type="button" class="btn btn-sm btn-outline" onclick="anadirZonaUI('${escJs(z)}')">+ ${esc(z)}</button>`).join('')}` : '';
 }
 
 async function guardarZonasUI(nueva, msg) {

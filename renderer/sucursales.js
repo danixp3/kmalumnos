@@ -90,7 +90,7 @@ async function loadSucursalesAjustes() {
         ? '<span class="alert alert-ok" style="display:inline-block;padding:2px 8px">Activa</span>'
         : '<span class="alert alert-warn" style="display:inline-block;padding:2px 8px">Desactivada</span>'}</td>
       <td>
-        <button class="btn btn-warn btn-sm" onclick="renombrarSucursalUI(${s.id},'${esc(s.nombre)}')">Renombrar</button>
+        <button class="btn btn-warn btn-sm" onclick="renombrarSucursalUI(${s.id},'${escJs(s.nombre)}')">Renombrar</button>
         <button class="btn btn-gray btn-sm" onclick="activarSucursalUI(${s.id}, ${s.activa === false})">${s.activa === false ? 'Activar' : 'Desactivar'}</button>
       </td>
     </tr>`).join('');

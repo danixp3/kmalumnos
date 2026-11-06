@@ -105,7 +105,7 @@ async function arHistorialFusiones() {
   if (!h.length) return '';
   return `<h4 style="margin:16px 0 6px">Fichas ya juntadas en este PC</h4><div class="table-wrap"><table><tbody>${h.slice(0, 10).map(f => `<tr>
       <td>${esc(fmtFecha(f.fecha.slice(0, 10)))}</td><td>«${esc(f.seVa)}» → «${esc(f.queda)}»</td><td class="col-num">${f.movidos} registros</td>
-      <td>${f.deshecha ? '<span class="pill pill-line">Deshecha</span>' : `<button class="btn btn-sm btn-ghost" onclick="deshacerFusionUI('${esc(f.id)}')">Deshacer</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+      <td>${f.deshecha ? '<span class="pill pill-line">Deshecha</span>' : `<button class="btn btn-sm btn-ghost" onclick="deshacerFusionUI('${escJs(f.id)}')">Deshacer</button>`}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 // Juntar esta ficha con otra (desde el menú de la ficha): se busca la otra

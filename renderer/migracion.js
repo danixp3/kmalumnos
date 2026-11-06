@@ -355,7 +355,7 @@ async function mgPintarHistorial() {
     <thead><tr><th>Cuándo</th><th>De dónde</th><th>Qué entró</th><th></th></tr></thead>
     <tbody>${lista.map(i => `<tr><td class="num-mono">${cuando(i.fecha)}</td><td>${esc(i.archivo)}${i.procedencia ? ' ' + etiquetaProcedencia(i.procedencia) : ''}</td>
       <td>${que(i)}${i.profesores || i.vehiculos ? ` <small>(+ ${[i.profesores && mgPl(i.profesores, 'profesor', 'profesores'), i.vehiculos && mgPl(i.vehiculos, 'coche', 'coches')].filter(Boolean).join(', ')})</small>` : ''}</td>
-      <td style="text-align:right">${i.deshecha ? `<span class="pill pill-line">Deshecha el ${esc(cuando(i.deshecha))}</span>` : `<button class="btn btn-sm btn-outline" onclick="mgDeshacer('${esc(i.id)}')">Deshacer</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+      <td style="text-align:right">${i.deshecha ? `<span class="pill pill-line">Deshecha el ${esc(cuando(i.deshecha))}</span>` : `<button class="btn btn-sm btn-outline" onclick="mgDeshacer('${escJs(i.id)}')">Deshacer</button>`}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function mgDeshacer(id) {
@@ -399,7 +399,7 @@ function mgAriautoBuscarPara(clave, nombre) {
       <button class="btn btn-outline btn-sm" onclick="closeModal('modal-mg-juntar')">Cerrar</button>
     </div>
     <p style="font-size:13px;color:var(--text-muted);margin:4px 0 12px">Si este alumno ya está en la app con otro nombre (p. ej. dado de alta en el móvil), búscalo: sus clases de la app se conservan y se le completan los datos de Ariauto.</p>
-    <input type="text" id="mg-juntar-buscar" placeholder="Nombre, DNI o nº de registro" autocomplete="off" oninput="mgAriautoBuscarLista('${esc(clave)}', this.value)">
+    <input type="text" id="mg-juntar-buscar" placeholder="Nombre, DNI o nº de registro" autocomplete="off" oninput="mgAriautoBuscarLista('${escJs(clave)}', this.value)">
     <div id="mg-juntar-lista" style="margin-top:10px"></div>`);
   setTimeout(() => document.getElementById('mg-juntar-buscar')?.focus(), 60);
 }
@@ -407,7 +407,7 @@ async function mgAriautoBuscarLista(clave, texto) {
   const cont = document.getElementById('mg-juntar-lista'); if (!cont) return;
   const r = await window.api.buscarAlumnosRapido(texto, 8);
   cont.innerHTML = r.length ? `<div class="table-wrap"><table><tbody>${r.map(a => `<tr><td><b>${esc(a.nombre)}</b><div class="ar-nota">${[a.n_registro && 'nº ' + esc(a.n_registro), a.dni && 'DNI ' + esc(a.dni), 'permiso ' + esc(a.permiso)].filter(Boolean).join(' · ')}</div></td>
-      <td style="text-align:right"><button class="btn btn-sm btn-primary" onclick="closeModal('modal-mg-juntar');mgAriautoDecidir('${esc(clave)}', ${a.id})">Juntar con este</button></td></tr>`).join('')}</tbody></table></div>`
+      <td style="text-align:right"><button class="btn btn-sm btn-primary" onclick="closeModal('modal-mg-juntar');mgAriautoDecidir('${escJs(clave)}', ${a.id})">Juntar con este</button></td></tr>`).join('')}</tbody></table></div>`
     : (texto.trim().length >= 2 ? '<div class="ar-nota">Ningún alumno coincide.</div>' : '');
 }
 // Selector de «Qué pasa» de una ficha: juntar con un alumno de la app, entrar aparte o no traerla
@@ -419,7 +419,7 @@ function mgAriautoSelector(x) {
   if (x.accion === 'revisar') ops.push(['', 'Sin decidir: no se toca']);
   for (const c of cands) ops.push([String(c.id), `Juntar con «${c.nombre}»${c.n_registro ? ' nº ' + c.n_registro : ''}${c.permiso !== x.permiso ? ' (permiso ' + c.permiso + ')' : ''} · ${fmtClases(c.clasesApp)} ${c.clasesApp > 0 && c.clasesApp <= 1 ? 'clase' : 'clases'} en la app`]);
   ops.push(['nuevo', 'Es otra persona: entra como alumno nuevo'], ['omitir', 'No traer esta ficha']);
-  return `<select class="mg-decision" aria-label="Qué hacer con esta ficha" onchange="mgAriautoDecidir('${esc(x.clave)}', this.value)">${ops.map(([v, t]) => `<option value="${esc(v)}"${v === actual ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+  return `<select class="mg-decision" aria-label="Qué hacer con esta ficha" onchange="mgAriautoDecidir('${escJs(x.clave)}', this.value)">${ops.map(([v, t]) => `<option value="${esc(v)}"${v === actual ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
 }
 
 async function mgAriautoOpcion(k, v) {
@@ -471,8 +471,8 @@ function mgAriautoPintar() {
       if (suyo && suyo.clasesApp) det.push(`sus ${fmtClases(suyo.clasesApp)} ${suyo.clasesApp > 0 && suyo.clasesApp <= 1 ? 'clase' : 'clases'} de la app se conservan`);
     } else if (x.accion === 'nuevo' && x.clasesConFecha) det.push(`${coma(x.clasesConFecha)} ${x.clasesConFecha === 1 ? 'clase' : 'clases'} con su día`);
     const sel = mgAriautoSelector(x);
-    const buscar = x.accion === 'nuevo' && !x.manual ? `<button type="button" class="lnk mg-lnk" onclick="mgAriautoBuscarPara('${esc(x.clave)}', ${esc(JSON.stringify(x.nombre))})">¿Ya está en la app? Juntar…</button>` : '';
-    return `<tr${x.manual ? ' class="mg-fila-decidida"' : ''}><td><span class="pill ${cls}">${txt}</span>${x.parecido ? ' <span class="pill pill-warn" title="Mismo nombre de pila y apellidos casi iguales: se toma como el mismo alumno">Nombre parecido</span>' : ''}${x.manual ? ` <span class="pill pill-line" title="Lo has elegido tú">Elegido a mano</span> <button type="button" class="lnk mg-lnk" onclick="mgAriautoDecidir('${esc(x.clave)}', '')">Volver a lo propuesto</button>` : ''}${sel ? `<div style="margin-top:6px">${sel}</div>` : ''}${buscar}</td><td class="num-mono">${esc(x.n_registro || '')}</td><td>${esc(x.nombre)}</td><td class="num-mono">${esc(x.dni || '')}</td><td>${esc(x.permiso || '')}</td>
+    const buscar = x.accion === 'nuevo' && !x.manual ? `<button type="button" class="lnk mg-lnk" onclick="mgAriautoBuscarPara('${escJs(x.clave)}', ${esc(JSON.stringify(x.nombre))})">¿Ya está en la app? Juntar…</button>` : '';
+    return `<tr${x.manual ? ' class="mg-fila-decidida"' : ''}><td><span class="pill ${cls}">${txt}</span>${x.parecido ? ' <span class="pill pill-warn" title="Mismo nombre de pila y apellidos casi iguales: se toma como el mismo alumno">Nombre parecido</span>' : ''}${x.manual ? ` <span class="pill pill-line" title="Lo has elegido tú">Elegido a mano</span> <button type="button" class="lnk mg-lnk" onclick="mgAriautoDecidir('${escJs(x.clave)}', '')">Volver a lo propuesto</button>` : ''}${sel ? `<div style="margin-top:6px">${sel}</div>` : ''}${buscar}</td><td class="num-mono">${esc(x.n_registro || '')}</td><td>${esc(x.nombre)}</td><td class="num-mono">${esc(x.dni || '')}</td><td>${esc(x.permiso || '')}</td>
       <td>${esc(estados[x.estado] || x.estado || '')}</td><td class="col-num">${x.clases ? coma(x.clases) : ''}</td>
       ${o.economia ? `<td class="col-num num-mono">${x.saldo == null ? '' : esc(coma(x.saldo))}</td>` : ''}<td class="col-num">${x.examenes || ''}</td>
       <td class="mg-det">${det.length ? `<small>${det.join(' · ')}</small>` : ''}${x.avisos.length ? `<div class="mg-avisos">${x.avisos.map(esc).join('<br>')}</div>` : ''}</td></tr>`;

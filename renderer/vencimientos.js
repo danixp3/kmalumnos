@@ -121,7 +121,7 @@ function renderVencimientosLista() {
   };
 
   const chips = [['todas', 'Todas', visibles.length, resumenDe(visibles)], ...claves.map(k => [k, _nombreTipoVenc(grupos.get(k)), grupos.get(k).length, resumenDe(grupos.get(k))])]
-    .map(([k, nombre, n, r]) => `<button type="button" aria-pressed="${vencFiltro === k}" onclick="filtrarVencimientos('${esc(k)}')">${esc(nombre)} <span class="seg-n">· ${fmtMiles(n)}</span>${r.vencidas ? `<i class="venc-punto venc-punto-mal" title="${r.vencidas} vencida${r.vencidas === 1 ? '' : 's'}"></i>` : (r.proximas ? '<i class="venc-punto" title="Hay próximas a vencer"></i>' : '')}</button>`).join('');
+    .map(([k, nombre, n, r]) => `<button type="button" aria-pressed="${vencFiltro === k}" onclick="filtrarVencimientos('${escJs(k)}')">${esc(nombre)} <span class="seg-n">· ${fmtMiles(n)}</span>${r.vencidas ? `<i class="venc-punto venc-punto-mal" title="${r.vencidas} vencida${r.vencidas === 1 ? '' : 's'}"></i>` : (r.proximas ? '<i class="venc-punto" title="Hay próximas a vencer"></i>' : '')}</button>`).join('');
 
   const tablas = claves.filter(k => vencFiltro === 'todas' || vencFiltro === k).map(k => {
     const items = grupos.get(k);

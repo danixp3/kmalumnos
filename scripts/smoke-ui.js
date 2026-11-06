@@ -128,6 +128,10 @@ async function recorrerSecciones() {
               if (a) a.click(); true;`);
     await espera(1100);
 
+    // Un texto con apóstrofo no puede salir con la barra del escape (D\'Angelo): fallo de renderer/utils-ui.js esc()
+    const conBarra = await ev(`(function(){ var pg = document.getElementById('page-${p}'); return !!pg && /\\\\'/.test(pg.innerText || ''); })()`);
+    if (conBarra) fallos.push(`[${p}] hay un texto con barra delante del apóstrofo (escape de HTML mal hecho)`);
+
     // abre cada botón de alta y comprueba que los desplegables no salen vacíos
     const r = await ev(`(function(){
       var pg = document.getElementById('page-${p}');

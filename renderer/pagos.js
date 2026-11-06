@@ -127,9 +127,9 @@ function renderDeudasTabla() {
       <td>${fmt(d.total_pagado)} €</td>
       <td><span class="${saldoClase}">${fmt(d.saldo)} €</span></td>
       <td>
-        <button class="btn btn-primary btn-sm" onclick="abrirModalPago(${d.alumno_id},'${esc(d.alumno_nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Anotar pago</button>
-        <button class="btn btn-gray btn-sm" onclick="abrirHistorialPagos(${d.alumno_id},'${esc(d.alumno_nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Historial</button>
-        <button class="btn btn-gray btn-sm" onclick="abrirDesglosePagos(${d.alumno_id},'${esc(d.alumno_nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg> Desglose</button>
+        <button class="btn btn-primary btn-sm" onclick="abrirModalPago(${d.alumno_id},'${escJs(d.alumno_nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Anotar pago</button>
+        <button class="btn btn-gray btn-sm" onclick="abrirHistorialPagos(${d.alumno_id},'${escJs(d.alumno_nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Historial</button>
+        <button class="btn btn-gray btn-sm" onclick="abrirDesglosePagos(${d.alumno_id},'${escJs(d.alumno_nombre)}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg> Desglose</button>
       </td>
     </tr>`;
   }).join('');
@@ -292,7 +292,7 @@ async function abrirHistorialPagos(alumnoId, alumnoNombre) {
       <td>${p.forma_pago ? esc(FORMA_LABEL[p.forma_pago] || p.forma_pago) : '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>${p.nota ? esc(p.nota) : '<span style="color:var(--placeholder)">—</span>'}</td>
       <td>
-        <button class="btn btn-warn btn-sm" onclick="openEditPago(${p.id},${alumnoId},'${esc(alumnoNombre)}','${p.fecha}',${p.cantidad},'${esc(p.nota || '')}','${esc(p.forma_pago || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+        <button class="btn btn-warn btn-sm" onclick="openEditPago(${p.id},${alumnoId},'${escJs(alumnoNombre)}','${p.fecha}',${p.cantidad},'${escJs(p.nota || '')}','${escJs(p.forma_pago || '')}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
         <button class="btn btn-danger btn-sm" onclick="deletePagoUI(${p.id})"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </td>
     </tr>`).join('');

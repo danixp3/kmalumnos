@@ -288,9 +288,25 @@ function nombrePropio(str) {
   return s.toLocaleLowerCase('es').replace(/\S+/g, (w, i) => (i > 0 && pequenas.has(w)) ? w : w.charAt(0).toLocaleUpperCase('es') + w.slice(1));
 }
 
+// Texto del usuario para meter en HTML, ya sea como contenido (<td>${esc(x)}</td>)
+// o dentro de un atributo con comillas (value="${esc(x)}"). Antes solo escapaba
+// < > y el apóstrofo con una barra (\'), que es de JavaScript y no de HTML: un
+// «D'Angelo» o una nota «20'» salía con la barra en pantalla, una comilla doble
+// cortaba el atributo (y el campo se guardaba cortado) y el & se perdía.
 function esc(str) {
   if (!str) return '';
-  return String(str).replace(/'/g, "\\'").replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Texto del usuario para meter entre comillas simples de un manejador
+// (onclick="abrir('${escJs(nombre)}')"): primero se escapa para JavaScript
+// (barra, apóstrofo, saltos de línea) y luego para HTML, porque el navegador
+// quita el HTML antes de ejecutar el JavaScript. Para un valor suelto (un
+// número, un JSON) basta con esc().
+function escJs(str) {
+  if (!str) return '';
+  const js = String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r\n|\r|\n/g, ' ');
+  return js.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function tagPermiso(p) {

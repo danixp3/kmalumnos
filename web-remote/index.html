@@ -655,7 +655,8 @@ const claseTxt = F => {
   if (F.clases_antes != null) { desde = Math.ceil(F.clases_antes + Math.min(1, n) - 1e-9); hasta = Math.ceil(F.clases_antes + n - 1e-9); }
   return (hasta > desde ? `Clases ${desde}–${hasta}` : `Clase ${desde}`) + (n % 1 ? ` · ${clasesTxt(n)}` : '');
 };
-const esc = t => { const d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; };
+// También las comillas: se usa dentro de value="…" y aria-label="…" (una comilla en el nombre del examinador o en la búsqueda cortaba el atributo)
+const esc = t => { const d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
 const iniciales = n => { const p = String(n || '').trim().split(/\s+/).filter(Boolean); return p.length ? (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase() : '?'; };
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];

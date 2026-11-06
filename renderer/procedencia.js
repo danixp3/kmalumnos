@@ -123,7 +123,7 @@ function cabeceraGrupoProcedencia(pantalla, grupo, n, colspan, [uno, varios] = [
   const o = femenino ? 'a' : 'o';
   const titulo = deAqui ? `Cread${o}s en ${NOMBRE_APP_PROC}` : `Traíd${o}s de ${esc(grupo.nombre)}`;
   const chev = `<svg class="grupo-proc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`;
-  const claveJs = esc(String(grupo.clave).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+  const claveJs = escJs(String(grupo.clave));
   return `<tr class="grupo-proc${deAqui ? ' grupo-proc-app' : ''}${plegado ? ' plegado' : ''}"><td colspan="${colspan}">
     <button type="button" class="grupo-proc-btn" aria-expanded="${!plegado}" onclick="plegarGrupoProcedencia('${pantalla}', '${claveJs}')" title="${plegado ? 'Abrir' : 'Cerrar'} este grupo">
       ${chev}${deAqui ? '' : ICONO_PROC}<b>${titulo}</b><span class="grupo-proc-n">${texto != null ? esc(texto) : `${fmtMiles(n)} ${n === 1 ? uno : varios}`}</span>${fecha ? `<span class="grupo-proc-fecha">traíd${o}s el ${esc(fmtFecha(fecha))}</span>` : ''}
@@ -161,7 +161,7 @@ async function renderProcedenciaUI() {
       <button type="button" class="btn btn-outline btn-sm" style="margin-top:10px" onclick="navegarA('migracion')">Traer de otro programa</button></div>`;
     return;
   }
-  const arg = n => esc(String(n).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+  const arg = n => escJs(String(n));
   cont.innerHTML = filaApp + progs.map(p => `<div class="proc-fila">
       <div class="proc-fila-txt"><b>${etiquetaProcedencia(p.nombre)}</b>${p.desde ? `<span class="proc-fecha">traídos el ${esc(fmtFecha(p.desde))}${p.ultima && p.ultima !== p.desde ? ` (último, ${esc(fmtFecha(p.ultima))})` : ''}</span>` : ''}
         <small>${resumen(p.cuenta)}</small></div>

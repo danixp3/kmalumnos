@@ -1300,7 +1300,9 @@ function deshacerImportacion(id) {
   // Alumnos con actividad, calculado una vez (con miles de alumnos, mirar todas
   // las clases por cada uno dejaba la app parada).
   const conActividad = new Set();
-  for (const t of ['practicas', 'pagos', 'cargos', 'reservas']) {
+  // (también los exámenes: los de la importación ya se quitaron arriba, así que
+  // los que quedan los anotó alguien después y no se pueden dejar colgando)
+  for (const t of ['practicas', 'pagos', 'cargos', 'reservas', 'presentaciones']) {
     for (const r of d[t] || []) if (!r.deleted) conActividad.add(r.alumno_id);
   }
   const alumnosPorId = new Map(d.alumnos.map(a => [a.id, a]));

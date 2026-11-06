@@ -174,7 +174,7 @@ function filaExamenHTML(p) {
   const f = parteFecha(p.fecha);
   const hoy = hoyISO();
   const sub = [p.alumno_n_registro ? 'Nº ' + esc(p.alumno_n_registro) : '', p.alumno_dni ? esc(p.alumno_dni) : ''].filter(Boolean).join(' · ');
-  const nombreArg = esc(p.alumno_nombre);
+  const nombreArg = escJs(p.alumno_nombre);
   const resultado = `<select class="ex-resultado ex-res-${p.resultado}" onchange="cambiarResultadoPresentacionUI(${p.id}, this.value)" aria-label="Resultado">
       ${Object.keys(RESULTADO_LABEL).map(r => `<option value="${r}" ${r === p.resultado ? 'selected' : ''}>${RESULTADO_LABEL[r]}</option>`).join('')}</select>`;
   const fallos = p.fallos_detalle

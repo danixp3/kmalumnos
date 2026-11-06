@@ -60,13 +60,13 @@ function pintarTarjetasVehiculos(panel) {
     }
     const sinKm = v.sin_km > 0
       ? `<button type="button" class="pill pill-warn" style="border:none;cursor:pointer" onclick="seleccionarRellenoVehiculo(${v.id})" title="Ir al relleno masivo de este vehículo">${v.sin_km} sin km · Rellenar</button>` : '';
-    const nombreArg = esc(v.nombre), matArg = esc(v.matricula || '');
+    const nombreArg = escJs(v.nombre);
     return `<article class="card veh-card">
       <div class="veh-top">
         ${v.matricula ? placaHTML(v.matricula, true) : '<span class="pill">Sin matrícula</span>'}
         <div class="veh-top-der">${estado}
           <details class="menu-fila">
-            <summary class="btn btn-gray btn-sm btn-icon" title="Más acciones" aria-label="Más acciones de ${nombreArg}"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
+            <summary class="btn btn-gray btn-sm btn-icon" title="Más acciones" aria-label="Más acciones de ${esc(v.nombre)}"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
             <div class="menu-fila-lista">
               <button type="button" onclick="openEditVehiculo(${v.id})">${svgMini('editar')} Editar datos</button>
               <button type="button" onclick="retirarVehiculo(${v.id}, false)" title="Deja de salir para dar clase (registro rápido, móvil, estadísticas); su historial se conserva">${svgMini('retirar')} Retirar</button>
@@ -219,7 +219,7 @@ function pintarRetiradosVehiculos() {
       <div class="veh-retirado-txt"><b>${esc(v.nombre)}</b><small>${[[v.marca, v.modelo].filter(Boolean).map(esc).join(' '), v.fecha_baja ? 'retirado el ' + fmtFecha(v.fecha_baja) : 'retirado', fmtMiles(v.km_actual) + ' km'].filter(Boolean).join(' · ')}</small></div>
       <div class="fd-acciones"><button type="button" class="btn btn-outline btn-sm" onclick="retirarVehiculo(${v.id}, true)">Volver a usar</button>
         <button type="button" class="btn btn-gray btn-sm" onclick="openEditVehiculo(${v.id})">Editar</button>
-        <button type="button" class="btn btn-gray btn-sm btn-borrar" onclick="deleteVehiculo(${v.id},'${esc(v.nombre)}')">Borrar</button></div>
+        <button type="button" class="btn btn-gray btn-sm btn-borrar" onclick="deleteVehiculo(${v.id},'${escJs(v.nombre)}')">Borrar</button></div>
     </div>`).join('')}</div>`;
 }
 
