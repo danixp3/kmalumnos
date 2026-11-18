@@ -109,7 +109,7 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
 _Última actualización: 2026-11-19 (web móvil; escritorio v1.39.3). Consultar también HISTORIAL.md y los últimos commits._
 
-- **Número de examen y convocatoria (2026-11-19, web publicada):** lista, detalle y ficha muestran el orden de las pruebas Aptas o No aptas por fecha y expediente junto a la convocatoria registrada. La sugerencia de convocatoria al anotar una nueva prueba sigue la última anterior del mismo tipo. API 128, Jest 910 y navegador móvil.
+- **Número de examen y convocatoria (2026-11-19, web publicada):** lista, detalle y ficha muestran el orden de las pruebas Aptas o No aptas por fecha dentro de cada expediente, tipo y permiso, junto a la convocatoria registrada. La lista permite filtrar por tipo y permiso. La sugerencia de convocatoria al anotar una nueva prueba sigue la última anterior del mismo tipo. API 128, Jest 910 y navegador móvil.
 
 - **Exámenes en la web móvil (2026-11-19, publicado en Vercel):** Hoy → Ver exámenes, historial y filtro por profesor, edición desde la lista o la ficha, nuevas altas con profesor obligatorio y perfil activo por defecto. Edición sin cobertura en cola, sin migración de Supabase. API 126, Jest 910 y prueba en móvil local.
 

@@ -1451,11 +1451,11 @@ test('examenes: filtra por alumno y devuelve todos los suyos aunque sean antiguo
   assert.equal((await llamar('examenes', { method: 'GET', query: { alumno_id: 'abc' } })).status, 400);
 });
 
-test('examenes: numera las pruebas realizadas por fecha y expediente, también con el historial recortado', async () => {
-  const fila = { alumno_id: 1, tipo: 'maniobras', n_convocatoria: 2, resultado: 'no_apto', deleted: false, empresa_id: 'emp1' };
+test('examenes: numera por fecha, expediente, tipo y permiso, también con el historial recortado', async () => {
+  const fila = { alumno_id: 1, tipo: 'maniobras', permiso: 'A2', n_convocatoria: 2, resultado: 'no_apto', deleted: false, empresa_id: 'emp1' };
   const reciente = fechaMas(-2);
   reiniciar({ ...baseEx(), presentaciones: [
-    { ...fila, id: 1, fecha: fechaMas(-150), resultado: 'apto', tipo: 'teorico' },
+    { ...fila, id: 1, fecha: fechaMas(-150), resultado: 'apto', permiso: ' a2 ' },
     { ...fila, id: 2, fecha: fechaMas(-140), resultado: 'no_presentado' },
     { ...fila, id: 3, fecha: fechaMas(-130), resultado: 'aplazado' },
     { ...fila, id: 4, fecha: fechaMas(-120), deleted: true },
@@ -1464,16 +1464,21 @@ test('examenes: numera las pruebas realizadas por fecha y expediente, también c
     { ...fila, id: 8, fecha: reciente, n_convocatoria: 1, tipo: 'circulacion', resultado: 'apto' },
     { ...fila, id: 7, fecha: reciente },
     { ...fila, id: 9, fecha: reciente, alumno_id: 2 },
-    { ...fila, id: 10, fecha: hoy(), resultado: 'pendiente' }
+    { ...fila, id: 10, fecha: hoy(), resultado: 'pendiente' },
+    { ...fila, id: 11, fecha: reciente, permiso: 'B' },
+    { ...fila, id: 12, fecha: fechaMas(-155), permiso: null },
+    { ...fila, id: 13, fecha: reciente, permiso: 'A1' }
   ] });
   const numeros = r => Object.fromEntries(r.json.examenes.map(x => [x.id, [x.numero_examen, x.n_convocatoria]]));
   const ultimos = await llamar('examenes', { method: 'GET', query: { hoy: hoy() } });
   assert.equal(ultimos.status, 200);
-  assert.deepEqual(numeros(ultimos), { 7: [2, 2], 8: [3, 1], 9: [1, 2], 10: [null, 2] });
+  assert.deepEqual(numeros(ultimos), { 7: [2, 2], 8: [1, 1], 9: [1, 2], 10: [null, 2], 11: [2, 2], 13: [1, 2] });
   const ficha = await llamar('examenes', { method: 'GET', query: { alumno_id: '1', hoy: hoy() } });
-  assert.deepEqual(numeros(ficha), { 1: [1, 2], 2: [null, 2], 3: [null, 2], 6: [null, 2], 7: [2, 2], 8: [3, 1], 10: [null, 2] });
+  assert.deepEqual(numeros(ficha), { 1: [1, 2], 2: [null, 2], 3: [null, 2], 6: [null, 2], 7: [2, 2], 8: [1, 1], 10: [null, 2], 11: [2, 2], 12: [1, 2], 13: [1, 2] });
+  assert.equal(ficha.json.examenes.find(x => x.id === 1).permiso, 'A2');
+  assert.equal(ficha.json.examenes.find(x => x.id === 12).permiso, 'B');
   const rango = await llamar('examenes', { method: 'GET', query: { alumno_id: '1', desde: reciente, hasta: reciente, hoy: hoy() } });
-  assert.deepEqual(numeros(rango), { 7: [2, 2], 8: [3, 1] });
+  assert.deepEqual(numeros(rango), { 7: [2, 2], 8: [1, 1], 11: [2, 2], 13: [1, 2] });
   const todos = await llamar('examenes', { method: 'GET', query: { todos: '1', hoy: hoy() } });
   assert.deepEqual(numeros(todos), { ...numeros(ficha), 9: [1, 2] });
 });

@@ -45,6 +45,9 @@ function numeroOpcional(v, nombre, min, max) {
   return { valid: true, value: n };
 }
 
+const normalizarPermiso = valor => String(valor || '').trim().toUpperCase();
+const permisoExamen = (x, alumnos) => normalizarPermiso(x.permiso) || normalizarPermiso(alumnos.get(x.alumno_id)?.permiso) || null;
+
 function paraApp(x, alumnos, profesores, numeroExamen) {
   const a = alumnos.get(x.alumno_id);
   const p = profesores.get(x.profesor_id);
@@ -52,7 +55,7 @@ function paraApp(x, alumnos, profesores, numeroExamen) {
     id: x.id, alumno_id: x.alumno_id, alumno: a ? nombreCompleto(a) : '—', n_registro: a ? a.n_registro || null : null,
     profesor_id: x.profesor_id ?? null, profesor: p ? p.nombre : null,
     tipo: x.tipo, fecha: x.fecha, n_convocatoria: x.n_convocatoria || 1, numero_examen: numeroExamen ?? null, resultado: x.resultado,
-    nota: x.nota || '', permiso: x.permiso || (a ? a.permiso || null : null), examinador: x.examinador || null,
+    nota: x.nota || '', permiso: permisoExamen(x, alumnos), examinador: x.examinador || null,
     fallos: x.fallos ?? null, fallos_detalle: x.fallos_detalle || null,
     origen: x.origen || 'desktop', procedencia: x.procedencia || null,
     borrable: x.origen === 'web-remote'
@@ -71,30 +74,35 @@ async function nombresDe(supabase, auth, ids, tabla, columnas) {
   return mapa;
 }
 
-async function numerarExamenes(examenes, corte, hoy, supabase, empresaId) {
-  const realizados = examenes.filter(x => x.alumno_id != null && RESULTADOS_REALIZADOS.includes(x.resultado) && fechaValida(x.fecha) && x.fecha <= hoy);
-  const porAlumno = new Map();
+async function realizadosAntesDe(realizados, corte, supabase, empresaId) {
+  const anteriores = [];
   if (corte) {
     // La lista puede ocultar los antiguos. Contarlos antes evita que el número cambie al ampliar el historial.
     const ids = [...new Set(realizados.map(x => x.alumno_id))];
     for (let i = 0; i < ids.length; i += 150) {
-      const { data, error } = await traerTodo(() => supabase.from('presentaciones').select('id, alumno_id, fecha')
+      const { data, error } = await traerTodo(() => supabase.from('presentaciones').select('id, alumno_id, fecha, tipo, permiso')
         .eq('empresa_id', empresaId).eq('deleted', false).in('alumno_id', ids.slice(i, i + 150))
         .in('resultado', RESULTADOS_REALIZADOS).lt('fecha', corte).order('id'));
       if (error) return { error };
-      for (const fila of data) {
-        if (fechaValida(fila.fecha)) porAlumno.set(fila.alumno_id, (porAlumno.get(fila.alumno_id) || 0) + 1);
-      }
+      for (const fila of data) if (fechaValida(fila.fecha)) anteriores.push(fila);
     }
   }
+  return { anteriores };
+}
+
+function numerarExamenes(realizados, anteriores, alumnos) {
+  const porGrupo = new Map();
+  function siguiente(x) {
+    const clave = JSON.stringify([x.alumno_id, x.tipo, permisoExamen(x, alumnos)]);
+    const numero = (porGrupo.get(clave) || 0) + 1;
+    porGrupo.set(clave, numero);
+    return numero;
+  }
+  for (const x of anteriores) siguiente(x);
   const numeros = new Map();
   // El listado llega de más reciente a más antiguo. Se recorre en sentido contrario para numerar.
-  for (const x of realizados.reverse()) {
-    const numero = (porAlumno.get(x.alumno_id) || 0) + 1;
-    porAlumno.set(x.alumno_id, numero);
-    numeros.set(x.id, numero);
-  }
-  return { numeros };
+  for (const x of realizados.reverse()) numeros.set(x.id, siguiente(x));
+  return numeros;
 }
 
 async function listar(req, res, auth, supabase) {
@@ -122,12 +130,14 @@ async function listar(req, res, auth, supabase) {
   if (handleSupabaseError(error, res, 'Error al obtener los exámenes')) return;
 
   const filas = data || [];
-  const [alumnos, profesores, { numeros, error: errorNumeros }] = await Promise.all([
+  const realizados = filas.filter(x => x.alumno_id != null && RESULTADOS_REALIZADOS.includes(x.resultado) && fechaValida(x.fecha) && x.fecha <= hoy);
+  const [alumnos, profesores, { anteriores, error: errorNumeros }] = await Promise.all([
     nombresDe(supabase, auth, filas.map(x => x.alumno_id), 'alumnos', 'id, nombre, primer_apellido, segundo_apellido, permiso, n_registro'),
     nombresDe(supabase, auth, filas.map(x => x.profesor_id), 'profesores', 'id, nombre'),
-    numerarExamenes(filas, corte, hoy, supabase, auth.empresaId)
+    realizadosAntesDe(realizados, corte, supabase, auth.empresaId)
   ]);
   if (handleSupabaseError(errorNumeros, res, 'Error al numerar los exámenes')) return;
+  const numeros = numerarExamenes(realizados, anteriores, alumnos);
   const lista = filas.map(x => paraApp(x, alumnos, profesores, numeros.get(x.id)));
   // Próximos primero (de más cercano a más lejano), luego los hechos (de más reciente a más antiguo)
   const proximos = lista.filter(x => x.fecha >= hoy && x.resultado === 'pendiente').sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);

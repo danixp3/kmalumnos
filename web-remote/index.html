@@ -303,6 +303,9 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .accion-ex .ex-tit { display: block; font-size: 17.5px; font-weight: 700; }
   .accion-ex .ex-sub { display: block; font-size: 14px; color: var(--muted); margin-top: 1px; }
   .accion-ex > svg:last-child { color: var(--faint); flex-shrink: 0; }
+  .filtros-examenes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; margin-bottom: 14px; }
+  .filtros-examenes > :last-child { grid-column: 1 / -1; }
+  .filtros-examenes .etq { margin-top: 10px; }
   .barra-fija { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, transparent); z-index: 20; }
   .barra-fija > * { max-width: 528px; margin: 0 auto; }
   .barra-fija > .btn { display: flex; }   /* inline-flex no se centra con margin:auto (en tablet salía pegado a la izquierda) */
@@ -3854,7 +3857,8 @@ const textoResultadoExamen = r => (RESULTADOS_EXAMEN.find(x => x[0] === r) || [0
 const pillResultadoExamen = r => `<span class="pill ${r === 'apto' ? 'pill-ok' : r === 'no_apto' ? 'pill-err' : r === 'pendiente' ? 'pill-info' : 'pill-warn'}">${esc(textoResultadoExamen(r))}</span>`;
 const ordinalConvocatoria = n => (n > 1 ? `${n}.ª convocatoria` : '1.ª convocatoria');
 const numerosExamen = x => `${x.numero_examen ? `Examen n.º ${x.numero_examen} · ` : ''}${ordinalConvocatoria(x.n_convocatoria)}`;
-const estadoExamenes = () => ({ cargando: false, lista: null, error: '', tab: 'todos', profesor: '', historicos: false, limite: 40, noDisponible: false });
+const tipoYPermisoExamen = x => `${textoTipoExamen(x.tipo)} · ${x.permiso || 'Sin permiso'}`;
+const estadoExamenes = () => ({ cargando: false, lista: null, error: '', tab: 'todos', tipo: '', permiso: '', profesor: '', historicos: false, limite: 40, noDisponible: false });
 S.examenes = estadoExamenes();
 const buscarExamen = id => {
   const lista = S.vista === 'ficha' ? S.ficha?.examenes : S.examenes.lista;
@@ -3894,22 +3898,34 @@ function renderExamenes() {
   const esProximo = x => x.resultado === 'pendiente' && x.fecha >= S.hoy;
   const profesores = new Map(E.lista.filter(x => x.profesor_id != null).map(x => [x.profesor_id, nombreProfesorExamen(x)]));
   for (const p of S.profesores) profesores.set(p.id, p.nombre);
-  const opciones = [['', 'Todos los profesores'], ['sin', 'Sin profesor asignado'], ...[...profesores].sort((a, b) => a[1].localeCompare(b[1], 'es'))];
-  const filtrados = E.profesor === '' ? E.lista : E.lista.filter(x => (x.profesor_id == null ? 'sin' : String(x.profesor_id)) === E.profesor);
+  const opcionesProfesor = [['', 'Todos los profesores'], ['sin', 'Sin profesor asignado'], ...[...profesores].sort((a, b) => a[1].localeCompare(b[1], 'es'))];
+  const permisos = [...new Set(E.lista.map(x => x.permiso).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+  const opcionesPermiso = [['', 'Todos los permisos'], ['sin', 'Sin permiso'], ...permisos.map(p => [p, p])];
+  const filtrados = E.lista.filter(x => (!E.tipo || x.tipo === E.tipo) &&
+    (!E.permiso || (x.permiso || 'sin') === E.permiso) &&
+    (!E.profesor || String(x.profesor_id ?? 'sin') === E.profesor));
   const proximos = filtrados.filter(esProximo), hechos = filtrados.filter(x => !esProximo(x));
   const lista = E.tab === 'hechos' ? hechos : E.tab === 'proximos' ? proximos : filtrados;
   const fila = x => `<button class="fila" onclick="detalleExamen(${x.id})"><span class="ini">${esc(iniciales(x.alumno))}</span>
       <div style="flex:1;min-width:0"><div class="fila-tit">${esc(x.alumno)}</div>
-      <div class="fila-sub">${esc(textoTipoExamen(x.tipo))} · ${esc(fechaListaExamen(x.fecha))}</div>
+      <div class="fila-sub">${esc(tipoYPermisoExamen(x))} · ${esc(fechaListaExamen(x.fecha))}</div>
       <div class="fila-sub">${esc(numerosExamen(x))}</div>
       <div class="fila-sub">${esc(nombreProfesorExamen(x))}</div></div>${pillResultadoExamen(x.resultado)}</button>`;
   v.innerHTML = cab + (E.error ? `<div class="msg msg-warn" style="margin-top:0">${ic('aviso', 20)}<span>${esc(E.error)}</span></div>` : '') + `
-    <label class="etq" for="ex-filtro-profesor">Profesor</label>
-    <select class="campo" id="ex-filtro-profesor" style="margin-bottom:14px" onchange="S.examenes.profesor=this.value;S.examenes.limite=40;renderExamenes()">${opciones.map(([id, nombre]) => `<option value="${id}" ${E.profesor === String(id) ? 'selected' : ''}>${esc(nombre)}</option>`).join('')}</select>
+    <div class="filtros-examenes">
+      ${filtroExamenes('tipo', 'Tipo de prueba', [['', 'Todos los tipos'], ...TIPOS_EXAMEN])}
+      ${filtroExamenes('permiso', 'Permiso', opcionesPermiso)}
+      ${filtroExamenes('profesor', 'Profesor', opcionesProfesor)}
+    </div>
     <div class="seg3" role="group" aria-label="Exámenes" style="margin-bottom:14px">${[['todos', 'Todos', filtrados.length], ['proximos', 'Próximos', proximos.length], ['hechos', 'Historial', hechos.length]].map(([t, tx, n]) => `<button class="${E.tab === t ? 'on' : ''}" onclick="S.examenes.tab='${t}';S.examenes.limite=40;renderExamenes()">${tx} · ${n}</button>`).join('')}</div>
     <div class="card">${lista.length ? lista.slice(0, E.limite).map(fila).join('') : '<div class="vacio">No hay exámenes con este filtro.</div>'}</div>
     ${lista.length > E.limite ? '<button class="btn btn-sec" style="margin-top:12px" onclick="S.examenes.limite+=40;renderExamenes()">Mostrar más</button>' : ''}
     ${!E.historicos && E.tab !== 'proximos' ? '<button class="lnk" style="margin-top:12px" onclick="S.examenes.historicos=true;S.examenes.lista=null;cargarExamenes();renderExamenes()">Ver también los de hace más de 90 días</button>' : ''}${boton}`;
+}
+function filtroExamenes(campo, titulo, opciones) {
+  const actual = S.examenes[campo];
+  return `<div><label class="etq" for="ex-filtro-${campo}">${titulo}</label>
+    <select class="campo" id="ex-filtro-${campo}" onchange="S.examenes.${campo}=this.value;S.examenes.limite=40;renderExamenes()">${opciones.map(([id, nombre]) => `<option value="${esc(id)}" ${actual === String(id) ? 'selected' : ''}>${esc(nombre)}</option>`).join('')}</select></div>`;
 }
 const fechaListaExamen = fecha => /^\d{4}-\d{2}-\d{2}$/.test(fecha || '') && !isNaN(Date.parse(fecha)) ? `${fechaCorta(fecha)} ${fecha.slice(0, 4)}` : 'Sin fecha';
 const nombreProfesorExamen = x => x.profesor || nombreProfesor(x.profesor_id) || (x.profesor_id == null ? 'Sin profesor asignado' : 'Profesor no disponible');
@@ -3919,9 +3935,9 @@ function detalleExamen(id) {
   const res = RESULTADOS_EXAMEN.filter(([r]) => !(futuro && r !== 'pendiente'));
   abrirHoja(`<div class="hoja-tit"><h3>${esc(x.alumno)}</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
     <div class="card card-pad" style="margin-bottom:12px">
-      <div class="fila-tit">${esc(textoTipoExamen(x.tipo))}</div>
+      <div class="fila-tit">${esc(tipoYPermisoExamen(x))}</div>
       <div class="fila-sub" style="margin-top:3px">${esc(numerosExamen(x))}</div>
-      <div class="fila-sub" style="margin-top:3px">${esc(fechaListaExamen(x.fecha))}${x.permiso ? ' · Permiso ' + esc(x.permiso) : ''}</div>
+      <div class="fila-sub" style="margin-top:3px">${esc(fechaListaExamen(x.fecha))}</div>
       <div class="fila-sub" style="margin-top:4px">Profesor: ${esc(nombreProfesorExamen(x))}</div>
       <div style="margin-top:10px">${pillResultadoExamen(x.resultado)}${x.fallos != null ? ` <span class="pill">${x.fallos} ${x.fallos === 1 ? 'fallo' : 'fallos'}</span>` : ''}</div>
       ${x.examinador ? `<div class="fila-sub" style="margin-top:8px">Examinador: ${esc(x.examinador)}</div>` : ''}
@@ -4099,7 +4115,7 @@ function htmlExamenesFicha(f) {
   if (f.examenes === null) return `<div class="grupo-tit"><span>Exámenes</span></div><div class="card"><div class="vacio">No se pudieron cargar los exámenes.<br><button class="lnk" onclick="cargarExamenesAlumno(${f.id})">Reintentar</button></div></div>`;
   if (!Array.isArray(f.examenes) || !f.examenes.length) return `<div class="grupo-tit"><span>Exámenes</span></div><div class="card"><div class="vacio">${f.examenes === undefined ? 'Cargando…' : 'Todavía no tiene exámenes anotados.'}</div></div>`;
   return `<div class="grupo-tit"><span>Exámenes</span><span class="grupo-dato">${f.examenes.length}</span></div><div class="card">` + f.examenes.map(x => `<button class="fila" onclick="detalleExamen(${x.id})">
-    <div style="flex:1;min-width:0"><div class="fila-tit">${esc(textoTipoExamen(x.tipo))} · ${esc(fechaListaExamen(x.fecha))}</div><div class="fila-sub">${esc(numerosExamen(x))}${x.fallos != null && x.resultado !== 'apto' ? ` · ${x.fallos} ${x.fallos === 1 ? 'fallo' : 'fallos'}` : ''}</div><div class="fila-sub">${esc(nombreProfesorExamen(x))}</div></div>${pillResultadoExamen(x.resultado)}</button>`).join('') + '</div>';
+    <div style="flex:1;min-width:0"><div class="fila-tit">${esc(tipoYPermisoExamen(x))} · ${esc(fechaListaExamen(x.fecha))}</div><div class="fila-sub">${esc(numerosExamen(x))}${x.fallos != null && x.resultado !== 'apto' ? ` · ${x.fallos} ${x.fallos === 1 ? 'fallo' : 'fallos'}` : ''}</div><div class="fila-sub">${esc(nombreProfesorExamen(x))}</div></div>${pillResultadoExamen(x.resultado)}</button>`).join('') + '</div>';
 }
 
 // ─── ARRANQUE ────────────────────────────────────────────────────────────────
