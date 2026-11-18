@@ -854,6 +854,8 @@ async function vaciarCola(manual = false) {
     if (S.cal) S.cal.cache = {};
     await cargarTodo();
     if (S.vista === 'hoy') renderHoy(); else if (S.vista === 'alumnos') renderAlumnos();
+    else if (S.vista === 'examenes') cargarExamenes();
+    else if (S.vista === 'ficha' && S.ficha?.datos) cargarExamenesAlumno(S.ficha.id);
     renderRiel();
   }
   if (r.fallidas) toast(`${r.fallidas} no se pudo enviar: míralo en «Pendientes de enviar».`, 6000);
@@ -1846,7 +1848,8 @@ function renderHoy() {
   if (!cargando && !r.total && !S.jornada.sin_cerrar.length && !esHoy) html += '<div class="vacio">Sin clases este día.</div>';
   if (!esHoy && S.fecha < S.hoy && S.fecha >= sumaDias(S.hoy, -DIAS_ANOTAR)) html += `<button class="btn btn-sec" style="margin-top:14px" onclick="abrirAnotar({fecha:'${S.fecha}',volverA:'hoy'})">${ic('mas', 20)} Anotar una clase de este día</button>`;
   else if (esHoy) html += `<button class="lnk lnk-suave lnk-olvido" onclick="abrirAnotar({volverA:'hoy'})">${ic('hist', 18)} ¿Se te olvidó anotar una clase? Anotar clase pasada</button>`;
-  if (esHoy) html += `<button class="accion-ex" onclick="abrirExamen({volverA:'hoy'})"><span class="ex-ic">${ic('bandera', 24)}</span><span class="ex-tx"><span class="ex-tit">Anotar un examen</span><span class="ex-sub">Apto, no apto o apuntar el día</span></span>${ic('chev', 20)}</button>`;
+  if (esHoy) html += `<button class="accion-ex" onclick="abrirListaExamenes()"><span class="ex-ic">${ic('bandera', 24)}</span><span class="ex-tx"><span class="ex-tit">Ver exámenes</span><span class="ex-sub">Consulta y edita los exámenes anotados</span></span>${ic('chev', 20)}</button>
+    <button class="accion-ex" onclick="abrirExamen()"><span class="ex-ic">${ic('mas', 24)}</span><span class="ex-tx"><span class="ex-tit">Anotar un examen</span><span class="ex-sub">Apto, no apto o apuntar el día</span></span>${ic('chev', 20)}</button>`;
   document.getElementById('v-hoy').innerHTML = html;
 }
 // Clases seguidas de una misma sesión (mismo alumno y coche, km encadenados y
@@ -1912,7 +1915,7 @@ function menuPerfil() {
     <button class="fila" onclick="hojaPendientes()"><span class="veh-ic">${ic('reloj', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Pendientes de enviar</div><div class="fila-sub">${S.pend.length ? 'Guardado en esta tablet, se envía con cobertura' : 'Lo que hagas sin cobertura se guarda aquí'}</div></div>${S.pend.length ? `<span class="pill pill-info">${S.pend.length}</span>` : ''}${ic('chev', 20)}</button>
     ${puedeInstalar() ? `<button class="fila" onclick="cerrarHoja();instalarApp()"><span class="veh-ic">${ic('tel', 22)}</span><div class="fila-tit" style="flex:1">Instalar como app</div>${ic('chev', 20)}</button>` : ''}
     ${S.perfil && S.perfil.id ? `<button class="fila" onclick="cerrarHoja();go('mifirma')"><span class="veh-ic">${ic('firma', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Mi firma</div><div class="fila-sub">Sale en tus clases de la ficha DGT</div></div>${S.miFirma === false ? '<span class="pill pill-warn">Falta</span>' : (S.miFirma ? '<span class="pill pill-ok">Guardada</span>' : '')}${ic('chev', 20)}</button>` : ''}
-    <button class="fila" onclick="cerrarHoja();S.examenes.lista=null;go('examenes')"><span class="veh-ic">${ic('bandera', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Exámenes</div><div class="fila-sub">Anota el examen de tus alumnos cuando lo hacen</div></div>${ic('chev', 20)}</button>
+    <button class="fila" onclick="cerrarHoja();abrirListaExamenes()"><span class="veh-ic">${ic('bandera', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Exámenes</div><div class="fila-sub">Consulta, anota y edita exámenes</div></div>${ic('chev', 20)}</button>
     <button class="fila" onclick="menuCoches()"><span class="veh-ic">${ic('coche', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Coche de cada profesor</div><div class="fila-sub">${cocheHabitual() ? 'El tuyo: ' + esc(vehiculo(cocheHabitual()).nombre) : 'El que se propone al empezar una clase'}</div></div>${S.perfil && S.perfil.id && !cocheHabitual() ? '<span class="pill pill-warn">Elegir</span>' : ''}${ic('chev', 20)}</button>
     <button class="fila" onclick="menuAvisos()"><span class="veh-ic">${ic('campana', 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Avisos de la práctica</div><div class="fila-sub">${avisosActivos() ? 'Activados en este teléfono' : 'Cuando va a acabar, al acabar…'}</div></div>${avisosActivos() ? '<span class="pill pill-ok">Sí</span>' : ''}${ic('chev', 20)}</button>
     <button class="fila" onclick="menuTema()"><span class="veh-ic">${ic(TEMAS.find(x => x[0] === temaElegido())[3], 22)}</span><div style="flex:1;min-width:0"><div class="fila-tit">Apariencia</div><div class="fila-sub">${TEMAS.find(x => x[0] === temaElegido())[1]}</div></div>${ic('chev', 20)}</button>
@@ -3330,7 +3333,7 @@ function renderFicha() {
     ${bloques || `<div class="card"><div class="vacio">${d.practicas.length ? 'Ninguna clase con este filtro.' : 'Todavía no tiene prácticas.'}</div></div>`}
     ${resto > 0 ? `<button class="btn btn-sec" style="margin-top:12px" onclick="S.fichaMax=(S.fichaMax||FICHA_TANDA)+FICHA_TANDA;renderFicha()">Ver ${Math.min(resto, FICHA_TANDA)} más · quedan ${resto}</button>` : ''}
     <div id="ficha-examenes">${htmlExamenesFicha(f)}</div>
-    <button class="accion-ex" onclick="abrirExamen({alumno_id:${a.id},volverA:'ficha'})"><span class="ex-ic">${ic('bandera', 24)}</span><span class="ex-tx"><span class="ex-tit">Anotar un examen</span><span class="ex-sub">Apto, no apto o apuntar el día</span></span>${ic('chev', 20)}</button>
+    <button class="accion-ex" onclick="abrirExamen({alumno_id:${a.id}})"><span class="ex-ic">${ic('bandera', 24)}</span><span class="ex-tx"><span class="ex-tit">Anotar un examen</span><span class="ex-sub">Apto, no apto o apuntar el día</span></span>${ic('chev', 20)}</button>
     <button class="lnk lnk-suave lnk-olvido" onclick="abrirAnotar({alumno_id:${a.id},volverA:'ficha'})">${ic('hist', 18)} Anotar una clase pasada de ${pila}</button>
     <div class="barra-fija"><button class="btn btn-pri btn-lg" onclick="abrirIniciar({alumno_id:${a.id}})">${ic('play', 18)} Iniciar práctica con ${pila}</button></div>`;
   // Sus exámenes se piden aparte (una vez por ficha abierta)
@@ -3850,15 +3853,25 @@ const textoTipoExamen = t => (TIPOS_EXAMEN.find(x => x[0] === t) || [0, t || '']
 const textoResultadoExamen = r => (RESULTADOS_EXAMEN.find(x => x[0] === r) || [0, r || ''])[1];
 const pillResultadoExamen = r => `<span class="pill ${r === 'apto' ? 'pill-ok' : r === 'no_apto' ? 'pill-err' : r === 'pendiente' ? 'pill-info' : 'pill-warn'}">${esc(textoResultadoExamen(r))}</span>`;
 const ordinalConvocatoria = n => (n > 1 ? `${n}.ª convocatoria` : '1.ª convocatoria');
-S.examenes = { cargando: false, lista: null, error: '', tab: 'proximos', noDisponible: false };
-const listasExamenes = () => [S.examenes.lista, S.ficha && S.ficha.examenes].filter(Array.isArray);
-const buscarExamen = id => { for (const l of listasExamenes()) { const x = l.find(e => e.id === id); if (x) return x; } return null; };
+const estadoExamenes = () => ({ cargando: false, lista: null, error: '', tab: 'todos', profesor: '', historicos: false, limite: 40, noDisponible: false });
+S.examenes = estadoExamenes();
+const listasExamenes = () => [S.examenes.lista, S.ficha?.examenes].filter(Array.isArray);
+const buscarExamen = id => {
+  const lista = S.vista === 'ficha' ? S.ficha?.examenes : S.examenes.lista;
+  return lista?.find?.(e => e.id === id);
+};
 S.examen = null;
 
+function abrirListaExamenes() {
+  S.examenes = estadoExamenes();
+  go('examenes');
+}
+
 async function cargarExamenes() {
-  const E = S.examenes; E.cargando = true; E.error = ''; E.noDisponible = false;
+  const E = S.examenes; if (E.cargando) return;
+  E.cargando = true; E.error = ''; E.noDisponible = false;
   try {
-    const res = await apiFetch('/api/examenes?hoy=' + encodeURIComponent(S.hoy));
+    const res = await apiFetch('/api/examenes?hoy=' + encodeURIComponent(S.hoy) + (E.historicos ? '&todos=1' : ''));
     const data = await res.json().catch(() => ({}));
     if (res.status === 501) { E.noDisponible = true; E.lista = []; return; }
     if (!res.ok) throw new Error(data.error || 'No se pudieron cargar los exámenes');
@@ -3866,25 +3879,39 @@ async function cargarExamenes() {
   } catch (e) {
     if (e.message === 'Sesión expirada') return;
     E.error = esRed(e) ? 'Sin conexión: los exámenes se ven cuando haya cobertura. Lo que anotes ahora se guarda y se envía solo.' : e.message;
-  } finally { E.cargando = false; if (S.vista === 'examenes') renderExamenes(); }
+  } finally { E.cargando = false; if (S.vista === 'examenes' && S.examenes === E) renderExamenes(); }
 }
 function renderExamenes() {
   const E = S.examenes, v = document.getElementById('v-examenes');
   const cab = `<div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Exámenes</h1></div></div>`;
-  const boton = `<div class="barra-fija"><button class="btn btn-pri btn-lg" onclick="abrirExamen({volverA:'examenes'})">${ic('mas', 20, 'style="stroke-width:2.6"')} Anotar un examen</button></div>`;
+  const boton = `<div class="barra-fija"><button class="btn btn-pri btn-lg" onclick="abrirExamen()">${ic('mas', 20, 'style="stroke-width:2.6"')} Anotar un examen</button></div>`;
   if (E.noDisponible) { v.innerHTML = cab + `<div class="msg msg-warn" style="margin-top:0">${ic('aviso', 20)}<span>Los exámenes todavía no están activados en la nube. Avisa al administrador de la autoescuela.</span></div>`; return; }
-  if (E.lista === null) { v.innerHTML = cab + (E.error ? `<div class="vacio">${esc(E.error)}</div>` : '<div class="cargando">Cargando…</div>') + boton; if (!E.cargando && !E.error) cargarExamenes(); return; }
-  const proximos = E.lista.filter(x => x.resultado === 'pendiente' && x.fecha >= S.hoy);
-  const hechos = E.lista.filter(x => !(x.resultado === 'pendiente' && x.fecha >= S.hoy));
-  const lista = E.tab === 'hechos' ? hechos : proximos;
+  if (E.lista === null) {
+    v.innerHTML = cab + (E.error ? `<div class="vacio">${esc(E.error)}<br><button class="lnk" onclick="cargarExamenes()">Reintentar</button></div>` : '<div class="cargando">Cargando…</div>') + boton;
+    if (!E.cargando && !E.error) cargarExamenes();
+    return;
+  }
+  const esProximo = x => x.resultado === 'pendiente' && x.fecha >= S.hoy;
+  const profesores = new Map(E.lista.filter(x => x.profesor_id != null).map(x => [x.profesor_id, nombreProfesorExamen(x)]));
+  for (const p of S.profesores) profesores.set(p.id, p.nombre);
+  const opciones = [['', 'Todos los profesores'], ['sin', 'Sin profesor asignado'], ...[...profesores].sort((a, b) => a[1].localeCompare(b[1], 'es'))];
+  const filtrados = E.profesor === '' ? E.lista : E.lista.filter(x => (x.profesor_id == null ? 'sin' : String(x.profesor_id)) === E.profesor);
+  const proximos = filtrados.filter(esProximo), hechos = filtrados.filter(x => !esProximo(x));
+  const lista = E.tab === 'hechos' ? hechos : E.tab === 'proximos' ? proximos : filtrados;
   const fila = x => `<button class="fila" onclick="detalleExamen(${x.id})"><span class="ini">${esc(iniciales(x.alumno))}</span>
       <div style="flex:1;min-width:0"><div class="fila-tit">${esc(x.alumno)}</div>
-      <div class="fila-sub">${esc(textoTipoExamen(x.tipo))} · ${esc(fechaCorta(x.fecha))} · ${ordinalConvocatoria(x.n_convocatoria)}${x.fallos != null && x.resultado !== 'apto' ? ` · ${x.fallos} ${x.fallos === 1 ? 'fallo' : 'fallos'}` : ''}</div></div>${pillResultadoExamen(x.resultado)}</button>`;
+      <div class="fila-sub">${esc(textoTipoExamen(x.tipo))} · ${esc(fechaListaExamen(x.fecha))} · ${ordinalConvocatoria(x.n_convocatoria)}</div>
+      <div class="fila-sub">${esc(nombreProfesorExamen(x))}</div></div>${pillResultadoExamen(x.resultado)}</button>`;
   v.innerHTML = cab + (E.error ? `<div class="msg msg-warn" style="margin-top:0">${ic('aviso', 20)}<span>${esc(E.error)}</span></div>` : '') + `
-    <div class="seg3" role="group" aria-label="Exámenes" style="margin-bottom:14px">${[['proximos', 'Próximos', proximos.length], ['hechos', 'Hechos', hechos.length]].map(([t, tx, n]) => `<button class="${E.tab === t ? 'on' : ''}" onclick="S.examenes.tab='${t}';renderExamenes()">${tx} · ${n}</button>`).join('')}</div>
-    <div class="card">${lista.length ? lista.map(fila).join('') : `<div class="vacio">${E.tab === 'hechos' ? 'Todavía no hay exámenes anotados en los últimos 90 días.' : 'No hay exámenes apuntados para los próximos días.'}</div>`}</div>
-    <p class="fila-sub" style="margin:10px 4px 0">${E.tab === 'hechos' ? 'Se ven los de los últimos 90 días; los de un alumno, en su ficha.' : 'Cuando llegue el día, ábrelo y anota el resultado.'}</p>${boton}`;
+    <label class="etq" for="ex-filtro-profesor">Profesor</label>
+    <select class="campo" id="ex-filtro-profesor" style="margin-bottom:14px" onchange="S.examenes.profesor=this.value;S.examenes.limite=40;renderExamenes()">${opciones.map(([id, nombre]) => `<option value="${id}" ${E.profesor === String(id) ? 'selected' : ''}>${esc(nombre)}</option>`).join('')}</select>
+    <div class="seg3" role="group" aria-label="Exámenes" style="margin-bottom:14px">${[['todos', 'Todos', filtrados.length], ['proximos', 'Próximos', proximos.length], ['hechos', 'Historial', hechos.length]].map(([t, tx, n]) => `<button class="${E.tab === t ? 'on' : ''}" onclick="S.examenes.tab='${t}';S.examenes.limite=40;renderExamenes()">${tx} · ${n}</button>`).join('')}</div>
+    <div class="card">${lista.length ? lista.slice(0, E.limite).map(fila).join('') : '<div class="vacio">No hay exámenes con este filtro.</div>'}</div>
+    ${lista.length > E.limite ? '<button class="btn btn-sec" style="margin-top:12px" onclick="S.examenes.limite+=40;renderExamenes()">Mostrar más</button>' : ''}
+    ${!E.historicos && E.tab !== 'proximos' ? '<button class="lnk" style="margin-top:12px" onclick="S.examenes.historicos=true;S.examenes.lista=null;cargarExamenes();renderExamenes()">Ver también los de hace más de 90 días</button>' : ''}${boton}`;
 }
+const fechaListaExamen = fecha => /^\d{4}-\d{2}-\d{2}$/.test(fecha || '') && !isNaN(Date.parse(fecha)) ? `${fechaCorta(fecha)} ${fecha.slice(0, 4)}` : 'Sin fecha';
+const nombreProfesorExamen = x => x.profesor || nombreProfesor(x.profesor_id) || (x.profesor_id == null ? 'Sin profesor asignado' : 'Profesor no disponible');
 function detalleExamen(id) {
   const x = buscarExamen(id); if (!x) return;
   const futuro = x.fecha > S.hoy;
@@ -3892,13 +3919,15 @@ function detalleExamen(id) {
   abrirHoja(`<div class="hoja-tit"><h3>${esc(x.alumno)}</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
     <div class="card card-pad" style="margin-bottom:12px">
       <div class="fila-tit">${esc(textoTipoExamen(x.tipo))} · ${ordinalConvocatoria(x.n_convocatoria)}</div>
-      <div class="fila-sub" style="margin-top:3px">${esc(fechaLarga(x.fecha))}${x.permiso ? ' · Permiso ' + esc(x.permiso) : ''}</div>
+      <div class="fila-sub" style="margin-top:3px">${esc(fechaListaExamen(x.fecha))}${x.permiso ? ' · Permiso ' + esc(x.permiso) : ''}</div>
+      <div class="fila-sub" style="margin-top:4px">Profesor: ${esc(nombreProfesorExamen(x))}</div>
       <div style="margin-top:10px">${pillResultadoExamen(x.resultado)}${x.fallos != null ? ` <span class="pill">${x.fallos} ${x.fallos === 1 ? 'fallo' : 'fallos'}</span>` : ''}</div>
       ${x.examinador ? `<div class="fila-sub" style="margin-top:8px">Examinador: ${esc(x.examinador)}</div>` : ''}
       ${x.fallos_detalle ? `<div class="fila-sub" style="margin-top:8px;white-space:pre-wrap">${esc(x.fallos_detalle)}</div>` : ''}
       ${x.nota ? `<div class="fila-sub" style="margin-top:8px;white-space:pre-wrap">${esc(x.nota)}</div>` : ''}
       ${x.procedencia ? `<div style="margin-top:8px"><span class="tag-proc">${esc(x.procedencia)}</span></div>` : ''}
     </div>
+    <button class="btn btn-pri" onclick="editarExamen(${x.id})">${ic('lapiz', 18)} Editar examen</button>
     <div class="etq">${futuro ? 'Todavía no ha llegado el día' : 'Resultado'}</div>
     ${futuro ? '<p class="fila-sub" style="margin:0 2px 12px">Podrás anotar el resultado cuando llegue la fecha del examen.</p>' : `<div class="chips">${res.map(([r, tx]) => `<button class="chip ${x.resultado === r ? 'on' : ''}" onclick="cambiarResultadoExamen(${x.id},'${r}')">${x.resultado === r ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${tx}</button>`).join('')}</div>`}
     ${x.borrable ? `<button class="lnk" style="color:var(--err);margin-top:18px" onclick="borrarExamen(${x.id})">${ic('borrar', 18)} Quitar este examen</button>` : '<p class="fila-sub" style="margin:16px 2px 0">Lo anotó la oficina: si hay que quitarlo, se hace desde el ordenador.</p>'}`);
@@ -3939,84 +3968,123 @@ function abrirExamen(op = {}) {
   actualizarHoy();
   let tipo = 'circulacion'; try { tipo = localStorage.getItem(EXAMEN_TIPO_KEY) || tipo; } catch {}
   if (!TIPOS_EXAMEN.some(x => x[0] === tipo)) tipo = 'circulacion';
-  S.examen = { alumno_id: op.alumno_id || null, tipo, fecha: op.fecha || S.hoy, resultado: 'apto', fallos: '', examinador: '', nota: '', volverA: op.volverA || 'hoy', enviando: false };
+  S.examen = { alumno_id: op.alumno_id || null, profesor_id: S.perfil?.id ?? null, tipo, fecha: op.fecha || S.hoy,
+    resultado: 'apto', fallos: '', examinador: '', nota: '', enviando: false };
+  go('examen');
+}
+function editarExamen(id) {
+  const original = buscarExamen(id); if (!original) return;
+  actualizarHoy();
+  S.examen = { ...original, original, fecha: original.fecha || '', fallos: original.fallos ?? '',
+    examinador: original.examinador || '', fallos_detalle: original.fallos_detalle || '', enviando: false };
+  cerrarHoja();
   go('examen');
 }
 function renderExamen() {
   const X = S.examen; if (!X) { go('hoy'); return; }
   const al = alumno(X.alumno_id);
   const futuro = X.fecha > S.hoy;
-  if (futuro) X.resultado = 'pendiente'; else if (X.resultado === 'pendiente' && X.fecha < S.hoy) X.resultado = 'apto';
+  if (futuro && (!X.original || X.fecha !== X.original.fecha)) X.resultado = 'pendiente';
+  else if (!X.original && X.resultado === 'pendiente' && X.fecha < S.hoy) X.resultado = 'apto';
   const dias = []; for (let i = 0; i <= 5; i++) dias.push(sumaDias(S.hoy, -i));
   const nombreDia = d => d === S.hoy ? 'Hoy' : d === sumaDias(S.hoy, -1) ? 'Ayer' : cap(DIAS[partes(d).dow].slice(0, 3));
   const otroDia = !dias.includes(X.fecha);
-  const conDetalle = X.resultado === 'no_apto' || X.resultado === 'apto';
+  const conDetalle = X.original || X.resultado === 'no_apto' || X.resultado === 'apto';
+  const profesores = S.profesores.slice();
+  if (S.perfil && !profesores.some(p => p.id === S.perfil.id)) profesores.push(S.perfil);
+  if (X.profesor_id && !profesores.some(p => p.id === X.profesor_id)) profesores.push({ id: X.profesor_id, nombre: nombreProfesorExamen(X) });
+  const nombre = X.original ? X.alumno : al ? nombreAlumno(al) : '';
   document.getElementById('v-examen').innerHTML = `
-    <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>Anotar examen</h1></div></div>
-    <div class="card"><div class="veh-card">${al ? `<span class="ini">${esc(iniciales(nombreAlumno(al)))}</span>` : `<span class="ini">${ic('persona', 22)}</span>`}
-      <div style="flex:1;min-width:0"><div class="fila-tit">${al ? esc(nombreAlumno(al)) : 'Elige un alumno'}</div><div class="fila-sub">${al ? `Permiso ${esc(al.permiso)}` : 'Obligatorio'}</div></div>
-      <button class="lnk" onclick="elegirAlumnoIniciar()">${al ? 'Cambiar' : 'Elegir'}</button></div></div>
+    <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="volver()" aria-label="Volver">${ic('atras', 26)}</button><h1>${X.original ? 'Editar examen' : 'Anotar examen'}</h1></div></div>
+    <div class="card"><div class="veh-card">${nombre ? `<span class="ini">${esc(iniciales(nombre))}</span>` : `<span class="ini">${ic('persona', 22)}</span>`}
+      <div style="flex:1;min-width:0"><div class="fila-tit">${nombre ? esc(nombre) : 'Elige un alumno'}</div><div class="fila-sub">${(X.permiso || al?.permiso) ? `Permiso ${esc(X.permiso || al.permiso)}` : ''}</div></div>
+      ${X.original ? '' : `<button class="lnk" onclick="elegirAlumnoIniciar()">${al ? 'Cambiar' : 'Elegir'}</button>`}</div></div>
+    <label class="etq" for="ex-profesor">Profesor</label>
+    <select class="campo" id="ex-profesor" onchange="S.examen.profesor_id=Number(this.value)||null;renderExamen()">
+      ${X.profesor_id == null ? `<option value="" selected disabled>${X.original ? 'Sin profesor asignado' : 'Elige un profesor'}</option>` : ''}
+      ${profesores.map(p => `<option value="${p.id}" ${X.profesor_id === p.id ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}
+    </select>
     <div class="etq">Examen</div>
     <div class="seg3" role="group" aria-label="Tipo de examen">${TIPOS_EXAMEN.map(([t, tx]) => `<button class="${X.tipo === t ? 'on' : ''}" onclick="S.examen.tipo='${t}';renderExamen()">${tx}</button>`).join('')}</div>
-    <div class="etq">Día <small>${esc(fechaLarga(X.fecha))}</small></div>
+    <div class="etq">Día <small>${esc(fechaListaExamen(X.fecha))}</small></div>
+    ${X.original ? `<input type="date" class="campo" aria-label="Fecha del examen" value="${esc(X.fecha)}" onchange="if(this.value){S.examen.fecha=this.value;renderExamen()}">` : `
     <div class="dias-fila">${dias.map(d => `<button class="chip ${d === X.fecha ? 'on' : ''}" onclick="S.examen.fecha='${d}';renderExamen()">${nombreDia(d)}<small>${partes(d).d} ${MESES_C[partes(d).m - 1]}</small></button>`).join('')}
       <label class="chip ${otroDia ? 'on' : ''}">${otroDia ? esc(cap(DIAS[partes(X.fecha).dow].slice(0, 3))) : 'Otro día'}<small>${otroDia ? partes(X.fecha).d + ' ' + MESES_C[partes(X.fecha).m - 1] : 'Calendario'}</small>
-        <input type="date" aria-label="Otro día" min="${sumaDias(S.hoy, -120)}" max="${sumaDias(S.hoy, 365)}" value="${X.fecha}" onchange="if(this.value){S.examen.fecha=this.value;renderExamen()}"></label></div>
+        <input type="date" aria-label="Otro día" min="${sumaDias(S.hoy, -120)}" max="${sumaDias(S.hoy, 365)}" value="${X.fecha}" onchange="if(this.value){S.examen.fecha=this.value;renderExamen()}"></label></div>`}
     ${futuro ? `<div class="msg msg-gris" style="margin-top:12px">${ic('reloj', 20)}<span>Es un día que aún no ha llegado: se apunta como pendiente y, cuando llegue, anotas el resultado.</span></div>` : `
     <div class="etq">Resultado</div>
-    <div class="chips">${RESULTADOS_EXAMEN.filter(([r]) => r !== 'pendiente' || X.fecha === S.hoy).map(([r, tx]) => `<button class="chip ${X.resultado === r ? 'on' : ''}" onclick="S.examen.resultado='${r}';renderExamen()">${X.resultado === r ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${tx}</button>`).join('')}</div>`}
+    <div class="chips">${RESULTADOS_EXAMEN.filter(([r]) => r !== 'pendiente' || X.original || X.fecha === S.hoy).map(([r, tx]) => `<button class="chip ${X.resultado === r ? 'on' : ''}" onclick="S.examen.resultado='${r}';renderExamen()">${X.resultado === r ? ic('ok', 16, 'style="stroke-width:2.6"') : ''}${tx}</button>`).join('')}</div>`}
     ${conDetalle ? `<div class="etq">Fallos <small>Opcional</small></div>
     <input class="campo" id="ex-fallos" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off" placeholder="Nº de fallos" value="${esc(X.fallos)}" oninput="this.value=this.value.replace(/\\D/g,'').slice(0,2);S.examen.fallos=this.value">` : ''}
     <div class="etq">Examinador <small>Opcional</small></div>
     <input class="campo" id="ex-examinador" maxlength="120" autocomplete="off" placeholder="Nombre del examinador" value="${esc(X.examinador)}" oninput="S.examen.examinador=this.value">
     <div class="etq">Observación <small>Opcional</small></div>
     <textarea class="campo" id="ex-nota" maxlength="500" placeholder="Qué ha pasado, qué repasar…" oninput="S.examen.nota=this.value">${esc(X.nota)}</textarea>
-    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-examen" onclick="guardarExamen()" ${al ? '' : 'disabled'}>${ic('ok', 20, 'style="stroke-width:2.6"')} ${futuro ? 'Apuntar el examen' : 'Guardar el examen'}</button></div>`;
+    ${X.original ? `<label class="etq" for="ex-convocatoria">Convocatoria</label>
+    <input class="campo" id="ex-convocatoria" type="number" min="1" max="20" value="${esc(X.n_convocatoria)}" oninput="S.examen.n_convocatoria=this.value">
+    <label class="etq" for="ex-fallos-detalle">Detalle de los fallos <small>Opcional</small></label>
+    <textarea class="campo" id="ex-fallos-detalle" maxlength="2000" oninput="S.examen.fallos_detalle=this.value">${esc(X.fallos_detalle)}</textarea>` : ''}
+    <div class="barra-fija"><button class="btn btn-pri btn-lg" id="btn-examen" onclick="guardarExamen()" ${X.original || (al && X.profesor_id) ? '' : 'disabled'}>${ic('ok', 20, 'style="stroke-width:2.6"')} ${X.original ? 'Guardar cambios' : futuro ? 'Apuntar el examen' : 'Guardar el examen'}</button></div>`;
 }
 function cuerpoExamen(X) {
-  return { accion: 'crear', alumno_id: X.alumno_id, tipo: X.tipo, fecha: X.fecha, hoy: S.hoy, resultado: X.fecha > S.hoy ? 'pendiente' : X.resultado,
-    fallos: X.fallos === '' ? null : parseInt(X.fallos), examinador: X.examinador, nota: X.nota, profesor_id: S.perfil ? S.perfil.id : null };
+  const campos = { tipo: X.tipo, fecha: X.fecha || null, resultado: X.resultado, profesor_id: X.profesor_id,
+    fallos: X.fallos === '' ? null : Number(X.fallos), examinador: X.examinador || null, nota: X.nota };
+  if (!X.original) return { accion: 'crear', alumno_id: X.alumno_id, hoy: S.hoy, ...campos };
+  campos.n_convocatoria = Number(X.n_convocatoria);
+  campos.fallos_detalle = X.fallos_detalle || null;
+  const cambios = Object.fromEntries(Object.entries(campos).filter(([k, v]) => v !== X.original[k]));
+  return { accion: 'editar', id: X.id, hoy: S.hoy, ...cambios };
 }
-async function guardarExamen(forzar = false) {
-  const X = S.examen; if (!X || X.enviando || !alumno(X.alumno_id)) return;
+async function guardarExamen() {
+  const X = S.examen; if (!X || X.enviando || (!X.original && (!alumno(X.alumno_id) || !X.profesor_id))) return;
   X.enviando = true;
   const btn = document.getElementById('btn-examen'); if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
-  try { localStorage.setItem(EXAMEN_TIPO_KEY, X.tipo); } catch {}
-  const cuerpo = { ...cuerpoExamen(X), ...(forzar ? { forzar: true } : {}) };
+  if (!X.original) { try { localStorage.setItem(EXAMEN_TIPO_KEY, X.tipo); } catch {} }
+  let cuerpo = cuerpoExamen(X);
   try {
     const res = await postJSON('/api/examenes', cuerpo);
     const data = await res.json().catch(() => ({}));
-    if (res.status === 409 && data.codigo === 'ya_existe') {
-      X.enviando = false;
-      const ex = data.existente || {};
+    if (res.status === 409 && data.existente && !X.original) {
+      const ex = data.existente;
       if (confirm(`${data.error}\n\nAhora figura como «${textoResultadoExamen(ex.resultado)}». ¿Cambiarlo a «${textoResultadoExamen(cuerpo.resultado)}»? (Aceptar = cambiarlo, Cancelar = dejarlo)`)) {
-        const r2 = await postJSON('/api/examenes', { accion: 'editar', id: ex.id, resultado: cuerpo.resultado, fallos: cuerpo.fallos, examinador: cuerpo.examinador, nota: cuerpo.nota, hoy: S.hoy });
+        cuerpo = { accion: 'editar', id: ex.id, resultado: cuerpo.resultado, fallos: cuerpo.fallos, examinador: cuerpo.examinador, nota: cuerpo.nota, hoy: S.hoy };
+        if (ex.profesor_id == null) cuerpo.profesor_id = X.profesor_id;
+        const r2 = await postJSON('/api/examenes', cuerpo);
         const d2 = await r2.json().catch(() => ({}));
         if (!r2.ok || !d2.ok) throw new Error(d2.error || 'No se pudo cambiar el examen');
         return terminarExamen(X, 'Resultado cambiado: ' + textoResultadoExamen(cuerpo.resultado));
       }
-      renderExamen(); return;
+      X.enviando = false; renderExamen(); return;
     }
     if (res.status === 501) throw new Error('Los exámenes todavía no están activados en la nube. Avisa al administrador.');
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo guardar el examen');
+    if (X.original) return terminarExamen(X, data.sin_cambios ? 'No había cambios' : 'Cambios guardados');
     return terminarExamen(X, data.repetida ? 'Ese examen ya estaba anotado' : (cuerpo.resultado === 'pendiente' ? 'Examen apuntado' : 'Examen guardado: ' + textoResultadoExamen(cuerpo.resultado)));
   } catch (e) {
     X.enviando = false;
     if (e.message === 'Sesión expirada') return;
     if (esRed(e)) {
       // Sin cobertura: se guarda en la tablet y se envía solo al volver
-      await encolar({ tipo: 'examen', url: '/api/examenes', cuerpo, etiqueta: { alumno: nombreAlumno(alumno(X.alumno_id)), fecha: X.fecha, tipo: X.tipo, resultado: cuerpo.resultado } });
-      return terminarExamen(X, 'Sin conexión: el examen se envía solo cuando haya cobertura', 4200);
+      try {
+        await encolar({ tipo: 'examen', url: '/api/examenes', cuerpo, etiqueta: { alumno: X.original ? X.alumno : nombreAlumno(alumno(X.alumno_id)), fecha: X.fecha, tipo: X.tipo, resultado: X.resultado } });
+      } catch {
+        toast('No se pudo guardar en el teléfono. Inténtalo de nuevo.', 4200); if (S.vista === 'examen') renderExamen(); return;
+      }
+      return terminarExamen(X, 'Sin conexión: se enviará cuando haya cobertura', 4200);
     }
     toast(e.message, 4600); if (S.vista === 'examen') renderExamen();
   }
 }
 function terminarExamen(X, mensaje, ms) {
-  S.examen = null; S.examenes.lista = null;   // la lista se vuelve a pedir
+  S.examenes.lista = null; S.examenes.error = '';   // la lista se vuelve a pedir
+  if (S.ficha?.id === X.alumno_id) {
+    delete S.ficha.examenes;
+    S.ficha.pidiendoExamenes = false;
+    if (S.vista === 'ficha') renderFicha();
+  }
+  if (S.vista === 'examenes') renderExamenes();
   toast(mensaje, ms || 3200);
-  if (X.volverA === 'ficha' && X.alumno_id) { abrirFicha(X.alumno_id); return; }
-  if (X.volverA === 'examenes') { go('examenes'); return; }
-  go('hoy');
+  if (S.examen === X && S.vista === 'examen') { S.examen = null; volver(); }
 }
 // Exámenes de un alumno en su ficha
 async function cargarExamenesAlumno(alumnoId) {
@@ -4026,16 +4094,16 @@ async function cargarExamenesAlumno(alumnoId) {
     if (!res.ok) { f.examenes = res.status === 501 ? 'no' : null; return; }
     const data = await res.json();
     f.examenes = Array.isArray(data.examenes) ? data.examenes : [];
-  } catch { /* sin red: la ficha se queda sin la sección */ }
+  } catch { f.examenes = null; }
   finally { if (S.vista === 'ficha' && S.ficha === f) { const caja = document.getElementById('ficha-examenes'); if (caja) caja.innerHTML = htmlExamenesFicha(f); } }
 }
 function htmlExamenesFicha(f) {
-  if (f.examenes === 'no' || f.examenes === null) return '';
+  if (f.examenes === 'no') return '';
+  if (f.examenes === null) return `<div class="grupo-tit"><span>Exámenes</span></div><div class="card"><div class="vacio">No se pudieron cargar los exámenes.<br><button class="lnk" onclick="cargarExamenesAlumno(${f.id})">Reintentar</button></div></div>`;
   if (!Array.isArray(f.examenes) || !f.examenes.length) return `<div class="grupo-tit"><span>Exámenes</span></div><div class="card"><div class="vacio">${f.examenes === undefined ? 'Cargando…' : 'Todavía no tiene exámenes anotados.'}</div></div>`;
-  return `<div class="grupo-tit"><span>Exámenes</span><span class="grupo-dato">${f.examenes.length}</span></div><div class="card">` + f.examenes.map(x => `<button class="fila" onclick="verExamenDeFicha(${x.id})"><span class="fila-hora" style="width:auto">${esc(fechaCorta(x.fecha).replace(/^\S+ /, ''))}</span>
-    <div style="flex:1;min-width:0"><div class="fila-tit">${esc(textoTipoExamen(x.tipo))}</div><div class="fila-sub">${ordinalConvocatoria(x.n_convocatoria)}${x.fallos != null && x.resultado !== 'apto' ? ` · ${x.fallos} ${x.fallos === 1 ? 'fallo' : 'fallos'}` : ''}</div></div>${pillResultadoExamen(x.resultado)}</button>`).join('') + '</div>';
+  return `<div class="grupo-tit"><span>Exámenes</span><span class="grupo-dato">${f.examenes.length}</span></div><div class="card">` + f.examenes.map(x => `<button class="fila" onclick="detalleExamen(${x.id})">
+    <div style="flex:1;min-width:0"><div class="fila-tit">${esc(textoTipoExamen(x.tipo))} · ${esc(fechaListaExamen(x.fecha))}</div><div class="fila-sub">${esc(nombreProfesorExamen(x))} · ${ordinalConvocatoria(x.n_convocatoria)}${x.fallos != null && x.resultado !== 'apto' ? ` · ${x.fallos} ${x.fallos === 1 ? 'fallo' : 'fallos'}` : ''}</div></div>${pillResultadoExamen(x.resultado)}</button>`).join('') + '</div>';
 }
-function verExamenDeFicha(id) { detalleExamen(id); }
 
 // ─── ARRANQUE ────────────────────────────────────────────────────────────────
 aplicarTema();

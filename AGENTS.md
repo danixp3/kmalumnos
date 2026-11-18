@@ -107,7 +107,9 @@ HISTORIAL.md  → historial de tareas cerradas (leer solo si hace falta contexto
 - Fechas como strings `YYYY-MM-DD` sin zona horaria; Supabase/Vercel funcionan en UTC.
 
 ## Estado actual (solo el estado vivo — al cerrar tareas, resumir aquí y archivar el detalle en HISTORIAL.md)
-_Última actualización: 2026-11-18 (configuración de Codex; última versión de escritorio documentada: v1.39.3). Consultar también HISTORIAL.md y los últimos commits._
+_Última actualización: 2026-11-19 (web móvil; escritorio v1.39.3). Consultar también HISTORIAL.md y los últimos commits._
+
+- **Exámenes en la web móvil (2026-11-19, publicado en Vercel):** Hoy → Ver exámenes, historial y filtro por profesor, edición desde la lista o la ficha, nuevas altas con profesor obligatorio y perfil activo por defecto. Edición sin cobertura en cola, sin migración de Supabase. API 126, Jest 910 y prueba en móvil local.
 
 - **Codex (2026-11-18):** guías en `.agents/skills/`, configuración en `.codex/` y traspaso en `TRASPASO-CLAUDE-CODE.md`. Claude Code conserva `CLAUDE.md` y `.claude/`.
 

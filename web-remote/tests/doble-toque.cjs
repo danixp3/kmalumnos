@@ -82,7 +82,17 @@ const { spawn } = require('child_process');
   await page.waitForTimeout(7000);
   prueba('cancelar-practica (3 llamadas)', 1, cuenta('cancelar-practica'));
 
-  // H) La pantalla no se queda bloqueada
+  // H) Editar un examen ×3: un solo cambio llega al servidor.
+  await page.evaluate(() => { abrirListaExamenes(); });
+  await page.waitForSelector('#v-examenes .card button.fila');
+  await page.locator('#v-examenes .card button.fila').first().click();
+  await page.getByRole('button', { name: 'Editar examen' }).click();
+  await page.fill('#ex-nota', 'Prueba doble toque');
+  await page.evaluate(() => { guardarExamen(); guardarExamen(); guardarExamen(); });
+  await page.waitForSelector('#v-examenes.on');
+  prueba('examenes (editar, 3 llamadas)', 1, cuenta('examenes'));
+
+  // I) La pantalla no se queda bloqueada
   await page.waitForTimeout(1500);
   console.log('EN_MARCHA al final:', await page.evaluate(() => JSON.stringify([...EN_MARCHA.keys()])), 'vista', await page.evaluate(() => S.vista));
   prueba('sin bloqueo al terminar', false, await page.evaluate(() => document.body.classList.contains('trabajando')));

@@ -3,10 +3,11 @@
 // 2026-11-06_examenes.sql) y lo ve en Agenda → Exámenes.
 //
 //   GET  /api/examenes?alumno_id=&desde=&hasta=&hoy=   Exámenes (por defecto: los próximos y los de los
-//                                                      últimos 90 días). Con alumno_id, TODOS los de ese alumno.
+//                                                      últimos 90 días). Con alumno_id, todos los del alumno.
+//                                                      Con todos=1, también los anteriores.
 //   POST /api/examenes { accion: 'crear', alumno_id, tipo, fecha, resultado, profesor_id, n_convocatoria?,
 //                        nota?, examinador?, fallos?, fallos_detalle?, permiso?, forzar? }
-//   POST /api/examenes { accion: 'editar', id, resultado?, fecha?, nota?, examinador?, fallos?, fallos_detalle?, n_convocatoria? }
+//   POST /api/examenes { accion: 'editar', id, tipo?, fecha?, profesor_id?, resultado?, nota?, examinador?, fallos?, fallos_detalle?, n_convocatoria? }
 //   POST /api/examenes { accion: 'borrar', id }        (solo los anotados desde el móvil; borrado suave)
 //
 // Idempotente: repetir «crear» con lo mismo devuelve el examen que ya hay (`repetida`), un doble toque nunca
@@ -85,7 +86,7 @@ async function listar(req, res, auth, supabase) {
   const { data, error } = await traerTodo(() => {
     let c = supabase.from('presentaciones').select(COLUMNAS).eq('deleted', false).eq('empresa_id', auth.empresaId);
     if (alumnoId) c = c.eq('alumno_id', alumnoId);
-    else if (!desde && !hasta) c = c.gte('fecha', hace90);
+    else if (!desde && !hasta && q.todos !== '1') c = c.gte('fecha', hace90);
     if (desde) c = c.gte('fecha', desde);
     if (hasta) c = c.lte('fecha', hasta);
     return c.order('fecha', { ascending: false }).order('id', { ascending: false });
@@ -100,6 +101,23 @@ async function listar(req, res, auth, supabase) {
   const proximos = lista.filter(x => x.fecha >= hoy && x.resultado === 'pendiente').sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
   const resto = lista.filter(x => !(x.fecha >= hoy && x.resultado === 'pendiente'));
   return res.status(200).json({ ok: true, hoy, examenes: [...proximos, ...resto], proximos: proximos.length });
+}
+
+async function validarProfesor(supabase, res, auth, valor) {
+  if (valor == null || valor === '') {
+    res.status(400).json({ error: 'Elige el profesor que hizo el examen.' });
+    return null;
+  }
+  const id = validators.positiveInt(valor, 'profesor_id');
+  if (!id.valid) {
+    res.status(400).json({ error: id.error });
+    return null;
+  }
+  const { data, error } = await supabase.from('profesores').select('id')
+    .eq('id', id.value).eq('empresa_id', auth.empresaId).eq('deleted', false).maybeSingle();
+  if (handleSupabaseError(error, res, 'Error al comprobar el profesor')) return null;
+  if (!data) res.status(404).json({ error: 'Ese profesor no está disponible en esta autoescuela.' });
+  return data ? id.value : null;
 }
 
 async function crear(req, res, auth, supabase) {
@@ -118,12 +136,6 @@ async function crear(req, res, auth, supabase) {
   if (!fallos.valid) return res.status(400).json({ error: fallos.error });
   const conv = numeroOpcional(b.n_convocatoria, 'La convocatoria', 1, 20);
   if (!conv.valid) return res.status(400).json({ error: conv.error });
-  let profesorId = null;
-  if (b.profesor_id !== undefined && b.profesor_id !== null && b.profesor_id !== '') {
-    const p = validators.positiveInt(b.profesor_id, 'profesor_id');
-    if (!p.valid) return res.status(400).json({ error: p.error });
-    profesorId = p.value;
-  }
 
   // El alumno tiene que ser de esta autoescuela
   let { data: alumno, error: errA } = await supabase.from('alumnos')
@@ -142,6 +154,8 @@ async function crear(req, res, auth, supabase) {
   const mismoDia = (previos || []).filter(x => x.fecha === b.fecha);
   const igual = mismoDia.find(x => x.resultado === resultado);
   if (igual) return res.status(200).json({ ok: true, repetida: true, id: igual.id, examen: igual });
+  const profesorId = await validarProfesor(supabase, res, auth, b.profesor_id);
+  if (profesorId === null) return;
   if (mismoDia.length && !b.forzar) {
     return res.status(409).json({ error: 'Ese alumno ya tiene un examen de ese tipo ese día.', codigo: 'ya_existe', existente: mismoDia[0] });
   }
@@ -171,16 +185,25 @@ async function editar(req, res, auth, supabase) {
   if (!actual) return res.status(404).json({ error: 'No se encuentra ese examen.' });
 
   const cambios = {};
+  if (b.profesor_id !== undefined && b.profesor_id !== actual.profesor_id) {
+    const profesorId = await validarProfesor(supabase, res, auth, b.profesor_id);
+    if (profesorId === null) return;
+    cambios.profesor_id = profesorId;
+  }
+  if (b.tipo !== undefined && b.tipo !== actual.tipo) {
+    if (!TIPOS_EXAMEN.includes(b.tipo)) return res.status(400).json({ error: 'Tipo de examen no válido.' });
+    cambios.tipo = b.tipo;
+  }
   if (b.resultado !== undefined) {
     if (!RESULTADOS_EXAMEN.includes(b.resultado)) return res.status(400).json({ error: 'Resultado no válido.' });
     cambios.resultado = b.resultado;
   }
-  if (b.fecha !== undefined) {
-    if (!fechaValida(b.fecha) || !dentroDeRango(b.fecha, hoy)) return res.status(400).json({ error: 'La fecha del examen no es válida.' });
+  if (b.fecha !== undefined && b.fecha !== actual.fecha) {
+    if (!fechaValida(b.fecha)) return res.status(400).json({ error: 'La fecha del examen no es válida.' });
     cambios.fecha = b.fecha;
   }
   const resultadoFinal = cambios.resultado ?? actual.resultado, fechaFinal = cambios.fecha ?? actual.fecha;
-  if (resultadoFinal !== 'pendiente' && fechaFinal > hoy) return res.status(400).json({ error: 'Un examen que aún no ha llegado solo puede quedar como pendiente.' });
+  if ((cambios.fecha !== undefined || cambios.resultado !== undefined) && resultadoFinal !== 'pendiente' && fechaFinal > hoy) return res.status(400).json({ error: 'Un examen que aún no ha llegado solo puede quedar como pendiente.' });
   if (b.nota !== undefined) cambios.nota = texto(b.nota, 500);
   if (b.examinador !== undefined) cambios.examinador = texto(b.examinador, 120) || null;
   if (b.fallos_detalle !== undefined) cambios.fallos_detalle = texto(b.fallos_detalle, 2000) || null;
@@ -188,6 +211,14 @@ async function editar(req, res, auth, supabase) {
   if (b.n_convocatoria !== undefined) { const c = numeroOpcional(b.n_convocatoria, 'La convocatoria', 1, 20); if (!c.valid) return res.status(400).json({ error: c.error }); if (c.value) cambios.n_convocatoria = c.value; }
   if (!Object.keys(cambios).length) return res.status(200).json({ ok: true, sin_cambios: true, id: id.value });
   if (Object.entries(cambios).every(([k, v]) => (actual[k] ?? null) === (v ?? null))) return res.status(200).json({ ok: true, sin_cambios: true, id: id.value });
+
+  if ((cambios.tipo || cambios.fecha) && fechaFinal) {
+    const { data: repetidos, error } = await supabase.from('presentaciones').select('id')
+      .eq('empresa_id', auth.empresaId).eq('alumno_id', actual.alumno_id).eq('deleted', false)
+      .eq('tipo', cambios.tipo ?? actual.tipo).eq('fecha', fechaFinal).neq('id', id.value).limit(1);
+    if (handleSupabaseError(error, res, 'Error al comprobar si el examen está repetido')) return;
+    if (repetidos && repetidos.length) return res.status(409).json({ error: 'Ese alumno ya tiene un examen de ese tipo ese día.', codigo: 'ya_existe' });
+  }
 
   cambios.updated_at = new Date().toISOString();
   const { data, error } = await supabase.from('presentaciones').update(cambios)

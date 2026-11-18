@@ -1432,5 +1432,39 @@ test('examenes: filtra por alumno y devuelve todos los suyos aunque sean antiguo
   assert.deepEqual(sin.json.examenes.map(x => x.id), [2]);   // el de 2025 queda fuera de los últimos 90 días
   const a1 = await llamar('examenes', { method: 'GET', query: { alumno_id: '1', hoy: hoy() } });
   assert.deepEqual(a1.json.examenes.map(x => x.id), [1]);
+  const todos = await llamar('examenes', { method: 'GET', query: { todos: '1', hoy: hoy() } });
+  assert.deepEqual(todos.json.examenes.map(x => x.id), [2, 1]);
   assert.equal((await llamar('examenes', { method: 'GET', query: { alumno_id: 'abc' } })).status, 400);
+});
+
+test('examenes: creación y reasignación solo aceptan profesores activos de la misma autoescuela', async () => {
+  const t = baseEx();
+  t.profesores.push(
+    { id: 2, nombre: 'Ana', deleted: false, empresa_id: 'emp1' },
+    { id: 3, nombre: 'Otro centro', deleted: false, empresa_id: 'otra' },
+    { id: 4, nombre: 'Anterior', deleted: true, empresa_id: 'emp1' }
+  );
+  reiniciar(t);
+  assert.equal((await llamar('examenes', { body: exam({ profesor_id: null }) })).status, 400);
+  for (const profesor_id of [3, 4, 99]) assert.equal((await llamar('examenes', { body: exam({ profesor_id }) })).status, 404);
+  const creado = await llamar('examenes', { body: exam() });
+  const cambio = { accion: 'editar', id: creado.json.id, hoy: hoy() };
+  assert.equal((await llamar('examenes', { body: { ...cambio, profesor_id: 3 } })).status, 404);
+  assert.equal((await llamar('examenes', { body: { ...cambio, profesor_id: null } })).status, 400);
+  const b = { ...cambio, profesor_id: 2, tipo: 'maniobras', nota: 'Traslado', n_convocatoria: 2 };
+  assert.equal((await llamar('examenes', { body: b })).status, 200);
+  assert.equal((await llamar('examenes', { body: b })).json.sin_cambios, true);
+  const l = await llamar('examenes', { method: 'GET' });
+  assert.deepEqual(l.json.examenes.map(x => [x.profesor_id, x.profesor, x.tipo, x.nota, x.n_convocatoria]), [[2, 'Ana', 'maniobras', 'Traslado', 2]]);
+});
+
+test('examenes: se puede editar un examen antiguo y se rechaza moverlo a una fecha con otro del mismo tipo', async () => {
+  const antiguo = { id: 1, alumno_id: 1, profesor_id: null, tipo: 'circulacion', fecha: '2001-11-15', resultado: 'pendiente', deleted: false, empresa_id: 'emp1' };
+  reiniciar({ ...baseEx(), presentaciones: [antiguo, { ...antiguo, id: 2, fecha: hoy() }] });
+  const b = { accion: 'editar', id: 1, hoy: hoy() };
+  const guardado = await llamar('examenes', { body: { ...b, profesor_id: 1, fecha: '2001-11-16', resultado: 'apto' } });
+  assert.equal(guardado.status, 200);
+  const repetido = await llamar('examenes', { body: { ...b, fecha: hoy() } });
+  assert.equal(repetido.status, 409);
+  assert.deepEqual(BD.tablas.presentaciones.map(x => [x.id, x.fecha, x.profesor_id]), [[1, '2001-11-16', 1], [2, hoy(), null]]);
 });
