@@ -1381,6 +1381,20 @@ test('examenes: repetir la misma petición (doble toque) no duplica; otro result
   assert.equal(BD.tablas.presentaciones.length, 1);
 });
 
+test('examenes: el número sugerido solo sigue las convocatorias anteriores del mismo tipo', async () => {
+  const fila = { alumno_id: 1, tipo: 'circulacion', resultado: 'pendiente', deleted: false, empresa_id: 'emp1' };
+  reiniciar({ ...baseEx(), presentaciones: [
+    { ...fila, id: 1, fecha: fechaMas(-15), n_convocatoria: 1 },
+    { ...fila, id: 2, fecha: fechaMas(-10), tipo: 'maniobras', n_convocatoria: 3 },
+    { ...fila, id: 3, fecha: hoy(), resultado: 'apto', n_convocatoria: 4 },
+    { ...fila, id: 4, fecha: fechaMas(-20), n_convocatoria: 2 }
+  ] });
+  const r = await llamar('examenes', { body: exam({ fecha: fechaMas(-7) }) });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.n_convocatoria, 2);
+  assert.equal(BD.tablas.presentaciones.find(x => x.id === 3).n_convocatoria, 4);
+});
+
 test('examenes: valida tipo, fecha, resultado, fallos, un resultado en un examen que aún no ha llegado y alumno inexistente', async () => {
   reiniciar(baseEx());
   assert.equal((await llamar('examenes', { body: exam({ tipo: 'moto' }) })).status, 400);

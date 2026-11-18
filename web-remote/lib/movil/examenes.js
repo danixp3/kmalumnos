@@ -148,7 +148,8 @@ async function crear(req, res, auth, supabase) {
 
   // Lo que ya hay de ese alumno y tipo: repetición (doble toque / reintento), duplicado y número de convocatoria
   const { data: previos, error: errP } = await supabase.from('presentaciones')
-    .select(COLUMNAS).eq('alumno_id', aid.value).eq('tipo', b.tipo).eq('deleted', false).eq('empresa_id', auth.empresaId);
+    .select(COLUMNAS).eq('alumno_id', aid.value).eq('tipo', b.tipo).eq('deleted', false).eq('empresa_id', auth.empresaId)
+    .order('fecha', { ascending: false, nullsFirst: false }).order('id', { ascending: false });
   if (sinTabla(errP)) return res.status(501).json(NO_DISPONIBLE);
   if (handleSupabaseError(errP, res, 'Error al comprobar los exámenes del alumno')) return;
   const mismoDia = (previos || []).filter(x => x.fecha === b.fecha);
@@ -159,7 +160,9 @@ async function crear(req, res, auth, supabase) {
   if (mismoDia.length && !b.forzar) {
     return res.status(409).json({ error: 'Ese alumno ya tiene un examen de ese tipo ese día.', codigo: 'ya_existe', existente: mismoDia[0] });
   }
-  const numeroConv = conv.value || ((previos || []).filter(x => x.resultado !== 'pendiente' || x.fecha < b.fecha).reduce((m, x) => Math.max(m, x.n_convocatoria || 0), 0) + 1);
+  // Seguir la última prueba anterior evita arrastrar números de otra serie o de un examen posterior.
+  const anterior = (previos || []).find(x => fechaValida(x.fecha) && x.fecha < b.fecha);
+  const numeroConv = conv.value || ((anterior?.n_convocatoria || 0) + 1);
 
   const fila = {
     alumno_id: aid.value, profesor_id: profesorId, tipo: b.tipo, fecha: b.fecha, n_convocatoria: numeroConv, resultado,
