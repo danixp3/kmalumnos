@@ -22,6 +22,7 @@ export const RESULTADOS_EXAMEN = ['pendiente', 'apto', 'no_apto', 'aplazado', 'n
 const NO_DISPONIBLE = { error: 'Los exámenes todavía no están disponibles en la nube. Avisa al administrador.', codigo: 'examenes_no_disponibles' };
 const COLUMNAS = 'id, alumno_id, profesor_id, tipo, fecha, n_convocatoria, resultado, nota, permiso, examinador, vehiculo, fallos, fallos_detalle, origen, procedencia, updated_at';
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
+const RESULTADOS_REALIZADOS = ['apto', 'no_apto'];
 
 const sinTabla = error => !!error && (faltaFuncion(error) || error.code === 'PGRST205' ||
   (/presentaciones/i.test(error.message || '') && /does not exist|schema cache/i.test(error.message || '')));
@@ -44,13 +45,13 @@ function numeroOpcional(v, nombre, min, max) {
   return { valid: true, value: n };
 }
 
-function paraApp(x, alumnos, profesores) {
+function paraApp(x, alumnos, profesores, numeroExamen) {
   const a = alumnos.get(x.alumno_id);
   const p = profesores.get(x.profesor_id);
   return {
     id: x.id, alumno_id: x.alumno_id, alumno: a ? nombreCompleto(a) : '—', n_registro: a ? a.n_registro || null : null,
     profesor_id: x.profesor_id ?? null, profesor: p ? p.nombre : null,
-    tipo: x.tipo, fecha: x.fecha, n_convocatoria: x.n_convocatoria || 1, resultado: x.resultado,
+    tipo: x.tipo, fecha: x.fecha, n_convocatoria: x.n_convocatoria || 1, numero_examen: numeroExamen ?? null, resultado: x.resultado,
     nota: x.nota || '', permiso: x.permiso || (a ? a.permiso || null : null), examinador: x.examinador || null,
     fallos: x.fallos ?? null, fallos_detalle: x.fallos_detalle || null,
     origen: x.origen || 'desktop', procedencia: x.procedencia || null,
@@ -70,6 +71,32 @@ async function nombresDe(supabase, auth, ids, tabla, columnas) {
   return mapa;
 }
 
+async function numerarExamenes(examenes, corte, hoy, supabase, empresaId) {
+  const realizados = examenes.filter(x => x.alumno_id != null && RESULTADOS_REALIZADOS.includes(x.resultado) && fechaValida(x.fecha) && x.fecha <= hoy);
+  const porAlumno = new Map();
+  if (corte) {
+    // La lista puede ocultar los antiguos. Contarlos antes evita que el número cambie al ampliar el historial.
+    const ids = [...new Set(realizados.map(x => x.alumno_id))];
+    for (let i = 0; i < ids.length; i += 150) {
+      const { data, error } = await traerTodo(() => supabase.from('presentaciones').select('id, alumno_id, fecha')
+        .eq('empresa_id', empresaId).eq('deleted', false).in('alumno_id', ids.slice(i, i + 150))
+        .in('resultado', RESULTADOS_REALIZADOS).lt('fecha', corte).order('id'));
+      if (error) return { error };
+      for (const fila of data) {
+        if (fechaValida(fila.fecha)) porAlumno.set(fila.alumno_id, (porAlumno.get(fila.alumno_id) || 0) + 1);
+      }
+    }
+  }
+  const numeros = new Map();
+  // El listado llega de más reciente a más antiguo. Se recorre en sentido contrario para numerar.
+  for (const x of realizados.reverse()) {
+    const numero = (porAlumno.get(x.alumno_id) || 0) + 1;
+    porAlumno.set(x.alumno_id, numero);
+    numeros.set(x.id, numero);
+  }
+  return { numeros };
+}
+
 async function listar(req, res, auth, supabase) {
   const q = req.query || {};
   const hoy = fechaValida(q.hoy) ? q.hoy : hoyEspana();
@@ -82,21 +109,26 @@ async function listar(req, res, auth, supabase) {
   const desde = fechaValida(q.desde) ? q.desde : null;
   const hasta = fechaValida(q.hasta) ? q.hasta : null;
   const hace90 = new Date(Date.parse(hoy + 'T00:00:00Z') - 90 * 86400000).toISOString().slice(0, 10);
+  const corte = desde || (!alumnoId && !hasta && q.todos !== '1' ? hace90 : null);
 
   const { data, error } = await traerTodo(() => {
     let c = supabase.from('presentaciones').select(COLUMNAS).eq('deleted', false).eq('empresa_id', auth.empresaId);
     if (alumnoId) c = c.eq('alumno_id', alumnoId);
-    else if (!desde && !hasta && q.todos !== '1') c = c.gte('fecha', hace90);
-    if (desde) c = c.gte('fecha', desde);
+    if (corte) c = c.gte('fecha', corte);
     if (hasta) c = c.lte('fecha', hasta);
     return c.order('fecha', { ascending: false }).order('id', { ascending: false });
   });
   if (sinTabla(error)) return res.status(501).json(NO_DISPONIBLE);
   if (handleSupabaseError(error, res, 'Error al obtener los exámenes')) return;
 
-  const alumnos = await nombresDe(supabase, auth, (data || []).map(x => x.alumno_id), 'alumnos', 'id, nombre, primer_apellido, segundo_apellido, permiso, n_registro');
-  const profesores = await nombresDe(supabase, auth, (data || []).map(x => x.profesor_id), 'profesores', 'id, nombre');
-  const lista = (data || []).map(x => paraApp(x, alumnos, profesores));
+  const filas = data || [];
+  const [alumnos, profesores, { numeros, error: errorNumeros }] = await Promise.all([
+    nombresDe(supabase, auth, filas.map(x => x.alumno_id), 'alumnos', 'id, nombre, primer_apellido, segundo_apellido, permiso, n_registro'),
+    nombresDe(supabase, auth, filas.map(x => x.profesor_id), 'profesores', 'id, nombre'),
+    numerarExamenes(filas, corte, hoy, supabase, auth.empresaId)
+  ]);
+  if (handleSupabaseError(errorNumeros, res, 'Error al numerar los exámenes')) return;
+  const lista = filas.map(x => paraApp(x, alumnos, profesores, numeros.get(x.id)));
   // Próximos primero (de más cercano a más lejano), luego los hechos (de más reciente a más antiguo)
   const proximos = lista.filter(x => x.fecha >= hoy && x.resultado === 'pendiente').sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id);
   const resto = lista.filter(x => !(x.fecha >= hoy && x.resultado === 'pendiente'));

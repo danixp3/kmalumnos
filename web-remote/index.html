@@ -3853,9 +3853,9 @@ const textoTipoExamen = t => (TIPOS_EXAMEN.find(x => x[0] === t) || [0, t || '']
 const textoResultadoExamen = r => (RESULTADOS_EXAMEN.find(x => x[0] === r) || [0, r || ''])[1];
 const pillResultadoExamen = r => `<span class="pill ${r === 'apto' ? 'pill-ok' : r === 'no_apto' ? 'pill-err' : r === 'pendiente' ? 'pill-info' : 'pill-warn'}">${esc(textoResultadoExamen(r))}</span>`;
 const ordinalConvocatoria = n => (n > 1 ? `${n}.ª convocatoria` : '1.ª convocatoria');
+const numerosExamen = x => `${x.numero_examen ? `Examen n.º ${x.numero_examen} · ` : ''}${ordinalConvocatoria(x.n_convocatoria)}`;
 const estadoExamenes = () => ({ cargando: false, lista: null, error: '', tab: 'todos', profesor: '', historicos: false, limite: 40, noDisponible: false });
 S.examenes = estadoExamenes();
-const listasExamenes = () => [S.examenes.lista, S.ficha?.examenes].filter(Array.isArray);
 const buscarExamen = id => {
   const lista = S.vista === 'ficha' ? S.ficha?.examenes : S.examenes.lista;
   return lista?.find?.(e => e.id === id);
@@ -3900,7 +3900,8 @@ function renderExamenes() {
   const lista = E.tab === 'hechos' ? hechos : E.tab === 'proximos' ? proximos : filtrados;
   const fila = x => `<button class="fila" onclick="detalleExamen(${x.id})"><span class="ini">${esc(iniciales(x.alumno))}</span>
       <div style="flex:1;min-width:0"><div class="fila-tit">${esc(x.alumno)}</div>
-      <div class="fila-sub">${esc(textoTipoExamen(x.tipo))} · ${esc(fechaListaExamen(x.fecha))} · ${ordinalConvocatoria(x.n_convocatoria)}</div>
+      <div class="fila-sub">${esc(textoTipoExamen(x.tipo))} · ${esc(fechaListaExamen(x.fecha))}</div>
+      <div class="fila-sub">${esc(numerosExamen(x))}</div>
       <div class="fila-sub">${esc(nombreProfesorExamen(x))}</div></div>${pillResultadoExamen(x.resultado)}</button>`;
   v.innerHTML = cab + (E.error ? `<div class="msg msg-warn" style="margin-top:0">${ic('aviso', 20)}<span>${esc(E.error)}</span></div>` : '') + `
     <label class="etq" for="ex-filtro-profesor">Profesor</label>
@@ -3918,7 +3919,8 @@ function detalleExamen(id) {
   const res = RESULTADOS_EXAMEN.filter(([r]) => !(futuro && r !== 'pendiente'));
   abrirHoja(`<div class="hoja-tit"><h3>${esc(x.alumno)}</h3><button class="cab-atras" onclick="cerrarHoja()" aria-label="Cerrar">${ic('cerrar', 22)}</button></div>
     <div class="card card-pad" style="margin-bottom:12px">
-      <div class="fila-tit">${esc(textoTipoExamen(x.tipo))} · ${ordinalConvocatoria(x.n_convocatoria)}</div>
+      <div class="fila-tit">${esc(textoTipoExamen(x.tipo))}</div>
+      <div class="fila-sub" style="margin-top:3px">${esc(numerosExamen(x))}</div>
       <div class="fila-sub" style="margin-top:3px">${esc(fechaListaExamen(x.fecha))}${x.permiso ? ' · Permiso ' + esc(x.permiso) : ''}</div>
       <div class="fila-sub" style="margin-top:4px">Profesor: ${esc(nombreProfesorExamen(x))}</div>
       <div style="margin-top:10px">${pillResultadoExamen(x.resultado)}${x.fallos != null ? ` <span class="pill">${x.fallos} ${x.fallos === 1 ? 'fallo' : 'fallos'}</span>` : ''}</div>
@@ -3938,25 +3940,20 @@ async function cambiarResultadoExamen(id, resultado) {
     const res = await postJSON('/api/examenes', { accion: 'editar', id, resultado, hoy: S.hoy });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo guardar el resultado');
-    for (const l of listasExamenes()) { const y = l.find(e => e.id === id); if (y) y.resultado = resultado; }
-    cerrarHoja(); toast('Resultado guardado: ' + textoResultadoExamen(resultado));
-    if (S.vista === 'examenes') renderExamenes(); else if (S.vista === 'ficha') { const c = document.getElementById('ficha-examenes'); if (c) c.innerHTML = htmlExamenesFicha(S.ficha); }
+    cerrarHoja(); terminarExamen(x, 'Resultado guardado: ' + textoResultadoExamen(resultado));
   } catch (e) {
     if (e.message === 'Sesión expirada') return;
     toast(esRed(e) ? 'Sin conexión: no se ha podido guardar. Inténtalo cuando haya cobertura.' : e.message, 4200);
   }
 }
 async function borrarExamen(id) {
-  if (!confirm('¿Quitar este examen? Dejará de salir también en el ordenador.')) return;
+  const x = buscarExamen(id);
+  if (!x || !confirm('¿Quitar este examen? Dejará de salir también en el ordenador.')) return;
   try {
     const res = await postJSON('/api/examenes', { accion: 'borrar', id });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo quitar el examen');
-    const alumnoId = (buscarExamen(id) || {}).alumno_id;
-    if (Array.isArray(S.examenes.lista)) S.examenes.lista = S.examenes.lista.filter(e => e.id !== id);
-    if (S.ficha && Array.isArray(S.ficha.examenes)) S.ficha.examenes = S.ficha.examenes.filter(e => e.id !== id);
-    cerrarHoja(); toast('Examen quitado');
-    if (S.vista === 'examenes') renderExamenes(); else if (S.vista === 'ficha' && alumnoId) { const c = document.getElementById('ficha-examenes'); if (c) c.innerHTML = htmlExamenesFicha(S.ficha); }
+    cerrarHoja(); terminarExamen(x, 'Examen quitado');
   } catch (e) {
     if (e.message === 'Sesión expirada') return;
     toast(esRed(e) ? 'Sin conexión: inténtalo cuando haya cobertura.' : e.message, 4200);
@@ -4076,7 +4073,7 @@ async function guardarExamen() {
   }
 }
 function terminarExamen(X, mensaje, ms) {
-  S.examenes.lista = null; S.examenes.error = '';   // la lista se vuelve a pedir
+  S.examenes = { ...S.examenes, lista: null, error: '', cargando: false }; // descarta consultas iniciadas antes del cambio
   if (S.ficha?.id === X.alumno_id) {
     delete S.ficha.examenes;
     S.ficha.pidiendoExamenes = false;
@@ -4102,7 +4099,7 @@ function htmlExamenesFicha(f) {
   if (f.examenes === null) return `<div class="grupo-tit"><span>Exámenes</span></div><div class="card"><div class="vacio">No se pudieron cargar los exámenes.<br><button class="lnk" onclick="cargarExamenesAlumno(${f.id})">Reintentar</button></div></div>`;
   if (!Array.isArray(f.examenes) || !f.examenes.length) return `<div class="grupo-tit"><span>Exámenes</span></div><div class="card"><div class="vacio">${f.examenes === undefined ? 'Cargando…' : 'Todavía no tiene exámenes anotados.'}</div></div>`;
   return `<div class="grupo-tit"><span>Exámenes</span><span class="grupo-dato">${f.examenes.length}</span></div><div class="card">` + f.examenes.map(x => `<button class="fila" onclick="detalleExamen(${x.id})">
-    <div style="flex:1;min-width:0"><div class="fila-tit">${esc(textoTipoExamen(x.tipo))} · ${esc(fechaListaExamen(x.fecha))}</div><div class="fila-sub">${esc(nombreProfesorExamen(x))} · ${ordinalConvocatoria(x.n_convocatoria)}${x.fallos != null && x.resultado !== 'apto' ? ` · ${x.fallos} ${x.fallos === 1 ? 'fallo' : 'fallos'}` : ''}</div></div>${pillResultadoExamen(x.resultado)}</button>`).join('') + '</div>';
+    <div style="flex:1;min-width:0"><div class="fila-tit">${esc(textoTipoExamen(x.tipo))} · ${esc(fechaListaExamen(x.fecha))}</div><div class="fila-sub">${esc(numerosExamen(x))}${x.fallos != null && x.resultado !== 'apto' ? ` · ${x.fallos} ${x.fallos === 1 ? 'fallo' : 'fallos'}` : ''}</div><div class="fila-sub">${esc(nombreProfesorExamen(x))}</div></div>${pillResultadoExamen(x.resultado)}</button>`).join('') + '</div>';
 }
 
 // ─── ARRANQUE ────────────────────────────────────────────────────────────────
