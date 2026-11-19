@@ -54,6 +54,8 @@ Localizar siempre por **anclas** (cadenas literales) con Grep + Read parcial; lo
 
 **Componentes:** `.cal-hist` (calendario del historial: `button.dia` con `.con`/`.sel`/`.hoy` y contador `<i>`, ámbar `.pend` si falta firma) · `.firma-vista` (firma sobre blanco) · `.hoja-scroll` · `.pill*` (mismas variantes) · `.placa` (matrícula) · `.fila` / `.fila-hora` / `.fila-tit` / `.fila-sub` (filas de lista: hora en mono + título + estado) · `.riel-fila` · **teclado numérico propio** para el km (`tecla(k)`, sin teclado del sistema) · **cronómetro** grande (`tickCrono`) · chips de "lo trabajado" (`TRABAJADO`) · **lienzo de firma** (`iniciarLienzo`, trazo suavizado) · hoja inferior `#capa` (`abrirHoja`) · `toast()` · **`.accion-ex`** (botón-tarjeta «Anotar un examen» con icono ámbar `.ex-ic`, `.ex-tit`/`.ex-sub` y flecha; en Hoy y en la ficha del alumno; los enlaces `.lnk-olvido` de «clase pasada» siguen siendo texto subrayado).
 
+**Animaciones del flujo de clase:** `go(vista, { onda: true })` dibuja una onda ámbar en la tarjeta marcada con `data-onda` al avanzar de paso. `animarOnda()` también la aplica en el aviso cuando se guarda la firma. Se omite con «Reducir movimiento» y no se activa al repintar datos.
+
 **Otras páginas web:** `alumno.html` (portal del alumno, OTP por email), `reset-password.html`, `email-confirmado.html` — restiladas con los mismos tokens y fuentes.
 
 ## Nota común

@@ -194,7 +194,9 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .prog-lin b { font-family: var(--font-mono); font-weight: 600; }
 
   /* tarjeta AHORA */
-  .ahora { background: var(--oscura); color: #F3F2EE; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .ahora { background: var(--oscura); color: #F3F2EE; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 14px;
+    background-image: radial-gradient(ellipse at top right, color-mix(in srgb, var(--amber) 13%, transparent), transparent 68%);
+  }
   .ahora-cab { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 15px; color: #C9CBD1; }
   .ahora-et { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font); font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--amber); }
   .ahora-quien { display: flex; align-items: center; gap: 12px; }
@@ -512,11 +514,35 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   /* Barras de progreso y cifras */
   .segs i { transition: background-color .4s ease, transform .4s var(--muelle); }
   .segs i.hecha, .segs i.curso { transform: scaleY(1.15); }
+  /* Onda de confirmación: nace junto a la acción inferior y se apaga en el borde. */
+  [data-onda] { position: relative; isolation: isolate; }
+  .crono[data-onda] { border-radius: 16px; }
+  .onda-cambio {
+    position: absolute; inset: 0; border-radius: inherit; overflow: hidden;
+    pointer-events: none; z-index: -1; animation: ondaBorde .64s ease-out;
+  }
+  .onda-cambio::before {
+    content: ""; position: absolute; left: 50%; top: 100%; width: 180%; aspect-ratio: 1;
+    background: radial-gradient(circle closest-side, transparent 60%,
+      color-mix(in srgb, var(--amber-strong) 13%, transparent) 76%,
+      color-mix(in srgb, var(--amber) 48%, transparent) 89%, transparent);
+    animation: ondaAvanza .64s cubic-bezier(.22,.66,.35,1);
+  }
+  @keyframes ondaAvanza {
+    from { transform: translate(-50%, -50%) scale(.1); opacity: 0; }
+    24% { opacity: 1; }
+    to { transform: translate(-50%, -50%) scale(1.35); opacity: 0; }
+  }
+  @keyframes ondaBorde {
+    0%, 100% { box-shadow: inset 0 0 0 1px transparent; }
+    42% { box-shadow: inset 0 0 20px color-mix(in srgb, var(--amber) 18%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--amber) 55%, transparent); }
+  }
   @media (prefers-reduced-motion: reduce) {
     .vista, .vista.entrando .card > .fila, .vista.entrando .card > .riel-fila, .vista.entrando .grupo-tit, .vista.entrando .ahora, .vista.entrando .veh-card,
     .fondo, .hoja, .fondo.saliendo, .fondo.saliendo .hoja, .chip.on, #tabbar button.on svg, #toast:not([hidden]) { animation: none !important; }
     .btn, .chip, .fila, .seg3 button, .paso-n button, .teclado button { transition: none; }
     .btn:active, .chip:active, .fila:active { transform: none; }
+    .onda-cambio { display: none; }
   }
 </style>
 </head>
@@ -1004,7 +1030,7 @@ async function cerrarSinConexion(F, kf, auto, porMinutos) {
   }
   guardarFlujo();
   toast('Sin conexión: la clase se guarda en la tablet y se envía sola.', 3800);
-  go('firma');
+  go('firma', { onda: true });
 }
 // La firma de una clase hecha sin red: se añade a su operación pendiente; si ya se envió, se envía otra vez
 // (el servidor reconoce la clase y solo le pone la firma)
@@ -1015,7 +1041,7 @@ async function guardarClaseLocal(F, firma) {
     else await encolar({ tipo: 'registrar', url: '/api/registrar-clase', cuerpo: cuerpoRegistro(F, firma), etiqueta: etiquetaClase(F, true) });
     await refrescarPendientes();
   }
-  await terminarFlujo(firma ? 'Clase y firma guardadas en la tablet: se envían solas con cobertura.' : 'Clase guardada en la tablet (sin firma): se envía sola con cobertura.');
+  await terminarFlujo(firma ? 'Clase y firma guardadas en la tablet: se envían solas con cobertura.' : 'Clase guardada en la tablet (sin firma): se envía sola con cobertura.', { firmada: !!firma });
   vaciarCola();
 }
 // Firma de una clase que ya existe en la nube pero sin poder enviarla ahora
@@ -1023,7 +1049,7 @@ async function firmarSinConexion(F, firma) {
   const ids = F.practica_ids && F.practica_ids.length ? F.practica_ids : [F.practica_id];
   await encolar({ tipo: 'firmar', url: '/api/firmar-practica', depende: F.opFinalizar || null, etiqueta: { alumno: F.alumno_nombre, fecha: F.fecha, hora_inicio: F.hora_inicio },
     cuerpo: { practica_id: ids[0], practica_ids: ids, firma } });
-  await terminarFlujo('Firma guardada en la tablet: se envía sola con cobertura.');
+  await terminarFlujo('Firma guardada en la tablet: se envía sola con cobertura.', { firmada: true });
   vaciarCola();
 }
 // Empezar una clase sin red: vive solo en esta tablet hasta que se firme
@@ -1039,7 +1065,7 @@ function empezarSinConexion(I, ahora) {
   };
   guardarFlujo();
   toast('Sin conexión: la clase se guarda en la tablet y se envía sola.', 3800);
-  go('curso');
+  go('curso', { onda: true });
 }
 
 // Perfil de profesor elegido: se recuerda por cuenta y no se vuelve a preguntar
@@ -1359,6 +1385,7 @@ function go(vista, opciones = {}) {
   if (vistaEl) { vistaEl.classList.add('entrando'); clearTimeout(vistaEl._entrandoT); vistaEl._entrandoT = setTimeout(() => vistaEl.classList.remove('entrando'), 900); }
   const render = { hoy: renderHoy, iniciar: renderIniciar, curso: renderCurso, kmfinal: renderKmFinal, firma: renderFirma, alumnos: renderAlumnos, ficha: renderFicha, nuevo: renderNuevo, historial: renderHistorial, anotar: renderAnotar, examenes: renderExamenes, examen: renderExamen, mifirma: renderMiFirma }[vista];
   if (render) render(opciones);
+  if (opciones.onda && S.vista === vista) animarOnda(vistaEl?.querySelector('[data-onda]'));
   // Alumnos: si los datos tienen más de 30 s se recargan en segundo plano
   // (altas o asignaciones hechas en el escritorio mientras la web estaba abierta).
   if (vista === 'alumnos' && Date.now() - S.ultimaCarga > 30000 && !S.cargandoBase) cargarBase().then(() => { if (S.vista === 'alumnos') repintarAlumnos(); });
@@ -1386,8 +1413,17 @@ function abrirHoja(html) {
   if (abierta) { abierta.innerHTML = html; abierta.classList.remove('pasando'); return; }
   capa.innerHTML = `<div class="fondo" onclick="if(event.target===this)cerrarHoja()"><div class="hoja" role="dialog" aria-modal="true">${html}</div></div>`;
 }
-// La hoja baja con suavidad (como en iOS) en vez de desaparecer de golpe
 const sinMovimiento = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function animarOnda(superficie) {
+  if (!superficie || sinMovimiento()) return;
+  const onda = document.createElement('span');
+  onda.className = 'onda-cambio';
+  onda.setAttribute('aria-hidden', 'true');
+  onda.addEventListener('animationend', () => onda.remove(), { once: true });
+  onda.addEventListener('animationcancel', () => onda.remove(), { once: true });
+  superficie.append(onda);
+}
+// La hoja baja con suavidad (como en iOS) en vez de desaparecer de golpe
 function cerrarHoja() {
   const capa = document.getElementById('capa'), fondo = capa.firstElementChild;
   if (!fondo || sinMovimiento()) { capa.innerHTML = ''; return; }
@@ -2282,7 +2318,7 @@ async function empezarPractica(forzar = false) {
       profesor_id: S.perfil ? S.perfil.id : null
     };
     guardarFlujo();
-    go('curso');
+    go('curso', { onda: true });
     avisosPractica('inicio');
   } catch (e) {
     if (esRed(e)) { empezarSinConexion(I, ahora); return; }
@@ -2701,7 +2737,7 @@ function renderCurso() {
     <div class="cab">${enPausa ? `<span class="curso-et pausa">${ic('pausa', 14)} EN PAUSA</span>` : '<span class="curso-et"><span class="pill-dot"></span>EN CURSO</span>'}<button class="cab-atras" style="color:#F3F2EE" onclick="menuCurso()" aria-label="Más opciones">${ic('menu', 26)}</button></div>
     ${F.cancelada ? `<button class="msg msg-err" style="width:100%;text-align:left;margin:10px 0 0" onclick="hojaClaseCancelada()">${ic('aviso', 20)}<span><b>Otro teléfono canceló esta clase.</b> Toca para guardarla igualmente o descartarla.</span></button>` : ''}
     <div class="ahora-quien" style="margin-top:6px"><span class="ini" style="background:#2A2D35;color:#F3F2EE;width:54px;height:54px">${esc(iniciales(F.alumno_nombre))}</span><div><div class="ahora-nom">${esc(F.alumno_nombre)}</div><div class="ahora-sub">${esc(claseTxt(F))}${F.zonas && F.zonas.length ? ' · ' + esc(zonasTxt(F.zonas)) : ''}</div></div></div>
-    <div class="crono ${enPausa ? 'pausado' : ''}" id="crono"><span id="crono-t">00:00</span><small>/ ${tiempoTxt(dur * 60)}</small></div>
+    <div class="crono ${enPausa ? 'pausado' : ''}" id="crono" data-onda><span id="crono-t">00:00</span><small>/ ${tiempoTxt(dur * 60)}</small></div>
     <div class="barra-tiempo"><i id="barra-t" style="width:0%"></i></div>
     <div class="curso-horas"><span>Empezó a las <b>${esc(F.hora_inicio)}</b></span><span>Termina a las <b id="fin-previsto">${esc(horaFinPrevista(F))}</b></span></div>
     ${enPausa ? `<div class="pausa-lin">${ic('pausa', 16)} En pausa desde las ${esc(hhmm(new Date(F.pausada_ms)))}: el tiempo no corre</div>` : (F.pausa_ms ? `<div class="pausa-lin">${ic('reloj', 16)} ${Math.round(F.pausa_ms / 60000)} min en pausa: la hora de fin se ha corrido</div>` : '')}
@@ -2793,7 +2829,7 @@ async function cancelarCurso() {
 function abrirKmFinal() {
   const F = S.flujo;
   if (F && F.cancelada) { hojaClaseCancelada(); return; }   // ya se sabe que otro teléfono la canceló
-  S.kmFinal = ''; pararTimer(); go('kmfinal');
+  S.kmFinal = ''; pararTimer(); go('kmfinal', { onda: true });
   comprobarFlujoRemoto();   // por si otro teléfono la canceló o la cerró: avisa encima, sin hacer esperar
 }
 // ─── CANTIDAD DE CLASES: de ¼ en ¼ o por minutos ────────────────────────────
@@ -2928,7 +2964,7 @@ function renderKmFinal() {
   const st = estadoKmFinal();
   document.getElementById('v-kmfinal').innerHTML = `
     <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="go('curso')" aria-label="Volver">${ic('atras', 26)}</button><h1>Finalizar práctica</h1></div><span class="pill">Paso 1 de 2</span></div>
-    <div class="card veh-card"><span class="ini">${esc(iniciales(F.alumno_nombre))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(F.alumno_nombre)}</div><div class="fila-sub mono">${esc(F.hora_inicio)} – ${esc(hhmm())} · ${minutos} min</div></div>${placa(F.matricula)}</div>
+    <div class="card veh-card" data-onda><span class="ini">${esc(iniciales(F.alumno_nombre))}</span><div style="flex:1;min-width:0"><div class="fila-tit">${esc(F.alumno_nombre)}</div><div class="fila-sub mono">${esc(F.hora_inicio)} – ${esc(hhmm())} · ${minutos} min</div></div>${placa(F.matricula)}</div>
     ${bloqueCantidad(F, 'flujo', sugerencia)}
     <div class="card card-pad" style="margin-top:12px"><div class="etq" style="margin:0 0 10px">Km final <small>${auto ? 'Sin mirar el cuentakilómetros' : 'Lo que marca el coche ahora'}</small></div>
       <div class="seg3 km-modo" role="group" aria-label="Quién pone el km final"><button class="${auto ? '' : 'on'}" onclick="fijarModoKm('manual')">Los escribo</button><button class="${auto ? 'on' : ''}" onclick="fijarModoKm('auto')">Los pone la app</button></div>
@@ -2988,7 +3024,7 @@ async function continuarFirma() {
       if (data.minutos_sobrantes > 0) toast(`${clasesTxt(F.n_clases)} guardadas. A ${nombreAlumno(al).split(' ')[0]} le quedan ${minTxt(data.minutos_sobrantes)} acumulados para la próxima.`, 4200);
     }
     const v = vehiculo(F.vehiculo_id); if (v) { v.km_actual = Math.max(v.km_actual || 0, kf); v.ultimo = { km_final: kf, hora: F.hora_inicio, alumno: F.alumno_nombre, fecha: F.fecha }; }
-    go('firma');
+    go('firma', { onda: true });
   } catch (e) {
     if (esRed(e)) { await cerrarSinConexion(F, kf, auto, porMinutos); return; }
     if (e.message !== 'Sesión expirada') { toast(e.message); btn.disabled = false; btn.innerHTML = 'Continuar a la firma ' + ic('flecha', 20); }
@@ -3004,7 +3040,7 @@ function renderFirma() {
     <div class="cab"><div class="cab-tit"><button class="cab-atras" onclick="salirDeFirma()" aria-label="Volver">${ic('atras', 26)}</button><h1>Firma del alumno</h1></div><span class="pill">${F.volverA ? 'Firma pendiente' : 'Paso 2 de 2'}</span></div>
     <div class="aviso-entrega">${ic('tel', 16)} Entrega el móvil al alumno</div>
     <div class="grande" style="font-size:40px;margin:6px 0 14px">${esc(nombre)}, revisa y firma</div>
-    <div class="card rev-grid">
+    <div class="card rev-grid" data-onda>
       <div><div class="etq2">Fecha</div><div class="val">${esc(fechaCorta(F.fecha || S.hoy))} ${partes(F.fecha || S.hoy).y}</div></div>
       <div><div class="etq2">Horario</div><div class="val mono">${F.hora_inicio ? `${esc(F.hora_inicio)} - ${esc(F.hora_fin || hhmm())}` : '—'}</div></div>
       <div><div class="etq2">${(F.n_clases || 1) > 1 ? 'Clases' : 'Clase'}</div><div class="val">${esc(claseTxt(F).replace(/^Clases? /, 'Nº '))} · ${F.min_efectivos && F.pausa_ms ? F.min_efectivos : F.hora_inicio ? Math.max(1, Math.round(((F.hora_fin ? horaAMin(F.hora_fin) : horaAMin(hhmm())) - horaAMin(F.hora_inicio)))) : Math.round((F.n_clases || 1) * durClase())} min</div></div>
@@ -3082,7 +3118,7 @@ async function confirmarFirma() {
     const data = await res.json();
     if (res.status === 501) { toast(data.error, 6000); btn.disabled = false; btn.innerHTML = ic('ok', 20) + ' Confirmar firma'; return; }
     if (!res.ok || !data.ok) throw new Error(data.error || 'No se pudo guardar la firma');
-    terminarFlujo('Firma guardada');
+    terminarFlujo('Firma guardada', { firmada: true });
   } catch (e) {
     if (esRed(e)) { await firmarSinConexion(F, firma); return; }
     if (e.message !== 'Sesión expirada') { toast(e.message); btn.disabled = false; btn.innerHTML = ic('ok', 20) + ' Confirmar firma'; }
@@ -3149,9 +3185,10 @@ async function quitarMiFirma() {
 }
 // Salir de la firma sin firmar: la práctica ya está cerrada, queda pendiente.
 function salirDeFirma() { if (S.flujo && S.flujo.local) { guardarClaseLocal(S.flujo, null); return; } if (S.flujo && S.flujo.volverA) terminarFlujo('Queda pendiente de firma'); else go('hoy'); }
-async function terminarFlujo(msg) {
+async function terminarFlujo(msg, { firmada = false } = {}) {
   const volverA = S.flujo && S.flujo.volverA; const alumnoId = S.flujo && S.flujo.alumno_id;
   S.flujo = null; guardarFlujo(); pararTimer(); toast(msg);
+  if (firmada) animarOnda(document.getElementById('toast'));
   if (S.cal) S.cal.cache = {};
   if (volverA) await cargarTodo(); else { await cargarJornada(); cargarBaseDetras(); }
   if (volverA === 'ficha' && alumnoId) abrirFicha(alumnoId);
