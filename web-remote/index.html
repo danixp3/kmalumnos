@@ -37,11 +37,11 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
 
   /* ── TOKENS (mismo sistema visual que la app de escritorio) ──
      --ink: texto y marcas de contraste (en los temas oscuros pasa a claro);
-     --on-ink: texto sobre un fondo --ink; --oscura: tarjetas que son oscuras
-     en todos los temas («Ahora», avatar); --campo/--boton/--resalte/--barra:
+     --on-ink: texto sobre un fondo --ink; --oscura y --sobre-oscura:
+     fondo y texto de tarjetas oscuras en todos los temas; --campo/--boton/--resalte/--barra:
      superficies que en el tema claro son blancas. */
   :root {
-    --ink: #14161B; --on-ink: #FFFFFF; --oscura: #14161B; --curso-bg: #14161B; --sobre-ambar: #14161B;
+    --ink: #14161B; --on-ink: #FFFFFF; --oscura: #14161B; --sobre-oscura: #F3F2EE; --curso-bg: #14161B; --sobre-ambar: #14161B;
     --bg: #F3F2EE; --hoja: #F3F2EE; --card: #FFFFFF; --campo: #FFFFFF; --boton: #FFFFFF; --resalte: #FFFFFF; --barra: #FFFFFF;
     --line: #E3E1DB; --line-2: #D6D3CC; --soft: #EEECE7;
     --muted: #5E6068; --muted-2: #3A3D45; --faint: #6B6E76;
@@ -203,6 +203,23 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   .ahora-quien .ini { background: #2A2D35; color: #F3F2EE; width: 50px; height: 50px; }
   .ahora-nom { font-family: var(--font-display); font-size: 26px; font-weight: 700; line-height: 1.05; }
   .ahora-sub { font-size: 15px; color: #A3A6AE; }
+  .practica-activa {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px;
+    width: 100%; min-height: 72px; margin-bottom: 14px; padding: 10px 14px 10px 10px;
+    border: 1px solid transparent; border-radius: 999px; background: var(--oscura);
+    border-color: color-mix(in srgb, var(--amber) 23%, var(--oscura));
+    color: var(--sobre-oscura); text-align: left;
+  }
+  .practica-activa .ini { width: 40px; height: 40px; background: var(--amber); color: var(--sobre-ambar); }
+  .practica-activa-et { display: block; color: var(--amber); font-size: 14px; font-weight: 700; line-height: 1.15; }
+  .practica-activa-nom { display: block; margin-top: 2px; font-size: 16px; font-weight: 600; line-height: 1.18; overflow-wrap: anywhere; }
+  .practica-activa-tiempo { display: flex; align-items: center; gap: 6px; font: 600 15px var(--font-mono); }
+  .practica-activa-anillo {
+    width: 20px; height: 20px; border-radius: 50%; border: 2px solid currentColor;
+    border-color: color-mix(in srgb, currentColor 25%, transparent); border-inline-end-color: var(--amber);
+    animation: gira 2.6s linear infinite;
+  }
+  .practica-activa:focus-visible { outline: 2px solid var(--amber-ink); outline-offset: 3px; }
 
   /* vehículo actual */
   .veh-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
@@ -316,6 +333,9 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
 
   /* ── EN CURSO (oscura) ── */
   .curso-et { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 999px; background: #2B2417; color: var(--amber); font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+  .curso-nav { display: flex; align-items: center; color: var(--sobre-oscura); }
+  .curso-nav .cab-atras { min-width: 44px; height: 44px; color: inherit; }
+  .curso-nav .curso-hoy { width: auto; gap: 5px; padding: 0 10px; font-size: 16px; font-weight: 600; }
   .crono { font-family: var(--font-display); font-size: 116px; font-weight: 700; line-height: .95; letter-spacing: -.01em; display: flex; align-items: baseline; gap: 10px; margin: 18px 0 8px; }
   .crono small { font-size: 34px; color: #A3A6AE; font-weight: 600; }
   .crono.pasado { color: var(--amber); }
@@ -492,13 +512,13 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
   @keyframes hojaSube { from { transform: translateY(100%); } to { transform: none; } }
   @keyframes hojaBaja { to { transform: translateY(100%); } }
   /* Pulsar: el botón se hunde un poco y vuelve con un pequeño rebote */
-  .btn, .chip, .perfil-op, .accion-ex, .avatar, .cab-atras, .seg3 button, .lnk, #tabbar button, .fila, .riel-fila, .veh-card .lnk, .paso-n button, .teclado button, .cal-cab button, .fecha-lin button {
+  .btn, .chip, .perfil-op, .accion-ex, .avatar, .cab-atras, .seg3 button, .lnk, #tabbar button, .fila, .riel-fila, .veh-card .lnk, .paso-n button, .teclado button, .cal-cab button, .fecha-lin button, .practica-activa {
     transition: transform .3s var(--muelle), background-color .2s ease, color .2s ease, border-color .2s ease, box-shadow .25s ease, opacity .2s ease;
     -webkit-tap-highlight-color: transparent;
   }
   .btn:active, .chip:active, .perfil-op:active, .avatar:active, .seg3 button:active, .paso-n button:active, .teclado button:active { transform: scale(.95); transition-duration: .1s; }
   .btn-lg:active { transform: scale(.975); }
-  .fila:active, .riel-fila:active { transform: scale(.988); transition-duration: .1s; }
+  .fila:active, .riel-fila:active, .practica-activa:active { transform: scale(.988); transition-duration: .1s; }
   .cab-atras:active, .lnk:active { transform: scale(.9); transition-duration: .1s; }
   #tabbar button:active { transform: scale(.9); transition-duration: .1s; }
   #tabbar button.on svg { animation: tabBote .5s var(--muelle); }
@@ -537,12 +557,25 @@ try { var t = localStorage.getItem('km_tema'); if (t !== 'claro' && t !== 'oscur
     0%, 100% { box-shadow: inset 0 0 0 1px transparent; }
     42% { box-shadow: inset 0 0 20px color-mix(in srgb, var(--amber) 18%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--amber) 55%, transparent); }
   }
+  .practica-activa .onda-cambio::before {
+    inset: 0 auto 0 0; width: 48%; aspect-ratio: auto;
+    background: linear-gradient(100deg, transparent 6%, color-mix(in srgb, var(--amber) 15%, transparent) 55%,
+      color-mix(in srgb, var(--amber) 60%, transparent) 73%, transparent 98%);
+    animation: ondaLateral .64s var(--ios);
+  }
+  @keyframes ondaLateral {
+    from { transform: translateX(-100%); opacity: .8; }
+    to { transform: translateX(225%); opacity: 0; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .vista, .vista.entrando .card > .fila, .vista.entrando .card > .riel-fila, .vista.entrando .grupo-tit, .vista.entrando .ahora, .vista.entrando .veh-card,
     .fondo, .hoja, .fondo.saliendo, .fondo.saliendo .hoja, .chip.on, #tabbar button.on svg, #toast:not([hidden]) { animation: none !important; }
     .btn, .chip, .fila, .seg3 button, .paso-n button, .teclado button { transition: none; }
     .btn:active, .chip:active, .fila:active { transform: none; }
     .onda-cambio { display: none; }
+    .practica-activa-anillo { animation: none; }
+    .practica-activa { transition: none; }
+    .practica-activa:active { transform: none; }
   }
 </style>
 </head>
@@ -1372,7 +1405,8 @@ function setTema(oscuro) {
 // ─── NAVEGACIÓN ──────────────────────────────────────────────────────────────
 const VISTAS_TAB = { hoy: 'hoy', alumnos: 'alumnos', historial: 'historial' };
 function go(vista, opciones = {}) {
-  if (S.vista !== vista) pararTimerSiNoCurso(vista);
+  const cambiaVista = S.vista !== vista;
+  if (cambiaVista) pararTimer();
   S.vista = vista;
   document.querySelectorAll('.vista').forEach(v => v.classList.toggle('on', v.id === 'v-' + vista));
   const conTab = vista in VISTAS_TAB;
@@ -1385,7 +1419,7 @@ function go(vista, opciones = {}) {
   if (vistaEl) { vistaEl.classList.add('entrando'); clearTimeout(vistaEl._entrandoT); vistaEl._entrandoT = setTimeout(() => vistaEl.classList.remove('entrando'), 900); }
   const render = { hoy: renderHoy, iniciar: renderIniciar, curso: renderCurso, kmfinal: renderKmFinal, firma: renderFirma, alumnos: renderAlumnos, ficha: renderFicha, nuevo: renderNuevo, historial: renderHistorial, anotar: renderAnotar, examenes: renderExamenes, examen: renderExamen, mifirma: renderMiFirma }[vista];
   if (render) render(opciones);
-  if (opciones.onda && S.vista === vista) animarOnda(vistaEl?.querySelector('[data-onda]'));
+  if ((opciones.onda || (vista === 'hoy' && cambiaVista)) && S.vista === vista) animarOnda(vistaEl?.querySelector('[data-onda]'));
   // Alumnos: si los datos tienen más de 30 s se recargan en segundo plano
   // (altas o asignaciones hechas en el escritorio mientras la web estaba abierta).
   if (vista === 'alumnos' && Date.now() - S.ultimaCarga > 30000 && !S.cargandoBase) cargarBase().then(() => { if (S.vista === 'alumnos') repintarAlumnos(); });
@@ -1816,14 +1850,21 @@ function cardVehiculo(sel = true) {
 }
 
 function renderHoy() {
-  const r = resumenJornada();
   const esHoy = S.fecha === S.hoy;
+  const id = S.flujo?.practica_id;
+  const yaCerrada = id && S.jornadaHoy.practicas.some(p => p.id === id && p.km_final > 0);
+  const activa = flujoActivo() && !S.flujo.cancelada && !yaCerrada ? S.flujo : null;
+  // El móvil ya conoce su clase aunque la jornada aún no se haya actualizado.
+  const practicas = S.jornada.practicas.filter(p => !p.en_curso || !esMiFlujo(p));
+  if (esHoy && activa) practicas.push({ alumno_id: activa.alumno_id, en_curso: true, fraccion: activa.n_clases });
+  const r = resumenJornada({ ...S.jornada, practicas });
   const cargando = !!S.jornada.cargando;
   const perfilIni = iniciales(S.perfil ? S.perfil.nombre : '?');
   let html = `<div class="cab"><div>
       <div class="fecha-lin"><button onclick="cambiarDia(-1)" aria-label="Día anterior">${ic('chevIzq', 18)}</button>${esc(fechaLarga(S.fecha))}<button onclick="cambiarDia(1)" aria-label="Día siguiente">${ic('chev', 18)}</button></div>
       <div class="grande" style="margin-top:4px">${esHoy ? 'Hoy' : esc(cap(DIAS[partes(S.fecha).dow]))}</div></div>
       <button class="avatar" onclick="menuPerfil()" aria-label="Perfil y opciones">${esc(perfilIni)}</button></div>`;
+  if (activa) html += tarjetaPracticaActiva(activa);
   if (!esHoy) html += `<button class="btn btn-sec btn-peq" style="margin-bottom:12px" onclick="cambiarDia(0)">Volver a hoy</button>`;
   if (esHoy && S.miFirma === false && !localStorage.getItem(MIFIRMA_VISTO_KEY)) html += `<div class="card instalar-card"><span class="veh-ic">${ic('firma', 24)}</span>
     <div style="flex:1;min-width:0"><div class="fila-tit">Guarda tu firma</div><div class="fila-sub">Una vez, y sale en todas tus fichas DGT.</div></div>
@@ -1838,16 +1879,15 @@ function renderHoy() {
   html += `<div style="margin-top:16px"><div class="prog-lin"><span>${fmtC(r.nCerradas)} de ${fmtC(r.nTotal)} ${r.nTotal === 1 ? 'clase' : 'clases'} ${r.nCerradas === 1 ? 'hecha' : 'hechas'}</span><span><b class="mono">${miles(r.km)}</b> <span style="font-weight:500;color:var(--muted)">km ${esHoy ? 'hoy' : ''}</span></span></div>${segmentos(r)}</div>`;
 
   if (cargando) html += '<div class="esqueleto" aria-busy="true" aria-label="Cargando el día"><i></i><i></i><i></i></div>';
-  else if (esHoy) {
+  else if (esHoy && !activa) {
     // Sin cerrar de días anteriores y práctica en curso
     const enCurso = r.enCurso[0];
     const sinCerrar = S.jornada.sin_cerrar[0];
     if (enCurso) {
-      const miFlujo = esMiFlujo(enCurso);
-      html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et">${miFlujo && S.flujo.pausada_ms ? ic('pausa', 14) + ' EN PAUSA' : '<span class="pill-dot"></span>EN CURSO'}</span><span>${esc(enCurso.hora_inicio || '')} ${enCurso.hora_inicio ? '–' : ''} ${esc(miFlujo && S.flujo.inicio_ms ? horaFinPrevista(S.flujo) : sumaMin(enCurso.hora_inicio, nClasesGuardado() * durClase()))}</span></div>
-        <div class="ahora-quien"><span class="ini">${esc(iniciales(enCurso.alumno_nombre))}</span><div><div class="ahora-nom">${esc(enCurso.alumno_nombre)}</div><div class="ahora-sub">${miFlujo ? esc(claseTxt(S.flujo)) : 'Clase ' + enCurso.clase_n}${enCurso.zonas && enCurso.zonas.length ? ' · ' + esc(zonasTxt(enCurso.zonas)) : ''}</div>
-          ${miFlujo || enCurso.local ? '' : `<div class="ahora-sub">${ic('tel', 14)} Empezada en otro teléfono${deOtroProfesor(enCurso) ? ' · de ' + esc(nombreProfesor(enCurso.profesor_id) || 'otro profesor') : ''}</div>`}</div></div>
-        <button class="btn btn-pri btn-lg" onclick="continuarPractica(${enCurso.id})">${ic('play', 18)} ${miFlujo || enCurso.local ? 'Continuar práctica' : 'Seguir en este teléfono'}</button></div>`;
+      html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et"><span class="pill-dot"></span>EN CURSO</span><span>${esc(enCurso.hora_inicio || '')} ${enCurso.hora_inicio ? '–' : ''} ${esc(sumaMin(enCurso.hora_inicio, nClasesGuardado() * durClase()))}</span></div>
+        <div class="ahora-quien"><span class="ini">${esc(iniciales(enCurso.alumno_nombre))}</span><div><div class="ahora-nom">${esc(enCurso.alumno_nombre)}</div><div class="ahora-sub">Clase ${esc(enCurso.clase_n || '—')}${enCurso.zonas && enCurso.zonas.length ? ' · ' + esc(zonasTxt(enCurso.zonas)) : ''}</div>
+          ${enCurso.local ? '' : `<div class="ahora-sub">${ic('tel', 14)} Empezada en otro teléfono${deOtroProfesor(enCurso) ? ' · de ' + esc(nombreProfesor(enCurso.profesor_id) || 'otro profesor') : ''}</div>`}</div></div>
+        <button class="btn btn-pri btn-lg" onclick="continuarPractica(${enCurso.id})">${ic('play', 18)} ${enCurso.local ? 'Continuar práctica' : 'Seguir en este teléfono'}</button></div>`;
     } else if (sinCerrar) {
       html += `<div class="ahora" style="margin-top:16px"><div class="ahora-cab"><span class="ahora-et">${ic('aviso', 16)} SIN CERRAR</span><span>${esc(fechaCorta(sinCerrar.fecha))}</span></div>
         <div class="ahora-quien"><span class="ini">${esc(iniciales(sinCerrar.alumno_nombre))}</span><div><div class="ahora-nom">${esc(sinCerrar.alumno_nombre)}</div><div class="ahora-sub">Empezó en el km ${miles(sinCerrar.km_inicial)} y falta el km final</div></div></div>
@@ -1862,7 +1902,7 @@ function renderHoy() {
     }
   }
 
-  const resto = esHoy && !r.enCurso.length && !S.jornada.sin_cerrar.length ? r.pend.slice(1) : r.pend;
+  const resto = esHoy && !activa && !r.enCurso.length && !S.jornada.sin_cerrar.length ? r.pend.slice(1) : r.pend;
   if (!cargando && resto.length) {
     html += `<div class="grupo-tit"><span>${esHoy ? 'Más tarde' : 'Agenda'}</span></div><div class="card">` + resto.map(rv =>
       `<button class="fila" ${esHoy ? `onclick="abrirIniciar({alumno_id:${rv.alumno_id},vehiculo_id:${rv.vehiculo_id || 'null'},n_clases:${nDeReserva(rv)}})"` : ''}><span class="fila-hora">${esc(rv.hora_inicio || '--:--')}</span>
@@ -1890,6 +1930,22 @@ function renderHoy() {
   if (esHoy) html += `<button class="accion-ex" onclick="abrirListaExamenes()"><span class="ex-ic">${ic('bandera', 24)}</span><span class="ex-tx"><span class="ex-tit">Ver exámenes</span><span class="ex-sub">Consulta y edita los exámenes anotados</span></span>${ic('chev', 20)}</button>
     <button class="accion-ex" onclick="abrirExamen()"><span class="ex-ic">${ic('mas', 24)}</span><span class="ex-tx"><span class="ex-tit">Anotar un examen</span><span class="ex-sub">Apto, no apto o apuntar el día</span></span>${ic('chev', 20)}</button>`;
   document.getElementById('v-hoy').innerHTML = html;
+  if (S.vista === 'hoy') {
+    pararTimer();
+    if (activa && !activa.pausada_ms) {
+      const tiempo = document.getElementById('practica-activa-tiempo');
+      S.timer = setInterval(() => { tiempo.textContent = tiempoPractica(activa); }, 1000);
+    }
+  }
+}
+function tarjetaPracticaActiva(F) {
+  const estado = F.pausada_ms ? 'Práctica en pausa' : 'Práctica en curso';
+  const nombre = F.alumno_nombre || 'Alumno';
+  return `<button class="practica-activa" data-onda onclick="go('curso');comprobarFlujoRemoto()" aria-label="${estado} con ${esc(nombre)}. Continuar práctica" aria-describedby="practica-activa-tiempo">
+    <span class="ini">${ic('coche', 22)}</span>
+    <span><span class="practica-activa-et">${estado}</span><span class="practica-activa-nom">${esc(nombre)}</span></span>
+    <span class="practica-activa-tiempo"><span id="practica-activa-tiempo">${tiempoPractica(F)}</span>
+    ${F.pausada_ms ? ic('pausa', 20) : '<span class="practica-activa-anillo" aria-hidden="true"></span>'}</span></button>`;
 }
 // Clases seguidas de una misma sesión (mismo alumno y coche, km encadenados y
 // mismo estado de firma: p. ej. 90 min guardados como 2 clases) se muestran y
@@ -2653,7 +2709,7 @@ async function comprobarFlujoRemoto() {
     if (!res.ok || res.headers.get('x-desde-cache')) return;
     const d = await res.json();
     if (S.flujo !== F || !flujoActivo() || F.local) return;   // mientras tanto cambió la situación aquí
-    if (d.estado === 'cancelada' || d.estado === 'no_existe') { F.cancelada = true; guardarFlujo(); if (S.vista === 'curso') renderCurso(); hojaClaseCancelada(); }
+    if (d.estado === 'cancelada' || d.estado === 'no_existe') { F.cancelada = true; guardarFlujo(); if (S.vista === 'curso') renderCurso(); else if (S.vista === 'hoy') renderHoy(); hojaClaseCancelada(); }
     else if (d.estado === 'cerrada') hojaClaseCerradaFuera(d);
   } catch { /* sin red no se puede saber: se sigue como hasta ahora */ }
   finally { S.comprobandoFlujo = false; }
@@ -2727,14 +2783,15 @@ function reanudarPractica() {
   guardarFlujo(); renderCurso();
   if (typeof avisosPractica === 'function') avisosPractica('reanudar');
 }
-function pararTimerSiNoCurso(vista) { if (vista !== 'curso') pararTimer(); }
 function tiempoTxt(seg) { const m = Math.floor(seg / 60), s = seg % 60; return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'); }
+const tiempoPractica = F => tiempoTxt(Math.floor(msEfectivos(F) / 1000));
 function renderCurso() {
   const F = S.flujo; if (!F || !(F.practica_id || F.local)) { go('hoy'); return; }
   const dur = F.duracion_min || 45;
   const enPausa = !!F.pausada_ms;
   document.getElementById('v-curso').innerHTML = `
-    <div class="cab">${enPausa ? `<span class="curso-et pausa">${ic('pausa', 14)} EN PAUSA</span>` : '<span class="curso-et"><span class="pill-dot"></span>EN CURSO</span>'}<button class="cab-atras" style="color:#F3F2EE" onclick="menuCurso()" aria-label="Más opciones">${ic('menu', 26)}</button></div>
+    <div class="cab">${enPausa ? `<span class="curso-et pausa">${ic('pausa', 14)} EN PAUSA</span>` : '<span class="curso-et"><span class="pill-dot"></span>EN CURSO</span>'}
+      <div class="curso-nav"><button class="cab-atras curso-hoy" onclick="go('hoy')">${ic('chevIzq', 18)} Hoy</button><button class="cab-atras" onclick="menuCurso()" aria-label="Más opciones">${ic('menu', 26)}</button></div></div>
     ${F.cancelada ? `<button class="msg msg-err" style="width:100%;text-align:left;margin:10px 0 0" onclick="hojaClaseCancelada()">${ic('aviso', 20)}<span><b>Otro teléfono canceló esta clase.</b> Toca para guardarla igualmente o descartarla.</span></button>` : ''}
     <div class="ahora-quien" style="margin-top:6px"><span class="ini" style="background:#2A2D35;color:#F3F2EE;width:54px;height:54px">${esc(iniciales(F.alumno_nombre))}</span><div><div class="ahora-nom">${esc(F.alumno_nombre)}</div><div class="ahora-sub">${esc(claseTxt(F))}${F.zonas && F.zonas.length ? ' · ' + esc(zonasTxt(F.zonas)) : ''}</div></div></div>
     <div class="crono ${enPausa ? 'pausado' : ''}" id="crono" data-onda><span id="crono-t">00:00</span><small>/ ${tiempoTxt(dur * 60)}</small></div>
